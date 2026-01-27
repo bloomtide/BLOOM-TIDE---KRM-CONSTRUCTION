@@ -148,11 +148,10 @@ export const generateExcavationFormulas = (itemType, rowNum, parsedData) => {
         // Backfill: Column K empty, Column L = J*H/27
         formulas.cy = `J${rowNum}*H${rowNum}/27`
       } else {
-        // Excavation (as per image rows 71-75): 
-        // No 1.3 multiplier for slope items. 
-        // Column K empty, Column L = J*H/27
-        formulas.lbs = null
-        formulas.cy = `J${rowNum}*H${rowNum}/27`
+        // Excavation subsection: 
+        // formulas now include the 1.3 multiplier as requested
+        formulas.lbs = `J${rowNum}*H${rowNum}/27` // Column K: CY
+        formulas.cy = `K${rowNum}*1.3`             // Column L: 1.3*CY
       }
       break
 
