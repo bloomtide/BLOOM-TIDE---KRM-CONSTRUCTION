@@ -1,0 +1,151 @@
+import { parseDemolitionItem } from '../parsers/dimensionParser'
+
+/**
+ * Identifies if a digitizer item belongs to Demolition section
+ * @param {string} digitizerItem - The digitizer item text
+ * @returns {boolean} - True if it's a demolition item
+ */
+export const isDemolitionItem = (digitizerItem) => {
+  if (!digitizerItem || typeof digitizerItem !== 'string') return false
+
+  const itemLower = digitizerItem.toLowerCase()
+  return itemLower.startsWith('demo ')
+}
+
+/**
+ * Determines which demolition subsection an item belongs to
+ * @param {string} digitizerItem - The digitizer item text
+ * @returns {string|null} - Subsection name or null
+ */
+export const getDemolitionSubsection = (digitizerItem) => {
+  if (!digitizerItem || typeof digitizerItem !== 'string') return null
+
+  const itemLower = digitizerItem.toLowerCase()
+
+  // Demo slab on grade
+  if (itemLower.includes('demo sog')) {
+    return 'Demo slab on grade'
+  }
+
+  // Demo strip footing
+  if (itemLower.includes('demo sf')) {
+    return 'Demo strip footing'
+  }
+
+  // Demo foundation wall
+  if (itemLower.includes('demo fw')) {
+    return 'Demo foundation wall'
+  }
+
+  // Demo isolated footing
+  if (itemLower.includes('demo isolated footing')) {
+    return 'Demo isolated footing'
+  }
+
+  return null
+}
+
+/**
+ * Generates formulas for demolition items based on subsection and row number
+ * @param {string} subsection - Subsection name
+ * @param {number} rowNum - Excel row number (1-based)
+ * @param {object} parsedData - Parsed data with dimensions
+ * @returns {object} - Formula strings for each calculated column
+ */
+export const generateDemolitionFormulas = (type, rowNum, parsedData) => {
+  const formulas = {
+    ft: null,      // Column I
+    sqFt: null,    // Column J
+    lbs: null,     // Column K
+    cy: null,      // Column L
+    qtyFinal: null // Column M
+  }
+
+  // Handle both subsection names and explicit item types
+  switch (type) {
+    case 'Demo slab on grade':
+    case 'demo_extra_sqft':
+      // SQ FT (J) = Takeoff, CY (L) = SQ FT * Height / 27
+      formulas.sqFt = `C${rowNum}`
+      formulas.cy = `J${rowNum}*H${rowNum}/27`
+      break
+
+    case 'Demo strip footing':
+    case 'Demo foundation wall':
+    case 'demo_extra_ft':
+      // SQ FT (J) = Takeoff * Width (G)
+      // Note: For Demo foundation wall, the image showed C*G, for Extra FT it shows C*G too.
+      formulas.sqFt = `C${rowNum}*G${rowNum}`
+      formulas.cy = `J${rowNum}*H${rowNum}/27`
+      break
+
+    case 'Demo isolated footing':
+    case 'demo_extra_ea':
+      // SQ FT (J) = Length (F) * Width (G) * Takeoff (C)
+      formulas.sqFt = `F${rowNum}*G${rowNum}*C${rowNum}`
+      formulas.cy = `J${rowNum}*H${rowNum}/27`
+      formulas.qtyFinal = `C${rowNum}`
+      break
+
+    default:
+      break
+  }
+
+  return formulas
+}
+
+/**
+ * Processes all demolition items from raw data, grouped by subsection
+ * @param {Array} rawDataRows - Array of rows from raw Excel data (excluding header)
+ * @param {Array} headers - Column headers from raw data
+ * @returns {object} - Object with subsection names as keys and arrays of items as values
+ */
+export const processDemolitionItems = (rawDataRows, headers) => {
+  const demolitionItemsBySubsection = {
+    'Demo slab on grade': [],
+    'Demo strip footing': [],
+    'Demo foundation wall': [],
+    'Demo isolated footing': []
+  }
+
+  // Find column indices
+  const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+  const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
+  const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+
+  if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) {
+    console.error('Required columns not found in raw data')
+    return demolitionItemsBySubsection
+  }
+
+  // Process each row
+  rawDataRows.forEach((row, rowIndex) => {
+    const digitizerItem = row[digitizerIdx]
+    const total = parseFloat(row[totalIdx]) || 0
+    const unit = row[unitIdx]
+
+    if (isDemolitionItem(digitizerItem)) {
+      const subsection = getDemolitionSubsection(digitizerItem)
+
+      if (subsection && demolitionItemsBySubsection[subsection] !== undefined) {
+        const parsed = parseDemolitionItem(digitizerItem, total, unit, subsection)
+
+        demolitionItemsBySubsection[subsection].push({
+          ...parsed,
+          subsection,
+          rawRow: row,
+          rawRowNumber: rowIndex + 2 // +2 because: +1 for header row, +1 for 1-based indexing
+        })
+      }
+    }
+  })
+
+  return demolitionItemsBySubsection
+}
+
+export default {
+  isDemolitionItem,
+  getDemolitionSubsection,
+  generateDemolitionFormulas,
+  processDemolitionItems
+}
