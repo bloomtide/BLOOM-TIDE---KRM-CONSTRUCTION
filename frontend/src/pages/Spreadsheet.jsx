@@ -537,13 +537,58 @@ const Spreadsheet = () => {
 
         formulas = generateRockExcavationFormulas(itemType === 'rock_excavation_item' ? parsedData.itemType : itemType, row, parsedData)
       } else if (section === 'soe') {
-        if (itemType === 'soldier_pile_item' || itemType === 'soe_generic_item' || itemType === 'backpacking_item') {
+        if (['soldier_pile_item', 'soe_generic_item', 'backpacking_item', 'supporting_angle', 'parging', 'heel_block', 'underpinning', 'shims', 'rock_anchor', 'rock_bolt', 'anchor', 'tie_back', 'concrete_soil_retention_pier', 'guide_wall', 'dowel_bar', 'rock_pin', 'shotcrete', 'permission_grouting', 'button', 'rock_stabilization', 'form_board'].includes(itemType)) {
           try {
             const soeFormulas = generateSoeFormulas(itemType, row, parsedData || formulaInfo)
             if (soeFormulas.takeoff) spreadsheet.updateCell({ formula: `=${soeFormulas.takeoff}` }, `C${row}`)
-            if (soeFormulas.ft) spreadsheet.updateCell({ formula: `=${soeFormulas.ft}` }, `I${row}`)
-            if (soeFormulas.sqFt) spreadsheet.updateCell({ formula: `=${soeFormulas.sqFt}` }, `J${row}`)
-            if (soeFormulas.lbs) spreadsheet.updateCell({ formula: `=${soeFormulas.lbs}` }, `K${row}`)
+            if (soeFormulas.length !== undefined) {
+              if (typeof soeFormulas.length === 'string') {
+                spreadsheet.updateCell({ formula: `=${soeFormulas.length}` }, `F${row}`)
+              } else {
+                spreadsheet.updateCell({ value: soeFormulas.length }, `F${row}`)
+              }
+            }
+            if (soeFormulas.width !== undefined) {
+              if (typeof soeFormulas.width === 'string') {
+                spreadsheet.updateCell({ formula: `=${soeFormulas.width}` }, `G${row}`)
+              } else {
+                spreadsheet.updateCell({ value: soeFormulas.width }, `G${row}`)
+              }
+            }
+            if (soeFormulas.height !== undefined) {
+              if (typeof soeFormulas.height === 'string') {
+                spreadsheet.updateCell({ formula: `=${soeFormulas.height}` }, `H${row}`)
+              } else {
+                spreadsheet.updateCell({ value: soeFormulas.height }, `H${row}`)
+              }
+            }
+            if (soeFormulas.qty !== undefined) {
+              if (typeof soeFormulas.qty === 'string') {
+                spreadsheet.updateCell({ formula: `=${soeFormulas.qty}` }, `E${row}`)
+              } else {
+                spreadsheet.updateCell({ value: soeFormulas.qty }, `E${row}`)
+              }
+            }
+            if (soeFormulas.ft) {
+              spreadsheet.updateCell({ formula: `=${soeFormulas.ft}` }, `I${row}`)
+            } else {
+              spreadsheet.updateCell({ value: '' }, `I${row}`)
+            }
+            if (soeFormulas.sqFt) {
+              spreadsheet.updateCell({ formula: `=${soeFormulas.sqFt}` }, `J${row}`)
+            } else {
+              spreadsheet.updateCell({ value: '' }, `J${row}`)
+            }
+            if (soeFormulas.lbs) {
+              spreadsheet.updateCell({ formula: `=${soeFormulas.lbs}` }, `K${row}`)
+            } else {
+              spreadsheet.updateCell({ value: '' }, `K${row}`)
+            }
+            if (soeFormulas.cy) {
+              spreadsheet.updateCell({ formula: `=${soeFormulas.cy}` }, `L${row}`)
+            } else {
+              spreadsheet.updateCell({ value: '' }, `L${row}`)
+            }
             if (soeFormulas.qtyFinal) spreadsheet.updateCell({ formula: `=${soeFormulas.qtyFinal}` }, `M${row}`)
 
             // Apply red color to item names
@@ -552,6 +597,12 @@ const Spreadsheet = () => {
             // Special formatting for Backpacking
             if (itemType === 'backpacking_item') {
               spreadsheet.cellFormat({ color: '#000000' }, `C${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            }
+
+            // Special formatting for Shims - columns I and J in red
+            if (itemType === 'shims') {
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             }
           } catch (error) {
@@ -563,12 +614,15 @@ const Spreadsheet = () => {
         if (itemType === 'soldier_pile_group_sum' || itemType === 'soe_generic_sum') {
           const { firstDataRow, lastDataRow, subsectionName } = formulaInfo
           try {
-            // Standard sum for FT (I) for all SOE
-            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            // Standard sum for FT (I) for all SOE, except Heel blocks
+            const ftSumSubsections = ['Rock anchors', 'Rock bolts', 'Anchor', 'Tie back', 'Dowel bar', 'Rock pins', 'Shotcrete', 'Permission grouting', 'Form board', 'Guide wall']
+            if (subsectionName !== 'Heel blocks' && (ftSumSubsections.includes(subsectionName) || !['Concrete soil retention piers', 'Buttons', 'Rock stabilization'].includes(subsectionName))) {
+              spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            }
 
             // Sum for SQ FT (J)
-            const sqFtSubsections = ['Sheet pile', 'Timber lagging', 'Timber sheeting']
+            const sqFtSubsections = ['Sheet pile', 'Timber lagging', 'Timber sheeting', 'Parging', 'Heel blocks', 'Underpinning', 'Concrete soil retention piers', 'Guide wall', 'Shotcrete', 'Permission grouting', 'Buttons', 'Form board', 'Rock stabilization']
             if (sqFtSubsections.includes(subsectionName)) {
               spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
@@ -588,7 +642,8 @@ const Spreadsheet = () => {
               'Roll chock',
               'Stud beam',
               'Inner corner brace',
-              'Knee brace'
+              'Knee brace',
+              'Supporting angle'
             ]
             if (itemType === 'soldier_pile_group_sum' || lbsSubsections.includes(subsectionName)) {
               spreadsheet.updateCell({ formula: `=SUM(K${firstDataRow}:K${lastDataRow})` }, `K${row}`)
@@ -610,11 +665,29 @@ const Spreadsheet = () => {
               'Roll chock',
               'Stud beam',
               'Inner corner brace',
-              'Knee brace'
+              'Knee brace',
+              'Supporting angle',
+              'Heel blocks',
+              'Underpinning',
+              'Rock anchors',
+              'Rock bolts',
+              'Anchor',
+              'Tie back',
+              'Concrete soil retention piers',
+              'Dowel bar',
+              'Rock pins',
+              'Buttons'
             ]
             if (itemType === 'soldier_pile_group_sum' || qtySubsections.includes(subsectionName)) {
               spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            }
+
+            // Sum for CY (L)
+            const cySubsections = ['Heel blocks', 'Underpinning', 'Concrete soil retention piers', 'Guide wall', 'Shotcrete', 'Buttons', 'Rock stabilization']
+            if (cySubsections.includes(subsectionName)) {
+              spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             }
           } catch (error) {
             console.error(`Error applying SOE sum formula at row ${row}:`, error)
@@ -690,7 +763,7 @@ const Spreadsheet = () => {
           textAlign: 'center',
           color: '#000000'
         },
-        'B1:N1'
+        'B1:M1'
       )
 
       // Format section headers (find rows where column A has content and B is empty)
@@ -708,6 +781,8 @@ const Spreadsheet = () => {
             backgroundColor = '#C6E0B4'
           } else if (sectionName === 'SOE') {
             backgroundColor = '#C6E0B4'
+          } else if (sectionName === 'Foundation') {
+            backgroundColor = '#C6E0B4'
           }
           spreadsheet.cellFormat(
             {
@@ -715,7 +790,7 @@ const Spreadsheet = () => {
               backgroundColor: backgroundColor,
               fontSize: '11pt'
             },
-            `A${rowNum}:N${rowNum}`
+            `A${rowNum}:M${rowNum}`
           )
         }
         // Format subsection and sub-subsection headers (column B has content ending with ':' or starting with spaces)
@@ -739,6 +814,16 @@ const Spreadsheet = () => {
               )
             } else if (bContent.includes('Line drill:')) {
               // Line drill subsection header color
+              spreadsheet.cellFormat(
+                {
+                  fontWeight: 'bold',
+                  fontStyle: 'italic',
+                  backgroundColor: '#E2EFDA'
+                },
+                `B${rowNum}`
+              )
+            } else if (bContent.includes('Underpinning:')) {
+              // Underpinning subsection header color
               spreadsheet.cellFormat(
                 {
                   fontWeight: 'bold',

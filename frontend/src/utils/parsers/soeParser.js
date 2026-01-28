@@ -1,3 +1,4 @@
+import { ANGLE_WEIGHTS } from '../constants/angleWeights'
 /**
  * Parser for SOE (Shoring of Excavation) items
  */
@@ -195,6 +196,27 @@ export const isRollChock = (item) => item?.toLowerCase().includes('roll chock')
 export const isStudBeam = (item) => item?.toLowerCase().includes('stud beam')
 export const isInnerCornerBrace = (item) => item?.toLowerCase().includes('inner corner brace')
 export const isKneeBrace = (item) => item?.toLowerCase().includes('knee brace')
+export const isSupportingAngle = (item) => item?.toLowerCase().includes('supporting angle')
+export const isParging = (item) => item?.toLowerCase().startsWith('parging')
+export const isHeelBlock = (item) => item?.toLowerCase().includes('heel block')
+export const isUnderpinning = (item) => item?.toLowerCase().includes('underpinning')
+export const isRockAnchor = (item) => item?.toLowerCase().includes('rock anchor')
+export const isRockBolt = (item) => item?.toLowerCase().includes('rock bolt')
+export const isAnchor = (item) => {
+    if (!item || typeof item !== 'string') return false
+    const itemLower = item.toLowerCase()
+    return itemLower.includes('anchor') && !itemLower.includes('rock anchor') && !itemLower.includes('tie back') && !itemLower.includes('hollow down anchor')
+}
+export const isTieBack = (item) => item?.toLowerCase().includes('tie back') || item?.toLowerCase().includes('hollow down anchor')
+export const isConcreteSoilRetentionPier = (item) => item?.toLowerCase().includes('concrete soil retention pier')
+export const isGuideWall = (item) => item?.toLowerCase().includes('guide wall')
+export const isDowelBar = (item) => item?.toLowerCase().includes('dowel bar') || item?.toLowerCase().includes('steel dowels bar')
+export const isRockPin = (item) => item?.toLowerCase().includes('rock pin')
+export const isShotcrete = (item) => item?.toLowerCase().includes('shotcrete')
+export const isPermissionGrouting = (item) => item?.toLowerCase().includes('permission grouting')
+export const isButton = (item) => item?.toLowerCase().includes('concrete button')
+export const isRockStabilization = (item) => item?.toLowerCase().includes('rock stabilization')
+export const isFormBoard = (item) => item?.toLowerCase().includes('form board')
 
 /**
  * Universal SOE parser for Secant, Tangent, Sheet piles and Timber lagging
@@ -229,7 +251,40 @@ export const parseSoeItem = (itemName) => {
     }
 
     // Type classification and rounding logic
-    if (itemLower.includes('primary secant')) {
+    if (itemLower.includes('supporting angle')) {
+        result.type = 'supporting_angle'
+        // Extract group key from @ part
+        const groupMatch = itemName.match(/@\s*([^)]+)/)
+        if (groupMatch) {
+            result.groupKey = groupMatch[1].trim()
+        }
+        // Extract quantity if present e.g. "2 - L8x4x1/2"
+        const qtyMatch = itemName.match(/^(\d+)\s*-/)
+        if (qtyMatch) {
+            result.qty = parseFloat(qtyMatch[1])
+        } else {
+            result.qty = 1
+        }
+        // Extract angle size and look up weight
+        // Pattern matches L followed by digits, then x, digits, then x, fraction or decimal
+        const angleMatch = itemName.match(/L(\d+)x(\d+)x([0-9./½]+)/i)
+        if (angleMatch) {
+            let d1 = angleMatch[1]
+            let d2 = angleMatch[2]
+            let d3 = angleMatch[3]
+            if (d3 === '½' || d3 === '1/2') d3 = '0.500'
+            if (d3 === '3/8') d3 = '0.375'
+            if (d3 === '1/4') d3 = '0.250'
+            if (d3 === '5/8') d3 = '0.625'
+            if (d3 === '3/4') d3 = '0.750'
+            if (d3 === '7/8') d3 = '0.875'
+
+            // Handle cases where might be .5 or .500
+            const angleKey = `${d1}x${d2}x${parseFloat(d3).toFixed(3)}`
+            const angleKeySimple = `${d1}x${d2}x${parseFloat(d3)}`
+            result.weight = ANGLE_WEIGHTS[angleKey] || ANGLE_WEIGHTS[angleKeySimple] || 0
+        }
+    } else if (itemLower.includes('primary secant')) {
         result.type = 'primary_secant'
         result.calculatedHeight = roundToMultipleOf5(result.heightRaw)
     } else if (itemLower.includes('secondary secant')) {
@@ -269,6 +324,200 @@ export const parseSoeItem = (itemName) => {
         result.type = 'inner_corner_brace'
     } else if (itemLower.includes('knee brace')) {
         result.type = 'knee_brace'
+    } else if (itemLower.startsWith('parging')) {
+        result.type = 'parging'
+    } else if (itemLower.includes('heel block')) {
+        result.type = 'heel_block'
+        // Dimensions in bracket (4'-0"x5'-0"x3'-0")
+        const bracketMatch = itemName.match(/\(([^)]+)\)/)
+        if (bracketMatch) {
+            const dims = bracketMatch[1].split('x').map(p => parseDimension(p.trim()))
+            if (dims.length === 3) {
+                result.length = dims[0]
+                result.width = dims[1]
+                result.height = dims[2]
+            }
+        }
+    } else if (itemLower.includes('underpinning')) {
+        result.type = 'underpinning'
+        // Underpinning 2'-4"x1'-0" wide, Height=4'-7"
+        const lengthMatch = itemName.match(/Underpinning\s*([0-9'"\-]+)/i)
+        const widthMatch = itemName.match(/([0-9'"\-]+)\s*wide/i)
+        const hMatchUnder = itemName.match(/Height=([0-9'"\-]+)/i)
+        if (lengthMatch) result.length = parseDimension(lengthMatch[1])
+        if (widthMatch) result.width = parseDimension(widthMatch[1])
+        if (hMatchUnder) result.heightRaw = parseDimension(hMatchUnder[1])
+    } else if (itemLower.includes('rock anchor')) {
+        result.type = 'rock_anchor'
+        // Rock anchor (Free length=13'-3" + Bond length= 10'-6")
+        const freeLengthMatch = itemName.match(/Free length=([0-9'"\-]+)/i)
+        const bondLengthMatch = itemName.match(/Bond length=\s*([0-9'"\-]+)/i)
+        if (freeLengthMatch && bondLengthMatch) {
+            const freeLength = parseDimension(freeLengthMatch[1])
+            const bondLength = parseDimension(bondLengthMatch[1])
+            const total = freeLength + bondLength
+            result.heightRaw = total
+            result.calculatedHeight = roundToMultipleOf5(total) + 5
+            result.bondLength = bondLength // Store bond length for formula
+        }
+    } else if (itemLower.includes('rock bolt')) {
+        result.type = 'rock_bolt'
+        // Rock bolt @ 7'-0" O.C. (Bond length=10'-0")
+        const ocMatch = itemName.match(/@\s*([0-9'"\-]+)\s*['"]?\s*O\.?C\.?/i)
+        const bondLengthMatch = itemName.match(/Bond length=([0-9'"\-]+)/i)
+        if (ocMatch) result.ocSpacing = parseDimension(ocMatch[1])
+        if (bondLengthMatch) {
+            const bondLength = parseDimension(bondLengthMatch[1])
+            result.bondLength = bondLength // Store bond length for formula
+            result.calculatedLength = bondLength + 5
+        }
+    } else if (itemLower.includes('anchor') && !itemLower.includes('rock anchor') && !itemLower.includes('tie back') && !itemLower.includes('hollow down anchor')) {
+        result.type = 'anchor'
+        // DSI R51N Hollow bar anchor (Free length=28'-0" + Bond length=20'-0")
+        const freeLengthMatch = itemName.match(/Free length=([0-9'"\-]+)/i)
+        const bondLengthMatch = itemName.match(/Bond length=\s*([0-9'"\-]+)/i)
+        if (freeLengthMatch && bondLengthMatch) {
+            const freeLength = parseDimension(freeLengthMatch[1])
+            const bondLength = parseDimension(bondLengthMatch[1])
+            const total = freeLength + bondLength
+            result.heightRaw = total
+            result.calculatedHeight = roundToMultipleOf5(total) + 5
+        }
+    } else if (itemLower.includes('tie back') || itemLower.includes('hollow down anchor')) {
+        result.type = 'tie_back'
+        // Hollow down anchor (Free length=28'-0" + Bond length=20'-0")
+        const freeLengthMatch = itemName.match(/Free length=([0-9'"\-]+)/i)
+        const bondLengthMatch = itemName.match(/Bond length=\s*([0-9'"\-]+)/i)
+        if (freeLengthMatch && bondLengthMatch) {
+            const freeLength = parseDimension(freeLengthMatch[1])
+            const bondLength = parseDimension(bondLengthMatch[1])
+            const total = freeLength + bondLength
+            result.heightRaw = total
+            result.calculatedHeight = roundToMultipleOf5(total) + 5
+        }
+    } else if (itemLower.includes('concrete soil retention pier')) {
+        result.type = 'concrete_soil_retention_pier'
+        // Concrete soil retention pier (4'-0"x4'-0"x14'-2")
+        const bracketMatch = itemName.match(/\(([^)]+)\)/)
+        if (bracketMatch) {
+            const dims = bracketMatch[1].split('x').map(p => parseDimension(p.trim()))
+            if (dims.length === 3) {
+                result.length = dims[0]
+                result.width = dims[1]
+                result.height = dims[2]
+            }
+        }
+    } else if (itemLower.includes('guide wall')) {
+        result.type = 'guide_wall'
+        // Guide wall (4'-6½"x3'-0") - parse width and height
+        const bracketMatch = itemName.match(/\(([^)]+)\)/)
+        if (bracketMatch) {
+            const parts = bracketMatch[1].split('x')
+            if (parts.length >= 2) {
+                // Parse width - handle 6½" format (e.g., 4'-6½")
+                const widthStr = parts[0].trim()
+                // Match patterns like: 4'-6½", 4'-6.5", 5'-3½"
+                const widthMatch = widthStr.match(/(\d+)['"]?\s*[-]?\s*(\d+)?\s*([½1\/2]|3\/8|1\/4|5\/8|3\/4|7\/8|\.\d+)?["']?/i)
+                if (widthMatch) {
+                    const feet = parseFloat(widthMatch[1]) || 0
+                    let inches = 0
+                    let inchesStr = ''
+                    const wholeInches = widthMatch[2] ? parseFloat(widthMatch[2]) : 0
+                    const fraction = widthMatch[3]
+                    
+                    if (fraction) {
+                        if (fraction === '½' || fraction === '1/2' || fraction === '1/2') {
+                            inches = wholeInches + 0.5
+                            inchesStr = `${wholeInches}.5`
+                        } else if (fraction === '3/8') {
+                            inches = wholeInches + 0.375
+                            inchesStr = `${wholeInches}.375`
+                        } else if (fraction === '1/4') {
+                            inches = wholeInches + 0.25
+                            inchesStr = `${wholeInches}.25`
+                        } else if (fraction === '5/8') {
+                            inches = wholeInches + 0.625
+                            inchesStr = `${wholeInches}.625`
+                        } else if (fraction === '3/4') {
+                            inches = wholeInches + 0.75
+                            inchesStr = `${wholeInches}.75`
+                        } else if (fraction === '7/8') {
+                            inches = wholeInches + 0.875
+                            inchesStr = `${wholeInches}.875`
+                        } else if (fraction.startsWith('.')) {
+                            inches = wholeInches + parseFloat(fraction)
+                            inchesStr = `${wholeInches}${fraction}`
+                        }
+                    } else if (wholeInches) {
+                        inches = wholeInches
+                        inchesStr = `${wholeInches}`
+                    }
+                    
+                    result.width = feet + (inches / 12)
+                    // Create formula for width: =feet+(inches/12)
+                    if (inchesStr) {
+                        result.widthFormula = `${feet}+(${inchesStr}/12)`
+                    }
+                }
+                // Height is typically 3'-0" or similar
+                result.heightRaw = parseDimension(parts[1].trim())
+            }
+        }
+    } else if (itemLower.includes('dowel bar') || itemLower.includes('steel dowels bar')) {
+        result.type = 'dowel_bar'
+        // 4 - #9 Steel dowels bar (H=1'-0" + RS=4'-0")
+        const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
+        const rsMatch = itemName.match(/RS=([0-9'"\-]+)/i)
+        const qtyMatch = itemName.match(/^(\d+)\s*-/)
+        if (hMatch) result.hValue = parseDimension(hMatch[1])
+        if (rsMatch) result.rsValue = parseDimension(rsMatch[1])
+        if (qtyMatch) result.qty = parseFloat(qtyMatch[1])
+        if (result.hValue && result.rsValue) {
+            result.heightRaw = result.hValue + result.rsValue
+        }
+    } else if (itemLower.includes('rock pin')) {
+        result.type = 'rock_pin'
+        // Rock pin (H=1'-0" + RS=4'-0")
+        const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
+        const rsMatch = itemName.match(/RS=([0-9'"\-]+)/i)
+        if (hMatch) result.hValue = parseDimension(hMatch[1])
+        if (rsMatch) result.rsValue = parseDimension(rsMatch[1])
+        if (result.hValue && result.rsValue) {
+            result.heightRaw = result.hValue + result.rsValue
+        }
+        result.qty = 1 // Rock pins typically have QTY = 1
+    } else if (itemLower.includes('shotcrete')) {
+        result.type = 'shotcrete'
+        // Shotcrete w/ wire mesh H=15'-0"
+        const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
+        if (hMatch) result.heightRaw = parseDimension(hMatch[1])
+    } else if (itemLower.includes('permission grouting')) {
+        result.type = 'permission_grouting'
+        // Permission grouting H=18'-0"
+        const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
+        if (hMatch) result.heightRaw = parseDimension(hMatch[1])
+    } else if (itemLower.includes('concrete button')) {
+        result.type = 'button'
+        // Concrete button (3'-0"x3'-0"x1'-0")
+        const bracketMatch = itemName.match(/\(([^)]+)\)/)
+        if (bracketMatch) {
+            const dims = bracketMatch[1].split('x').map(p => parseDimension(p.trim()))
+            if (dims.length === 3) {
+                result.length = dims[0]
+                result.width = dims[1]
+                result.height = dims[2]
+            }
+        }
+    } else if (itemLower.includes('rock stabilization')) {
+        result.type = 'rock_stabilization'
+        // Rock stabilization (H=2'-4")
+        const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
+        if (hMatch) result.heightRaw = parseDimension(hMatch[1])
+    } else if (itemLower.includes('form board')) {
+        result.type = 'form_board'
+        // 1" form board (H=14'-2")
+        const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
+        if (hMatch) result.heightRaw = parseDimension(hMatch[1])
     }
 
     return result
@@ -295,6 +544,23 @@ export default {
     isStudBeam,
     isInnerCornerBrace,
     isKneeBrace,
+    isSupportingAngle,
+    isParging,
+    isHeelBlock,
+    isUnderpinning,
+    isRockAnchor,
+    isRockBolt,
+    isAnchor,
+    isTieBack,
+    isConcreteSoilRetentionPier,
+    isGuideWall,
+    isDowelBar,
+    isRockPin,
+    isShotcrete,
+    isPermissionGrouting,
+    isButton,
+    isRockStabilization,
+    isFormBoard,
     parseSoeItem,
     parseDimension,
     roundToMultipleOf5

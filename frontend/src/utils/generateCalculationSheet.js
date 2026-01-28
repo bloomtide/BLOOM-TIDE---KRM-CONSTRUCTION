@@ -21,6 +21,23 @@ import {
   processStudBeamItems,
   processInnerCornerBraceItems,
   processKneeBraceItems,
+  processSupportingAngleItems,
+  processPargingItems,
+  processHeelBlockItems,
+  processUnderpinningItems,
+  processRockAnchorItems,
+  processRockBoltItems,
+  processAnchorItems,
+  processTieBackItems,
+  processConcreteSoilRetentionPierItems,
+  processGuideWallItems,
+  processDowelBarItems,
+  processRockPinItems,
+  processShotcreteItems,
+  processPermissionGroutingItems,
+  processButtonItems,
+  processRockStabilizationItems,
+  processFormBoardItems,
   generateSoeFormulas
 } from './processors/soeProcessor'
 
@@ -81,6 +98,23 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let studBeamItems = []
   let innerCornerBraceItems = []
   let kneeBraceItems = []
+  let supportingAngleGroups = []
+  let pargingItems = []
+  let heelBlockItems = []
+  let underpinningItems = []
+  let rockAnchorItems = []
+  let rockBoltItems = []
+  let anchorItems = []
+  let tieBackItems = []
+  let concreteSoilRetentionPierItems = []
+  let guideWallItems = []
+  let dowelBarItems = []
+  let rockPinItems = []
+  let shotcreteItems = []
+  let permissionGroutingItems = []
+  let buttonItems = []
+  let rockStabilizationItems = []
+  let formBoardItems = []
   let hasBackpacking = false
   let rockExcavationRowRefs = {} // To store row references for line drill
   if (rawData && rawData.length > 1) {
@@ -110,6 +144,23 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     studBeamItems = processStudBeamItems(dataRows, headers)
     innerCornerBraceItems = processInnerCornerBraceItems(dataRows, headers)
     kneeBraceItems = processKneeBraceItems(dataRows, headers)
+    supportingAngleGroups = processSupportingAngleItems(dataRows, headers)
+    pargingItems = processPargingItems(dataRows, headers)
+    heelBlockItems = processHeelBlockItems(dataRows, headers)
+    underpinningItems = processUnderpinningItems(dataRows, headers)
+    rockAnchorItems = processRockAnchorItems(dataRows, headers)
+    rockBoltItems = processRockBoltItems(dataRows, headers)
+    anchorItems = processAnchorItems(dataRows, headers)
+    tieBackItems = processTieBackItems(dataRows, headers)
+    concreteSoilRetentionPierItems = processConcreteSoilRetentionPierItems(dataRows, headers)
+    guideWallItems = processGuideWallItems(dataRows, headers)
+    dowelBarItems = processDowelBarItems(dataRows, headers)
+    rockPinItems = processRockPinItems(dataRows, headers)
+    shotcreteItems = processShotcreteItems(dataRows, headers)
+    permissionGroutingItems = processPermissionGroutingItems(dataRows, headers)
+    buttonItems = processButtonItems(dataRows, headers)
+    rockStabilizationItems = processRockStabilizationItems(dataRows, headers)
+    formBoardItems = processFormBoardItems(dataRows, headers)
 
     hasBackpacking = timberLaggingItems.some(item =>
       item.particulars.toLowerCase().includes('w/backpacking')
@@ -171,7 +222,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               itemRow[5] = item.length || ''
               itemRow[6] = item.width || ''
               itemRow[7] = item.height || ''
-              itemRow[13] = item.rawRowNumber || ''
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'demolition_item', parsedData: item, section: 'demolition', subsection: subsection.name })
             })
@@ -250,7 +300,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               itemRow[5] = item.length || ''
               itemRow[6] = item.width || ''
               itemRow[7] = item.height || ''
-              itemRow[13] = item.rawRowNumber || ''
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'excavation_item', parsedData: item, section: 'excavation' })
             })
@@ -333,7 +382,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               itemRow[5] = item.length || ''
               itemRow[6] = item.width || ''
               itemRow[7] = item.height || ''
-              itemRow[13] = item.rawRowNumber || ''
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'rock_excavation_item', parsedData: item, section: 'rock_excavation' })
               if (item.id) rockExcavationRowRefs[item.id] = rows.length
@@ -388,7 +436,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.height || ''
-              itemRow[13] = item.rawRowNumber || ''
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'line_drilling', parsedData: item, section: 'rock_excavation' })
             })
@@ -419,6 +466,11 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         subsectionRow[1] = subsection.name + ':'
         rows.push(subsectionRow)
 
+        // Add space row after Underpinning heading
+        if (subsection.name === 'Underpinning') {
+          rows.push(Array(template.columns.length).fill(''))
+        }
+
         let subsectionItems = []
         let itemType = 'soe_generic_item'
 
@@ -432,7 +484,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.calculatedHeight || ''
-              itemRow[13] = item.rawRowNumber || ''
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'soldier_pile_item', parsedData: item, section: 'soe' })
             })
@@ -460,6 +511,23 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           else if (subsection.name === 'Stud beam') subsectionItems = studBeamItems
           else if (subsection.name === 'Inner corner brace') subsectionItems = innerCornerBraceItems
           else if (subsection.name === 'Knee brace') subsectionItems = kneeBraceItems
+          else if (subsection.name === 'Supporting angle') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Parging') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Heel blocks') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Underpinning') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Rock anchors') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Rock bolts') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Anchor') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Tie back') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Concrete soil retention piers') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Guide wall') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Dowel bar') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Rock pins') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Shotcrete') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Permission grouting') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Buttons') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Rock stabilization') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Form board') subsectionItems = [] // Handled specially below
 
           if (subsectionItems.length > 0) {
             const firstItemRow = rows.length + 1
@@ -478,7 +546,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               }
 
               itemRow[7] = item.parsed.calculatedHeight || item.parsed.heightRaw || ''
-              itemRow[13] = item.rawRowNumber || ''
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'soe_generic_item', parsedData: item, section: 'soe' })
             })
@@ -497,6 +564,273 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             if (subsection.name === 'Timber lagging') {
               timberLaggingSumRow = rows.length
             }
+          }
+
+          if (subsection.name === 'Supporting angle' && supportingAngleGroups.length > 0) {
+            supportingAngleGroups.forEach((group, gIdx) => {
+              const firstGroupRow = rows.length + 1
+              group.items.forEach(item => {
+                const itemRow = Array(template.columns.length).fill('')
+                itemRow[1] = item.particulars
+                itemRow[2] = item.takeoff
+                itemRow[3] = item.unit
+                itemRow[4] = (item.parsed.qty !== undefined && item.parsed.qty !== null) ? item.parsed.qty : 1
+                itemRow[7] = item.parsed.heightRaw || ''
+                rows.push(itemRow)
+                formulas.push({ row: rows.length, itemType: 'supporting_angle', parsedData: item, section: 'soe' })
+              })
+              const sumRow = Array(template.columns.length).fill('')
+              rows.push(sumRow)
+              formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
+              if (gIdx < supportingAngleGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
+            })
+          } else if (subsection.name === 'Parging' && pargingItems.length > 0) {
+            const firstItemRow = rows.length + 1
+            pargingItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.heightRaw || ''
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'parging', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
+          } else if (subsection.name === 'Heel blocks' && heelBlockItems.length > 0) {
+            const firstItemRow = rows.length + 1
+            heelBlockItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[5] = item.parsed.length || ''
+              itemRow[6] = item.parsed.width || ''
+              itemRow[7] = item.parsed.height || ''
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'heel_block', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
+          } else if (subsection.name === 'Underpinning' && underpinningItems.length > 0) {
+            const firstItemRow = rows.length + 1
+            underpinningItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[5] = item.parsed.length || ''
+              itemRow[6] = item.parsed.width || ''
+              itemRow[7] = item.parsed.heightRaw || ''
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'underpinning', parsedData: item, section: 'soe' })
+            })
+            const sumRowNumber = rows.length + 1
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: sumRowNumber, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: sumRowNumber - 1, subsectionName: subsection.name })
+
+            // Add empty row before Shims
+            rows.push(Array(template.columns.length).fill(''))
+
+            // Add Shims item below underpinning
+            const shimRow = Array(template.columns.length).fill('')
+            shimRow[1] = 'Shims'
+            shimRow[6] = 4 // Width is constant
+            rows.push(shimRow)
+            formulas.push({ row: rows.length, itemType: 'shims', section: 'soe', underpinningSumRow: sumRowNumber })
+          } else if (subsection.name === 'Rock anchors' && rockAnchorItems.length > 0) {
+            const firstItemRow = rows.length + 1
+            rockAnchorItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[5] = item.parsed.calculatedHeight || '' // Length (F) = calculated height
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'rock_anchor', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
+          } else if (subsection.name === 'Rock bolts' && rockBoltItems.length > 0) {
+            const firstItemRow = rows.length + 1
+            rockBoltItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[5] = item.parsed.calculatedLength || '' // Length (F) = bond length + 5
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'rock_bolt', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
+          } else if (subsection.name === 'Anchor' && anchorItems.length > 0) {
+            const firstItemRow = rows.length + 1
+            anchorItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.calculatedHeight || '' // Height (H)
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'anchor', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
+          } else if (subsection.name === 'Tie back' && tieBackItems.length > 0) {
+            const firstItemRow = rows.length + 1
+            tieBackItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.calculatedHeight || '' // Height (H)
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'tie_back', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
+          } else if (subsection.name === 'Concrete soil retention piers' && concreteSoilRetentionPierItems.length > 0) {
+            const firstItemRow = rows.length + 1
+            concreteSoilRetentionPierItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[5] = item.parsed.length || ''
+              itemRow[6] = item.parsed.width || ''
+              itemRow[7] = item.parsed.height || ''
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'concrete_soil_retention_pier', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
+          } else if (subsection.name === 'Guide wall' && guideWallItems.length > 0) {
+            const firstItemRow = rows.length + 1
+            guideWallItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[6] = item.parsed.width || '' // Width (G) - calculated from bracket
+              itemRow[7] = item.parsed.heightRaw || '' // Height (H) - from bracket
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'guide_wall', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
+          } else if (subsection.name === 'Dowel bar' && dowelBarItems.length > 0) {
+            const firstItemRow = rows.length + 1
+            dowelBarItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[4] = item.parsed.qty || ''
+              itemRow[7] = item.parsed.heightRaw || '' // Height (H) = H + RS
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'dowel_bar', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
+          } else if (subsection.name === 'Rock pins' && rockPinItems.length > 0) {
+            const firstItemRow = rows.length + 1
+            rockPinItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[4] = item.parsed.qty || 1
+              itemRow[7] = item.parsed.heightRaw || '' // Height (H) = H + RS
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'rock_pin', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
+          } else if (subsection.name === 'Shotcrete' && shotcreteItems.length > 0) {
+            const firstItemRow = rows.length + 1
+            shotcreteItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              // Length (F) and Width (G) should be empty
+              itemRow[7] = item.parsed.heightRaw || '' // Height (H)
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'shotcrete', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
+          } else if (subsection.name === 'Permission grouting' && permissionGroutingItems.length > 0) {
+            const firstItemRow = rows.length + 1
+            permissionGroutingItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.heightRaw || '' // Height (H)
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'permission_grouting', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
+          } else if (subsection.name === 'Buttons' && buttonItems.length > 0) {
+            const firstItemRow = rows.length + 1
+            buttonItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[5] = item.parsed.length || ''
+              itemRow[6] = item.parsed.width || ''
+              itemRow[7] = item.parsed.height || ''
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'button', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
+          } else if (subsection.name === 'Rock stabilization' && rockStabilizationItems.length > 0) {
+            const firstItemRow = rows.length + 1
+            rockStabilizationItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.heightRaw || '' // Height (H)
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'rock_stabilization', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
+          } else if (subsection.name === 'Form board' && formBoardItems.length > 0) {
+            const firstItemRow = rows.length + 1
+            formBoardItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.heightRaw || '' // Height (H)
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'form_board', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
           } else if (subsection.name === 'Backpacking' && hasBackpacking) {
             // Add Backpacking item
             const itemRow = Array(template.columns.length).fill('')
@@ -564,8 +898,7 @@ export const generateColumnConfigs = () => {
     { width: 80 },   // SQ FT
     { width: 80 },   // LBS
     { width: 80 },   // CY
-    { width: 60 },   // QTY
-    { width: 80 }    // Raw Row #
+    { width: 60 }    // QTY
   ]
 }
 

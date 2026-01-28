@@ -17,8 +17,7 @@ export const capstoneTemplate = {
     'SQ FT',
     'LBS',
     'CY',
-    'QTY',
-    'Raw Row #'
+    'QTY'
   ],
   structure: [
     {

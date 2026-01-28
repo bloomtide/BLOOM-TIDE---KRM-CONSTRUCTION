@@ -19,6 +19,23 @@ import {
     isStudBeam,
     isInnerCornerBrace,
     isKneeBrace,
+    isSupportingAngle,
+    isParging,
+    isHeelBlock,
+    isUnderpinning,
+    isRockAnchor,
+    isRockBolt,
+    isAnchor,
+    isTieBack,
+    isConcreteSoilRetentionPier,
+    isGuideWall,
+    isDowelBar,
+    isRockPin,
+    isShotcrete,
+    isPermissionGrouting,
+    isButton,
+    isRockStabilization,
+    isFormBoard,
     parseSoeItem
 } from '../parsers/soeParser'
 import { SHEET_PILE_WEIGHTS } from '../constants/sheetPileWeight'
@@ -188,6 +205,33 @@ export const processRollChockItems = (rawDataRows, headers) => processGenericSoe
 export const processStudBeamItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isStudBeam)
 export const processInnerCornerBraceItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isInnerCornerBrace)
 export const processKneeBraceItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isKneeBrace)
+export const processSupportingAngleItems = (rawDataRows, headers) => {
+    const items = processGenericSoeItems(rawDataRows, headers, isSupportingAngle)
+    // Group by groupKey (what's after @)
+    const groups = new Map()
+    items.forEach(item => {
+        const key = item.parsed.groupKey || 'Other'
+        if (!groups.has(key)) groups.set(key, [])
+        groups.get(key).push(item)
+    })
+    return Array.from(groups.entries()).map(([name, items]) => ({ name, items }))
+}
+export const processPargingItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isParging)
+export const processHeelBlockItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isHeelBlock)
+export const processUnderpinningItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isUnderpinning)
+export const processRockAnchorItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isRockAnchor)
+export const processRockBoltItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isRockBolt)
+export const processAnchorItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isAnchor)
+export const processTieBackItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isTieBack)
+export const processConcreteSoilRetentionPierItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isConcreteSoilRetentionPier)
+export const processGuideWallItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isGuideWall)
+export const processDowelBarItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isDowelBar)
+export const processRockPinItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isRockPin)
+export const processShotcreteItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isShotcrete)
+export const processPermissionGroutingItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isPermissionGrouting)
+export const processButtonItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isButton)
+export const processRockStabilizationItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isRockStabilization)
+export const processFormBoardItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isFormBoard)
 
 /**
  * Generates formulas for SOE items
@@ -283,6 +327,166 @@ export const generateSoeFormulas = (itemType, rowNum, itemData) => {
             formulas.lbs = `I${rowNum}*${(itemData.weight || 0).toFixed(3)}`
             formulas.qtyFinal = `C${rowNum}`
             break
+
+        case 'supporting_angle':
+            // FT(I)=H*E*C, LBS(K)=I*Wt, QTY(M)=C*E
+            formulas.ft = `H${rowNum}*E${rowNum}*C${rowNum}`
+            formulas.lbs = `I${rowNum}*${(itemData.weight || 0).toFixed(3)}`
+            formulas.qtyFinal = `C${rowNum}*E${rowNum}`
+            break
+
+        case 'parging':
+            // FT(I)=C, SQ FT(J)=I*H
+            formulas.ft = `C${rowNum}`
+            formulas.sqFt = `I${rowNum}*H${rowNum}`
+            break
+
+        case 'heel_block':
+            // SQ FT(J)=C*H*G, CY(L)=J*F/27, QTY(M)=C
+            formulas.sqFt = `C${rowNum}*H${rowNum}*G${rowNum}`
+            formulas.cy = `J${rowNum}*F${rowNum}/27`
+            formulas.qtyFinal = `C${rowNum}`
+            break
+
+        case 'underpinning':
+            // FT(I)=F*C, SQ FT(J)=C*H*G, CY(L)=J*F/27, QTY(M)=C
+            formulas.ft = `F${rowNum}*C${rowNum}`
+            formulas.sqFt = `C${rowNum}*H${rowNum}*G${rowNum}`
+            formulas.cy = `J${rowNum}*F${rowNum}/27`
+            formulas.qtyFinal = `C${rowNum}`
+            break
+
+        case 'shims':
+            // FT(I)=Reference, SQ FT(J)=I*G
+            // reference is passed in itemData
+            if (itemData.underpinningSumRow) {
+                formulas.ft = `I${itemData.underpinningSumRow}`
+            }
+            formulas.sqFt = `I${rowNum}*G${rowNum}`
+            break
+
+        case 'rock_anchor':
+            // FT(I)=F*C, QTY(M)=C
+            // F should be calculated height (sum of free length + bond length, rounded to multiple of 5, then +5)
+            if (itemData.parsed?.calculatedHeight !== undefined) {
+                formulas.length = itemData.parsed.calculatedHeight
+            }
+            formulas.ft = `F${rowNum}*C${rowNum}`
+            formulas.qtyFinal = `C${rowNum}`
+            break
+
+        case 'rock_bolt':
+            // QTY(E)=ROUNDUP(C/OC,0)+1, Length(F)=bond length+5, FT(I)=F*E, QTY(M)=E
+            // OC spacing and bond length are in parsed data
+            if (itemData.parsed?.ocSpacing) {
+                formulas.qty = `ROUNDUP(C${rowNum}/${itemData.parsed.ocSpacing},0)+1`
+            }
+            if (itemData.parsed?.bondLength !== undefined) {
+                formulas.length = `${itemData.parsed.bondLength}+5`
+            }
+            formulas.ft = `F${rowNum}*E${rowNum}`
+            formulas.qtyFinal = `E${rowNum}`
+            break
+
+        case 'anchor':
+            // Height(H)=calculated height, FT(I)=H*C, QTY(M)=C
+            if (itemData.parsed?.calculatedHeight) {
+                formulas.height = itemData.parsed.calculatedHeight
+            }
+            formulas.ft = `H${rowNum}*C${rowNum}`
+            formulas.qtyFinal = `C${rowNum}`
+            break
+
+        case 'tie_back':
+            // Height(H)=calculated height, FT(I)=H*C, QTY(M)=C
+            if (itemData.parsed?.calculatedHeight) {
+                formulas.height = itemData.parsed.calculatedHeight
+            }
+            formulas.ft = `H${rowNum}*C${rowNum}`
+            formulas.qtyFinal = `C${rowNum}`
+            break
+
+        case 'concrete_soil_retention_pier':
+            // Length(F), Width(G), Height(H) from bracket, SQ FT(J)=C*H*G, CY(L)=J*F/27, QTY(M)=C
+            if (itemData.parsed?.length) formulas.length = itemData.parsed.length
+            if (itemData.parsed?.width) formulas.width = itemData.parsed.width
+            if (itemData.parsed?.height) formulas.height = itemData.parsed.height
+            formulas.sqFt = `C${rowNum}*H${rowNum}*G${rowNum}`
+            formulas.cy = `J${rowNum}*F${rowNum}/27`
+            formulas.qtyFinal = `C${rowNum}`
+            break
+
+        case 'guide_wall':
+            // Width(G)=formula from bracket (e.g., =4+(6.5/12)), Height(H)=from bracket, FT(I)=C, SQ FT(J)=I*G, CY(L)=J*H/27
+            if (itemData.parsed?.widthFormula) {
+                formulas.width = itemData.parsed.widthFormula
+            } else if (itemData.parsed?.width) {
+                formulas.width = itemData.parsed.width
+            }
+            if (itemData.parsed?.heightRaw) {
+                formulas.height = itemData.parsed.heightRaw
+            }
+            formulas.ft = `C${rowNum}`
+            formulas.sqFt = `I${rowNum}*G${rowNum}`
+            formulas.cy = `J${rowNum}*H${rowNum}/27`
+            break
+
+        case 'dowel_bar':
+            // QTY(E) from name, Height(H)=H+RS, FT(I)=C*E*H, QTY(M)=C*E
+            if (itemData.parsed?.qty) formulas.qty = itemData.parsed.qty
+            if (itemData.parsed?.heightRaw) formulas.height = itemData.parsed.heightRaw
+            formulas.ft = `C${rowNum}*E${rowNum}*H${rowNum}`
+            formulas.qtyFinal = `C${rowNum}*E${rowNum}`
+            break
+
+        case 'rock_pin':
+            // QTY(E)=1, Height(H)=H+RS, FT(I)=C*E*H, QTY(M)=C*E
+            formulas.qty = 1
+            if (itemData.parsed?.heightRaw) formulas.height = itemData.parsed.heightRaw
+            formulas.ft = `C${rowNum}*E${rowNum}*H${rowNum}`
+            formulas.qtyFinal = `C${rowNum}*E${rowNum}`
+            break
+
+        case 'shotcrete':
+            // Length(F) and Width(G) should be empty, Height(H) from name, FT(I)=C, SQ FT(J)=C*H, CY(L)=J*G/27
+            // Don't set formulas.length or formulas.width - they should be empty
+            if (itemData.parsed?.heightRaw) formulas.height = itemData.parsed.heightRaw
+            formulas.ft = `C${rowNum}`
+            formulas.sqFt = `C${rowNum}*H${rowNum}`
+            formulas.cy = `J${rowNum}*G${rowNum}/27`
+            break
+
+        case 'permission_grouting':
+            // Height(H) from name, FT(I)=C, SQ FT(J)=C*H
+            if (itemData.parsed?.heightRaw) formulas.height = itemData.parsed.heightRaw
+            formulas.ft = `C${rowNum}`
+            formulas.sqFt = `C${rowNum}*H${rowNum}`
+            break
+
+        case 'button':
+            // Length(F), Width(G), Height(H) from bracket, SQ FT(J)=C*H*G, CY(L)=J*F/27, QTY(M)=C
+            if (itemData.parsed?.length) formulas.length = itemData.parsed.length
+            if (itemData.parsed?.width) formulas.width = itemData.parsed.width
+            if (itemData.parsed?.height) formulas.height = itemData.parsed.height
+            formulas.sqFt = `C${rowNum}*H${rowNum}*G${rowNum}`
+            formulas.cy = `J${rowNum}*F${rowNum}/27`
+            formulas.qtyFinal = `C${rowNum}`
+            break
+
+        case 'rock_stabilization':
+            // Height(H) from name, FT(I) should be empty, SQ FT(J)=C, CY(L)=J*H/27
+            if (itemData.parsed?.heightRaw) formulas.height = itemData.parsed.heightRaw
+            // Don't set formulas.ft - it should be empty
+            formulas.sqFt = `C${rowNum}`
+            formulas.cy = `J${rowNum}*H${rowNum}/27`
+            break
+
+        case 'form_board':
+            // Height(H) from name, FT(I)=C, SQ FT(J)=C*H
+            if (itemData.parsed?.heightRaw) formulas.height = itemData.parsed.heightRaw
+            formulas.ft = `C${rowNum}`
+            formulas.sqFt = `C${rowNum}*H${rowNum}`
+            break
     }
 
     return formulas
@@ -307,5 +511,22 @@ export default {
     processStudBeamItems,
     processInnerCornerBraceItems,
     processKneeBraceItems,
+    processSupportingAngleItems,
+    processPargingItems,
+    processHeelBlockItems,
+    processUnderpinningItems,
+    processRockAnchorItems,
+    processRockBoltItems,
+    processAnchorItems,
+    processTieBackItems,
+    processConcreteSoilRetentionPierItems,
+    processGuideWallItems,
+    processDowelBarItems,
+    processRockPinItems,
+    processShotcreteItems,
+    processPermissionGroutingItems,
+    processButtonItems,
+    processRockStabilizationItems,
+    processFormBoardItems,
     generateSoeFormulas
 }
