@@ -1,3 +1,6 @@
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@200;300;400;500;600;700;800&display=swap');
+
 /* Syncfusion Styles */
 @import '@syncfusion/ej2-base/styles/material.css';
 @import '@syncfusion/ej2-buttons/styles/material.css';
@@ -11,3 +14,9 @@
 
 /* Tailwind CSS */
 @import "tailwindcss";
+
+@layer base {
+    body {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+}

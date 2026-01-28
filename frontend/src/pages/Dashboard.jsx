@@ -7,11 +7,11 @@ const Dashboard = () => {
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl font-bold mb-8 text-gray-900">Dashboard</h1>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Upload New Project Card */}
-          <Link 
-            to="/upload" 
+          <Link
+            to="/upload"
             className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-transparent hover:border-blue-500"
           >
             <div className="flex items-start space-x-4">
@@ -26,8 +26,8 @@ const Dashboard = () => {
           </Link>
 
           {/* View Spreadsheet Card */}
-          <Link 
-            to="/spreadsheet" 
+          <Link
+            to="/spreadsheet"
             className="block p-6 bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border-2 border-transparent hover:border-green-500"
           >
             <div className="flex items-start space-x-4">
