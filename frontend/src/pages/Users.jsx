@@ -1,58 +1,122 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { toast } from 'react-hot-toast'
 import Sidebar from '../components/Sidebar'
 import TopBar from '../components/TopBar'
 import DataTable from '../components/DataTable'
 import AddUserModal from '../components/AddUserModal'
 import { FiPlus, FiSearch, FiHome } from 'react-icons/fi'
+import { getAllUsers, createUser, deleteUser } from '../services/api'
 
 const Users = () => {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
     const [isModalOpen, setIsModalOpen] = useState(false)
+    const [users, setUsers] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [actionLoading, setActionLoading] = useState(false)
+    const [searchTerm, setSearchTerm] = useState('')
 
-    // Sample user data matching the design
-    const userData = [
-        {
-            id: 1,
-            name: 'John Doe',
-            email: 'johndoe23@gmail.com'
-        },
-        {
-            id: 2,
-            name: 'John Doe',
-            email: 'johndoe23@gmail.com'
-        },
-        {
-            id: 3,
-            name: 'John Doe',
-            email: 'johndoe23@gmail.com'
+    // Fetch users on mount
+    useEffect(() => {
+        fetchUsers()
+    }, [])
+
+    const fetchUsers = async () => {
+        try {
+            setLoading(true)
+            const response = await getAllUsers()
+            if (response.success) {
+                setUsers(response.users)
+            } else {
+                toast.error('Failed to fetch users')
+            }
+        } catch (error) {
+            console.error('Error fetching users:', error)
+            toast.error('Error loading users')
+        } finally {
+            setLoading(false)
         }
-    ]
+    }
+
+    // Filter users based on search
+    const filteredUsers = users.filter(user =>
+        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    )
 
     // Table columns configuration
     const columns = [
         {
             header: 'Name',
             key: 'name',
+            render: (row) => (
+                <div className="font-medium text-gray-900">{row.name}</div>
+            )
         },
         {
             header: 'Email',
             key: 'email'
+        },
+        {
+            header: 'Role',
+            key: 'role',
+            render: (row) => (
+                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${row.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'
+                    }`}>
+                    {row.role.charAt(0).toUpperCase() + row.role.slice(1)}
+                </span>
+            )
+        },
+        {
+            header: 'Status',
+            key: 'isActive',
+            render: (row) => (
+                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${row.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                    {row.isActive ? 'Active' : 'Inactive'}
+                </span>
+            )
         }
     ]
 
-    // Action handlers
+    const handleAddUser = async (userData) => {
+        try {
+            setActionLoading(true)
+            const response = await createUser(userData)
+
+            if (response.success) {
+                toast.success('User added successfully')
+                setIsModalOpen(false)
+                fetchUsers() // Refresh list
+            } else {
+                toast.error(response.message || 'Failed to add user')
+            }
+        } catch (error) {
+            const msg = error.response?.data?.message || 'Error adding user';
+            toast.error(msg)
+        } finally {
+            setActionLoading(false)
+        }
+    }
+
+    const handleDelete = async (row) => {
+        if (!window.confirm(`Are you sure you want to delete ${row.name}?`)) return
+
+        try {
+            const response = await deleteUser(row._id || row.id)
+            if (response.success) {
+                toast.success('User deleted successfully')
+                fetchUsers()
+            } else {
+                toast.error('Failed to delete user')
+            }
+        } catch (error) {
+            toast.error('Error deleting user')
+        }
+    }
+
     const handleEdit = (row) => {
-        console.log('Edit user:', row)
-    }
-
-    const handleDelete = (row) => {
-        console.log('Delete user:', row)
-    }
-
-    const handleAddUser = (userData) => {
-        console.log('New user added:', userData)
-        // Add logic to handle the new user data
+        toast('Edit functionality coming soon!', { icon: '🚧' });
     }
 
     return (
@@ -104,7 +168,9 @@ const Users = () => {
                                     <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                                     <input
                                         type="text"
-                                        placeholder="Search here"
+                                        placeholder="Search by name or email"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
                                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                     />
                                 </div>
@@ -112,14 +178,20 @@ const Users = () => {
                         </div>
 
                         {/* Data Table */}
-                        <DataTable
-                            columns={columns}
-                            data={userData}
-                            onEdit={handleEdit}
-                            onDelete={handleDelete}
-                            showCheckbox={true}
-                            showActions={true}
-                        />
+                        {loading ? (
+                            <div className="flex justify-center items-center h-64">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                            </div>
+                        ) : (
+                            <DataTable
+                                columns={columns}
+                                data={filteredUsers}
+                                onEdit={handleEdit}
+                                onDelete={handleDelete}
+                                showCheckbox={true}
+                                showActions={true}
+                            />
+                        )}
                     </div>
                 </div>
             </div>
@@ -129,6 +201,7 @@ const Users = () => {
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 onSubmit={handleAddUser}
+                loading={actionLoading}
             />
         </div>
     )

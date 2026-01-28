@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "devDependencies": {
-    "vite": "^7.2.4"
+    "vite": "^5.4.11"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.11.2",
@@ -17,8 +17,10 @@
     "@syncfusion/ej2-react-spreadsheet": "^32.1.24",
     "@syncfusion/ej2-spreadsheet": "^32.1.24",
     "@tailwindcss/vite": "^4.1.18",
-    "@vitejs/plugin-react": "^5.1.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "axios": "^1.13.4",
     "dotenv": "^17.2.3",
+    "js-cookie": "^3.0.5",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-hot-toast": "^2.6.0",

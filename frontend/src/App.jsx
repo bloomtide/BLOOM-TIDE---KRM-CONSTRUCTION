@@ -1,5 +1,6 @@
 import React from 'react'
 import { Routes, Route } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
 
 import Login from './pages/Login.jsx'
 import UpdatePassword from './pages/UpdatePassword.jsx'
@@ -13,7 +14,7 @@ import Spreadsheet from './pages/Spreadsheet.jsx'
 
 function App() {
   return (
-    <div>
+    <AuthProvider>
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="update-password/:token" element={<UpdatePassword />} />
@@ -25,7 +26,7 @@ function App() {
         <Route path="/preview" element={<PreviewData />} />
         <Route path="/spreadsheet" element={<Spreadsheet />} />
       </Routes>
-    </div>
+    </AuthProvider>
   )
 }
 

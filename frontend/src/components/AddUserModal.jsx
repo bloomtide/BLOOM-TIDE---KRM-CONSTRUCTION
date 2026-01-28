@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import Modal from './Modal'
 
-const AddUserModal = ({ isOpen, onClose, onSubmit }) => {
+const AddUserModal = ({ isOpen, onClose, onSubmit, loading }) => {
     const [formData, setFormData] = useState({
         name: '',
         email: '',
@@ -89,15 +89,17 @@ const AddUserModal = ({ isOpen, onClose, onSubmit }) => {
                     <button
                         type="button"
                         onClick={onClose}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                        disabled={loading}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                     >
                         Cancel
                     </button>
                     <button
                         type="submit"
-                        className="px-4 py-2 text-sm font-medium text-white bg-[#1A72B9] hover:bg-[#1565C0] rounded-lg transition-colors"
+                        disabled={loading}
+                        className="px-4 py-2 text-sm font-medium text-white bg-[#1A72B9] hover:bg-[#1565C0] rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
                     >
-                        Add User
+                        {loading ? 'Adding...' : 'Add User'}
                     </button>
                 </div>
             </form>
