@@ -2,6 +2,7 @@ import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { FiFileText, FiUsers, FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 import Logo from '../utils/logo/Logo.svg'
+import LogoImage from '../utils/logo/LogoImage.svg'
 import { useAuth } from '../context/AuthContext'
 
 const Sidebar = ({ collapsed = false, onToggle }) => {
@@ -35,7 +36,7 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
                 )}
                 {collapsed && (
                     <div className="w-full flex justify-center">
-                        <img src={Logo} alt="KRM" className="h-12 w-auto" />
+                        <img src={LogoImage} alt="KRM" className="h-10 w-10 object-contain" />
                     </div>
                 )}
             </div>
