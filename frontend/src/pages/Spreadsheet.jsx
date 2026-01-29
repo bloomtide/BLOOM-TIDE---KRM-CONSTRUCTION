@@ -7,6 +7,8 @@ import { generateDemolitionFormulas } from '../utils/processors/demolitionProces
 import { generateExcavationFormulas } from '../utils/processors/excavationProcessor'
 import { generateRockExcavationFormulas } from '../utils/processors/rockExcavationProcessor'
 import { generateSoeFormulas } from '../utils/processors/soeProcessor'
+import { generateFoundationFormulas } from '../utils/processors/foundationProcessor'
+import { generateWaterproofingFormulas } from '../utils/processors/waterproofingProcessor'
 
 const Spreadsheet = () => {
   const location = useLocation()
@@ -76,7 +78,8 @@ const Spreadsheet = () => {
       })
     })
 
-    // Apply formulas
+    // Apply formulas (defer foundation_sum L so data-row L values like landings are set first)
+    const deferredFoundationSumL = []
     formulaData.forEach((formulaInfo) => {
       const { row, itemType, parsedData, section, subsection } = formulaInfo
 
@@ -694,6 +697,424 @@ const Spreadsheet = () => {
           }
           return
         }
+      } else if (section === 'foundation') {
+        if (itemType === 'foundation_section_cy_sum') {
+          const { sumRows } = formulaInfo
+          try {
+            if (sumRows && sumRows.length > 0) {
+              const sumRefs = sumRows.map((r) => `L${r}`).join(',')
+              spreadsheet.updateCell({ formula: `=SUM(${sumRefs})` }, `C${row}`)
+            }
+          } catch (error) {
+            console.error(`Error applying Foundation section CY sum at row ${row}:`, error)
+          }
+          return
+        }
+        if (itemType === 'stairs_on_grade_group_header') {
+          try {
+            spreadsheet.cellFormat({ textDecoration: 'underline' }, `B${row}`)
+          } catch (error) {
+            console.error(`Error applying stairs group header format at row ${row}:`, error)
+          }
+          return
+        }
+        // Handle "For foundation Extra line item use this" rows (same as Demo extra)
+        if (itemType === 'foundation_extra_sqft') {
+          try {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+          } catch (error) {
+            console.error(`Error applying foundation extra SQ FT formula at row ${row}:`, error)
+          }
+          return
+        }
+        if (itemType === 'foundation_extra_ft') {
+          try {
+            spreadsheet.updateCell({ formula: `=C${row}*G${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+          } catch (error) {
+            console.error(`Error applying foundation extra FT formula at row ${row}:`, error)
+          }
+          return
+        }
+        if (itemType === 'foundation_extra_ea') {
+          try {
+            spreadsheet.updateCell({ formula: `=C${row}*F${row}*G${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+          } catch (error) {
+            console.error(`Error applying foundation extra EA formula at row ${row}:`, error)
+          }
+          return
+        }
+        if (['drilled_foundation_pile', 'helical_foundation_pile', 'driven_foundation_pile', 'stelcor_drilled_displacement_pile', 'cfa_pile', 'pile_cap', 'strip_footing', 'isolated_footing', 'pilaster', 'grade_beam', 'tie_beam', 'thickened_slab', 'buttress_takeoff', 'buttress_final', 'pier', 'corbel', 'linear_wall', 'foundation_wall', 'retaining_wall', 'barrier_wall', 'stem_wall', 'elevator_pit', 'detention_tank', 'duplex_sewage_ejector_pit', 'deep_sewage_ejector_pit', 'grease_trap', 'house_trap', 'mat_slab', 'mud_slab_foundation', 'sog', 'stairs_on_grade', 'electric_conduit'].includes(itemType)) {
+          try {
+            const foundationFormulas = generateFoundationFormulas(itemType, row, parsedData || formulaInfo)
+            if (foundationFormulas.takeoff) spreadsheet.updateCell({ formula: `=${foundationFormulas.takeoff}` }, `C${row}`)
+            // Only override Length (F) if a non-null formula/value is provided
+            if (foundationFormulas.length != null) {
+              if (typeof foundationFormulas.length === 'string') {
+                // Check if it's a formula reference (starts with G, I, etc.) or a fraction like "11/12"
+                if (foundationFormulas.length.match(/^[A-Z]\d+$/)) {
+                  // It's a cell reference like "G733" - use as formula
+                  spreadsheet.updateCell({ formula: `=${foundationFormulas.length}` }, `F${row}`)
+                } else {
+                  // It's a formula string like "11/12" - use as formula
+                  spreadsheet.updateCell({ formula: `=${foundationFormulas.length}` }, `F${row}`)
+                }
+              } else {
+                spreadsheet.updateCell({ value: foundationFormulas.length }, `F${row}`)
+              }
+            }
+            // Only override Width (G) if a non-null formula/value is provided
+            if (foundationFormulas.width != null) {
+              if (typeof foundationFormulas.width === 'string') {
+                spreadsheet.updateCell({ formula: `=${foundationFormulas.width}` }, `G${row}`)
+              } else {
+                spreadsheet.updateCell({ value: foundationFormulas.width }, `G${row}`)
+              }
+            }
+            // Only override Height (H) if a non-null formula/value is provided
+            if (foundationFormulas.height != null) {
+              if (typeof foundationFormulas.height === 'string') {
+                spreadsheet.updateCell({ formula: `=${foundationFormulas.height}` }, `H${row}`)
+              } else {
+                spreadsheet.updateCell({ value: foundationFormulas.height }, `H${row}`)
+              }
+            }
+            if (foundationFormulas.qty !== undefined) {
+              if (typeof foundationFormulas.qty === 'string') {
+                spreadsheet.updateCell({ formula: `=${foundationFormulas.qty}` }, `E${row}`)
+              } else {
+                spreadsheet.updateCell({ value: foundationFormulas.qty }, `E${row}`)
+              }
+            }
+            // For single diameter drilled foundation pile, ft formula (H*C) goes to I
+            if (itemType === 'drilled_foundation_pile' && !(parsedData || formulaInfo)?.parsed?.isDualDiameter) {
+              // Single diameter: I=H*C
+              if (foundationFormulas.ft) {
+                spreadsheet.updateCell({ formula: `=${foundationFormulas.ft}` }, `I${row}`)
+              } else {
+                spreadsheet.updateCell({ value: '' }, `I${row}`)
+              }
+              // J column should be empty for single diameter
+              spreadsheet.updateCell({ value: '' }, `J${row}`)
+            } else {
+              // For other items, ft goes to I, sqFt goes to J
+              if (foundationFormulas.ft) {
+                spreadsheet.updateCell({ formula: `=${foundationFormulas.ft}` }, `I${row}`)
+              } else {
+                spreadsheet.updateCell({ value: '' }, `I${row}`)
+              }
+              if (foundationFormulas.sqFt) {
+                spreadsheet.updateCell({ formula: `=${foundationFormulas.sqFt}` }, `J${row}`)
+              } else {
+                spreadsheet.updateCell({ value: '' }, `J${row}`)
+              }
+              // Handle sqFt2 for dual diameter drilled foundation piles (column J)
+              if (foundationFormulas.sqFt2) {
+                spreadsheet.updateCell({ formula: `=${foundationFormulas.sqFt2}` }, `J${row}`)
+              }
+            }
+            if (foundationFormulas.lbs) {
+              spreadsheet.updateCell({ formula: `=${foundationFormulas.lbs}` }, `K${row}`)
+            } else {
+              spreadsheet.updateCell({ value: '' }, `K${row}`)
+            }
+            if (foundationFormulas.cy) {
+              spreadsheet.updateCell({ formula: `=${foundationFormulas.cy}` }, `L${row}`)
+            } else {
+              spreadsheet.updateCell({ value: '' }, `L${row}`)
+            }
+            if (foundationFormulas.qtyFinal) {
+              spreadsheet.updateCell({ formula: `=${foundationFormulas.qtyFinal}` }, `M${row}`)
+            }
+
+            // Apply red color to item names
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+
+            // Special formatting for buttress takeoff row - strikethrough
+            if (itemType === 'buttress_takeoff') {
+              spreadsheet.cellFormat({ textDecoration: 'line-through' }, `B${row}:M${row}`)
+            }
+
+            // Special formatting for buttress final row - reference M to C of takeoff row; I, J, L, M red
+            if (itemType === 'buttress_final') {
+              if (formulaInfo.buttressRow) {
+                spreadsheet.updateCell({ formula: `=C${formulaInfo.buttressRow}` }, `M${row}`)
+              }
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            }
+
+            // Special formatting for Elevator Pit - Sump pit row (J, L, M red)
+            if (
+              itemType === 'elevator_pit' &&
+              (parsedData || formulaInfo)?.parsed?.itemSubType === 'sump_pit'
+            ) {
+              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            }
+
+            // Special formatting for Mud Slab - J and L red
+            if (itemType === 'mud_slab_foundation') {
+              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            }
+
+            // Special formatting for Stairs on grade - Stair slab and Landings J and L red
+            if (itemType === 'stairs_on_grade') {
+              const subType = (parsedData || formulaInfo)?.parsed?.itemSubType
+              if (subType === 'stair_slab' || subType === 'landings') {
+                spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+                spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+              }
+            }
+          } catch (error) {
+            console.error(`Error applying Foundation formula at row ${row}:`, error)
+          }
+          return
+        }
+
+        if (itemType === 'foundation_sum') {
+          const { firstDataRow, lastDataRow, subsectionName, isDualDiameter, excludeISum, excludeJSum, matSumOnly, cySumOnly, firstDataRowForL, lastDataRowForL, lSumRange } = formulaInfo
+          try {
+            // Sum for FT (I) - exclude if excludeISum is true (for slab items)
+            if (!excludeISum) {
+              const ftSumSubsections = ['Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile', 'Grade beams', 'Tie beam', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Drilled foundation pile', 'Strip Footings', 'Stem wall', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Grease trap', 'House trap', 'SOG', 'Stairs on grade Stairs', 'Electric conduit']
+              if (ftSumSubsections.includes(subsectionName)) {
+                spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+                spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+              }
+            }
+
+            // Sum for SQ FT (I and J) - for drilled foundation pile dual diameter
+            if (subsectionName === 'Drilled foundation pile' && isDualDiameter) {
+              spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+              spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            }
+
+            // Sum for SQ FT (J) - exclude Drilled foundation pile (single diameter)
+            // For Mat slab, only sum J for mat items (not haunch)
+            if (!excludeJSum && !cySumOnly) {
+              const sqFtSubsections = ['Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Strip Footings', 'Grade beams', 'Tie beam', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Stem wall', 'Elevator Pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Grease trap', 'House trap', 'Mat slab', 'SOG', 'Stairs on grade Stairs']
+              if (sqFtSubsections.includes(subsectionName)) {
+                spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+                spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+              }
+            }
+
+            // For Drilled foundation pile single diameter, J should be empty (no sum)
+            if (subsectionName === 'Drilled foundation pile' && !isDualDiameter) {
+              // J column should be empty - do nothing
+            }
+
+            // Sum for LBS (K)
+            const lbsSubsections = ['Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile']
+            if (lbsSubsections.includes(subsectionName)) {
+              spreadsheet.updateCell({ formula: `=SUM(K${firstDataRow}:K${lastDataRow})` }, `K${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `K${row}`)
+            }
+
+            // Sum for QTY (M)
+            const qtySubsections = ['Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile', 'Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Stairs on grade Stairs']
+            if (qtySubsections.includes(subsectionName)) {
+              spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            }
+
+            // Sum for CY (L)
+            // When lSumRange is provided (Stairs on grade Stairs), use it so landings L is included
+            const lStartRow = firstDataRowForL != null ? firstDataRowForL : firstDataRow
+            const lEndRow = lastDataRowForL != null ? lastDataRowForL : lastDataRow
+            // For Mat slab with cySumOnly, sum L includes both mat and haunch
+            if (cySumOnly) {
+              // Only sum L (CY) for mat + haunch combined
+              spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            } else if (!formulaInfo.excludeLSum) {
+              const cySubsections = ['Pile caps', 'Strip Footings', 'Isolated Footings', 'Pilaster', 'Grade beams', 'Tie beam', 'Thickened slab', 'Pier', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Stem wall', 'Elevator Pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Grease trap', 'House trap', 'Mat slab', 'SOG', 'Stairs on grade Stairs']
+              if (cySubsections.includes(subsectionName)) {
+                const lFormula = lSumRange ? `=SUM(${lSumRange})` : `=SUM(L${lStartRow}:L${lEndRow})`
+                deferredFoundationSumL.push({ row, lFormula })
+                spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+              }
+            }
+          } catch (error) {
+            console.error(`Error applying Foundation sum formula at row ${row}:`, error)
+          }
+          return
+        }
+      } else if (section === 'waterproofing') {
+        if (itemType === 'waterproofing_exterior_side_sum') {
+          const { firstDataRow, lastDataRow } = formulaInfo
+          try {
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+          } catch (error) {
+            console.error(`Error applying Waterproofing Exterior side sum at row ${row}:`, error)
+          }
+          return
+        }
+        if (itemType === 'waterproofing_exterior_side') {
+          const waterproofingFormulas = generateWaterproofingFormulas(itemType, row, parsedData || formulaInfo)
+          try {
+            if (waterproofingFormulas.ft) {
+              spreadsheet.updateCell({ formula: `=${waterproofingFormulas.ft}` }, `I${row}`)
+            }
+            if (waterproofingFormulas.height != null && waterproofingFormulas.height !== '') {
+              spreadsheet.updateCell({ value: waterproofingFormulas.height }, `H${row}`)
+            }
+            if (waterproofingFormulas.sqFt) {
+              spreadsheet.updateCell({ formula: `=${waterproofingFormulas.sqFt}` }, `J${row}`)
+            }
+          } catch (error) {
+            console.error(`Error applying Waterproofing Exterior side formula at row ${row}:`, error)
+          }
+          return
+        }
+        if (itemType === 'waterproofing_exterior_side_pit') {
+          const foundationSlabRow = formulaInfo.foundationSlabRow
+          const waterproofingFormulas = generateWaterproofingFormulas(itemType, row, parsedData || formulaInfo, { foundationSlabRow })
+          try {
+            if (waterproofingFormulas.ft) {
+              spreadsheet.updateCell({ formula: `=${waterproofingFormulas.ft}` }, `I${row}`)
+            }
+            if (waterproofingFormulas.heightFormula) {
+              spreadsheet.updateCell({ formula: `=${waterproofingFormulas.heightFormula}` }, `H${row}`)
+            }
+            if (waterproofingFormulas.sqFt) {
+              spreadsheet.updateCell({ formula: `=${waterproofingFormulas.sqFt}` }, `J${row}`)
+            }
+            if (waterproofingFormulas.cy) {
+              spreadsheet.updateCell({ formula: `=${waterproofingFormulas.cy}` }, `L${row}`)
+            }
+          } catch (error) {
+            console.error(`Error applying Waterproofing Exterior side pit formula at row ${row}:`, error)
+          }
+          return
+        }
+        if (itemType === 'waterproofing_negative_side_sum') {
+          const { firstDataRow, lastDataRow } = formulaInfo
+          try {
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+          } catch (error) {
+            console.error(`Error applying Waterproofing Negative side sum at row ${row}:`, error)
+          }
+          return
+        }
+        if (itemType === 'waterproofing_negative_side_wall') {
+          const waterproofingFormulas = generateWaterproofingFormulas(itemType, row, parsedData || formulaInfo)
+          try {
+            if (waterproofingFormulas.ft) {
+              spreadsheet.updateCell({ formula: `=${waterproofingFormulas.ft}` }, `I${row}`)
+            }
+            if (waterproofingFormulas.height != null && waterproofingFormulas.height !== '') {
+              spreadsheet.updateCell({ value: waterproofingFormulas.height }, `H${row}`)
+            }
+            if (waterproofingFormulas.sqFt) {
+              spreadsheet.updateCell({ formula: `=${waterproofingFormulas.sqFt}` }, `J${row}`)
+            }
+          } catch (error) {
+            console.error(`Error applying Waterproofing Negative side wall formula at row ${row}:`, error)
+          }
+          return
+        }
+        if (itemType === 'waterproofing_negative_side_slab') {
+          const waterproofingFormulas = generateWaterproofingFormulas(itemType, row, parsedData || formulaInfo)
+          try {
+            if (waterproofingFormulas.sqFt) {
+              spreadsheet.updateCell({ formula: `=${waterproofingFormulas.sqFt}` }, `J${row}`)
+            }
+          } catch (error) {
+            console.error(`Error applying Waterproofing Negative side slab formula at row ${row}:`, error)
+          }
+          return
+        }
+        if (itemType === 'waterproofing_horizontal_wp') {
+          try {
+            spreadsheet.updateCell({ value: 0 }, `C${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+          } catch (error) {
+            console.error(`Error applying Waterproofing Horizontal WP formula at row ${row}:`, error)
+          }
+          return
+        }
+        if (itemType === 'waterproofing_horizontal_wp_sum') {
+          const { firstDataRow, lastDataRow } = formulaInfo
+          try {
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+          } catch (error) {
+            console.error(`Error applying Waterproofing Horizontal WP sum at row ${row}:`, error)
+          }
+          return
+        }
+        if (itemType === 'waterproofing_horizontal_insulation') {
+          try {
+            spreadsheet.updateCell({ value: 0 }, `C${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+          } catch (error) {
+            console.error(`Error applying Waterproofing Horizontal insulation formula at row ${row}:`, error)
+          }
+          return
+        }
+        if (itemType === 'waterproofing_horizontal_insulation_sum') {
+          const { firstDataRow, lastDataRow } = formulaInfo
+          try {
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+          } catch (error) {
+            console.error(`Error applying Waterproofing Horizontal insulation sum at row ${row}:`, error)
+          }
+          return
+        }
+        if (itemType === 'waterproofing_extra_sqft') {
+          try {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+          } catch (error) {
+            console.error(`Error applying Waterproofing extra SQ FT formula at row ${row}:`, error)
+          }
+          return
+        }
+        if (itemType === 'waterproofing_extra_ft') {
+          try {
+            spreadsheet.updateCell({ formula: `=H${row}*C${row}` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+          } catch (error) {
+            console.error(`Error applying Waterproofing extra FT formula at row ${row}:`, error)
+          }
+          return
+        }
       } else {
         formulas = generateDemolitionFormulas(itemType, row, parsedData)
       }
@@ -744,6 +1165,15 @@ const Spreadsheet = () => {
       }
     })
 
+    // Apply foundation_sum L formulas after all data-row formulas (so landings L etc. are set first)
+    deferredFoundationSumL.forEach(({ row, lFormula }) => {
+      try {
+        spreadsheet.updateCell({ formula: lFormula }, `L${row}`)
+      } catch (e) {
+        console.error(`Error applying deferred Foundation sum L at row ${row}:`, e)
+      }
+    })
+
     // Apply formatting
     try {
       // Format header row - only Estimate column (A) has yellow background
@@ -783,6 +1213,8 @@ const Spreadsheet = () => {
             backgroundColor = '#C6E0B4'
           } else if (sectionName === 'Foundation') {
             backgroundColor = '#C6E0B4'
+          } else if (sectionName === 'Waterproofing') {
+            backgroundColor = '#C6E0B4'
           }
           spreadsheet.cellFormat(
             {
@@ -792,6 +1224,13 @@ const Spreadsheet = () => {
             },
             `A${rowNum}:M${rowNum}`
           )
+          // Foundation header: sum (C) and CY (D) should not be bold
+          if (sectionName === 'Foundation') {
+            spreadsheet.cellFormat(
+              { fontWeight: 'normal', backgroundColor: backgroundColor, fontSize: '11pt' },
+              `C${rowNum}:D${rowNum}`
+            )
+          }
         }
         // Format subsection and sub-subsection headers (column B has content ending with ':' or starting with spaces)
         if (!row[0] && row[1]) {
@@ -802,7 +1241,8 @@ const Spreadsheet = () => {
             if (bContent.includes('For demo Extra line item use this') ||
               bContent.includes('For Backfill Extra line item use this') ||
               bContent.includes('For soil excavation Extra line item use this') ||
-              bContent.includes('For rock excavation Extra line item use this')) {
+              bContent.includes('For rock excavation Extra line item use this') ||
+              bContent.includes('For foundation Extra line item use this')) {
               // Format only column B with yellow background
               spreadsheet.cellFormat(
                 {
