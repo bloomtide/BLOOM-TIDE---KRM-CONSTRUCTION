@@ -16,7 +16,6 @@ const createAdmin = async () => {
             email: 'admin@krm.com',
             password: 'admin123456',
             role: 'admin',
-            isActive: true,
         };
 
         // Check if admin already exists
@@ -42,9 +41,9 @@ const createAdmin = async () => {
         console.log('📧 Email:', adminData.email);
         console.log('🔑 Password:', adminData.password);
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('⚠️  IMPORTANT: Change this password after first login!');
+        console.log('⚠️ IMPORTANT: Change this password after first login!');
 
-        process.exit(0);
+        process.exit(0)
     } catch (error) {
         console.error('❌ Error creating admin:', error.message);
         process.exit(1);

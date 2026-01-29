@@ -69,16 +69,6 @@ const Users = () => {
                     {row.role.charAt(0).toUpperCase() + row.role.slice(1)}
                 </span>
             )
-        },
-        {
-            header: 'Status',
-            key: 'isActive',
-            render: (row) => (
-                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${row.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                    }`}>
-                    {row.isActive ? 'Active' : 'Inactive'}
-                </span>
-            )
         }
     ]
 

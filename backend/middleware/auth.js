@@ -35,10 +35,10 @@ export const protect = async (req, res, next) => {
         // Get user from token
         const user = await User.findById(decoded.id).select('-password');
 
-        if (!user || !user.isActive) {
+        if (!user) {
             return res.status(401).json({
                 success: false,
-                message: 'User not found or inactive',
+                message: 'User not found',
             });
         }
 

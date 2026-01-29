@@ -95,7 +95,7 @@ export const getUserById = async (req, res) => {
 // @access  Private/Admin
 export const updateUser = async (req, res) => {
     try {
-        const { name, email, role, isActive } = req.body;
+        const { name, email, role } = req.body;
 
         const user = await User.findById(req.params.id);
 
@@ -109,7 +109,6 @@ export const updateUser = async (req, res) => {
         user.name = name || user.name;
         user.email = email || user.email;
         user.role = role || user.role;
-        user.isActive = isActive !== undefined ? isActive : user.isActive;
 
         const updatedUser = await user.save();
 
@@ -120,7 +119,6 @@ export const updateUser = async (req, res) => {
                 name: updatedUser.name,
                 email: updatedUser.email,
                 role: updatedUser.role,
-                isActive: updatedUser.isActive,
             },
             message: 'User updated successfully',
         });
@@ -132,7 +130,7 @@ export const updateUser = async (req, res) => {
     }
 };
 
-// @desc    Delete user (soft delete)
+// @desc    Delete user (hard delete)
 // @route   DELETE /api/users/:id
 // @access  Private/Admin
 export const deleteUser = async (req, res) => {
@@ -146,9 +144,8 @@ export const deleteUser = async (req, res) => {
             });
         }
 
-        // Soft delete - set isActive to false
-        user.isActive = false;
-        await user.save();
+        // Hard delete - permanently remove user
+        await user.deleteOne();
 
         res.status(200).json({
             success: true,
