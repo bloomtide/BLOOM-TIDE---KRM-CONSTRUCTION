@@ -14,7 +14,7 @@ const createAdmin = async () => {
         const adminData = {
             name: 'KRM Admin',
             email: 'admin@krm.com',
-            password: 'admin123456', // Change this password!
+            password: 'admin123456',
             role: 'admin',
             isActive: true,
         };
@@ -23,13 +23,13 @@ const createAdmin = async () => {
         let admin = await User.findOne({ email: adminData.email });
 
         if (admin) {
-            console.log('⚠️  Admin user already exists! Resetting password...');
+            console.log('⚠️ Admin user already exists! Resetting password...');
             admin.password = adminData.password;
             await admin.save();
             console.log('✅ Admin password reset successfully!');
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-            console.log('📧 Email:', adminData.email);
-            console.log('🔑 Password:', adminData.password);
+            console.log('Email:', adminData.email);
+            console.log('Password:', adminData.password);
             console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
             process.exit(0);
         }

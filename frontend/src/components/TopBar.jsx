@@ -29,12 +29,6 @@ const TopBar = () => {
             <div className="flex items-center justify-end">
                 {/* Right Section: Notifications and User */}
                 <div className="flex items-center gap-4">
-                    {/* Notification Bell */}
-                    <button className="relative w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-700 hover:bg-gray-200 transition-colors">
-                        <FiBell size={20} />
-                        <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
-                    </button>
-
                     {/* User Profile */}
                     <div className="relative">
                         <button
