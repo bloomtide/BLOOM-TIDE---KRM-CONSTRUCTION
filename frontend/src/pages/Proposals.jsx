@@ -4,11 +4,13 @@ import Sidebar from '../components/Sidebar'
 import TopBar from '../components/TopBar'
 import DataTable from '../components/DataTable'
 import CreateProposalModal from '../components/CreateProposalModal'
-import { FiPlus, FiSearch, FiCalendar, FiHome } from 'react-icons/fi'
+import { DateRangePicker } from '../components/DateRangePicker'
+import { FiPlus, FiSearch, FiHome } from 'react-icons/fi'
 
 const Proposals = () => {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
     const [isModalOpen, setIsModalOpen] = useState(false)
+    const [dateRange, setDateRange] = useState({ from: undefined, to: undefined })
 
     // Sample data matching the design
     const proposalData = [
@@ -141,11 +143,12 @@ const Proposals = () => {
                                     </div>
                                 </div>
 
-                                {/* Date Range Display */}
-                                <div className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700">
-                                    <FiCalendar className="text-gray-400" size={16} />
-                                    <span>15 May - 15 Jun</span>
-                                </div>
+                                {/* Date Range Picker */}
+                                <DateRangePicker
+                                    value={dateRange}
+                                    onChange={setDateRange}
+                                    placeholder="Select date range"
+                                />
                             </div>
                         </div>
 
