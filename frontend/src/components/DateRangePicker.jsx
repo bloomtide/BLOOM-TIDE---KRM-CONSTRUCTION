@@ -63,7 +63,16 @@ export function DateRangePicker({ value, onChange, placeholder = "Select date ra
     const formatDateRange = () => {
         if (!range?.from) return placeholder
         if (!range.to) return format(range.from, "MMM d, yyyy")
-        return `${format(range.from, "MMM d")} - ${format(range.to, "MMM d, yyyy")}`
+
+        // Check if both dates are in the same year
+        const sameYear = range.from.getFullYear() === range.to.getFullYear()
+
+        if (sameYear) {
+            return `${format(range.from, "MMM d")} - ${format(range.to, "MMM d, yyyy")}`
+        } else {
+            // Different years: show year for both dates
+            return `${format(range.from, "MMM d, yyyy")} - ${format(range.to, "MMM d, yyyy")}`
+        }
     }
 
     return (
@@ -84,7 +93,7 @@ export function DateRangePicker({ value, onChange, placeholder = "Select date ra
             <PopoverContent className="w-auto p-0 max-w-fit" align="start">
                 <div className="flex">
                     {/* Left Sidebar - Presets */}
-                    <div className="border-r border-gray-200 p-3 space-y-1 w-36 flex-shrink-0">
+                    <div className="border-r border-gray-200 p-3 space-y-1 w-36 shrink-0">
                         {DATE_PRESETS.map((preset, index) => (
                             <button
                                 key={preset.label}
@@ -114,6 +123,7 @@ export function DateRangePicker({ value, onChange, placeholder = "Select date ra
                                 }}
                                 month={leftMonth}
                                 onMonthChange={setLeftMonth}
+                                captionLayout="dropdown"
                                 initialFocus
                             />
 
@@ -127,6 +137,7 @@ export function DateRangePicker({ value, onChange, placeholder = "Select date ra
                                 }}
                                 month={rightMonth}
                                 onMonthChange={setRightMonth}
+                                captionLayout="dropdown"
                             />
                         </div>
 
