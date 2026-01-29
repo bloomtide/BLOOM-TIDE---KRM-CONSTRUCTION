@@ -49,7 +49,7 @@ const DataTable = ({
                             {columns.map((column, index) => (
                                 <th
                                     key={index}
-                                    className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider"
+                                    className={`px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider ${column.className || ''}`}
                                 >
                                     {column.header}
                                 </th>

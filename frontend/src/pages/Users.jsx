@@ -41,34 +41,28 @@ const Users = () => {
         }
     }
 
-    // Filter users based on search
-    const filteredUsers = users.filter(user =>
-        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    // Filter users based on search and exclude admin users
+    const filteredUsers = users
+        .filter(user => user.role !== 'admin') // Don't show admin users
+        .filter(user =>
+            user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            user.email.toLowerCase().includes(searchTerm.toLowerCase())
+        )
 
     // Table columns configuration
     const columns = [
         {
             header: 'Name',
             key: 'name',
+            className: 'w-1/2',
             render: (row) => (
                 <div className="font-medium text-gray-900">{row.name}</div>
             )
         },
         {
             header: 'Email',
-            key: 'email'
-        },
-        {
-            header: 'Role',
-            key: 'role',
-            render: (row) => (
-                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${row.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'
-                    }`}>
-                    {row.role.charAt(0).toUpperCase() + row.role.slice(1)}
-                </span>
-            )
+            key: 'email',
+            className: 'w-1/2',
         }
     ]
 
