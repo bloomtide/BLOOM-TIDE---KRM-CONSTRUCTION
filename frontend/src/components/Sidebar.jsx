@@ -2,9 +2,11 @@ import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { FiFileText, FiUsers, FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 import Logo from '../utils/logo/Logo.svg'
+import { useAuth } from '../context/AuthContext'
 
 const Sidebar = ({ collapsed = false, onToggle }) => {
     const location = useLocation()
+    const { user } = useAuth()
 
     const menuItems = [
         {
@@ -13,12 +15,12 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
             path: '/proposals',
             active: location.pathname === '/proposals'
         },
-        {
+        ...(user?.role === 'admin' ? [{
             name: 'Users',
             icon: FiUsers,
             path: '/users',
             active: location.pathname === '/users'
-        }
+        }] : [])
     ]
 
     return (

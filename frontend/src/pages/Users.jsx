@@ -4,9 +4,9 @@ import { toast } from 'react-hot-toast'
 import Sidebar from '../components/Sidebar'
 import TopBar from '../components/TopBar'
 import DataTable from '../components/DataTable'
-import AddUserModal from '../components/AddUserModal'
+import UserModal from '../components/UserModal'
 import { FiPlus, FiSearch, FiHome } from 'react-icons/fi'
-import { getAllUsers, createUser, deleteUser } from '../services/api'
+import { getAllUsers, createUser, updateUser, deleteUser } from '../services/api'
 
 const Users = () => {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -15,6 +15,9 @@ const Users = () => {
     const [loading, setLoading] = useState(true)
     const [actionLoading, setActionLoading] = useState(false)
     const [searchTerm, setSearchTerm] = useState('')
+
+    // Track who we are editing
+    const [selectedUser, setSelectedUser] = useState(null)
 
     // Fetch users on mount
     useEffect(() => {
@@ -79,20 +82,41 @@ const Users = () => {
         }
     ]
 
-    const handleAddUser = async (userData) => {
+    // OPEN MODAL: For New User
+    const openAddModal = () => {
+        setSelectedUser(null)
+        setIsModalOpen(true)
+    }
+
+    // OPEN MODAL: For Edit User
+    const handleEdit = (row) => {
+        setSelectedUser(row)
+        setIsModalOpen(true)
+    }
+
+    // SAVE USER (Handles both Add and Edit)
+    const handleSaveUser = async (formData) => {
         try {
             setActionLoading(true)
-            const response = await createUser(userData)
+
+            let response;
+            if (selectedUser) {
+                // UPDATE EXISTING
+                response = await updateUser(selectedUser.id || selectedUser._id, formData)
+            } else {
+                // CREATE NEW
+                response = await createUser(formData)
+            }
 
             if (response.success) {
-                toast.success('User added successfully')
+                toast.success(selectedUser ? 'User updated successfully' : 'User added successfully')
                 setIsModalOpen(false)
                 fetchUsers() // Refresh list
             } else {
-                toast.error(response.message || 'Failed to add user')
+                toast.error(response.message || (selectedUser ? 'Failed to update user' : 'Failed to add user'))
             }
         } catch (error) {
-            const msg = error.response?.data?.message || 'Error adding user';
+            const msg = error.response?.data?.message || 'Error saving user';
             toast.error(msg)
         } finally {
             setActionLoading(false)
@@ -113,10 +137,6 @@ const Users = () => {
         } catch (error) {
             toast.error('Error deleting user')
         }
-    }
-
-    const handleEdit = (row) => {
-        toast('Edit functionality coming soon!', { icon: '🚧' });
     }
 
     return (
@@ -152,7 +172,7 @@ const Users = () => {
                                 </p>
                             </div>
                             <button
-                                onClick={() => setIsModalOpen(true)}
+                                onClick={openAddModal}
                                 className="flex items-center gap-2 bg-[#1A72B9] hover:bg-[#1565C0] text-white px-4 py-2.5 rounded-lg transition-colors text-sm font-medium shadow-sm"
                             >
                                 <FiPlus size={18} />
@@ -196,12 +216,14 @@ const Users = () => {
                 </div>
             </div>
 
-            {/* Add User Modal */}
-            <AddUserModal
+            {/* Shared User Modal (Add/Edit) */}
+            <UserModal
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
-                onSubmit={handleAddUser}
+                onSubmit={handleSaveUser}
                 loading={actionLoading}
+                initialData={selectedUser}
+                isEditing={!!selectedUser}
             />
         </div>
     )
