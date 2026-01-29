@@ -49,13 +49,13 @@ const DataTable = ({
                             {columns.map((column, index) => (
                                 <th
                                     key={index}
-                                    className={`px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider ${column.className || ''}`}
+                                    className={`px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider ${column.className || ''}`}
                                 >
                                     {column.header}
                                 </th>
                             ))}
                             {showActions && (
-                                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                                <th className="px-6 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">
                                     Actions
                                 </th>
                             )}
@@ -119,7 +119,7 @@ const DataTable = ({
                                                 {onDelete && (
                                                     <button
                                                         onClick={() => onDelete(row, rowIndex)}
-                                                        className="text-gray-500 hover:text-red-600 transition-colors"
+                                                        className="text-red-600 hover:text-red-800 transition-colors"
                                                         title="Delete"
                                                     >
                                                         <FiTrash2 size={18} />
