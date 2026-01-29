@@ -6,7 +6,7 @@ import TopBar from '../components/TopBar'
 import DataTable from '../components/DataTable'
 import UserModal from '../components/UserModal'
 import { FiPlus, FiSearch, FiHome } from 'react-icons/fi'
-import { getAllUsers, createUser, updateUser, deleteUser } from '../services/api'
+import { getAllUsers, createUser, updateUser, deleteUser, bulkDeleteUsers } from '../services/api'
 
 const Users = () => {
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
@@ -123,6 +123,23 @@ const Users = () => {
         }
     }
 
+    const handleBulkDelete = async (selectedUsers) => {
+        if (!window.confirm(`Are you sure you want to delete ${selectedUsers.length} users?`)) return
+
+        try {
+            const ids = selectedUsers.map(u => u._id || u.id)
+            const response = await bulkDeleteUsers(ids)
+            if (response.success) {
+                toast.success('Users deleted successfully')
+                fetchUsers()
+            } else {
+                toast.error('Failed to delete users')
+            }
+        } catch (error) {
+            toast.error('Error deleting users')
+        }
+    }
+
     return (
         <div className="flex h-screen bg-gray-50">
             {/* Sidebar */}
@@ -192,6 +209,7 @@ const Users = () => {
                                 data={filteredUsers}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
+                                onBulkDelete={handleBulkDelete}
                                 showCheckbox={true}
                                 showActions={true}
                             />

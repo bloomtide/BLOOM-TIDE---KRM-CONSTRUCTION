@@ -158,3 +158,32 @@ export const deleteUser = async (req, res) => {
         });
     }
 };
+
+// @desc    Delete multiple users (bulk hard delete)
+// @route   POST /api/users/bulk-delete
+// @access  Private/Admin
+export const deleteUsers = async (req, res) => {
+    try {
+        const { ids } = req.body;
+
+        if (!ids || ids.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'No user IDs provided',
+            });
+        }
+
+        // Hard delete multiple users
+        const result = await User.deleteMany({ _id: { $in: ids } });
+
+        res.status(200).json({
+            success: true,
+            message: `${result.deletedCount} users deleted successfully`,
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};

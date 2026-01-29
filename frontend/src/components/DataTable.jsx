@@ -7,6 +7,7 @@ const DataTable = ({
     onEdit,
     onDownload,
     onDelete,
+    onBulkDelete,
     showActions = true,
     showCheckbox = true
 }) => {
@@ -33,6 +34,20 @@ const DataTable = ({
     return (
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
+                {selectedRows.length > 0 && onBulkDelete && (
+                    <div className="bg-red-50 px-6 py-2 flex items-center justify-between border-b border-red-100">
+                        <span className="text-sm text-red-700 font-medium">
+                            {selectedRows.length} selected
+                        </span>
+                        <button
+                            onClick={() => onBulkDelete(selectedRows.map(index => data[index]))}
+                            className="text-red-600 hover:text-red-700 text-sm font-medium flex items-center gap-2"
+                        >
+                            <FiTrash2 size={16} />
+                            Delete Selected
+                        </button>
+                    </div>
+                )}
                 <table className="w-full">
                     <thead className="bg-gray-50 border-b border-gray-200">
                         <tr>

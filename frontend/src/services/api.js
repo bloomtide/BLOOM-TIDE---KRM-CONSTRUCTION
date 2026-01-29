@@ -85,3 +85,13 @@ export const deleteUser = async (userId) => {
     const response = await api.delete(`/users/${userId}`);
     return response.data;
 };
+
+/**
+ * Delete multiple users
+ * @param {Array} userIds - Array of User IDs
+ * @returns {Promise} Response
+ */
+export const bulkDeleteUsers = async (userIds) => {
+    const response = await api.post('/users/bulk-delete', { ids: userIds });
+    return response.data;
+};
