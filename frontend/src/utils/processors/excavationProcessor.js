@@ -215,7 +215,6 @@ export const processExcavationItems = (rawDataRows, headers) => {
   const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
 
   if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) {
-    console.error('Required columns not found in raw data')
     return excavationItems
   }
 
@@ -271,7 +270,6 @@ export const processBackfillItems = (rawDataRows, headers) => {
   const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
 
   if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) {
-    console.error('Required columns not found in raw data')
     return backfillItems
   }
 
@@ -313,7 +311,6 @@ export const processMudSlabItems = (rawDataRows, headers) => {
   const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
 
   if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) {
-    console.error('Required columns not found in raw data')
     return mudSlabItems
   }
 

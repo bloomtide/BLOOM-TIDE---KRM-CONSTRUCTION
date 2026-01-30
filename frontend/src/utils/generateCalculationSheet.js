@@ -1,7 +1,7 @@
 import capstoneTemplate from './templates/capstoneTemplate'
 import { processDemolitionItems } from './processors/demolitionProcessor'
 import { processExcavationItems, processBackfillItems, processMudSlabItems } from './processors/excavationProcessor'
-import { processRockExcavationItems, processLineDrillItems } from './processors/rockExcavationProcessor'
+import { processRockExcavationItems, processLineDrillItems, calculateRockExcavationTotals, calculateLineDrillTotalFT } from './processors/rockExcavationProcessor'
 import {
   processSoldierPileItems,
   processPrimarySecantItems,
@@ -152,6 +152,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let formBoardItems = []
   let hasBackpacking = false
   let rockExcavationRowRefs = {} // To store row references for line drill
+<<<<<<< Updated upstream
   let drilledFoundationPileGroups = []
   let helicalFoundationPileGroups = []
   let drivenFoundationPileItems = []
@@ -188,6 +189,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let negativeSideWallItems = []
   let negativeSideSlabItems = []
   const foundationSlabRows = {} // Populated when building Foundation section; used by Waterproofing Exterior side pit items
+  let rockExcavationTotals = { totalSQFT: 0, totalCY: 0 } // Initialize rock excavation totals
+  let lineDrillTotalFT = 0 // Initialize line drill total FT
   if (rawData && rawData.length > 1) {
     const headers = rawData[0]
     const dataRows = rawData.slice(1)
@@ -196,7 +199,15 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     backfillItems = processBackfillItems(dataRows, headers)
     mudSlabItems = processMudSlabItems(dataRows, headers)
     rockExcavationItems = processRockExcavationItems(dataRows, headers)
+    // Calculate rock excavation totals
+    if (rockExcavationItems.length > 0) {
+      rockExcavationTotals = calculateRockExcavationTotals(rockExcavationItems)
+    }
     lineDrillItems = processLineDrillItems(dataRows, headers)
+    // Calculate line drill total FT
+    if (lineDrillItems.length > 0) {
+      lineDrillTotalFT = calculateLineDrillTotalFT(lineDrillItems)
+    }
     soldierPileGroups = processSoldierPileItems(dataRows, headers)
     primarySecantItems = processPrimarySecantItems(dataRows, headers)
     secondarySecantItems = processSecondarySecantItems(dataRows, headers)
@@ -303,10 +314,36 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           rows.push(subsectionRow)
 
           if (subsection.name === 'For demo Extra line item use this') {
+          // Customized demo templates for extra line items
             const extraItems = [
-              { name: 'In SQ FT', unit: 'SQ FT', h: 1, type: 'demo_extra_sqft' },
-              { name: 'In FT', unit: 'FT', g: 1, h: 1, type: 'demo_extra_ft' },
-              { name: 'In EA', unit: 'EA', f: 1, g: 1, h: 1, type: 'demo_extra_ea' }
+            {
+              name: 'Demo SOG 4\" thick',
+              unit: 'SQ FT',
+              h: 1,
+              type: 'demo_extra_sqft'
+            },
+            {
+              name: 'Demo SF (2\'-0\"x1\'-0\")',
+              unit: 'SQ FT',
+              g: 1,
+              h: 1,
+              type: 'demo_extra_ft'
+            },
+            {
+              name: 'Demo FW (1\'-0\"x3\'-0\")',
+              unit: 'SQ FT',
+              g: 1,
+              h: 1,
+              type: 'demo_extra_ft'
+            },
+            {
+              name: 'Demo isolated footing (2\'-0\"x3\'-0\"x1\'-6\")',
+              unit: 'EA',
+              f: 1,
+              g: 1,
+              h: 1,
+              type: 'demo_extra_ea'
+            }
             ]
 
             extraItems.forEach(item => {
@@ -2731,7 +2768,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     }
   })
 
-  return { rows, formulas }
+  return { rows, formulas, rockExcavationTotals, lineDrillTotalFT, soldierPileGroups }
 }
 
 /**

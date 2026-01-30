@@ -492,6 +492,93 @@ export const generateSoeFormulas = (itemType, rowNum, itemData) => {
     return formulas
 }
 
+/**
+ * Formats drilled soldier pile proposal text
+ * @param {Array} drilledGroups - Array of drilled soldier pile groups
+ * @returns {string|null} - Formatted proposal text or null if no groups
+ */
+export const formatDrilledSoldierPileProposalText = (drilledGroups) => {
+    if (!drilledGroups || drilledGroups.length === 0) return null
+    
+    // Get all drilled items from all groups
+    const allDrilledItems = []
+    drilledGroups.forEach(group => {
+        if (group.type === 'drilled' && group.items) {
+            allDrilledItems.push(...group.items)
+        }
+    })
+    
+    if (allDrilledItems.length === 0) return null
+    
+    // Get diameter and thickness from first item (should be same for all in a group)
+    const firstItem = allDrilledItems[0]
+    const parsed = firstItem.parsed
+    const diameter = parsed.diameter
+    const thickness = parsed.thickness
+    
+    // Calculate average height
+    let totalHeight = 0
+    let heightCount = 0
+    let embedment = null
+    
+    allDrilledItems.forEach(item => {
+        if (item.parsed && item.parsed.heightRaw) {
+            totalHeight += item.parsed.heightRaw
+            heightCount++
+        }
+        // Get embedment from first item that has it
+        if (!embedment && item.parsed && item.parsed.embedment) {
+            embedment = item.parsed.embedment
+        }
+    })
+    
+    if (heightCount === 0) return null
+    
+    const avgHeight = totalHeight / heightCount
+    // Round average height to nearest foot
+    const avgHeightRounded = Math.round(avgHeight)
+    
+    // Format embedment (embedment is already in feet from parseDimension)
+    let embedmentText = ''
+    if (embedment) {
+        const embedmentFeet = Math.floor(embedment)
+        const embedmentInches = Math.round((embedment - embedmentFeet) * 12)
+        if (embedmentInches === 0) {
+            embedmentText = `${embedmentFeet}'-0"`
+        } else {
+            embedmentText = `${embedmentFeet}'-${embedmentInches}"`
+        }
+    } else {
+        embedmentText = "0'-0\""
+    }
+    
+    // Format height (heightRaw is already in feet from parseDimension)
+    const heightFeet = Math.floor(avgHeightRounded)
+    const heightInches = Math.round((avgHeightRounded - heightFeet) * 12)
+    let heightText = ''
+    if (heightInches === 0) {
+        heightText = `${heightFeet}'-0"`
+    } else {
+        heightText = `${heightFeet}'-${heightInches}"`
+    }
+    
+    // Count total number of items (sum of all takeoff values)
+    const totalCount = Math.round(allDrilledItems.reduce((sum, item) => sum + (item.takeoff || 0), 0))
+    
+    // Format the text: F&I new (##)no [9.625" Øx0.545" thick] drilled soldier piles (H=30'-0", 15'-0" embedment) as per SOE-101.00
+    const proposalText = `F&I new (${totalCount})no [${diameter}" Øx${thickness}" thick] drilled soldier piles (H=${heightText}, ${embedmentText} embedment) as per SOE-101.00`
+    
+    console.log('=== Drilled Soldier Pile Proposal Text ===')
+    console.log(proposalText)
+    console.log(`Total Count: ${totalCount}`)
+    console.log(`Diameter: ${diameter}"`)
+    console.log(`Thickness: ${thickness}"`)
+    console.log(`Average Height: ${avgHeight.toFixed(2)}' (${heightText})`)
+    console.log(`Embedment: ${embedmentText}`)
+    
+    return proposalText
+}
+
 export default {
     processSoldierPileItems,
     processPrimarySecantItems,
@@ -528,5 +615,6 @@ export default {
     processButtonItems,
     processRockStabilizationItems,
     processFormBoardItems,
-    generateSoeFormulas
+    generateSoeFormulas,
+    formatDrilledSoldierPileProposalText
 }
