@@ -152,7 +152,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let formBoardItems = []
   let hasBackpacking = false
   let rockExcavationRowRefs = {} // To store row references for line drill
-<<<<<<< Updated upstream
   let drilledFoundationPileGroups = []
   let helicalFoundationPileGroups = []
   let drivenFoundationPileItems = []
