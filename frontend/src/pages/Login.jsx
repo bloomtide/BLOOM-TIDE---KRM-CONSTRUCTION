@@ -11,7 +11,6 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -50,7 +49,7 @@ const Login = () => {
         {/* Background overlay for better text readability */}
         <div className="absolute inset-0 bg-[#2B4A8C]/40"></div>
 
-        <div className="relative z-10 flex flex-col justify-center px-16 text-white">
+        <div className="relative z-10 flex flex-col justify-center items-center px-16 text-white w-full text-center">
           {/* KRM Logo */}
           <div className="mb-12">
             <img src={Logo} alt="KRM Construction" className="h-16 w-auto" />
@@ -58,7 +57,7 @@ const Login = () => {
 
           {/* Main Heading */}
           <h1 className="text-4xl font-bold mb-6 leading-tight">
-            Secure access to KRM<br />systems
+            Secure access to KRM systems
           </h1>
 
           {/* Subtext */}
@@ -137,20 +136,6 @@ const Login = () => {
                   )}
                 </button>
               </div>
-            </div>
-
-            {/* Remember Me Checkbox */}
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="remember"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-              />
-              <label htmlFor="remember" className="ml-2 text-sm text-gray-700">
-                Remember me
-              </label>
             </div>
 
             {/* Login Button */}

@@ -59,7 +59,7 @@ export const login = async (req, res) => {
             expires: expiresAt,
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
         };
 
         res.cookie('token', token, cookieOptions);

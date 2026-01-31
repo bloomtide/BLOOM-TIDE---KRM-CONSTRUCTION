@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { FiBell, FiLogOut, FiUser } from 'react-icons/fi'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
@@ -7,6 +7,7 @@ const TopBar = () => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [showProfileMenu, setShowProfileMenu] = useState(false);
+    const profileMenuRef = useRef(null);
 
     // Get user initials
     const getInitials = (name) => {
@@ -19,6 +20,23 @@ const TopBar = () => {
             .substring(0, 2);
     };
 
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+                setShowProfileMenu(false);
+            }
+        };
+
+        if (showProfileMenu) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showProfileMenu]);
+
     const handleLogout = async () => {
         await logout();
         navigate('/');
@@ -30,7 +48,7 @@ const TopBar = () => {
                 {/* Right Section: Notifications and User */}
                 <div className="flex items-center gap-4">
                     {/* User Profile */}
-                    <div className="relative">
+                    <div className="relative" ref={profileMenuRef}>
                         <button
                             onClick={() => setShowProfileMenu(!showProfileMenu)}
                             className="flex items-center gap-3 bg-gray-100 rounded-full px-4 py-2 hover:bg-gray-200 transition-colors"

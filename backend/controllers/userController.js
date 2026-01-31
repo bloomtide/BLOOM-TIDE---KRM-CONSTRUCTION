@@ -27,9 +27,37 @@ export const createUser = async (req, res) => {
     try {
         const { name, email, password, role } = req.body;
 
-        // Check if user exists
-        const userExists = await User.findOne({ email });
+        // Validate name
+        if (!name || !name.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Name is required',
+            });
+        }
+        if (name.trim().length < 2) {
+            return res.status(400).json({
+                success: false,
+                message: 'Name must be at least 2 characters',
+            });
+        }
 
+        // Validate email
+        const emailRegex = /^\S+@\S+\.\S+$/;
+        if (!email || !email.trim()) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email is required',
+            });
+        }
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please provide a valid email',
+            });
+        }
+
+        // Check if user exists
+        const userExists = await User.findOne({ email: email.toLowerCase() });
         if (userExists) {
             return res.status(400).json({
                 success: false,
@@ -37,10 +65,24 @@ export const createUser = async (req, res) => {
             });
         }
 
+        // Validate password
+        if (!password) {
+            return res.status(400).json({
+                success: false,
+                message: 'Password is required',
+            });
+        }
+        if (password.length < 6) {
+            return res.status(400).json({
+                success: false,
+                message: 'Password must be at least 6 characters',
+            });
+        }
+
         // Create user
         const user = await User.create({
-            name,
-            email,
+            name: name.trim(),
+            email: email.toLowerCase(),
             password,
             role: role || 'user',
             createdBy: req.user._id,
@@ -95,7 +137,7 @@ export const getUserById = async (req, res) => {
 // @access  Private/Admin
 export const updateUser = async (req, res) => {
     try {
-        const { name, email, role } = req.body;
+        const { name, email, password, role } = req.body;
 
         const user = await User.findById(req.params.id);
 
@@ -106,9 +148,60 @@ export const updateUser = async (req, res) => {
             });
         }
 
-        user.name = name || user.name;
-        user.email = email || user.email;
-        user.role = role || user.role;
+        // Validate name
+        if (name !== undefined) {
+            if (!name.trim()) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Name cannot be empty',
+                });
+            }
+            if (name.trim().length < 2) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Name must be at least 2 characters',
+                });
+            }
+            user.name = name.trim();
+        }
+
+        // Validate and check for duplicate email
+        if (email !== undefined && email !== user.email) {
+            const emailRegex = /^\S+@\S+\.\S+$/;
+            if (!emailRegex.test(email)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Please provide a valid email',
+                });
+            }
+
+            // Check if email is already taken by another user
+            const emailExists = await User.findOne({ email: email.toLowerCase() });
+            if (emailExists && emailExists._id.toString() !== req.params.id) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Email is already in use by another user',
+                });
+            }
+
+            user.email = email.toLowerCase();
+        }
+
+        // Update password if provided
+        if (password) {
+            if (password.length < 6) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Password must be at least 6 characters',
+                });
+            }
+            user.password = password;
+        }
+
+        // Update role if provided
+        if (role !== undefined) {
+            user.role = role;
+        }
 
         const updatedUser = await user.save();
 

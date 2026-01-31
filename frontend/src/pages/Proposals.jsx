@@ -104,7 +104,7 @@ const Proposals = () => {
                             <div>
                                 <h1 className="text-2xl font-bold text-gray-900 mb-2">Proposals</h1>
                                 <p className="text-sm text-gray-500">
-                                    Lorem ipsum dolor sit amet consectetur. Facilisi diam ullamcorper arcu risus laoreet.
+                                    View all proposals and create new ones.
                                 </p>
                             </div>
                             <button
