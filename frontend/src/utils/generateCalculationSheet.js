@@ -2767,7 +2767,30 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     }
   })
 
-  return { rows, formulas, rockExcavationTotals, lineDrillTotalFT, soldierPileGroups }
+  return { 
+    rows, 
+    formulas, 
+    rockExcavationTotals, 
+    lineDrillTotalFT, 
+    soldierPileGroups, 
+    primarySecantItems,
+    secondarySecantItems,
+    tangentPileItems,
+    pargingItems,
+    guideWallItems,
+    dowelBarItems,
+    rockPinItems,
+    rockStabilizationItems,
+    shotcreteItems,
+    permissionGroutingItems,
+    buttonItems,
+    mudSlabItems,
+    drilledFoundationPileGroups,
+    helicalFoundationPileGroups,
+    drivenFoundationPileItems,
+    stelcorDrilledDisplacementPileItems,
+    cfaPileItems
+  }
 }
 
 /**

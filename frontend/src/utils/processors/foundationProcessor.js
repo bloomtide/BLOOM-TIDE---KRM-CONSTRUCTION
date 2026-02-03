@@ -100,51 +100,86 @@ export const processDrilledFoundationPileItems = (rawDataRows, headers) => {
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
     const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
     const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+    // Find column that might contain "Influ" - check common column names
+    const influIdx = headers.findIndex(h => {
+        if (!h) return false
+        const hLower = h.toLowerCase().trim()
+        return hLower.includes('influ') || hLower.includes('influence') || hLower.includes('note')
+    })
 
     if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
 
-    const allItems = []
+    const groups = []
+    let currentGroup = null
+
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
-        const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const digitizerText = digitizerItem ? String(digitizerItem).trim() : ''
+        const isRowEmpty = !digitizerItem || digitizerText === ''
+        
+        // Also check if this might be a sum row (has formula indicators or is just totals)
+        // Sum rows typically have empty digitizer item but might have values in other columns
+        const takeoffValue = row[totalIdx]
+        const isSumRow = isRowEmpty && (takeoffValue === '' || takeoffValue === null || takeoffValue === undefined)
 
+        if (isRowEmpty || isSumRow) {
+            // Empty row or sum row - save current group if it exists and start a new one
+            // This is how we separate groups - by empty rows, NOT by Influ
+            if (currentGroup && currentGroup.items.length > 0) {
+                groups.push(currentGroup)
+                currentGroup = null
+            }
+            return
+        }
+
+        // Check if this is a drilled foundation pile
         if (isDrilledFoundationPile(digitizerItem)) {
+            const total = parseFloat(row[totalIdx]) || 0
+            const unit = row[unitIdx]
+            const influValue = influIdx !== -1 ? row[influIdx] : null
+            const hasInflu = influValue && String(influValue).toLowerCase().includes('influ')
             const parsed = parseDrilledFoundationPile(digitizerItem)
-            allItems.push({
+
+            // If no current group, start a new one (new group starts when we encounter a drilled pile after an empty row)
+            if (!currentGroup) {
+                currentGroup = {
+                    groupKey: parsed.groupKey || 'OTHER',
+                    items: [{
                 particulars: digitizerItem,
-                takeoff: total,
+                        takeoff: 0,
                 unit: unit,
                 parsed: parsed,
-                rawRowNumber: rowIndex + 2
-            })
+                        rawRowNumber: rowIndex + 2,
+                        hasInflu: hasInflu
+                    }],
+                    parsed: parsed,
+                    hasInflu: hasInflu
+        }
+            } else {
+                // Add to current group - sum the takeoff
+                // This item belongs to the same group (no empty row between them)
+                currentGroup.items[0].takeoff += total
+                // If this item has Influ, mark the whole group
+                if (hasInflu) {
+                    currentGroup.hasInflu = true
+                }
+            }
+        } else {
+            // Not a drilled foundation pile - if we have a current group, save it
+            // This handles the case where we encounter a different item type, which also ends the group
+            if (currentGroup && currentGroup.items.length > 0) {
+                groups.push(currentGroup)
+                currentGroup = null
+            }
         }
     })
 
-    // Group items by groupKey and sum quantities.
-    // Keep the return shape consistent with other "grouped" subsections:
-    // [{ groupKey, items: [...], parsed }]
-    const groupMap = new Map()
-    allItems.forEach(item => {
-        const groupKey = item.parsed.groupKey || 'OTHER'
-        if (!groupMap.has(groupKey)) {
-            groupMap.set(groupKey, {
-                groupKey,
-                items: [{
-                    particulars: item.particulars,
-                    takeoff: 0,
-                    unit: item.unit,
-                    parsed: item.parsed,
-                    rawRowNumber: item.rawRowNumber
-                }],
-                parsed: item.parsed
-            })
-        }
-        const group = groupMap.get(groupKey)
-        group.items[0].takeoff += item.takeoff
-    })
+    // Don't forget to add the last group if it exists
+    if (currentGroup && currentGroup.items.length > 0) {
+        groups.push(currentGroup)
+    }
 
-    return Array.from(groupMap.values())
+    return groups
 }
 
 /**

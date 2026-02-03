@@ -34,6 +34,101 @@ const Spreadsheet = () => {
       setFormulaData(result.formulas)
       setRockExcavationTotals(result.rockExcavationTotals || { totalSQFT: 0, totalCY: 0 })
       setLineDrillTotalFT(result.lineDrillTotalFT || 0)
+      // Store soldier pile groups for proposal sheet
+      window.soldierPileGroups = result.soldierPileGroups || []
+      // Store SOE subsection items
+      window.soeSubsectionItems = new Map()
+      // Store primary secant items for proposal sheet
+      window.primarySecantItems = result.primarySecantItems || []
+      // Store secondary secant items for proposal sheet
+      window.secondarySecantItems = result.secondarySecantItems || []
+      // Store tangent pile items for proposal sheet
+      window.tangentPileItems = result.tangentPileItems || []
+      // Store parging items for proposal sheet
+      window.pargingItems = result.pargingItems || []
+      // Store guide wall items for proposal sheet
+      window.guideWallItems = result.guideWallItems || []
+      // Store dowel bar items for proposal sheet
+      window.dowelBarItems = result.dowelBarItems || []
+      // Store rock pin items for proposal sheet
+      window.rockPinItems = result.rockPinItems || []
+      // Store rock stabilization items for proposal sheet
+      window.rockStabilizationItems = result.rockStabilizationItems || []
+      // Store button items for proposal sheet
+      window.buttonItems = result.buttonItems || []
+      // Store foundation processor results for proposal sheet
+      window.drilledFoundationPileGroups = result.drilledFoundationPileGroups || []
+      window.helicalFoundationPileGroups = result.helicalFoundationPileGroups || []
+      window.drivenFoundationPileItems = result.drivenFoundationPileItems || []
+      window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileItems || []
+      window.cfaPileItems = result.cfaPileItems || []
+      // Store Foundation subsection items
+      window.foundationSubsectionItems = new Map()
+      
+      // Check which waterproofing items are present
+      if (rawData && rawData.length > 1) {
+        const headers = rawData[0]
+        const dataRows = rawData.slice(1)
+        const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
+        const estimateIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'estimate')
+        
+        const itemsToCheck = {
+          'foundation walls': /^FW\s*\(/i,
+          'retaining wall': /^RW\s*\(/i,
+          'vehicle barrier wall': /vehicle\s+barrier\s+wall\s*\(/i,
+          'concrete liner wall': /concrete\s+liner\s+wall\s*\(/i,
+          'stem wall': /stem\s+wall\s*\(/i,
+          'grease trap pit wall': /grease\s+trap\s+pit\s+wall/i,
+          'house trap pit wall': /house\s+trap\s+pit\s+wall/i,
+          'detention tank wall': /detention\s+tank\s+wall/i,
+          'elevator pit walls': /elev(?:ator)?\s+pit\s+wall/i,
+          'duplex sewage ejector pit wall': /duplex\s+sewage\s+ejector\s+pit\s+wall/i
+        }
+        
+        // Negative side items to check
+        const negativeSideItemsToCheck = {
+          'detention tank wall': /detention\s+tank\s+wall/i,
+          'elevator pit walls': /elev(?:ator)?\s+pit\s+wall/i,
+          'detention tank slab': /detention\s+tank\s+slab(?!\s+lid)/i,
+          'duplex sewage ejector pit wall': /duplex\s+sewage\s+ejector\s+pit\s+wall/i,
+          'duplex sewage ejector pit slab': /duplex\s+sewage\s+ejector\s+pit\s+slab/i,
+          'elevator pit slab': /elev(?:ator)?\s+pit\s+slab/i
+        }
+        
+        const presentItems = []
+        const presentNegativeSideItems = []
+        
+        dataRows.forEach(row => {
+          const digitizerItem = row[digitizerIdx]
+          if (!digitizerItem) return
+          
+          // Check if it's a waterproofing item
+          if (estimateIdx >= 0 && row[estimateIdx]) {
+            const estimateVal = String(row[estimateIdx]).trim()
+            if (estimateVal !== 'Waterproofing') return
+          }
+          
+          const itemText = String(digitizerItem).trim()
+          
+          // Check each pattern for exterior side items
+          Object.entries(itemsToCheck).forEach(([itemName, pattern]) => {
+            if (pattern.test(itemText) && !presentItems.includes(itemName)) {
+              presentItems.push(itemName)
+            }
+          })
+          
+          // Check each pattern for negative side items
+          Object.entries(negativeSideItemsToCheck).forEach(([itemName, pattern]) => {
+            if (pattern.test(itemText) && !presentNegativeSideItems.includes(itemName)) {
+              presentNegativeSideItems.push(itemName)
+            }
+          })
+        })
+        
+        // Store present items for use in proposal sheet
+        window.waterproofingPresentItems = presentItems
+        window.waterproofingNegativeSideItems = presentNegativeSideItems
+      }
     } else {
       // No data - create empty structure
       const template = selectedTemplate || 'capstone'
@@ -46,6 +141,38 @@ const Spreadsheet = () => {
       window.soldierPileGroups = result.soldierPileGroups || []
       // Store SOE subsection items
       window.soeSubsectionItems = new Map()
+      // Store primary secant items for proposal sheet
+      window.primarySecantItems = result.primarySecantItems || []
+      // Store secondary secant items for proposal sheet
+      window.secondarySecantItems = result.secondarySecantItems || []
+      // Store tangent pile items for proposal sheet
+      window.tangentPileItems = result.tangentPileItems || []
+      // Store parging items for proposal sheet
+      window.pargingItems = result.pargingItems || []
+      // Store guide wall items for proposal sheet
+      window.guideWallItems = result.guideWallItems || []
+      // Store dowel bar items for proposal sheet
+      window.dowelBarItems = result.dowelBarItems || []
+      // Store rock pin items for proposal sheet
+      window.rockPinItems = result.rockPinItems || []
+      // Store rock stabilization items for proposal sheet
+      window.rockStabilizationItems = result.rockStabilizationItems || []
+      // Store shotcrete items for proposal sheet
+      window.shotcreteItems = result.shotcreteItems || []
+      // Store permission grouting items for proposal sheet
+      window.permissionGroutingItems = result.permissionGroutingItems || []
+      // Store button items for proposal sheet
+      window.buttonItems = result.buttonItems || []
+      // Store mud slab items for proposal sheet
+      window.mudSlabItems = result.mudSlabItems || []
+      // Store foundation processor results for proposal sheet
+      window.drilledFoundationPileGroups = result.drilledFoundationPileGroups || []
+      window.helicalFoundationPileGroups = result.helicalFoundationPileGroups || []
+      window.drivenFoundationPileItems = result.drivenFoundationPileItems || []
+      window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileItems || []
+      window.cfaPileItems = result.cfaPileItems || []
+      // Store Foundation subsection items
+      window.foundationSubsectionItems = new Map()
     }
   }, [rawData, fileName, sheetName, rows, selectedTemplate])
 
@@ -1375,11 +1502,35 @@ const Spreadsheet = () => {
       spreadsheet.setColWidth(width, col.charCodeAt(0) - 65, proposalSheetIndex)
     })
 
-    // All rows have the same height
-    const uniformRowHeight = 22
-    for (let r = 0; r < 20; r++) {
-      spreadsheet.setRowHeight(uniformRowHeight, r, proposalSheetIndex)
+    // Helper function to calculate row height based on text content in column B
+    const calculateRowHeight = (text) => {
+      if (!text || typeof text !== 'string') {
+        return 22 // Default height for empty cells
+      }
+      
+      // Column B width is approximately 500 pixels (based on colWidths)
+      const columnWidth = 500
+      const fontSize = 11 // Default font size
+      const lineHeight = 14 // More accurate line height in pixels
+      const padding = 8 // Top and bottom padding
+      const charWidth = 6.5 // More accurate character width in pixels (for font size 11)
+      
+      // Calculate how many characters fit per line (accounting for padding)
+      const availableWidth = columnWidth - 20 // Account for cell padding
+      const charsPerLine = Math.floor(availableWidth / charWidth)
+      
+      // Calculate number of lines needed (accounting for word wrapping)
+      const textLength = text.length
+      const estimatedLines = Math.max(1, Math.ceil(textLength / charsPerLine))
+      
+      // Calculate height: (lines * lineHeight) + padding
+      const calculatedHeight = Math.max(22, Math.ceil(estimatedLines * lineHeight + padding))
+      
+      // Cap at reasonable maximum (60px for most cases, 80px for very long text)
+      // This prevents excessively tall rows
+      return Math.min(calculatedHeight, 80)
     }
+
 
     // Styles
     const headerGray = { backgroundColor: '#D9D9D9', fontWeight: 'bold', textAlign: 'center', verticalAlign: 'middle' }
@@ -1510,25 +1661,22 @@ const Spreadsheet = () => {
     spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'bold', borderBottom: '1px solid #000000', borderRight: '1px solid #000000' }, `${pfx}G10`)
     spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal' }, `${pfx}H10`)
 
-    // Bottom header row (row 13)
-    spreadsheet.updateCell({ value: 'DESCRIPTION' }, `${pfx}B13`)
+    // Bottom header row (row 12)
+    spreadsheet.updateCell({ value: 'DESCRIPTION' }, `${pfx}B12`)
     ;[
-      ['C13', 'LF'], ['D13', 'SF'], ['E13', 'LBS'], ['F13', 'CY'], ['G13', 'QTY'],
-      ['H13', '$/1000'],
-      ['I13', 'LF'], ['J13', 'SF'], ['K13', 'LBS'], ['L13', 'CY'], ['M13', 'QTY']
+      ['C12', 'LF'], ['D12', 'SF'], ['E12', 'LBS'], ['F12', 'CY'], ['G12', 'QTY'],
+      ['H12', '$/1000'],
+      ['I12', 'LF'], ['J12', 'SF'], ['K12', 'LBS'], ['L12', 'CY'], ['M12', 'QTY']
     ].forEach(([cell, value]) => spreadsheet.updateCell({ value }, `${pfx}${cell}`))
-    spreadsheet.updateCell({ value: 'LS' }, `${pfx}N13`)
+    spreadsheet.updateCell({ value: 'LS' }, `${pfx}N12`)
 
-    spreadsheet.cellFormat(headerGray, `${pfx}B13:N13`)
-    spreadsheet.cellFormat(thick, `${pfx}B13:N13`)
+    spreadsheet.cellFormat(headerGray, `${pfx}B12:N12`)
+    spreadsheet.cellFormat(thick, `${pfx}B12:N12`)
     // Make $/1000 cell background white
-    spreadsheet.cellFormat({ backgroundColor: 'white' }, `${pfx}H13`)
+    spreadsheet.cellFormat({ backgroundColor: 'white' }, `${pfx}H12`)
 
-    // Row 14: Empty row
-    // (No content needed)
-
-    // Row 15: Demolition scope
-    spreadsheet.updateCell({ value: 'Demolition scope:' }, `${pfx}B15`)
+    // Row 14: Demolition scope
+    spreadsheet.updateCell({ value: 'Demolition scope:' }, `${pfx}B14`)
     spreadsheet.cellFormat({ 
       backgroundColor: '#BDD7EE', 
       textAlign: 'center', 
@@ -1536,7 +1684,7 @@ const Spreadsheet = () => {
       textDecoration: 'underline',
       fontWeight: 'normal',
       border: '1px solid #000000'
-    }, `${pfx}B15`)
+    }, `${pfx}B14`)
 
     // Demolition scope lines from Calculations Sheet:
     // For each Demolition subsection, take the first item description in column B
@@ -1581,6 +1729,11 @@ const Spreadsheet = () => {
       window.soeSubsectionItems = new Map() // Map<subsectionName, items[]>
       let currentSOESubsectionItems = [] // Current subsection items being collected
       let currentSOESubsectionName = null // Current subsection name
+      // Store Foundation subsection items by subsection name
+      window.foundationSubsectionItems = new Map() // Map<subsectionName, items[]>
+      let currentFoundationSubsectionItems = [] // Current subsection items being collected
+      let currentFoundationSubsectionName = null // Current subsection name
+      let inFoundationSection = false // Track if we're in the Foundation section
 
       // Initialize workbook early so we can read evaluated formula values
       let workbook = null
@@ -1691,6 +1844,7 @@ const Spreadsheet = () => {
           inExcavationSection = false
           inRockExcavationSection = false
           inSOESection = true
+          inFoundationSection = false
           inExcavationSubsection = false
           inBackfillSubsection = false
           inRockExcavationSubsection = false
@@ -1703,17 +1857,45 @@ const Spreadsheet = () => {
           window.soeSubsectionItems = new Map()
           currentSOESubsectionItems = []
           currentSOESubsectionName = null
+          window.foundationSubsectionItems = new Map()
+          currentFoundationSubsectionItems = []
+          currentFoundationSubsectionName = null
           return
         }
 
-        if (!inDemolitionSection && !inExcavationSection && !inRockExcavationSection && !inSOESection) return
+        if (colA && String(colA).trim().toLowerCase() === 'foundation') {
+          inDemolitionSection = false
+          inExcavationSection = false
+          inRockExcavationSection = false
+          inSOESection = false
+          inFoundationSection = true
+          inExcavationSubsection = false
+          inBackfillSubsection = false
+          inRockExcavationSubsection = false
+          inDrilledSoldierPileSubsection = false
+          inHPSoldierPileSubsection = false
+          currentSubsection = null
+          dataRowCount = 0
+          drilledSoldierPileItems = []
+          hpSoldierPileItems = []
+          window.soeSubsectionItems = new Map()
+          currentSOESubsectionItems = []
+          currentSOESubsectionName = null
+          window.foundationSubsectionItems = new Map()
+          currentFoundationSubsectionItems = []
+          currentFoundationSubsectionName = null
+          return
+        }
+
+        if (!inDemolitionSection && !inExcavationSection && !inRockExcavationSection && !inSOESection && !inFoundationSection) return
 
         // If we hit another main section header in column A, stop collecting.
         if (colA && String(colA).trim() && 
             String(colA).trim().toLowerCase() !== 'demolition' && 
             String(colA).trim().toLowerCase() !== 'excavation' &&
             String(colA).trim().toLowerCase() !== 'rock excavation' &&
-            String(colA).trim().toLowerCase() !== 'soe') {
+            String(colA).trim().toLowerCase() !== 'soe' &&
+            String(colA).trim().toLowerCase() !== 'foundation') {
           // Save current SOE subsection items if any
           if (inSOESection && currentSOESubsectionName && currentSOESubsectionItems.length > 0) {
             if (!window.soeSubsectionItems.has(currentSOESubsectionName)) {
@@ -1722,11 +1904,20 @@ const Spreadsheet = () => {
             window.soeSubsectionItems.get(currentSOESubsectionName).push([...currentSOESubsectionItems])
           }
           
+          // Save current Foundation subsection items if any
+          if (inFoundationSection && currentFoundationSubsectionName && currentFoundationSubsectionItems.length > 0) {
+            if (!window.foundationSubsectionItems.has(currentFoundationSubsectionName)) {
+              window.foundationSubsectionItems.set(currentFoundationSubsectionName, [])
+            }
+            window.foundationSubsectionItems.get(currentFoundationSubsectionName).push([...currentFoundationSubsectionItems])
+          }
+          
           // Reset flags when moving to next section
           inDemolitionSection = false
           inExcavationSection = false
           inRockExcavationSection = false
           inSOESection = false
+          inFoundationSection = false
           inExcavationSubsection = false
           inBackfillSubsection = false
           inRockExcavationSubsection = false
@@ -1738,6 +1929,8 @@ const Spreadsheet = () => {
           hpSoldierPileItems = []
           currentSOESubsectionItems = []
           currentSOESubsectionName = null
+          currentFoundationSubsectionItems = []
+          currentFoundationSubsectionName = null
           return
         }
 
@@ -1861,7 +2054,23 @@ const Spreadsheet = () => {
               // Start collecting for new subsection
               currentSOESubsectionName = currentSubsection
               currentSOESubsectionItems = []
+              
             }
+          }
+          
+          // Track Foundation subsections
+          if (inFoundationSection) {
+            // Save previous subsection items if any
+            if (currentFoundationSubsectionName && currentFoundationSubsectionName !== currentSubsection && currentFoundationSubsectionItems.length > 0) {
+              if (!window.foundationSubsectionItems.has(currentFoundationSubsectionName)) {
+                window.foundationSubsectionItems.set(currentFoundationSubsectionName, [])
+              }
+              window.foundationSubsectionItems.get(currentFoundationSubsectionName).push([...currentFoundationSubsectionItems])
+              currentFoundationSubsectionItems = []
+            }
+            // Start collecting for new subsection
+            currentFoundationSubsectionName = currentSubsection
+            currentFoundationSubsectionItems = []
           }
           
           dataRowCount = 0
@@ -1975,6 +2184,7 @@ const Spreadsheet = () => {
           const bText = colB ? String(colB).trim() : ''
           const isParticularsEmpty = !colB || bText === ''
           
+          
           if (isParticularsEmpty) {
             // Found empty row - save current group
             if (currentSOESubsectionItems.length > 0) {
@@ -1982,6 +2192,8 @@ const Spreadsheet = () => {
                 window.soeSubsectionItems.set(currentSOESubsectionName, [])
               }
               window.soeSubsectionItems.get(currentSOESubsectionName).push([...currentSOESubsectionItems])
+              
+              
               currentSOESubsectionItems = []
             }
             return // Skip further processing for this row
@@ -1994,7 +2206,50 @@ const Spreadsheet = () => {
             const lbs = parseFloat(row[10]) || 0 // Column K (index 10)
             const qty = parseFloat(row[12]) || 0 // Column M (index 12)
             
-            currentSOESubsectionItems.push({
+            const item = {
+              particulars: bText,
+              takeoff: takeoff,
+              unit: unit,
+              height: height,
+              sqft: sqft,
+              lbs: lbs,
+              qty: qty,
+              rawRow: row,
+              rawRowNumber: rowIndex + 2
+            }
+            
+            currentSOESubsectionItems.push(item)
+            
+            
+            return // Skip further processing for this row
+          }
+        }
+
+        // Collect items for Foundation subsections
+        if (inFoundationSection && currentFoundationSubsectionName) {
+          const bText = colB ? String(colB).trim() : ''
+          const isParticularsEmpty = !colB || bText === ''
+          
+          if (isParticularsEmpty) {
+            // Found empty row - save current group
+            if (currentFoundationSubsectionItems.length > 0) {
+              if (!window.foundationSubsectionItems.has(currentFoundationSubsectionName)) {
+                window.foundationSubsectionItems.set(currentFoundationSubsectionName, [])
+              }
+              window.foundationSubsectionItems.get(currentFoundationSubsectionName).push([...currentFoundationSubsectionItems])
+              currentFoundationSubsectionItems = []
+            }
+            return // Skip further processing for this row
+          } else if (bText && !bText.endsWith(':')) {
+            // This is a data row - collect it
+            const takeoff = parseFloat(row[2]) || 0 // Column C (index 2)
+            const unit = row[3] || '' // Column D (index 3)
+            const height = parseFloat(row[7]) || 0 // Column H (index 7)
+            const sqft = parseFloat(row[9]) || 0 // Column J (index 9)
+            const lbs = parseFloat(row[10]) || 0 // Column K (index 10)
+            const qty = parseFloat(row[12]) || 0 // Column M (index 12)
+            
+            currentFoundationSubsectionItems.push({
               particulars: bText,
               takeoff: takeoff,
               unit: unit,
@@ -2462,7 +2717,7 @@ const Spreadsheet = () => {
         }
       }
 
-      // Render specific demolition lines into fixed rows B16–B19
+      // Render specific demolition lines into fixed rows B14–B17 (moved up one row)
       const orderedSubsections = [
         'Demo slab on grade',
         'Demo strip footing',
@@ -2471,13 +2726,10 @@ const Spreadsheet = () => {
       ]
 
       orderedSubsections.forEach((name, index) => {
-        const rowIndex = 16 + index // 16,17,18,19
+        const rowIndex = 14 + index // 14,15,16,17 (moved up one row to remove empty row after Demolition scope)
         const originalText = linesBySubsection.get(name)
         const templateText = buildDemolitionTemplate(name, originalText)
         const cellRef = `${pfx}B${rowIndex}`
-
-        // Increase row height to accommodate wrapped text
-        spreadsheet.setRowHeight(44, rowIndex - 1, proposalSheetIndex) // rowIndex is 1-based, setRowHeight uses 0-based
 
         // Always set the template text, even if no original data found
         spreadsheet.updateCell({ value: templateText }, cellRef)
@@ -2488,6 +2740,10 @@ const Spreadsheet = () => {
         } catch (e) {
           // Fallback if wrap method doesn't exist
         }
+        
+        // Calculate and set row height based on content
+        const dynamicHeight = calculateRowHeight(templateText)
+        spreadsheet.setRowHeight(dynamicHeight, rowIndex - 1, proposalSheetIndex) // rowIndex is 1-based, setRowHeight uses 0-based
         
         spreadsheet.cellFormat(
           { 
@@ -2547,7 +2803,7 @@ const Spreadsheet = () => {
           )
         }
 
-        // Fill SF (column J) with 7 for rows 16-19
+        // Fill SF (column J) with 7 for rows 14-17
         spreadsheet.updateCell({ value: 7 }, `${pfx}J${rowIndex}`)
         spreadsheet.cellFormat(
           { 
@@ -2559,7 +2815,7 @@ const Spreadsheet = () => {
           `${pfx}J${rowIndex}`
         )
 
-        // Fill CY (column L) with 500 for rows 16-19
+        // Fill CY (column L) with 500 for rows 14-17
         spreadsheet.updateCell({ value: 500 }, `${pfx}L${rowIndex}`)
         spreadsheet.cellFormat(
           { 
@@ -2586,8 +2842,8 @@ const Spreadsheet = () => {
       })
 
       // Apply background color #E2EFDA to columns I-N (LF, SF, LBS, CY, QTY, LS) for all demolition rows
-      // Extend to all rows below demolition scope (rows 16-21)
-      for (let row = 16; row <= 21; row++) {
+      // Extend to all rows below demolition scope (rows 14-19)
+      for (let row = 14; row <= 19; row++) {
         const columns = ['I', 'J', 'K', 'L', 'M', 'N'] // LF, SF, LBS, CY, QTY, LS
         columns.forEach(col => {
           spreadsheet.cellFormat(
@@ -2597,8 +2853,8 @@ const Spreadsheet = () => {
         })
       }
 
-      // Add note below all demolition items (row 20)
-      spreadsheet.updateCell({ value: 'Note: Site/building demolition by others.' }, `${pfx}B20`)
+      // Add note below all demolition items (row 18)
+      spreadsheet.updateCell({ value: 'Note: Site/building demolition by others.' }, `${pfx}B18`)
       spreadsheet.cellFormat(
         { 
           fontWeight: 'bold', 
@@ -2606,12 +2862,12 @@ const Spreadsheet = () => {
           textAlign: 'left',
           backgroundColor: 'white'
         },
-        `${pfx}B20`
+        `${pfx}B18`
       )
 
-      // Add Demolition Total row (row 21)
-      spreadsheet.merge(`${pfx}D21:E21`)
-      spreadsheet.updateCell({ value: 'Demolition Total:' }, `${pfx}D21`)
+      // Add Demolition Total row (row 19)
+      spreadsheet.merge(`${pfx}D19:E19`)
+      spreadsheet.updateCell({ value: 'Demolition Total:' }, `${pfx}D19`)
       spreadsheet.cellFormat(
         { 
           fontWeight: 'bold', 
@@ -2620,12 +2876,12 @@ const Spreadsheet = () => {
           backgroundColor: '#BDD7EE',
           border: '1px solid #000000'
         },
-        `${pfx}D21:E21`
+        `${pfx}D19:E19`
       )
 
-      spreadsheet.merge(`${pfx}F21:G21`)
-      const totalFormula = `=SUM(H16:H19)*1000`
-      spreadsheet.updateCell({ formula: totalFormula }, `${pfx}F21`)
+      spreadsheet.merge(`${pfx}F19:G19`)
+      const totalFormula = `=SUM(H14:H17)*1000`
+      spreadsheet.updateCell({ formula: totalFormula }, `${pfx}F19`)
       spreadsheet.cellFormat(
         { 
           fontWeight: 'bold', 
@@ -2635,36 +2891,39 @@ const Spreadsheet = () => {
           border: '1px solid #000000',
           format: '$#,##0.00'
         },
-        `${pfx}F21:G21`
+        `${pfx}F19:G19`
       )
 
-      // Apply background color to entire row B21:G21
+      // Apply background color to entire row B19:G19
       spreadsheet.cellFormat(
         { 
           backgroundColor: '#BDD7EE'
         },
-        `${pfx}B21:G21`
+        `${pfx}B19:G19`
       )
 
-      // Add empty row below Demolition Total (row 22)
-      // (No content needed - empty row)
+      // Row 20: Empty row - ensure it's white (not blue)
+      spreadsheet.cellFormat({ backgroundColor: 'white' }, `${pfx}B20:G20`)
 
-      // Row 23: Excavation scope
-      spreadsheet.updateCell({ value: 'Excavation scope:' }, `${pfx}B23`)
+      // Row 21: Excavation scope (moved up one row to remove extra empty line)
+      spreadsheet.updateCell({ value: 'Excavation scope:' }, `${pfx}B21`)
       spreadsheet.cellFormat({ 
         backgroundColor: '#BDD7EE', 
         textAlign: 'center', 
         verticalAlign: 'middle',
         textDecoration: 'underline',
-        fontWeight: 'bold',
-        border: '1px solid #000000'
-      }, `${pfx}B23`)
+        fontWeight: 'normal'
+      }, `${pfx}B21`)
+      // Ensure surrounding cells are white (not blue)
+      spreadsheet.cellFormat({ backgroundColor: 'white' }, `${pfx}C21:G21`)
+      spreadsheet.setRowHeight(20, 22, proposalSheetIndex) // Set row height to 22 (row 21 is index 20) - set after formatting
 
-      // Row 24: Empty row
-      // (No content needed - empty row)
+      // Row 22: Empty row - ensure it's white (not blue)
+      spreadsheet.cellFormat({ backgroundColor: 'white' }, `${pfx}B22:G22`)
+      spreadsheet.setRowHeight(21, 22, proposalSheetIndex) // Set row height to 22 (row 22 is index 21)
 
-      // Row 25: Soil excavation scope
-      spreadsheet.updateCell({ value: 'Soil excavation scope:' }, `${pfx}B25`)
+      // Row 23: Soil excavation scope
+      spreadsheet.updateCell({ value: 'Soil excavation scope:' }, `${pfx}B23`)
       spreadsheet.cellFormat({ 
         backgroundColor: '#FFF2CC', 
         textAlign: 'center', 
@@ -2672,11 +2931,13 @@ const Spreadsheet = () => {
         textDecoration: 'underline',
         fontWeight: 'bold',
         border: '1px solid #000000'
-      }, `${pfx}B25`)
+      }, `${pfx}B23`)
+      spreadsheet.setRowHeight(22, 22, proposalSheetIndex) // Set fixed small height for row 23 (index 22)
 
-      // Row 26: First soil excavation line
-      spreadsheet.updateCell({ value: 'Allow to perform soil excavation, trucking & disposal (Havg=16\'-9") as per SOE-101.00, P-301.01 & details on SOE-201.01 to SOE-204.00' }, `${pfx}B26`)
-      spreadsheet.wrap(`${pfx}B26`, true)
+      // Row 24: First soil excavation line
+      const soilExcavationText = 'Allow to perform soil excavation, trucking & disposal (Havg=16\'-9") as per SOE-101.00, P-301.01 & details on SOE-201.01 to SOE-204.00'
+      spreadsheet.updateCell({ value: soilExcavationText }, `${pfx}B24`)
+      spreadsheet.wrap(`${pfx}B24`, true)
       spreadsheet.cellFormat(
         { 
           fontWeight: 'bold', 
@@ -2685,17 +2946,20 @@ const Spreadsheet = () => {
           backgroundColor: 'white',
           verticalAlign: 'top'
         },
-        `${pfx}B26`
+        `${pfx}B24`
       )
+      // Calculate and set row height based on content
+      const soilExcavationHeight = calculateRowHeight(soilExcavationText)
+      spreadsheet.setRowHeight(soilExcavationHeight, 23, proposalSheetIndex) // Row 24 is index 23
       
       // Add SF value from excavation total to column D (using formula to reference calculation sheet)
       if (excavationEmptyRowIndex) {
         // Use formula to reference the calculation sheet
-        spreadsheet.updateCell({ formula: `='Calculations Sheet'!J${excavationEmptyRowIndex}` }, `${pfx}D26`)
+        spreadsheet.updateCell({ formula: `='Calculations Sheet'!J${excavationEmptyRowIndex}` }, `${pfx}D25`)
       } else {
         // Fallback to value if row index not found
         const formattedExcavationSF = parseFloat(excavationTotalSQFT.toFixed(2))
-        spreadsheet.updateCell({ value: formattedExcavationSF }, `${pfx}D26`)
+        spreadsheet.updateCell({ value: formattedExcavationSF }, `${pfx}D25`)
       }
       spreadsheet.cellFormat(
         { 
@@ -2704,17 +2968,17 @@ const Spreadsheet = () => {
           textAlign: 'right',
           format: '#,##0.00'
         },
-        `${pfx}D26`
+        `${pfx}D24`
       )
       
       // Add CY value from excavation total to column F (using formula to reference calculation sheet)
       if (excavationEmptyRowIndex) {
         // Use formula to reference the calculation sheet
-        spreadsheet.updateCell({ formula: `='Calculations Sheet'!L${excavationEmptyRowIndex}` }, `${pfx}F26`)
+        spreadsheet.updateCell({ formula: `='Calculations Sheet'!L${excavationEmptyRowIndex}` }, `${pfx}F25`)
       } else {
         // Fallback to value if row index not found
         const formattedExcavationCY = parseFloat(excavationTotalCY.toFixed(2))
-        spreadsheet.updateCell({ value: formattedExcavationCY }, `${pfx}F26`)
+        spreadsheet.updateCell({ value: formattedExcavationCY }, `${pfx}F25`)
       }
       spreadsheet.cellFormat(
         { 
@@ -2723,11 +2987,11 @@ const Spreadsheet = () => {
           textAlign: 'right',
           format: '#,##0.00'
         },
-        `${pfx}F26`
+        `${pfx}F24`
       )
 
-      // Fill CY (column L) with 75 for row 26
-      spreadsheet.updateCell({ value: 75 }, `${pfx}L26`)
+      // Fill CY (column L) with 75 for row 24
+      spreadsheet.updateCell({ value: 75 }, `${pfx}L24`)
       spreadsheet.cellFormat(
         { 
           fontWeight: 'bold', 
@@ -2735,11 +2999,11 @@ const Spreadsheet = () => {
           textAlign: 'right',
           format: '$#,##0.00'
         },
-        `${pfx}L26`
+        `${pfx}L24`
       )
 
-      // Add $/1000 formula in column H for row 26
-      const dollarFormula26 = `=ROUNDUP(MAX(C26*I26,D26*J26,E26*K26,F26*L26,G26*M26,N26)/1000,1)`
+      // Add $/1000 formula in column H for row 24
+      const dollarFormula24 = `=ROUNDUP(MAX(C24*I24,D24*J24,E24*K24,F24*L24,G24*M24,N24)/1000,1)`
       
       // Read formulas and evaluate them in real-time with longer timeout
       setTimeout(() => {
@@ -2763,7 +3027,7 @@ const Spreadsheet = () => {
           
           if (wb && wb.sheets) {
             const propSheetIndex = proposalSheetIndex
-            const row26 = 25 // 0-based index for row 26
+            const row24 = 23 // 0-based index for row 24
             
             // Helper function to get cell formula or value from workbook
             const getCellInfo = (row, col, colLetter) => {
@@ -2846,17 +3110,17 @@ const Spreadsheet = () => {
             
             // Get cell info for each cell
             const cells = {
-              c26: getCellInfo(row26, 2, 'C'),
-              i26: getCellInfo(row26, 8, 'I'),
-              d26: getCellInfo(row26, 3, 'D'),
-              j26: getCellInfo(row26, 9, 'J'),
-              e26: getCellInfo(row26, 4, 'E'),
-              k26: getCellInfo(row26, 10, 'K'),
-              f26: getCellInfo(row26, 5, 'F'),
-              l26: getCellInfo(row26, 11, 'L'),
-              g26: getCellInfo(row26, 6, 'G'),
-              m26: getCellInfo(row26, 12, 'M'),
-              n26: getCellInfo(row26, 13, 'N')
+              c24: getCellInfo(row24, 2, 'C'),
+              i24: getCellInfo(row24, 8, 'I'),
+              d24: getCellInfo(row24, 3, 'D'),
+              j24: getCellInfo(row24, 9, 'J'),
+              e24: getCellInfo(row24, 4, 'E'),
+              k24: getCellInfo(row24, 10, 'K'),
+              f24: getCellInfo(row24, 5, 'F'),
+              l24: getCellInfo(row24, 11, 'L'),
+              g24: getCellInfo(row24, 6, 'G'),
+              m24: getCellInfo(row24, 12, 'M'),
+              n24: getCellInfo(row24, 13, 'N')
             }
             
             // Evaluate each cell
@@ -2882,12 +3146,12 @@ const Spreadsheet = () => {
             })
           }
         } catch (e) {
-          console.error('Row 26: Error reading values:', e)
-          console.error('Row 26: Error stack:', e.stack)
+          console.error('Row 24: Error reading values:', e)
+          console.error('Row 24: Error stack:', e.stack)
         }
       }, 2000) // Increased timeout to 2 seconds
       
-      spreadsheet.updateCell({ formula: dollarFormula26 }, `${pfx}H26`)
+      spreadsheet.updateCell({ formula: dollarFormula24 }, `${pfx}H24`)
       spreadsheet.cellFormat(
         { 
           fontWeight: 'bold', 
@@ -2895,7 +3159,7 @@ const Spreadsheet = () => {
           textAlign: 'right',
           format: '$#,##0.00'
         },
-        `${pfx}H26`
+        `${pfx}H24`
       )
 
       // Row 27: Second soil excavation line
@@ -3135,7 +3399,7 @@ const Spreadsheet = () => {
       )
 
       spreadsheet.merge(`${pfx}F31:G31`)
-      const soilExcavationTotalFormula = `=SUM(H25:H29)*1000`
+      const soilExcavationTotalFormula = `=SUM(H24:H28)*1000`
       spreadsheet.updateCell({ formula: soilExcavationTotalFormula }, `${pfx}F31`)
       spreadsheet.cellFormat(
         { 
@@ -3488,19 +3752,64 @@ const Spreadsheet = () => {
         `${pfx}B40`
       )
 
-      // Row 41: Drilled soldier pile subsection
-      spreadsheet.updateCell({ value: 'Drilled soldier pile:' }, `${pfx}B41`)
-      spreadsheet.cellFormat(
-        { 
-          fontWeight: 'bold', 
-          color: '#000000', 
-          textAlign: 'left',
-          backgroundColor: '#D0CECE',
-          textDecoration: 'underline',
-          border: '1px solid #000000'
-        },
-        `${pfx}B41`
-      )
+      // Add SOE subsection headings (rows 41-64)
+      // We'll add content after each heading, so headings will be at:
+      // Row 41: Soldier drilled piles:
+      // Row 42: Soldier driven piles: (will be shifted down if drilled piles are added)
+      // etc.
+      const soeHeadings = [
+        'Soldier drilled piles:',
+        'Soldier driven piles:',
+        'Primary secant piles:',
+        'Secondary secant piles:',
+        'Tangent pile:',
+        'Sheet piles:',
+        'Timber lagging:',
+        'Timber sheeting:',
+        'Bracing:',
+        'Tie back anchor:',
+        'Tie down anchor:',
+        'Parging:',
+        'Heel blocks:',
+        'Underpinning:',
+        'Concrete soil retention pier:',
+        'Form board:',
+        'Buttons:',
+        'Concrete buttons:',
+        'Guide wall:',
+        'Concrete buttons:',
+        'Dowels:',
+        'Rock pins:',
+        'Rock stabilization:',
+        'Shotcrete:',
+        'Permission grouting:',
+        'Mud slab:',
+        'Misc.:'
+      ]
+      
+      // Store heading row numbers for later reference
+      const headingRows = {}
+      soeHeadings.forEach((heading, index) => {
+        const rowNum = 41 + index
+        headingRows[heading] = rowNum
+        spreadsheet.updateCell({ value: heading }, `${pfx}B${rowNum}`)
+        spreadsheet.cellFormat(
+          { 
+            fontWeight: 'bold', 
+            color: '#000000', 
+            textAlign: 'left',
+            backgroundColor: '#D0CECE',
+            textDecoration: 'underline',
+            border: '1px solid #000000'
+          },
+          `${pfx}B${rowNum}`
+        )
+        spreadsheet.setRowHeight(rowNum, 22, proposalSheetIndex)
+      })
+      
+      // Track row shifts for dynamic content insertion
+      // This will help us place content correctly after headings
+      let rowShift = 0
 
       // Helper function to extract SOE page number from raw data
       const getSOEPageFromRawData = (diameter, thickness) => {
@@ -3523,7 +3832,8 @@ const Spreadsheet = () => {
         const pattern = new RegExp(`${diameter}\\s*Ø\\s*x\\s*${thickness}`, 'i')
 
         // Search through raw data rows to find matching item
-        for (const row of dataRows) {
+        for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+          const row = dataRows[rowIndex]
           const digitizerItem = row[digitizerIdx]
           if (digitizerItem && pattern.test(String(digitizerItem))) {
             // Extract SOE page number from the page column
@@ -3544,8 +3854,6 @@ const Spreadsheet = () => {
 
       // Add drilled soldier pile proposal text from collected groups
       const collectedGroups = window.drilledSoldierPileGroups || []
-      console.log('=== All Drilled Soldier Pile Groups ===')
-      console.log(`Total groups: ${collectedGroups.length}`)
       
       // Helper function to parse dimension string (e.g., "27'-10"" -> 27.833)
       const parseDimension = (dimStr) => {
@@ -3597,8 +3905,6 @@ const Spreadsheet = () => {
         const firstRowNumber = Math.min(...group.map(item => item.rawRowNumber || 0))
         const lastRowNumber = Math.max(...group.map(item => item.rawRowNumber || 0))
         
-        console.log(`Group ${idx + 1} - Total FT: ${groupFT.toFixed(2)} (SUM(I${firstRowNumber}:I${lastRowNumber}))`)
-        console.log(`Group ${idx + 1} - Total LBS: ${groupLBS.toFixed(2)} (SUM(K${firstRowNumber}:K${lastRowNumber}))`)
       })
       
       // Separate HP items from drilled soldier pile items
@@ -3620,9 +3926,6 @@ const Spreadsheet = () => {
         }
       })
       
-      console.log('=== Separated Groups ===')
-      console.log(`Drilled Soldier Pile Groups: ${drilledGroups.length}`)
-      console.log(`HP Groups from Drilled Section: ${hpGroupsFromDrilled.length}`)
       
       // Add HP groups from drilled soldier pile section to HP groups
       if (hpGroupsFromDrilled.length > 0) {
@@ -3633,7 +3936,8 @@ const Spreadsheet = () => {
       }
       
       // Initialize currentRow for both drilled and HP groups
-      let currentRow = 42 // Start at row 42
+      // Start drilled soldier piles right after "Soldier drilled piles:" heading (row 41)
+      let currentRow = 42
       
       if (drilledGroups.length > 0) {
         // Process each group separately
@@ -3794,6 +4098,10 @@ const Spreadsheet = () => {
                 `${pfx}B${currentRow}`
               )
               
+              // Calculate and set row height based on content
+              const dynamicHeight = calculateRowHeight(proposalText)
+              spreadsheet.setRowHeight(dynamicHeight, currentRow, proposalSheetIndex)
+              
               // Add FT (LF) to column C - reference to calculation sheet sum row
               spreadsheet.updateCell({ formula: `=${ftCellRef}` }, `${pfx}C${currentRow}`)
               spreadsheet.cellFormat(
@@ -3851,19 +4159,39 @@ const Spreadsheet = () => {
                 `${pfx}H${currentRow}`
               )
               
-              // Increase row height to accommodate wrapped text
-              spreadsheet.setRowHeight(currentRow, 41, proposalSheetIndex)
-              
               currentRow++ // Move to next row for next group
             }
           }
         })
       }
       
+      // Move to row after "Soldier driven piles:" heading for HP piles
+      // If drilled piles were added, currentRow is already after the last drilled pile
+      // If no drilled piles, start HP piles at row 43 (right after "Soldier driven piles:" at row 42)
+      if (drilledGroups.length === 0 || currentRow <= 42) {
+        currentRow = 43 // Start HP piles right after "Soldier driven piles:" heading
+      } else {
+        // Drilled piles were added and we're past row 42
+        // Ensure "Soldier driven piles:" heading is visible before HP piles
+        // Add it at the current row, then increment for HP piles
+        spreadsheet.updateCell({ value: 'Soldier driven piles:' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { 
+            fontWeight: 'bold', 
+            color: '#000000', 
+            textAlign: 'left',
+            backgroundColor: '#D0CECE',
+            textDecoration: 'underline',
+            border: '1px solid #000000'
+          },
+          `${pfx}B${currentRow}`
+        )
+        spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+        currentRow++ // Move to next row for HP piles
+      }
+      
       // Add HP soldier pile proposal text from collected groups
       const hpCollectedGroups = window.hpSoldierPileGroups || []
-      console.log('=== All HP Groups ===')
-      console.log(`Total HP groups: ${hpCollectedGroups.length}`)
       
       // Calculate totals using formulas from soeProcessor.js
       // FT = H * C (Height * Takeoff) - formula from soeProcessor.js line 255
@@ -3902,14 +4230,11 @@ const Spreadsheet = () => {
         const firstRowNumber = Math.min(...group.map(item => item.rawRowNumber || 0))
         const lastRowNumber = Math.max(...group.map(item => item.rawRowNumber || 0))
         
-        console.log(`HP Group ${idx + 1} - Total FT: ${groupFT.toFixed(2)} (SUM(I${firstRowNumber}:I${lastRowNumber}))`)
-        console.log(`HP Group ${idx + 1} - Total LBS: ${groupLBS.toFixed(2)} (SUM(K${firstRowNumber}:K${lastRowNumber}))`)
       })
       
       if (hpCollectedGroups.length > 0) {
         // Process each HP group separately
         hpCollectedGroups.forEach((hpCollectedItems, groupIndex) => {
-          console.log(`Processing HP Group ${groupIndex + 1} with ${hpCollectedItems.length} items`)
           if (hpCollectedItems.length > 0) {
             // Reset variables for each group
             let hpType = null
@@ -3983,7 +4308,6 @@ const Spreadsheet = () => {
               totalCount += group.takeoff
             })
             
-            console.log(`Group ${groupIndex + 1} - hpType: ${hpType}, hpWeight: ${hpWeight} lbs/ft, totalCount: ${totalCount}, totalFT: ${totalFT.toFixed(2)}, totalLBS: ${totalLBS.toFixed(2)}`)
             
             if (hpType && heightCount > 0) {
               // Calculate average height
@@ -4058,7 +4382,6 @@ const Spreadsheet = () => {
               // Format the proposal text: F&I new (101)no [HP12x63] driven pile (Havg=42'-9") as per SOE-B-100.00
               const proposalText = `F&I new (${totalCount})no [${hpType}] driven pile (Havg=${heightText}) as per ${soePage}`
               
-              console.log(proposalText)
               
               spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
               spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -4130,12 +4453,1091 @@ const Spreadsheet = () => {
                 `${pfx}H${currentRow}`
               )
               
-              // Increase row height to accommodate wrapped text
-              spreadsheet.setRowHeight(currentRow, 41, proposalSheetIndex)
+              // Calculate and set row height based on content in column B
+              const dynamicHeightHP = calculateRowHeight(proposalText)
+              spreadsheet.setRowHeight(dynamicHeightHP, currentRow, proposalSheetIndex)
               
               currentRow++ // Move to next row for next group
+              rowShift++ // Track that we've added a row
             }
           }
+        })
+      }
+      
+      // Update rowShift after HP piles are added
+      // Now continue with other SOE subsections, accounting for all rows added so far
+      
+      // Add Primary secant piles proposal text below "Primary secant piles:" heading (row 43)
+      // Try to get from processed items first, then fall back to soeSubsectionItems
+      let primarySecantItems = window.primarySecantItems || []
+      const primarySecantItemsMap = window.soeSubsectionItems || new Map()
+      const primarySecantGroupsFromMap = primarySecantItemsMap.get('Primary secant piles') || []
+      
+      
+      // If we have processed items, group them (similar to how soldier piles are grouped)
+      // Otherwise, use groups from soeSubsectionItems
+      let primarySecantGroups = []
+      if (primarySecantItems.length > 0) {
+        // Group items by empty rows (similar to drilled foundation piles)
+        let currentGroup = []
+        primarySecantItems.forEach((item, index) => {
+          currentGroup.push(item)
+          // If next item doesn't exist or we're at the end, save the group
+          if (index === primarySecantItems.length - 1) {
+            if (currentGroup.length > 0) {
+              primarySecantGroups.push([...currentGroup])
+              currentGroup = []
+            }
+          }
+        })
+        // If there's a remaining group, add it
+        if (currentGroup.length > 0) {
+          primarySecantGroups.push([...currentGroup])
+        }
+      } else if (primarySecantGroupsFromMap.length > 0) {
+        primarySecantGroups = primarySecantGroupsFromMap
+      }
+      
+      // Move to row after "Primary secant piles:" heading (row 43) for primary secant piles
+      // If HP piles were added, currentRow is already after the last HP pile
+      // If no HP piles, start primary secant piles at row 44 (right after "Primary secant piles:" at row 43)
+      const primarySecantHeadingRow = headingRows['Primary secant piles:']
+      if (hpCollectedGroups.length === 0 || currentRow <= primarySecantHeadingRow) {
+        currentRow = primarySecantHeadingRow + 1 // Start primary secant piles right after heading
+      } else {
+        // HP piles were added and we're past the heading row
+        // Ensure "Primary secant piles:" heading is visible before primary secant content
+        spreadsheet.updateCell({ value: 'Primary secant piles:' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { 
+            fontWeight: 'bold', 
+            color: '#000000', 
+            textAlign: 'left',
+            backgroundColor: '#D0CECE',
+            textDecoration: 'underline',
+            border: '1px solid #000000'
+          },
+          `${pfx}B${currentRow}`
+        )
+        spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+        currentRow++ // Move to next row for primary secant content
+      }
+      
+      // If still no groups, try to find primary secant items from calculation sheet data
+      if (primarySecantGroups.length === 0 && calculationData && calculationData.length > 0) {
+        const calcSheetName = 'Calculations Sheet'
+        let foundPrimarySecantRows = []
+        let primarySecantHeaderRow = null
+        let primarySecantSumRow = null
+        
+        // Search through calculationData for "Primary secant piles" subsection
+        let inPrimarySecantSubsection = false
+        calculationData.forEach((row, index) => {
+          const rowNum = index + 2 // Excel row number (row 1 is header, so index 0 = row 2)
+          const colB = row[1] // Column B (index 1)
+          
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim()
+            // Check if this is exactly the "Primary secant piles:" subsection header (case-insensitive)
+            if (bText.toLowerCase() === 'primary secant piles:') {
+              inPrimarySecantSubsection = true
+              primarySecantHeaderRow = rowNum
+              console.log('Found Primary secant piles: header at row', rowNum)
+              return
+            }
+            
+            // If we're in the subsection and hit another subsection or section, stop
+            if (inPrimarySecantSubsection) {
+              // Stop if we hit another subsection header (ends with ':')
+              if (bText.endsWith(':') && bText.toLowerCase() !== 'primary secant piles:') {
+                console.log('Stopping at subsection:', bText, 'row', rowNum)
+                // The sum row should be the row before this new subsection
+                if (foundPrimarySecantRows.length > 0) {
+                  primarySecantSumRow = rowNum - 1
+                }
+                inPrimarySecantSubsection = false
+                return
+              }
+              
+              // This is a data row in the primary secant subsection
+              // Only collect rows that have data (takeoff > 0) and don't end with ':'
+              if (bText && !bText.endsWith(':')) {
+                const takeoff = parseFloat(row[2]) || 0 // Column C
+                if (takeoff > 0) {
+                  foundPrimarySecantRows.push({
+                    rowNum: rowNum,
+                    particulars: bText,
+                    takeoff: takeoff,
+                    qty: parseFloat(row[12]) || 0, // Column M
+                    height: parseFloat(row[7]) || 0, // Column H
+                    rawRowNumber: rowNum
+                  })
+                }
+              }
+            }
+          }
+        })
+        
+        // If we found items but didn't hit another subsection, the sum row is after the last item
+        if (inPrimarySecantSubsection && foundPrimarySecantRows.length > 0 && !primarySecantSumRow) {
+          const lastItemRow = foundPrimarySecantRows[foundPrimarySecantRows.length - 1].rowNum
+          primarySecantSumRow = lastItemRow + 1
+        }
+        
+        console.log('Found primary secant rows:', foundPrimarySecantRows.length)
+        console.log('Primary secant header row:', primarySecantHeaderRow)
+        console.log('Primary secant sum row:', primarySecantSumRow)
+        
+        if (foundPrimarySecantRows.length > 0) {
+          // Group them (all in one group for now) and store the sum row
+          primarySecantGroups = [{
+            items: foundPrimarySecantRows,
+            sumRow: primarySecantSumRow
+          }]
+        }
+      }
+      
+      if (primarySecantGroups.length > 0) {
+        primarySecantGroups.forEach((group, groupIndex) => {
+          // Handle both array format and object format with items property
+          const groupItems = Array.isArray(group) ? group : (group.items || [])
+          const groupSumRow = group.sumRow || null
+          
+          if (groupItems.length === 0) return
+          
+          // Calculate totals for the group
+          let totalTakeoff = 0
+          let totalQty = 0
+          let totalFT = 0
+          let totalHeight = 0
+          let heightCount = 0
+          let totalEmbedment = 0
+          let embedmentCount = 0
+          let lastRowNumber = 0
+          let firstRowNumber = Infinity
+          let diameter = null
+          
+          // Helper function to parse dimension string (e.g., "27'-10"" -> 27.833)
+          const parseDimension = (dimStr) => {
+            if (!dimStr) return 0
+            const match = dimStr.match(/(\d+)(?:'-?)?(\d+)?/)
+            if (!match) return 0
+            const feet = parseInt(match[1]) || 0
+            const inches = parseInt(match[2]) || 0
+            return feet + (inches / 12)
+          }
+          
+          groupItems.forEach(item => {
+            totalTakeoff += item.takeoff || 0
+            totalQty += item.qty || 0
+            // Get height from parsed calculatedHeight or from calculation sheet
+            const itemHeight = item.parsed?.calculatedHeight || item.height || 0
+            const itemFT = itemHeight * (item.takeoff || 0)
+            totalFT += itemFT
+            totalHeight += itemHeight * (item.takeoff || 0)
+            heightCount += (item.takeoff || 0)
+            lastRowNumber = Math.max(lastRowNumber, item.rawRowNumber || 0)
+            firstRowNumber = Math.min(firstRowNumber, item.rawRowNumber || Infinity)
+            
+            // Debug: log item structure if needed
+            
+            // Extract diameter from particulars if not set (just diameter, not thickness)
+            if (!diameter) {
+              const particulars = item.particulars || ''
+              // Match patterns like "24" Ø" or "24Ø" or "24"Ø"
+              const diameterMatch = particulars.match(/([0-9.]+)["\s]*Ø/i)
+              if (diameterMatch) {
+                diameter = parseFloat(diameterMatch[1])
+              }
+            }
+            
+            // Extract embedment (E=XX'-XX")
+            const particulars = item.particulars || ''
+            const eMatch = particulars.match(/E=([0-9'"\-]+)/i)
+            if (eMatch) {
+              const embedmentValue = parseDimension(eMatch[1])
+              totalEmbedment += embedmentValue * (item.takeoff || 0)
+              embedmentCount += (item.takeoff || 0)
+            }
+          })
+          
+          // Calculate average height
+          const avgHeight = heightCount > 0 ? totalHeight / heightCount : 0
+          const roundToMultipleOf5 = (value) => Math.ceil(value / 5) * 5
+          const avgHeightRounded = roundToMultipleOf5(avgHeight)
+          
+          // Format height
+          const heightFeet = Math.floor(avgHeightRounded)
+          const heightInches = Math.round((avgHeightRounded - heightFeet) * 12)
+          let heightText = ''
+          if (heightInches === 0) {
+            heightText = `${heightFeet}'-0"`
+          } else {
+            heightText = `${heightFeet}'-${heightInches}"`
+          }
+          
+          // Calculate average embedment
+          const avgEmbedment = embedmentCount > 0 ? totalEmbedment / embedmentCount : 0
+          const avgEmbedmentRounded = roundToMultipleOf5(avgEmbedment)
+          
+          // Format embedment
+          const embedmentFeet = Math.floor(avgEmbedmentRounded)
+          const embedmentInches = Math.round((avgEmbedmentRounded - embedmentFeet) * 12)
+          let embedmentText = ''
+          if (embedmentInches === 0) {
+            embedmentText = `${embedmentFeet}'-0"`
+          } else {
+            embedmentText = `${embedmentFeet}'-${embedmentInches}"`
+          }
+          
+          // Get SOE page references from raw data
+          let soePageMain = 'SOE-100.00'
+          let soePageDetails = 'SOE-200.00'
+          
+          if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+            const headers = rawData[0]
+            const dataRows = rawData.slice(1)
+            const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+            const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+            
+            if (digitizerIdx !== -1 && pageIdx !== -1) {
+              // Search for primary secant pile items
+              for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                const row = dataRows[rowIndex]
+                const digitizerItem = row[digitizerIdx]
+                if (digitizerItem && typeof digitizerItem === 'string') {
+                  const itemText = digitizerItem.toLowerCase()
+                  if (itemText.includes('primary secant')) {
+                    const pageValue = row[pageIdx]
+                    if (pageValue) {
+                      const pageStr = String(pageValue).trim()
+                      // Extract all SOE references
+                      const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
+                      if (soeMatches && soeMatches.length > 0) {
+                        if (!soePageMain || soePageMain === 'SOE-100.00') {
+                          soePageMain = soeMatches[0]
+                        }
+                        if (soeMatches.length > 1 && (!soePageDetails || soePageDetails === 'SOE-200.00')) {
+                          soePageDetails = soeMatches[1]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          
+          // Find the sum row for this group
+          // First try to use the sum row from the search, otherwise find it in the calculation sheet
+          let sumRowIndex = groupSumRow
+          
+          // If we don't have a sum row from search, try to find it in the calculation sheet
+          if (!sumRowIndex && calculationData && calculationData.length > 0) {
+            // First, search backwards from firstRowNumber to find "Primary secant piles:" header
+            let primarySecantHeaderFound = false
+            for (let i = Math.max(0, firstRowNumber - 20); i < firstRowNumber; i++) {
+              const rowData = calculationData[i - 1] // calculationData is 0-indexed
+              const colB = rowData?.[1]
+              if (colB && typeof colB === 'string' && colB.trim().toLowerCase() === 'primary secant piles:') {
+                primarySecantHeaderFound = true
+                console.log('Found Primary secant piles: header at row', i + 1, 'by searching backwards')
+                break
+              }
+            }
+            
+            // Search for the sum row after the last item row
+            // The sum row should be the first row after lastRowNumber that has a formula in column I or M
+            // or is an empty row before the next subsection
+            for (let i = lastRowNumber; i < Math.min(calculationData.length + 1, lastRowNumber + 10); i++) {
+              const rowData = calculationData[i - 1] // calculationData is 0-indexed
+              const colB = rowData?.[1]
+              const colI = rowData?.[8] // Column I
+              const colM = rowData?.[12] // Column M
+              
+              // Check if this row is empty in column B (sum rows are usually empty in B)
+              // and has a value or formula in column I or M
+              if ((!colB || colB === '') && (colI !== undefined && colI !== '' || colM !== undefined && colM !== '')) {
+                sumRowIndex = i + 1 // Convert to 1-indexed
+                console.log('Found sum row at:', sumRowIndex, 'colI:', colI, 'colM:', colM)
+                break
+              }
+              
+              // Also check if we hit another subsection header
+              if (colB && typeof colB === 'string' && colB.trim().endsWith(':')) {
+                // The sum row should be the row before this subsection
+                sumRowIndex = i
+                console.log('Found sum row before subsection:', colB, 'at row:', sumRowIndex)
+                break
+              }
+            }
+            
+            // Fallback: if still not found, use lastRowNumber + 1
+            if (!sumRowIndex) {
+              sumRowIndex = lastRowNumber + 1
+              console.log('Using fallback sum row:', sumRowIndex)
+            }
+          } else if (!sumRowIndex) {
+            // Fallback: use lastRowNumber + 1
+            sumRowIndex = lastRowNumber + 1
+            console.log('Using fallback sum row (no calculationData):', sumRowIndex)
+          }
+          
+          const calcSheetName = 'Calculations Sheet'
+          
+          console.log('=== Primary Secant Piles Debug ===')
+          console.log('firstRowNumber:', firstRowNumber)
+          console.log('lastRowNumber:', lastRowNumber)
+          console.log('sumRowIndex:', sumRowIndex)
+          console.log('groupSumRow from search:', groupSumRow)
+          console.log('FT formula:', `='${calcSheetName}'!I${sumRowIndex}`)
+          console.log('QTY formula:', `='${calcSheetName}'!M${sumRowIndex}`)
+          console.log('Group items:', groupItems.map(item => ({
+            rawRowNumber: item.rawRowNumber,
+            particulars: item.particulars,
+            takeoff: item.takeoff,
+            qty: item.qty
+          })))
+          
+          // Check what's actually in the calculation sheet at the sum row
+          if (calculationData && calculationData.length >= sumRowIndex) {
+            const sumRowData = calculationData[sumRowIndex - 1] // calculationData is 0-indexed, sumRowIndex is 1-indexed
+            console.log('Sum row data from calculation sheet:', {
+              rowIndex: sumRowIndex - 1,
+              colB: sumRowData?.[1],
+              colI: sumRowData?.[8], // Column I (index 8)
+              colM: sumRowData?.[12] // Column M (index 12)
+            })
+          }
+          
+          // Also check the rows around the sum row
+          if (calculationData && calculationData.length >= sumRowIndex + 2) {
+            console.log('Rows around sum row:')
+            for (let i = Math.max(0, sumRowIndex - 3); i < Math.min(calculationData.length, sumRowIndex + 2); i++) {
+              const rowData = calculationData[i]
+              console.log(`Row ${i + 1}:`, {
+                colB: rowData?.[1],
+                colI: rowData?.[8],
+                colM: rowData?.[12]
+              })
+            }
+          }
+          
+          // Format proposal text: F&I new (#)no [#" Ø] primary secant piles (Havg=#'-#", #'-#" embedment) as per SOE-#.##
+          // Use totalQty if available, otherwise use totalTakeoff
+          const qtyValue = Math.round(totalQty || totalTakeoff)
+          let proposalText = ''
+          if (diameter) {
+            proposalText = `F&I new (${qtyValue})no [${diameter}" Ø] primary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain}`
+          } else {
+            proposalText = `F&I new (${qtyValue})no [#" Ø] primary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain}`
+          }
+          
+          
+          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              color: '#000000', 
+              textAlign: 'left',
+              backgroundColor: 'white',
+              verticalAlign: 'top'
+            },
+            `${pfx}B${currentRow}`
+          )
+          
+          // Add FT (LF) to column C - reference to calculation sheet sum row
+          if (sumRowIndex > 0) {
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}C${currentRow}`
+            )
+          }
+          
+          // Add QTY to column G - reference to calculation sheet sum row (column M)
+          if (sumRowIndex > 0) {
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}G${currentRow}`
+            )
+          }
+          
+          // Add 180 to second LF column (column I) - same as drilled soldier piles
+          spreadsheet.updateCell({ value: 180 }, `${pfx}I${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              textAlign: 'right',
+              backgroundColor: '#E2EFDA'
+            },
+            `${pfx}I${currentRow}:N${currentRow}`
+          )
+          
+          // Add $/1000 formula in column H
+          const dollarFormula = `=ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)`
+          spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              textAlign: 'right',
+              backgroundColor: 'white',
+              format: '$#,##0.0'
+            },
+            `${pfx}H${currentRow}`
+          )
+          
+          // Apply currency format
+          try {
+            spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+          } catch (e) {
+            // Fallback already applied in cellFormat
+          }
+          
+          // Calculate and set row height based on content in column B
+          const proposalTextForHeight = proposalText || (spreadsheet.getCellValue ? spreadsheet.getCellValue(`${pfx}B${currentRow}`) : '')
+          const dynamicHeight = calculateRowHeight(proposalTextForHeight)
+          spreadsheet.setRowHeight(dynamicHeight, currentRow, proposalSheetIndex)
+          
+          currentRow++ // Move to next row for next group
+        })
+      }
+      
+      // Add Secondary secant piles proposal text below "Secondary secant piles:" heading
+      // Try to get from processed items first, then fall back to soeSubsectionItems
+      let secondarySecantItems = window.secondarySecantItems || []
+      const secondarySecantItemsMap = window.soeSubsectionItems || new Map()
+      const secondarySecantGroupsFromMap = secondarySecantItemsMap.get('Secondary secant piles') || []
+      
+      // If we have processed items, group them (similar to how soldier piles are grouped)
+      // Otherwise, use groups from soeSubsectionItems
+      let secondarySecantGroups = []
+      if (secondarySecantItems.length > 0) {
+        // Group items by empty rows (similar to drilled foundation piles)
+        let currentGroup = []
+        secondarySecantItems.forEach((item, index) => {
+          currentGroup.push(item)
+          // If next item doesn't exist or we're at the end, save the group
+          if (index === secondarySecantItems.length - 1) {
+            if (currentGroup.length > 0) {
+              secondarySecantGroups.push([...currentGroup])
+              currentGroup = []
+            }
+          }
+        })
+        // If there's a remaining group, add it
+        if (currentGroup.length > 0) {
+          secondarySecantGroups.push([...currentGroup])
+        }
+      } else if (secondarySecantGroupsFromMap.length > 0) {
+        secondarySecantGroups = secondarySecantGroupsFromMap
+      }
+      
+      // Move to row after "Secondary secant piles:" heading for secondary secant piles
+      const secondarySecantHeadingRow = headingRows['Secondary secant piles:']
+      if (currentRow <= secondarySecantHeadingRow) {
+        currentRow = secondarySecantHeadingRow + 1 // Start secondary secant piles right after heading
+      } else {
+        // Ensure "Secondary secant piles:" heading is visible before secondary secant content
+        spreadsheet.updateCell({ value: 'Secondary secant piles:' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { 
+            fontWeight: 'bold', 
+            color: '#000000', 
+            textAlign: 'left',
+            backgroundColor: '#D0CECE',
+            textDecoration: 'underline',
+            border: '1px solid #000000'
+          },
+          `${pfx}B${currentRow}`
+        )
+        spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+        currentRow++ // Move to next row for secondary secant content
+      }
+      
+      // If still no groups, try to find secondary secant items from calculation sheet data
+      if (secondarySecantGroups.length === 0 && calculationData && calculationData.length > 0) {
+        const calcSheetName = 'Calculations Sheet'
+        let foundSecondarySecantRows = []
+        
+        // Search through calculationData for "Secondary secant piles" subsection
+        let inSecondarySecantSubsection = false
+        calculationData.forEach((row, index) => {
+          const rowNum = index + 2 // Excel row number (row 1 is header, so index 0 = row 2)
+          const colB = row[1] // Column B (index 1)
+          
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim()
+            // Check if this is the "Secondary secant piles" subsection header
+            if (bText.toLowerCase().includes('secondary secant piles') && bText.endsWith(':')) {
+              inSecondarySecantSubsection = true
+              return
+            }
+            
+            // If we're in the subsection and hit another subsection or section, stop
+            if (inSecondarySecantSubsection) {
+              if (bText.endsWith(':') && !bText.toLowerCase().includes('secondary secant')) {
+                inSecondarySecantSubsection = false
+                return
+              }
+              
+              // This is a data row in the secondary secant subsection
+              if (bText && !bText.endsWith(':') && row[2] !== undefined) {
+                const takeoff = parseFloat(row[2]) || 0 // Column C
+                if (takeoff > 0 || bText.toLowerCase().includes('secondary secant')) {
+                  foundSecondarySecantRows.push({
+                    rowNum: rowNum,
+                    particulars: bText,
+                    takeoff: takeoff,
+                    qty: parseFloat(row[12]) || 0, // Column M
+                    height: parseFloat(row[7]) || 0, // Column H
+                    rawRowNumber: rowNum
+                  })
+                }
+              }
+            }
+          }
+        })
+        
+        if (foundSecondarySecantRows.length > 0) {
+          // Group them (all in one group for now)
+          secondarySecantGroups = [foundSecondarySecantRows]
+        }
+      }
+      
+      if (secondarySecantGroups.length > 0) {
+        secondarySecantGroups.forEach((group, groupIndex) => {
+          if (group.length === 0) return
+          
+          // Calculate totals for the group
+          let totalTakeoff = 0
+          let totalQty = 0
+          let totalFT = 0
+          let totalHeight = 0
+          let heightCount = 0
+          let totalEmbedment = 0
+          let embedmentCount = 0
+          let lastRowNumber = 0
+          let diameter = null
+          
+          // Helper function to parse dimension string (e.g., "27'-10"" -> 27.833)
+          const parseDimension = (dimStr) => {
+            if (!dimStr) return 0
+            const match = dimStr.match(/(\d+)(?:'-?)?(\d+)?/)
+            if (!match) return 0
+            const feet = parseInt(match[1]) || 0
+            const inches = parseInt(match[2]) || 0
+            return feet + (inches / 12)
+          }
+          
+          group.forEach(item => {
+            totalTakeoff += item.takeoff || 0
+            totalQty += item.qty || 0
+            // Get height from parsed calculatedHeight or from calculation sheet
+            const itemHeight = item.parsed?.calculatedHeight || item.height || 0
+            const itemFT = itemHeight * (item.takeoff || 0)
+            totalFT += itemFT
+            totalHeight += itemHeight * (item.takeoff || 0)
+            heightCount += (item.takeoff || 0)
+            lastRowNumber = Math.max(lastRowNumber, item.rawRowNumber || 0)
+            
+            // Extract diameter from particulars if not set (just diameter, not thickness)
+            if (!diameter) {
+              const particulars = item.particulars || ''
+              // Match patterns like "24" Ø" or "24Ø" or "24"Ø"
+              const diameterMatch = particulars.match(/([0-9.]+)["\s]*Ø/i)
+              if (diameterMatch) {
+                diameter = parseFloat(diameterMatch[1])
+              }
+            }
+            
+            // Extract embedment (E=XX'-XX")
+            const particulars = item.particulars || ''
+            const eMatch = particulars.match(/E=([0-9'"\-]+)/i)
+            if (eMatch) {
+              const embedmentValue = parseDimension(eMatch[1])
+              totalEmbedment += embedmentValue * (item.takeoff || 0)
+              embedmentCount += (item.takeoff || 0)
+            }
+          })
+          
+          // Calculate average height
+          const avgHeight = heightCount > 0 ? totalHeight / heightCount : 0
+          const roundToMultipleOf5 = (value) => Math.ceil(value / 5) * 5
+          const avgHeightRounded = roundToMultipleOf5(avgHeight)
+          
+          // Format height
+          const heightFeet = Math.floor(avgHeightRounded)
+          const heightInches = Math.round((avgHeightRounded - heightFeet) * 12)
+          let heightText = ''
+          if (heightInches === 0) {
+            heightText = `${heightFeet}'-0"`
+          } else {
+            heightText = `${heightFeet}'-${heightInches}"`
+          }
+          
+          // Calculate average embedment
+          const avgEmbedment = embedmentCount > 0 ? totalEmbedment / embedmentCount : 0
+          const avgEmbedmentRounded = roundToMultipleOf5(avgEmbedment)
+          
+          // Format embedment
+          const embedmentFeet = Math.floor(avgEmbedmentRounded)
+          const embedmentInches = Math.round((avgEmbedmentRounded - embedmentFeet) * 12)
+          let embedmentText = ''
+          if (embedmentInches === 0) {
+            embedmentText = `${embedmentFeet}'-0"`
+          } else {
+            embedmentText = `${embedmentFeet}'-${embedmentInches}"`
+          }
+          
+          // Get SOE page references from raw data
+          let soePageMain = 'SOE-100.00'
+          
+          if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+            const headers = rawData[0]
+            const dataRows = rawData.slice(1)
+            const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+            const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+            
+            if (digitizerIdx !== -1 && pageIdx !== -1) {
+              // Search for secondary secant pile items
+              for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                const row = dataRows[rowIndex]
+                const digitizerItem = row[digitizerIdx]
+                if (digitizerItem && typeof digitizerItem === 'string') {
+                  const itemText = digitizerItem.toLowerCase()
+                  if (itemText.includes('secondary secant')) {
+                    const pageValue = row[pageIdx]
+                    if (pageValue) {
+                      const pageStr = String(pageValue).trim()
+                      // Extract all SOE references
+                      const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
+                      if (soeMatches && soeMatches.length > 0) {
+                        if (!soePageMain || soePageMain === 'SOE-100.00') {
+                          soePageMain = soeMatches[0]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          
+          // Find the sum row for this group
+          const sumRowIndex = lastRowNumber
+          const calcSheetName = 'Calculations Sheet'
+          
+          // Format proposal text: F&I new (#)no [#" Ø] secondary secant piles (Havg=#'-#", #'-#" embedment) as per SOE-#.##
+          // Use totalQty if available, otherwise use totalTakeoff
+          const qtyValue = Math.round(totalQty || totalTakeoff)
+          let proposalText = ''
+          if (diameter) {
+            proposalText = `F&I new (${qtyValue})no [${diameter}" Ø] secondary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain}`
+          } else {
+            proposalText = `F&I new (${qtyValue})no [#" Ø] secondary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain}`
+          }
+          
+          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              color: '#000000', 
+              textAlign: 'left',
+              backgroundColor: 'white',
+              verticalAlign: 'top'
+            },
+            `${pfx}B${currentRow}`
+          )
+          
+          // Add FT (LF) to column C - reference to calculation sheet sum row
+          if (sumRowIndex > 0) {
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}C${currentRow}`
+            )
+          }
+          
+          // Add QTY to column G - reference to calculation sheet sum row (column M)
+          if (sumRowIndex > 0) {
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}G${currentRow}`
+            )
+          }
+          
+          // Add 180 to second LF column (column I) - same as primary secant piles
+          spreadsheet.updateCell({ value: 180 }, `${pfx}I${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              textAlign: 'right',
+              backgroundColor: '#E2EFDA'
+            },
+            `${pfx}I${currentRow}:N${currentRow}`
+          )
+          
+          // Add $/1000 formula in column H
+          const dollarFormula = `=ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)`
+          spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              textAlign: 'right',
+              backgroundColor: 'white',
+              format: '$#,##0.0'
+            },
+            `${pfx}H${currentRow}`
+          )
+          
+          // Apply currency format
+          try {
+            spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+          } catch (e) {
+            // Fallback already applied in cellFormat
+          }
+          
+          // Calculate and set row height based on content in column B
+          const proposalTextForHeight = proposalText || (spreadsheet.getCellValue ? spreadsheet.getCellValue(`${pfx}B${currentRow}`) : '')
+          const dynamicHeight = calculateRowHeight(proposalTextForHeight)
+          spreadsheet.setRowHeight(dynamicHeight, currentRow, proposalSheetIndex)
+          
+          currentRow++ // Move to next row for next group
+        })
+      }
+      
+      // Add Tangent pile proposal text below "Tangent pile:" heading
+      // Try to get from processed items first, then fall back to soeSubsectionItems
+      let tangentPileItems = window.tangentPileItems || []
+      const tangentPileItemsMap = window.soeSubsectionItems || new Map()
+      const tangentPileGroupsFromMap = tangentPileItemsMap.get('Tangent piles') || tangentPileItemsMap.get('Tangent pile') || []
+      
+      // If we have processed items, group them (similar to how soldier piles are grouped)
+      // Otherwise, use groups from soeSubsectionItems
+      let tangentPileGroups = []
+      if (tangentPileItems.length > 0) {
+        // Group items by empty rows (similar to drilled foundation piles)
+        let currentGroup = []
+        tangentPileItems.forEach((item, index) => {
+          currentGroup.push(item)
+          // If next item doesn't exist or we're at the end, save the group
+          if (index === tangentPileItems.length - 1) {
+            if (currentGroup.length > 0) {
+              tangentPileGroups.push([...currentGroup])
+              currentGroup = []
+            }
+          }
+        })
+        // If there's a remaining group, add it
+        if (currentGroup.length > 0) {
+          tangentPileGroups.push([...currentGroup])
+        }
+      } else if (tangentPileGroupsFromMap.length > 0) {
+        tangentPileGroups = tangentPileGroupsFromMap
+      }
+      
+      // Move to row after "Tangent pile:" heading for tangent piles
+      const tangentPileHeadingRow = headingRows['Tangent pile:']
+      if (currentRow <= tangentPileHeadingRow) {
+        currentRow = tangentPileHeadingRow + 1 // Start tangent piles right after heading
+      } else {
+        // Ensure "Tangent pile:" heading is visible before tangent pile content
+        spreadsheet.updateCell({ value: 'Tangent pile:' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { 
+            fontWeight: 'bold', 
+            color: '#000000', 
+            textAlign: 'left',
+            backgroundColor: '#D0CECE',
+            textDecoration: 'underline',
+            border: '1px solid #000000'
+          },
+          `${pfx}B${currentRow}`
+        )
+        spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+        currentRow++ // Move to next row for tangent pile content
+      }
+      
+      // If still no groups, try to find tangent pile items from calculation sheet data
+      if (tangentPileGroups.length === 0 && calculationData && calculationData.length > 0) {
+        const calcSheetName = 'Calculations Sheet'
+        let foundTangentPileRows = []
+        
+        // Search through calculationData for "Tangent pile" or "Tangent piles" subsection
+        let inTangentPileSubsection = false
+        calculationData.forEach((row, index) => {
+          const rowNum = index + 2 // Excel row number (row 1 is header, so index 0 = row 2)
+          const colB = row[1] // Column B (index 1)
+          
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim()
+            // Check if this is the "Tangent pile" or "Tangent piles" subsection header
+            if ((bText.toLowerCase().includes('tangent pile') || bText.toLowerCase().includes('tangent piles')) && bText.endsWith(':')) {
+              inTangentPileSubsection = true
+              return
+            }
+            
+            // If we're in the subsection and hit another subsection or section, stop
+            if (inTangentPileSubsection) {
+              if (bText.endsWith(':') && !bText.toLowerCase().includes('tangent')) {
+                inTangentPileSubsection = false
+                return
+              }
+              
+              // This is a data row in the tangent pile subsection
+              if (bText && !bText.endsWith(':') && row[2] !== undefined) {
+                const takeoff = parseFloat(row[2]) || 0 // Column C
+                if (takeoff > 0 || bText.toLowerCase().includes('tangent')) {
+                  foundTangentPileRows.push({
+                    rowNum: rowNum,
+                    particulars: bText,
+                    takeoff: takeoff,
+                    qty: parseFloat(row[12]) || 0, // Column M
+                    height: parseFloat(row[7]) || 0, // Column H
+                    rawRowNumber: rowNum
+                  })
+                }
+              }
+            }
+          }
+        })
+        
+        if (foundTangentPileRows.length > 0) {
+          // Group them (all in one group for now)
+          tangentPileGroups = [foundTangentPileRows]
+        }
+      }
+      
+      if (tangentPileGroups.length > 0) {
+        tangentPileGroups.forEach((group, groupIndex) => {
+          if (group.length === 0) return
+          
+          // Calculate totals for the group
+          let totalTakeoff = 0
+          let totalQty = 0
+          let totalFT = 0
+          let totalHeight = 0
+          let heightCount = 0
+          let totalEmbedment = 0
+          let embedmentCount = 0
+          let lastRowNumber = 0
+          let diameter = null
+          
+          // Helper function to parse dimension string (e.g., "27'-10"" -> 27.833)
+          const parseDimension = (dimStr) => {
+            if (!dimStr) return 0
+            const match = dimStr.match(/(\d+)(?:'-?)?(\d+)?/)
+            if (!match) return 0
+            const feet = parseInt(match[1]) || 0
+            const inches = parseInt(match[2]) || 0
+            return feet + (inches / 12)
+          }
+          
+          group.forEach(item => {
+            totalTakeoff += item.takeoff || 0
+            totalQty += item.qty || 0
+            // Get height from parsed calculatedHeight or from calculation sheet
+            const itemHeight = item.parsed?.calculatedHeight || item.height || 0
+            const itemFT = itemHeight * (item.takeoff || 0)
+            totalFT += itemFT
+            totalHeight += itemHeight * (item.takeoff || 0)
+            heightCount += (item.takeoff || 0)
+            lastRowNumber = Math.max(lastRowNumber, item.rawRowNumber || 0)
+            
+            // Extract diameter from particulars if not set (just diameter, not thickness)
+            if (!diameter) {
+              const particulars = item.particulars || ''
+              // Match patterns like "24" Ø" or "24Ø" or "24"Ø"
+              const diameterMatch = particulars.match(/([0-9.]+)["\s]*Ø/i)
+              if (diameterMatch) {
+                diameter = parseFloat(diameterMatch[1])
+              }
+            }
+            
+            // Extract embedment (E=XX'-XX")
+            const particulars = item.particulars || ''
+            const eMatch = particulars.match(/E=([0-9'"\-]+)/i)
+            if (eMatch) {
+              const embedmentValue = parseDimension(eMatch[1])
+              totalEmbedment += embedmentValue * (item.takeoff || 0)
+              embedmentCount += (item.takeoff || 0)
+            }
+          })
+          
+          // Calculate average height
+          const avgHeight = heightCount > 0 ? totalHeight / heightCount : 0
+          const roundToMultipleOf5 = (value) => Math.ceil(value / 5) * 5
+          const avgHeightRounded = roundToMultipleOf5(avgHeight)
+          
+          // Format height
+          const heightFeet = Math.floor(avgHeightRounded)
+          const heightInches = Math.round((avgHeightRounded - heightFeet) * 12)
+          let heightText = ''
+          if (heightInches === 0) {
+            heightText = `${heightFeet}'-0"`
+          } else {
+            heightText = `${heightFeet}'-${heightInches}"`
+          }
+          
+          // Calculate average embedment
+          const avgEmbedment = embedmentCount > 0 ? totalEmbedment / embedmentCount : 0
+          const avgEmbedmentRounded = roundToMultipleOf5(avgEmbedment)
+          
+          // Format embedment
+          const embedmentFeet = Math.floor(avgEmbedmentRounded)
+          const embedmentInches = Math.round((avgEmbedmentRounded - embedmentFeet) * 12)
+          let embedmentText = ''
+          if (embedmentInches === 0) {
+            embedmentText = `${embedmentFeet}'-0"`
+          } else {
+            embedmentText = `${embedmentFeet}'-${embedmentInches}"`
+          }
+          
+          // Get SOE page references from raw data
+          let soePageMain = 'SOE-100.00'
+          
+          if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+            const headers = rawData[0]
+            const dataRows = rawData.slice(1)
+            const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+            const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+            
+            if (digitizerIdx !== -1 && pageIdx !== -1) {
+              // Search for tangent pile items
+              for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                const row = dataRows[rowIndex]
+                const digitizerItem = row[digitizerIdx]
+                if (digitizerItem && typeof digitizerItem === 'string') {
+                  const itemText = digitizerItem.toLowerCase()
+                  if (itemText.includes('tangent')) {
+                    const pageValue = row[pageIdx]
+                    if (pageValue) {
+                      const pageStr = String(pageValue).trim()
+                      // Extract all SOE references
+                      const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
+                      if (soeMatches && soeMatches.length > 0) {
+                        if (!soePageMain || soePageMain === 'SOE-100.00') {
+                          soePageMain = soeMatches[0]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          
+          // Find the sum row for this group
+          const sumRowIndex = lastRowNumber
+          const calcSheetName = 'Calculations Sheet'
+          
+          // Format proposal text: F&I new (#)no [#" Ø] tangent pile (Havg=#'-#", #'-#" embedment) as per SOE-#.##
+          // Use totalQty if available, otherwise use totalTakeoff
+          const qtyValue = Math.round(totalQty || totalTakeoff)
+          let proposalText = ''
+          if (diameter) {
+            proposalText = `F&I new (${qtyValue})no [${diameter}" Ø] tangent pile (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain}`
+          } else {
+            proposalText = `F&I new (${qtyValue})no [#" Ø] tangent pile (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain}`
+          }
+          
+          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              color: '#000000', 
+              textAlign: 'left',
+              backgroundColor: 'white',
+              verticalAlign: 'top'
+            },
+            `${pfx}B${currentRow}`
+          )
+          
+          // Add FT (LF) to column C - reference to calculation sheet sum row
+          if (sumRowIndex > 0) {
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}C${currentRow}`
+            )
+          }
+          
+          // Add QTY to column G - reference to calculation sheet sum row (column M)
+          if (sumRowIndex > 0) {
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}G${currentRow}`
+            )
+          }
+          
+          // Add 180 to second LF column (column I) - same as primary secant piles
+          spreadsheet.updateCell({ value: 180 }, `${pfx}I${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              textAlign: 'right',
+              backgroundColor: '#E2EFDA'
+            },
+            `${pfx}I${currentRow}:N${currentRow}`
+          )
+          
+          // Add $/1000 formula in column H
+          const dollarFormula = `=ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)`
+          spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              textAlign: 'right',
+              backgroundColor: 'white',
+              format: '$#,##0.0'
+            },
+            `${pfx}H${currentRow}`
+          )
+          
+          // Apply currency format
+          try {
+            spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+          } catch (e) {
+            // Fallback already applied in cellFormat
+          }
+          
+          // Calculate and set row height based on content in column B
+          const proposalTextForHeight = proposalText || (spreadsheet.getCellValue ? spreadsheet.getCellValue(`${pfx}B${currentRow}`) : '')
+          const dynamicHeight = calculateRowHeight(proposalTextForHeight)
+          spreadsheet.setRowHeight(dynamicHeight, currentRow, proposalSheetIndex)
+          
+          currentRow++ // Move to next row for next group
         })
       }
       
@@ -4161,8 +5563,8 @@ const Spreadsheet = () => {
         'Underpinning',
         'Concrete soil retention piers',
         'Concrete soil retention pier',
-        'Concrete buttons',
         'Guide wall',
+        'Concrete buttons',
         'Dowels',
         'Rock pins',
         'Rock stabilization',
@@ -4190,9 +5592,10 @@ const Spreadsheet = () => {
       ])
       
       // Get all unique subsection names from collected items
+      // Exclude "Primary secant piles" since it's already processed above
       const collectedSubsections = new Set()
       soeSubsectionItems.forEach((groups, name) => {
-        if (groups.length > 0) {
+        if (groups.length > 0 && name !== 'Primary secant piles') {
           // Map "Dowel bar" to "Dowels" for consistency
           if (name.toLowerCase() === 'dowel bar') {
             collectedSubsections.add('Dowels')
@@ -4205,9 +5608,418 @@ const Spreadsheet = () => {
         }
       })
       
+      // Check if parging is in soeSubsectionItems
+      const pargingGroups = soeSubsectionItems.get('Parging') || []
+      const pargingItemsFromWindow = window.pargingItems || []
+      const hasPargingItems = pargingGroups.length > 0 && pargingGroups.some(g => g.length > 0) || pargingItemsFromWindow.length > 0
+      
+      // If parging items exist but Parging is not in collectedSubsections, add it
+      if (hasPargingItems && !collectedSubsections.has('Parging')) {
+        collectedSubsections.add('Parging')
+      }
+      
+      // Check if guide wall is in soeSubsectionItems or window
+      const guideWallGroups = soeSubsectionItems.get('Guide wall') || soeSubsectionItems.get('Guilde wall') || []
+      const guideWallItemsFromWindow = window.guideWallItems || []
+      const hasGuideWallItems = guideWallGroups.length > 0 && guideWallGroups.some(g => g.length > 0) || guideWallItemsFromWindow.length > 0
+      
+      // If guide wall items exist but Guide wall is not in collectedSubsections, add it
+      if (hasGuideWallItems && !collectedSubsections.has('Guide wall')) {
+        collectedSubsections.add('Guide wall')
+      }
+      
+      // Check if dowels/dowel bar is in soeSubsectionItems or window
+      const dowelBarGroups = soeSubsectionItems.get('Dowel bar') || soeSubsectionItems.get('Dowels') || []
+      const dowelBarItemsFromWindow = window.dowelBarItems || []
+      const hasDowelBarItems = dowelBarGroups.length > 0 && dowelBarGroups.some(g => g.length > 0) || dowelBarItemsFromWindow.length > 0
+      
+      // If dowel bar items exist but Dowels is not in collectedSubsections, add it
+      if (hasDowelBarItems && !collectedSubsections.has('Dowels')) {
+        collectedSubsections.add('Dowels')
+      }
+      
+      // Check if rock pins is in soeSubsectionItems or window
+      const rockPinGroups = soeSubsectionItems.get('Rock pins') || soeSubsectionItems.get('Rock pin') || []
+      const rockPinItemsFromWindow = window.rockPinItems || []
+      const hasRockPinItems = rockPinGroups.length > 0 && rockPinGroups.some(g => g.length > 0) || rockPinItemsFromWindow.length > 0
+      
+      // If rock pin items exist but Rock pins is not in collectedSubsections, add it
+      if (hasRockPinItems && !collectedSubsections.has('Rock pins')) {
+        collectedSubsections.add('Rock pins')
+      }
+      
+      // Check if rock stabilization is in soeSubsectionItems or window
+      const rockStabilizationGroups = soeSubsectionItems.get('Rock stabilization') || []
+      const rockStabilizationItemsFromWindow = window.rockStabilizationItems || []
+      const hasRockStabilizationItems = rockStabilizationGroups.length > 0 && rockStabilizationGroups.some(g => g.length > 0) || rockStabilizationItemsFromWindow.length > 0
+      
+      // If rock stabilization items exist but Rock stabilization is not in collectedSubsections, add it
+      if (hasRockStabilizationItems && !collectedSubsections.has('Rock stabilization')) {
+        collectedSubsections.add('Rock stabilization')
+      }
+      
+      // Check if shotcrete is in soeSubsectionItems or window
+      const shotcreteGroups = soeSubsectionItems.get('Shotcrete') || []
+      const shotcreteItemsFromWindow = window.shotcreteItems || []
+      const hasShotcreteItems = shotcreteGroups.length > 0 && shotcreteGroups.some(g => g.length > 0) || shotcreteItemsFromWindow.length > 0
+      
+      // If shotcrete items exist but Shotcrete is not in collectedSubsections, add it
+      if (hasShotcreteItems && !collectedSubsections.has('Shotcrete')) {
+        collectedSubsections.add('Shotcrete')
+      }
+      
+      // Also check calculationData directly for shotcrete
+      if (!hasShotcreteItems && calculationData && calculationData.length > 0) {
+        let foundShotcrete = false
+        for (const row of calculationData) {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('shotcrete') && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
+              foundShotcrete = true
+              break
+            }
+          }
+        }
+        if (foundShotcrete && !collectedSubsections.has('Shotcrete')) {
+          collectedSubsections.add('Shotcrete')
+        }
+      }
+      
+      // Check if permission grouting is in soeSubsectionItems or window
+      const permissionGroutingGroups = soeSubsectionItems.get('Permission grouting') || []
+      const permissionGroutingItemsFromWindow = window.permissionGroutingItems || []
+      const hasPermissionGroutingItems = permissionGroutingGroups.length > 0 && permissionGroutingGroups.some(g => g.length > 0) || permissionGroutingItemsFromWindow.length > 0
+      
+      // If permission grouting items exist but Permission grouting is not in collectedSubsections, add it
+      if (hasPermissionGroutingItems && !collectedSubsections.has('Permission grouting')) {
+        collectedSubsections.add('Permission grouting')
+      }
+      
+      // Also check calculationData directly for permission grouting
+      if (!hasPermissionGroutingItems && calculationData && calculationData.length > 0) {
+        let foundPermissionGrouting = false
+        for (const row of calculationData) {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('permission grouting') && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
+              foundPermissionGrouting = true
+              break
+            }
+          }
+        }
+        if (foundPermissionGrouting && !collectedSubsections.has('Permission grouting')) {
+          collectedSubsections.add('Permission grouting')
+        }
+      }
+      
+      // Check if mud slab is in soeSubsectionItems or window
+      const mudSlabGroups = soeSubsectionItems.get('Mud slab') || []
+      const mudSlabItemsFromWindow = window.mudSlabItems || []
+      const hasMudSlabItems = mudSlabGroups.length > 0 && mudSlabGroups.some(g => g.length > 0) || mudSlabItemsFromWindow.length > 0
+      
+      // If mud slab items exist but Mud slab is not in collectedSubsections, add it
+      if (hasMudSlabItems && !collectedSubsections.has('Mud slab')) {
+        collectedSubsections.add('Mud slab')
+      }
+      
+      // Also check calculationData directly for mud slab
+      if (!hasMudSlabItems && calculationData && calculationData.length > 0) {
+        let foundMudSlab = false
+        for (const row of calculationData) {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('mud slab') && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
+              foundMudSlab = true
+              break
+            }
+          }
+        }
+        if (foundMudSlab && !collectedSubsections.has('Mud slab')) {
+          collectedSubsections.add('Mud slab')
+        }
+      }
+      
+      // Always add Misc. subsection to collectedSubsections
+      if (!collectedSubsections.has('Misc.') && !collectedSubsections.has('Misc')) {
+        collectedSubsections.add('Misc.')
+      }
+      
+      // Check if sheet pile is in soeSubsectionItems or window
+      const sheetPileGroups = soeSubsectionItems.get('Sheet pile') || soeSubsectionItems.get('Sheet piles') || []
+      const sheetPileItemsFromWindow = window.sheetPileItems || []
+      const hasSheetPileItems = sheetPileGroups.length > 0 && sheetPileGroups.some(g => g.length > 0) || sheetPileItemsFromWindow.length > 0
+      
+      // If sheet pile items exist but Sheet pile is not in collectedSubsections, add it
+      if (hasSheetPileItems && !collectedSubsections.has('Sheet pile') && !collectedSubsections.has('Sheet piles')) {
+        collectedSubsections.add('Sheet pile')
+      }
+      
+      // Also check calculationData directly for sheet pile
+      if (!hasSheetPileItems && calculationData && calculationData.length > 0) {
+        let foundSheetPile = false
+        for (const row of calculationData) {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('sheet pile') && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
+              foundSheetPile = true
+              break
+            }
+          }
+        }
+        if (foundSheetPile && !collectedSubsections.has('Sheet pile') && !collectedSubsections.has('Sheet piles')) {
+          collectedSubsections.add('Sheet pile')
+        }
+      }
+      
+      // Check if timber lagging is in soeSubsectionItems
+      const timberLaggingGroups = soeSubsectionItems.get('Timber lagging') || []
+      const hasTimberLaggingItems = timberLaggingGroups.length > 0 && timberLaggingGroups.some(g => g.length > 0)
+      
+      // If timber lagging items exist but Timber lagging is not in collectedSubsections, add it
+      if (hasTimberLaggingItems && !collectedSubsections.has('Timber lagging')) {
+        collectedSubsections.add('Timber lagging')
+      }
+      
+      // Also check calculationData directly for timber lagging
+      if (!hasTimberLaggingItems && calculationData && calculationData.length > 0) {
+        let foundTimberLagging = false
+        for (const row of calculationData) {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('timber lagging') && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
+              foundTimberLagging = true
+              break
+            }
+          }
+        }
+        if (foundTimberLagging && !collectedSubsections.has('Timber lagging')) {
+          collectedSubsections.add('Timber lagging')
+        }
+      }
+      
+      // Check if timber sheeting is in soeSubsectionItems
+      const timberSheetingGroups = soeSubsectionItems.get('Timber sheeting') || []
+      const hasTimberSheetingItems = timberSheetingGroups.length > 0 && timberSheetingGroups.some(g => g.length > 0)
+      
+      // If timber sheeting items exist but Timber sheeting is not in collectedSubsections, add it
+      if (hasTimberSheetingItems && !collectedSubsections.has('Timber sheeting')) {
+        collectedSubsections.add('Timber sheeting')
+      }
+      
+      // Also check calculationData directly for timber sheeting
+      if (!hasTimberSheetingItems && calculationData && calculationData.length > 0) {
+        let foundTimberSheeting = false
+        for (const row of calculationData) {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('timber sheeting') && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
+              foundTimberSheeting = true
+              break
+            }
+          }
+        }
+        if (foundTimberSheeting && !collectedSubsections.has('Timber sheeting')) {
+          collectedSubsections.add('Timber sheeting')
+        }
+      }
+      
+      // Check if heel blocks are in soeSubsectionItems
+      const heelBlockGroups = soeSubsectionItems.get('Heel blocks') || []
+      const hasHeelBlockItems = heelBlockGroups.length > 0 && heelBlockGroups.some(g => g.length > 0)
+      
+      // If heel block items exist but Heel blocks is not in collectedSubsections, add it
+      if (hasHeelBlockItems && !collectedSubsections.has('Heel blocks')) {
+        collectedSubsections.add('Heel blocks')
+      }
+      
+      // Also check calculationData directly for heel blocks
+      if (!hasHeelBlockItems && calculationData && calculationData.length > 0) {
+        let foundHeelBlocks = false
+        for (const row of calculationData) {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('heel block') && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
+              foundHeelBlocks = true
+              break
+            }
+          }
+        }
+        if (foundHeelBlocks && !collectedSubsections.has('Heel blocks')) {
+          collectedSubsections.add('Heel blocks')
+        }
+      }
+      
+      // Check if underpinning is in soeSubsectionItems
+      const underpinningGroups = soeSubsectionItems.get('Underpinning') || []
+      const hasUnderpinningItems = underpinningGroups.length > 0 && underpinningGroups.some(g => g.length > 0)
+      
+      // If underpinning items exist but Underpinning is not in collectedSubsections, add it
+      if (hasUnderpinningItems && !collectedSubsections.has('Underpinning')) {
+        collectedSubsections.add('Underpinning')
+      }
+      
+      // Also check calculationData directly for underpinning
+      if (!hasUnderpinningItems && calculationData && calculationData.length > 0) {
+        let foundUnderpinning = false
+        for (const row of calculationData) {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('underpinning') && !bText.includes('shim') && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
+              foundUnderpinning = true
+              break
+            }
+          }
+        }
+        if (foundUnderpinning && !collectedSubsections.has('Underpinning')) {
+          collectedSubsections.add('Underpinning')
+        }
+      }
+      
+      // Check if concrete soil retention pier is in soeSubsectionItems
+      const concreteSoilRetentionGroups = soeSubsectionItems.get('Concrete soil retention piers') || 
+                                          soeSubsectionItems.get('Concrete soil retention pier') || []
+      const hasConcreteSoilRetentionItems = concreteSoilRetentionGroups.length > 0 && concreteSoilRetentionGroups.some(g => g.length > 0)
+      
+      // If concrete soil retention pier items exist but not in collectedSubsections, add it
+      if (hasConcreteSoilRetentionItems && !collectedSubsections.has('Concrete soil retention piers') && !collectedSubsections.has('Concrete soil retention pier')) {
+        collectedSubsections.add('Concrete soil retention pier')
+      }
+      
+      // Also check calculationData directly for concrete soil retention pier
+      if (!hasConcreteSoilRetentionItems && calculationData && calculationData.length > 0) {
+        let foundConcreteSoilRetention = false
+        for (const row of calculationData) {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('concrete soil retention pier') && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
+              foundConcreteSoilRetention = true
+              break
+            }
+          }
+        }
+        if (foundConcreteSoilRetention && !collectedSubsections.has('Concrete soil retention piers') && !collectedSubsections.has('Concrete soil retention pier')) {
+          collectedSubsections.add('Concrete soil retention pier')
+        }
+      }
+      
+      // Check if form board is in soeSubsectionItems
+      const formBoardGroups = soeSubsectionItems.get('Form board') || []
+      const hasFormBoardItems = formBoardGroups.length > 0 && formBoardGroups.some(g => g.length > 0)
+      
+      // If form board items exist but not in collectedSubsections, add it
+      if (hasFormBoardItems && !collectedSubsections.has('Form board')) {
+        collectedSubsections.add('Form board')
+      }
+      
+      // Also check calculationData directly for form board
+      if (!hasFormBoardItems && calculationData && calculationData.length > 0) {
+        let foundFormBoard = false
+        for (const row of calculationData) {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('form board') && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
+              foundFormBoard = true
+              break
+            }
+          }
+        }
+        if (foundFormBoard && !collectedSubsections.has('Form board')) {
+          collectedSubsections.add('Form board')
+        }
+      }
+      
+      // Check if buttons/concrete buttons are in soeSubsectionItems
+      const buttonGroups = soeSubsectionItems.get('Buttons') || soeSubsectionItems.get('Concrete buttons') || []
+      const hasButtonItems = buttonGroups.length > 0 && buttonGroups.some(g => g.length > 0)
+      
+      // If button items exist, add both "Buttons" and "Concrete buttons" to collectedSubsections
+      if (hasButtonItems) {
+        if (!collectedSubsections.has('Buttons')) {
+          collectedSubsections.add('Buttons')
+        }
+        if (!collectedSubsections.has('Concrete buttons')) {
+          collectedSubsections.add('Concrete buttons')
+        }
+      }
+      
+      // Also check calculationData directly for buttons
+      if (!hasButtonItems && calculationData && calculationData.length > 0) {
+        let foundButtons = false
+        for (const row of calculationData) {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('button') && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
+              foundButtons = true
+              break
+            }
+          }
+        }
+        if (foundButtons) {
+          if (!collectedSubsections.has('Buttons')) {
+            collectedSubsections.add('Buttons')
+          }
+          if (!collectedSubsections.has('Concrete buttons')) {
+            collectedSubsections.add('Concrete buttons')
+          }
+        }
+      }
+      
       // Check if any bracing-related subsections exist
-      const bracingSubsections = ['Waler', 'Raker', 'Upper raker', 'Lower raker', 'Stand off', 'Kicker', 'Channel', 'Roll chock', 'Stub beam', 'Inner corner brace', 'Knee brace', 'Supporting angle']
-      const hasBracingItems = bracingSubsections.some(name => collectedSubsections.has(name))
+      // Match the exact names from the template, plus common variations
+      const bracingSubsections = ['Waler', 'Raker', 'Upper Raker', 'Lower Raker', 'Stand off', 'Kicker', 'Channel', 'Roll chock', 'Stub beam', 'Stud beam', 'Inner corner brace', 'Knee brace', 'Supporting angle']
+      // Also check case-insensitive matches
+      let hasBracingItems = bracingSubsections.some(name => {
+        return collectedSubsections.has(name) || 
+               Array.from(collectedSubsections).some(collected => 
+                 collected.toLowerCase() === name.toLowerCase()
+               )
+      })
+      
+      // If not found in collectedSubsections, check soeSubsectionItems directly
+      if (!hasBracingItems) {
+        hasBracingItems = bracingSubsections.some(name => {
+          // Check exact match
+          if (soeSubsectionItems.has(name)) {
+            const groups = soeSubsectionItems.get(name) || []
+            if (groups.length > 0 && groups.some(g => g.length > 0)) return true
+          }
+          // Check case-insensitive match
+          for (const [key, value] of soeSubsectionItems.entries()) {
+            if (key.toLowerCase() === name.toLowerCase()) {
+              const groups = value || []
+              if (groups.length > 0 && groups.some(g => g.length > 0)) return true
+            }
+          }
+          return false
+        })
+      }
+      
+      // If still not found, search calculation data directly
+      if (!hasBracingItems && calculationData && calculationData.length > 0) {
+        for (const row of calculationData) {
+          const colB = row[1] // Column B
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bracingSubsections.some(name => bText.includes(name.toLowerCase()))) {
+              hasBracingItems = true
+              break
+            }
+          }
+        }
+      }
+      
+      // Debug: log collected subsections to see what we have
       
       // Display subsections in order, prioritizing the order list
       const subsectionsToDisplay = []
@@ -4221,11 +6033,384 @@ const Spreadsheet = () => {
         if (name === 'Bracing' && hasBracingItems) {
           subsectionsToDisplay.push(name)
           // Don't remove bracing subsections from collectedSubsections yet
+        } else if (name === 'Parging' && hasPargingItems) {
+          // Special handling for Parging - show it if any parging items exist
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
+        } else if (name === 'Heel blocks' && hasHeelBlockItems) {
+          // Special handling for Heel blocks - show it if any heel block items exist
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
+        } else if (name === 'Underpinning' && hasUnderpinningItems) {
+          // Special handling for Underpinning - show it if any underpinning items exist
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
+        } else if (name === 'Concrete soil retention pier' && hasConcreteSoilRetentionItems) {
+          // Special handling for Concrete soil retention pier - show it if any items exist
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
+          collectedSubsections.delete('Concrete soil retention piers')
+        } else if (name === 'Form board' && hasFormBoardItems) {
+          // Special handling for Form board - show it if any items exist
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
+        } else if ((name === 'Guide wall' || name === 'Guilde wall') && hasGuideWallItems) {
+          // Special handling for Guide wall - show it if any items exist
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
+          collectedSubsections.delete('Guilde wall') // Also remove typo version
+        } else if ((name === 'Dowels' || name === 'Dowel bar') && hasDowelBarItems) {
+          // Special handling for Dowels - show it if any items exist
+          subsectionsToDisplay.push(name === 'Dowel bar' ? 'Dowels' : name)
+          collectedSubsections.delete(name)
+          collectedSubsections.delete('Dowel bar') // Also remove "Dowel bar" version
+          collectedSubsections.delete('Dowels')
+        } else if ((name === 'Rock pins' || name === 'Rock pin') && hasRockPinItems) {
+          // Special handling for Rock pins - show it if any items exist
+          subsectionsToDisplay.push(name === 'Rock pin' ? 'Rock pins' : name)
+          collectedSubsections.delete(name)
+          collectedSubsections.delete('Rock pin') // Also remove "Rock pin" version
+          collectedSubsections.delete('Rock pins')
+        } else if (name === 'Rock stabilization' && hasRockStabilizationItems) {
+          // Special handling for Rock stabilization - show it if any items exist
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
+        } else if (name === 'Shotcrete' && hasShotcreteItems) {
+          // Special handling for Shotcrete - show it if any items exist
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
+        } else if ((name === 'Sheet pile' || name === 'Sheet piles') && hasSheetPileItems) {
+          // Special handling for Sheet pile - show it if any items exist
+          subsectionsToDisplay.push('Sheet pile')
+          collectedSubsections.delete(name)
+          collectedSubsections.delete('Sheet piles') // Also remove plural version
+        } else if (name === 'Timber lagging' && hasTimberLaggingItems) {
+          // Special handling for Timber lagging - show it if any items exist
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
+        } else if (name === 'Timber sheeting' && hasTimberSheetingItems) {
+          // Special handling for Timber sheeting - show it if any items exist
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
         } else if (collectedSubsections.has(name)) {
           subsectionsToDisplay.push(name)
           collectedSubsections.delete(name)
         }
       })
+      
+      // If bracing items exist but Bracing wasn't added yet, add it now
+      if (hasBracingItems && !subsectionsToDisplay.includes('Bracing')) {
+        // Find the right position to insert Bracing (after Tangent pile, before Tie back)
+        const bracingIndex = subsectionOrder.indexOf('Bracing')
+        if (bracingIndex !== -1) {
+          // Find where to insert it based on subsectionOrder
+          let insertIndex = subsectionsToDisplay.length
+          for (let i = 0; i < subsectionsToDisplay.length; i++) {
+            const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+            if (currentIndex !== -1 && currentIndex > bracingIndex) {
+              insertIndex = i
+              break
+            }
+          }
+          subsectionsToDisplay.splice(insertIndex, 0, 'Bracing')
+        } else {
+          // If not in order, add it after Tangent pile or at a reasonable position
+          subsectionsToDisplay.push('Bracing')
+        }
+      }
+      
+      // If parging items exist but Parging wasn't added yet, add it now
+      if (hasPargingItems && !subsectionsToDisplay.includes('Parging')) {
+        // Find the right position to insert Parging (after Tie down anchor, before Heel blocks)
+        const pargingIndex = subsectionOrder.indexOf('Parging')
+        if (pargingIndex !== -1) {
+          // Find where to insert it based on subsectionOrder
+          let insertIndex = subsectionsToDisplay.length
+          for (let i = 0; i < subsectionsToDisplay.length; i++) {
+            const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+            if (currentIndex !== -1 && currentIndex > pargingIndex) {
+              insertIndex = i
+              break
+            }
+          }
+          subsectionsToDisplay.splice(insertIndex, 0, 'Parging')
+        } else {
+          // If not in order, add it at a reasonable position
+          subsectionsToDisplay.push('Parging')
+        }
+      }
+      
+      // If heel block items exist but Heel blocks wasn't added yet, add it now (right after Parging)
+      if (hasHeelBlockItems && !subsectionsToDisplay.includes('Heel blocks')) {
+        // Find the right position to insert Heel blocks (after Parging, before Underpinning)
+        const heelBlockIndex = subsectionOrder.indexOf('Heel blocks')
+        if (heelBlockIndex !== -1) {
+          // Find where to insert it based on subsectionOrder
+          let insertIndex = subsectionsToDisplay.length
+          for (let i = 0; i < subsectionsToDisplay.length; i++) {
+            const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+            if (currentIndex !== -1 && currentIndex > heelBlockIndex) {
+              insertIndex = i
+              break
+            }
+          }
+          subsectionsToDisplay.splice(insertIndex, 0, 'Heel blocks')
+        } else {
+          // If not in order, try to insert after Parging if it exists
+          const pargingPos = subsectionsToDisplay.indexOf('Parging')
+          if (pargingPos !== -1) {
+            subsectionsToDisplay.splice(pargingPos + 1, 0, 'Heel blocks')
+          } else {
+            subsectionsToDisplay.push('Heel blocks')
+          }
+        }
+      }
+      
+      // If underpinning items exist but Underpinning wasn't added yet, add it now (right after Heel blocks)
+      if (hasUnderpinningItems && !subsectionsToDisplay.includes('Underpinning')) {
+        // Find the right position to insert Underpinning (after Heel blocks)
+        const underpinningIndex = subsectionOrder.indexOf('Underpinning')
+        if (underpinningIndex !== -1) {
+          // Find where to insert it based on subsectionOrder
+          let insertIndex = subsectionsToDisplay.length
+          for (let i = 0; i < subsectionsToDisplay.length; i++) {
+            const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+            if (currentIndex !== -1 && currentIndex > underpinningIndex) {
+              insertIndex = i
+              break
+            }
+          }
+          subsectionsToDisplay.splice(insertIndex, 0, 'Underpinning')
+        } else {
+          // If not in order, try to insert after Heel blocks if it exists
+          const heelBlockPos = subsectionsToDisplay.indexOf('Heel blocks')
+          if (heelBlockPos !== -1) {
+            subsectionsToDisplay.splice(heelBlockPos + 1, 0, 'Underpinning')
+          } else {
+            subsectionsToDisplay.push('Underpinning')
+          }
+        }
+      }
+      
+      // If concrete soil retention pier items exist but Concrete soil retention pier wasn't added yet, add it now (right after Underpinning)
+      if (hasConcreteSoilRetentionItems && !subsectionsToDisplay.includes('Concrete soil retention pier')) {
+        // Find the right position to insert Concrete soil retention pier (after Underpinning)
+        const concreteSoilRetentionIndex = subsectionOrder.indexOf('Concrete soil retention pier')
+        if (concreteSoilRetentionIndex !== -1) {
+          // Find where to insert it based on subsectionOrder
+          let insertIndex = subsectionsToDisplay.length
+          for (let i = 0; i < subsectionsToDisplay.length; i++) {
+            const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+            if (currentIndex !== -1 && currentIndex > concreteSoilRetentionIndex) {
+              insertIndex = i
+              break
+            }
+          }
+          subsectionsToDisplay.splice(insertIndex, 0, 'Concrete soil retention pier')
+        } else {
+          // If not in order, try to insert after Underpinning if it exists
+          const underpinningPos = subsectionsToDisplay.indexOf('Underpinning')
+          if (underpinningPos !== -1) {
+            subsectionsToDisplay.splice(underpinningPos + 1, 0, 'Concrete soil retention pier')
+          } else {
+            subsectionsToDisplay.push('Concrete soil retention pier')
+          }
+        }
+      }
+      
+      // If guide wall items exist but Guide wall wasn't added yet, add it now
+      if (hasGuideWallItems && !subsectionsToDisplay.includes('Guide wall') && !subsectionsToDisplay.includes('Guilde wall')) {
+        // Find the right position to insert Guide wall (after Concrete soil retention pier, before Concrete buttons)
+        const guideWallIndex = subsectionOrder.indexOf('Guide wall')
+        if (guideWallIndex !== -1) {
+          // Find where to insert it based on subsectionOrder
+          let insertIndex = subsectionsToDisplay.length
+          for (let i = 0; i < subsectionsToDisplay.length; i++) {
+            const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+            if (currentIndex !== -1 && currentIndex > guideWallIndex) {
+              insertIndex = i
+              break
+            }
+          }
+          subsectionsToDisplay.splice(insertIndex, 0, 'Guide wall')
+        } else {
+          // If not in order, try to insert after Concrete soil retention pier if it exists
+          const concreteSoilRetentionPos = subsectionsToDisplay.indexOf('Concrete soil retention pier')
+          if (concreteSoilRetentionPos !== -1) {
+            subsectionsToDisplay.splice(concreteSoilRetentionPos + 1, 0, 'Guide wall')
+          } else {
+            subsectionsToDisplay.push('Guide wall')
+          }
+        }
+      }
+      
+      // If form board items exist but Form board wasn't added yet, add it now (right after Concrete soil retention pier)
+      if (hasFormBoardItems && !subsectionsToDisplay.includes('Form board')) {
+        // Find the right position to insert Form board (after Concrete soil retention pier)
+        const formBoardIndex = subsectionOrder.indexOf('Form board')
+        if (formBoardIndex !== -1) {
+          // Find where to insert it based on subsectionOrder
+          let insertIndex = subsectionsToDisplay.length
+          for (let i = 0; i < subsectionsToDisplay.length; i++) {
+            const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+            if (currentIndex !== -1 && currentIndex > formBoardIndex) {
+              insertIndex = i
+              break
+            }
+          }
+          subsectionsToDisplay.splice(insertIndex, 0, 'Form board')
+        } else {
+          // If not in order, try to insert after Concrete soil retention pier if it exists
+          const concreteSoilRetentionPos = subsectionsToDisplay.indexOf('Concrete soil retention pier')
+          if (concreteSoilRetentionPos !== -1) {
+            subsectionsToDisplay.splice(concreteSoilRetentionPos + 1, 0, 'Form board')
+          } else {
+            subsectionsToDisplay.push('Form board')
+          }
+        }
+      }
+      
+      // If rock stabilization items exist but Rock stabilization wasn't added yet, add it now
+      if (hasRockStabilizationItems && !subsectionsToDisplay.includes('Rock stabilization')) {
+        // Find the right position to insert Rock stabilization (after Rock pins, before Shotcrete)
+        const rockStabilizationIndex = subsectionOrder.indexOf('Rock stabilization')
+        if (rockStabilizationIndex !== -1) {
+          // Find where to insert it based on subsectionOrder
+          let insertIndex = subsectionsToDisplay.length
+          for (let i = 0; i < subsectionsToDisplay.length; i++) {
+            const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+            if (currentIndex !== -1 && currentIndex > rockStabilizationIndex) {
+              insertIndex = i
+              break
+            }
+          }
+          subsectionsToDisplay.splice(insertIndex, 0, 'Rock stabilization')
+        } else {
+          // If not in order, try to insert after Rock pins if it exists
+          const rockPinsPos = subsectionsToDisplay.indexOf('Rock pins')
+          if (rockPinsPos !== -1) {
+            subsectionsToDisplay.splice(rockPinsPos + 1, 0, 'Rock stabilization')
+          } else {
+            subsectionsToDisplay.push('Rock stabilization')
+          }
+        }
+      }
+      
+      // If shotcrete items exist but Shotcrete wasn't added yet, add it now
+      if (hasShotcreteItems && !subsectionsToDisplay.includes('Shotcrete')) {
+        // Find the right position to insert Shotcrete (after Rock stabilization, before Permission grouting)
+        const shotcreteIndex = subsectionOrder.indexOf('Shotcrete')
+        if (shotcreteIndex !== -1) {
+          // Find where to insert it based on subsectionOrder
+          let insertIndex = subsectionsToDisplay.length
+          for (let i = 0; i < subsectionsToDisplay.length; i++) {
+            const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+            if (currentIndex !== -1 && currentIndex > shotcreteIndex) {
+              insertIndex = i
+              break
+            }
+          }
+          subsectionsToDisplay.splice(insertIndex, 0, 'Shotcrete')
+        } else {
+          // If not in order, try to insert after Rock stabilization if it exists
+          const rockStabilizationPos = subsectionsToDisplay.indexOf('Rock stabilization')
+          if (rockStabilizationPos !== -1) {
+            subsectionsToDisplay.splice(rockStabilizationPos + 1, 0, 'Shotcrete')
+          } else {
+            subsectionsToDisplay.push('Shotcrete')
+          }
+        }
+      }
+      
+      // If sheet pile items exist but Sheet pile wasn't added yet, add it now (right after Tangent pile)
+      if (hasSheetPileItems && !subsectionsToDisplay.includes('Sheet pile')) {
+        // Find the right position to insert Sheet pile (after Tangent pile, before Bracing)
+        const sheetPileIndex = subsectionOrder.indexOf('Sheet pile')
+        if (sheetPileIndex !== -1) {
+          // Find where to insert it based on subsectionOrder
+          let insertIndex = subsectionsToDisplay.length
+          for (let i = 0; i < subsectionsToDisplay.length; i++) {
+            const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+            if (currentIndex !== -1 && currentIndex > sheetPileIndex) {
+              insertIndex = i
+              break
+            }
+          }
+          subsectionsToDisplay.splice(insertIndex, 0, 'Sheet pile')
+        } else {
+          // If not in order, try to insert after Tangent pile if it exists
+          const tangentPilePos = subsectionsToDisplay.indexOf('Tangent pile')
+          if (tangentPilePos !== -1) {
+            subsectionsToDisplay.splice(tangentPilePos + 1, 0, 'Sheet pile')
+          } else {
+            // Try after Tangent piles (plural)
+            const tangentPilesPos = subsectionsToDisplay.indexOf('Tangent piles')
+            if (tangentPilesPos !== -1) {
+              subsectionsToDisplay.splice(tangentPilesPos + 1, 0, 'Sheet pile')
+            } else {
+              subsectionsToDisplay.push('Sheet pile')
+            }
+          }
+        }
+      }
+      
+      // If timber lagging items exist but Timber lagging wasn't added yet, add it now (right after Sheet pile)
+      if (hasTimberLaggingItems && !subsectionsToDisplay.includes('Timber lagging')) {
+        // Find the right position to insert Timber lagging (after Sheet pile, before Timber sheeting)
+        const timberLaggingIndex = subsectionOrder.indexOf('Timber lagging')
+        if (timberLaggingIndex !== -1) {
+          // Find where to insert it based on subsectionOrder
+          let insertIndex = subsectionsToDisplay.length
+          for (let i = 0; i < subsectionsToDisplay.length; i++) {
+            const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+            if (currentIndex !== -1 && currentIndex > timberLaggingIndex) {
+              insertIndex = i
+              break
+            }
+          }
+          subsectionsToDisplay.splice(insertIndex, 0, 'Timber lagging')
+        } else {
+          // If not in order, try to insert after Sheet pile if it exists
+          const sheetPilePos = subsectionsToDisplay.indexOf('Sheet pile')
+          if (sheetPilePos !== -1) {
+            subsectionsToDisplay.splice(sheetPilePos + 1, 0, 'Timber lagging')
+          } else {
+            subsectionsToDisplay.push('Timber lagging')
+          }
+        }
+      }
+      
+      // If timber sheeting items exist but Timber sheeting wasn't added yet, add it now (right after Timber lagging)
+      if (hasTimberSheetingItems && !subsectionsToDisplay.includes('Timber sheeting')) {
+        // Find the right position to insert Timber sheeting (after Timber lagging, before Bracing)
+        const timberSheetingIndex = subsectionOrder.indexOf('Timber sheeting')
+        if (timberSheetingIndex !== -1) {
+          // Find where to insert it based on subsectionOrder
+          let insertIndex = subsectionsToDisplay.length
+          for (let i = 0; i < subsectionsToDisplay.length; i++) {
+            const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+            if (currentIndex !== -1 && currentIndex > timberSheetingIndex) {
+              insertIndex = i
+              break
+            }
+          }
+          subsectionsToDisplay.splice(insertIndex, 0, 'Timber sheeting')
+        } else {
+          // If not in order, try to insert after Timber lagging if it exists
+          const timberLaggingPos = subsectionsToDisplay.indexOf('Timber lagging')
+          if (timberLaggingPos !== -1) {
+            subsectionsToDisplay.splice(timberLaggingPos + 1, 0, 'Timber sheeting')
+          } else {
+            // Try after Sheet pile if Timber lagging not found
+            const sheetPilePos = subsectionsToDisplay.indexOf('Sheet pile')
+            if (sheetPilePos !== -1) {
+              subsectionsToDisplay.splice(sheetPilePos + 1, 0, 'Timber sheeting')
+            } else {
+              subsectionsToDisplay.push('Timber sheeting')
+            }
+          }
+        }
+      }
       
       // Add any remaining subsections (but skip bracing items if Bracing header was added, and skip excluded ones)
       if (hasBracingItems && subsectionsToDisplay.includes('Bracing')) {
@@ -4239,7 +6424,34 @@ const Spreadsheet = () => {
         }
       })
       
+      // Search for Timber lagging and Timber sheeting in calculation data (always run)
+      if (calculationData && calculationData.length > 0) {
+        const timberLaggingRows = []
+        const timberSheetingRows = []
+        calculationData.forEach((row, index) => {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('timber lagging')) {
+              timberLaggingRows.push({
+                rowIndex: index + 2,
+                row: row,
+                colB: colB
+              })
+            }
+            if (bText.includes('timber sheeting')) {
+              timberSheetingRows.push({
+                rowIndex: index + 2,
+                row: row,
+                colB: colB
+              })
+            }
+          }
+        })
+      }
+      
       subsectionsToDisplay.forEach((subsectionName) => {
+        
         // Special handling for Bracing - show it as a heading and then process all bracing items below
         if (subsectionName === 'Bracing' && hasBracingItems) {
           // Add Bracing header
@@ -4260,8 +6472,299 @@ const Spreadsheet = () => {
           currentRow++
           
           // Process all bracing-related subsections and display their items
+          // Map subsection names to display names (matching template names)
+          const bracingDisplayNames = {
+            'Waler': 'Waler',
+            'Raker': 'Raker',
+            'Upper Raker': 'Upper Raker',
+            'Lower Raker': 'Lower Raker',
+            'Stand off': 'Stand Off',
+            'Kicker': 'Kicker',
+            'Channel': 'Channel',
+            'Roll chock': 'Roll Chock',
+            'Stub beam': 'Stub Beam',
+            'Stud beam': 'Stub Beam',
+            'Inner corner brace': 'Inner Corner Brace',
+            'Knee brace': 'Knee Brace',
+            'Supporting angle': 'Supporting Angle'
+          }
+          
+          // Helper function to find bracing groups with case-insensitive matching
+          const getBracingGroups = (subsectionName) => {
+            // Try exact match first
+            let groups = soeSubsectionItems.get(subsectionName) || []
+            if (groups.length > 0 && groups.some(g => g.length > 0)) return groups
+            
+            // Try case-insensitive match
+            for (const [key, value] of soeSubsectionItems.entries()) {
+              if (key.toLowerCase() === subsectionName.toLowerCase()) {
+                const groups = value || []
+                if (groups.length > 0 && groups.some(g => g.length > 0)) return groups
+              }
+            }
+            return []
+          }
+          
+          // Helper function to find bracing items from calculation data
+          const findBracingItemsFromCalculationData = (subsectionName) => {
+            if (!calculationData || calculationData.length === 0) return []
+            
+            const foundRows = []
+            let inSubsection = false
+            
+            calculationData.forEach((row, index) => {
+              const rowNum = index + 2
+              const colB = row[1]
+              
+              if (colB && typeof colB === 'string') {
+                const bText = colB.trim()
+                // Check if this is the subsection header
+                if ((bText.toLowerCase().includes(subsectionName.toLowerCase()) || 
+                     subsectionName.toLowerCase().includes(bText.toLowerCase())) && 
+                    bText.endsWith(':')) {
+                  inSubsection = true
+                  return
+                }
+                
+                // If we're in the subsection and hit another subsection or section, stop
+                if (inSubsection) {
+                  if (bText.endsWith(':') && !bText.toLowerCase().includes(subsectionName.toLowerCase())) {
+                    inSubsection = false
+                    return
+                  }
+                  
+                  // This is a data row in the subsection
+                  if (bText && !bText.endsWith(':') && row[2] !== undefined) {
+                    const takeoff = parseFloat(row[2]) || 0
+                    if (takeoff > 0) {
+                      foundRows.push({
+                        rowNum: rowNum,
+                        particulars: bText,
+                        takeoff: takeoff,
+                        qty: parseFloat(row[12]) || 0,
+                        height: parseFloat(row[7]) || 0,
+                        lbs: parseFloat(row[10]) || 0,
+                        rawRowNumber: rowNum
+                      })
+                    }
+                  }
+                }
+              }
+            })
+            
+            return foundRows.length > 0 ? [foundRows] : []
+          }
+          
           bracingSubsections.forEach(bracingSubsectionName => {
-            const bracingGroups = soeSubsectionItems.get(bracingSubsectionName) || []
+            let bracingGroups = getBracingGroups(bracingSubsectionName)
+            
+            // If not found in soeSubsectionItems, try calculation data
+            if (bracingGroups.length === 0 || !bracingGroups.some(g => g.length > 0)) {
+              bracingGroups = findBracingItemsFromCalculationData(bracingSubsectionName)
+            }
+            
+            if (bracingGroups.length === 0) return // Skip if no groups found
+            
+            // Special handling for Supporting angle - group by size and location
+            if (bracingSubsectionName.toLowerCase() === 'supporting angle') {
+              // Collect all supporting angle items
+              const allSupportingAngleItems = []
+              bracingGroups.forEach(group => {
+                group.forEach(item => {
+                  if (item.particulars) {
+                    allSupportingAngleItems.push(item)
+                  }
+                })
+              })
+              
+              // Group by size and location
+              const groupedBySizeAndLocation = new Map()
+              allSupportingAngleItems.forEach(item => {
+                const particulars = item.particulars || ''
+                // Extract size (e.g., L4x4x½, L8x4x½)
+                const sizeMatch = particulars.match(/(L\d+x\d+x[½¼¾\d\/]+)/i)
+                const size = sizeMatch ? sizeMatch[1] : ''
+                
+                // Extract location (@ timber lagging, @ soldier pile, etc.)
+                let location = ''
+                if (particulars.toLowerCase().includes('@ timber lagging')) {
+                  location = '@ timber lagging'
+                } else if (particulars.toLowerCase().includes('@ soldier pile')) {
+                  location = '@ soldier piles'
+                } else if (particulars.toLowerCase().includes('@')) {
+                  const locationMatch = particulars.match(/@\s*([^,]+)/i)
+                  if (locationMatch) {
+                    location = `@ ${locationMatch[1].trim()}`
+                  }
+                }
+                
+                const key = `${size}|${location}`
+                if (!groupedBySizeAndLocation.has(key)) {
+                  groupedBySizeAndLocation.set(key, [])
+                }
+                groupedBySizeAndLocation.get(key).push(item)
+              })
+              
+              // Process each group separately
+              groupedBySizeAndLocation.forEach((group, key) => {
+                if (group.length === 0) return
+                
+                const [size, location] = key.split('|')
+                
+                // Calculate totals for this group
+                let totalTakeoff = 0
+                let totalQty = 0
+                let totalFT = 0
+                let totalLBS = 0
+                let lastRowNumber = 0
+                
+                group.forEach(item => {
+                  totalTakeoff += item.takeoff || 0
+                  totalQty += item.qty || 0
+                  const itemFT = (item.height || 0) * (item.takeoff || 0)
+                  totalFT += itemFT
+                  totalLBS += item.lbs || 0
+                  lastRowNumber = Math.max(lastRowNumber, item.rawRowNumber || 0)
+                })
+                
+                // Find the sum row for this group
+                const sumRowIndex = lastRowNumber
+                const calcSheetName = 'Calculations Sheet'
+                
+                // Get SOE page references from raw data
+                let soePageMain = 'SOE-101.00'
+                let soePageDetails = 'SOE-301.00'
+                if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+                  const headers = rawData[0]
+                  const dataRows = rawData.slice(1)
+                  const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+                  const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+                  
+                  if (digitizerIdx !== -1 && pageIdx !== -1) {
+                    for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                      const row = dataRows[rowIndex]
+                      const digitizerItem = row[digitizerIdx]
+                      if (digitizerItem && typeof digitizerItem === 'string') {
+                        const itemText = digitizerItem.toLowerCase()
+                        if (itemText.includes('supporting angle')) {
+                          const pageValue = row[pageIdx]
+                          if (pageValue) {
+                            const pageStr = String(pageValue).trim()
+                            const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
+                            if (soeMatches && soeMatches.length > 0) {
+                              soePageMain = soeMatches[0]
+                              if (soeMatches.length > 1) {
+                                soePageDetails = soeMatches[1]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+                
+                // Generate proposal text: F&I new (X)no [size] supporting angle @ [location] as per SOE-XXX.XX & details on SOE-XXX.XX
+                const qtyValue = Math.round(totalQty || totalTakeoff)
+                const proposalText = `F&I new (${qtyValue})no ${size} supporting angle ${location} as per ${soePageMain} & details on ${soePageDetails}`
+                
+                // Add proposal text
+                spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+                spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+                spreadsheet.cellFormat(
+                  { 
+                    fontWeight: 'bold', 
+                    color: '#000000', 
+                    textAlign: 'left',
+                    backgroundColor: 'white',
+                    verticalAlign: 'top'
+                  },
+                  `${pfx}B${currentRow}`
+                )
+                
+                // Calculate and set row height based on content
+                const dynamicHeight = calculateRowHeight(proposalText)
+                spreadsheet.setRowHeight(dynamicHeight, currentRow, proposalSheetIndex)
+                
+                // Add FT (LF) to column C - reference to calculation sheet sum row
+                if (sumRowIndex > 0) {
+                  spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
+                  spreadsheet.cellFormat(
+                    { 
+                      fontWeight: 'bold', 
+                      textAlign: 'right',
+                      backgroundColor: 'white'
+                    },
+                    `${pfx}C${currentRow}`
+                  )
+                }
+                
+                // Add LBS to column E - reference to calculation sheet sum row
+                if (sumRowIndex > 0) {
+                  spreadsheet.updateCell({ formula: `='${calcSheetName}'!K${sumRowIndex}` }, `${pfx}E${currentRow}`)
+                  spreadsheet.cellFormat(
+                    { 
+                      fontWeight: 'bold', 
+                      textAlign: 'right',
+                      backgroundColor: 'white'
+                    },
+                    `${pfx}E${currentRow}`
+                  )
+                }
+                
+                // Add QTY to column G - reference to calculation sheet sum row
+                if (sumRowIndex > 0) {
+                  spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
+                  spreadsheet.cellFormat(
+                    { 
+                      fontWeight: 'bold', 
+                      textAlign: 'right',
+                      backgroundColor: 'white'
+                    },
+                    `${pfx}G${currentRow}`
+                  )
+                }
+                
+                // Add 180 to second LF column (column I) - same as other SOE items
+                spreadsheet.updateCell({ value: 180 }, `${pfx}I${currentRow}`)
+                spreadsheet.cellFormat(
+                  { 
+                    fontWeight: 'bold', 
+                    textAlign: 'right',
+                    backgroundColor: '#E2EFDA'
+                  },
+                  `${pfx}I${currentRow}:N${currentRow}`
+                )
+                
+                // Add $/1000 formula in column H
+                const dollarFormula = `=ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)`
+                spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
+                spreadsheet.cellFormat(
+                  { 
+                    fontWeight: 'bold', 
+                    textAlign: 'right',
+                    backgroundColor: 'white',
+                    format: '$#,##0.0'
+                  },
+                  `${pfx}H${currentRow}`
+                )
+                
+                // Apply currency format
+                try {
+                  spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+                } catch (e) {
+                  // Fallback already applied in cellFormat
+                }
+                
+                // Row height already set above based on proposal text
+                
+                currentRow++ // Move to next row
+              })
+              
+              return // Skip normal processing for supporting angles
+            }
+            
+            // Normal processing for other bracing items
             bracingGroups.forEach((group) => {
               if (group.length === 0) return
               
@@ -4271,6 +6774,7 @@ const Spreadsheet = () => {
               let totalFT = 0
               let totalLBS = 0
               let lastRowNumber = 0
+              let itemDescription = ''
               
               group.forEach(item => {
                 totalTakeoff += item.takeoff || 0
@@ -4279,14 +6783,72 @@ const Spreadsheet = () => {
                 totalFT += itemFT
                 totalLBS += item.lbs || 0
                 lastRowNumber = Math.max(lastRowNumber, item.rawRowNumber || 0)
+                // Extract item description from particulars if available
+                if (!itemDescription && item.particulars) {
+                  itemDescription = item.particulars
+                }
               })
               
               // Find the sum row for this group
               const sumRowIndex = lastRowNumber
               const calcSheetName = 'Calculations Sheet'
               
+              // Get display name for this subsection - try both the original name and case variations
+              let displayName = bracingDisplayNames[bracingSubsectionName] || 
+                               bracingDisplayNames[bracingSubsectionName.toLowerCase()] ||
+                               bracingDisplayNames[bracingSubsectionName.charAt(0).toUpperCase() + bracingSubsectionName.slice(1).toLowerCase()] ||
+                               bracingSubsectionName
+              
               // Generate proposal text for bracing item
-              let proposalText = `${bracingSubsectionName} item: ${Math.round(totalQty)} nos`
+              // Format: F&I new (X)no [item description] [item type] as per SOE-XXX.XX
+              const qtyValue = Math.round(totalQty || totalTakeoff)
+              let proposalText = ''
+              
+              // Extract size/type from item description if available
+              let sizeInfo = ''
+              if (itemDescription) {
+                // Try to extract size information (e.g., "W12x26", "HP12x63", etc.)
+                const sizeMatch = itemDescription.match(/([A-Z]+\d+x\d+[A-Z]?)/i)
+                if (sizeMatch) {
+                  sizeInfo = `[${sizeMatch[1]}] `
+                }
+              }
+              
+              // Get SOE page reference from raw data
+              let soePageMain = 'SOE-100.00'
+              if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+                const headers = rawData[0]
+                const dataRows = rawData.slice(1)
+                const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+                const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+                
+                if (digitizerIdx !== -1 && pageIdx !== -1) {
+                  for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                    const row = dataRows[rowIndex]
+                    const digitizerItem = row[digitizerIdx]
+                    if (digitizerItem && typeof digitizerItem === 'string') {
+                      const itemText = digitizerItem.toLowerCase()
+                      if (itemText.includes(bracingSubsectionName.toLowerCase())) {
+                        const pageValue = row[pageIdx]
+                        if (pageValue) {
+                          const pageStr = String(pageValue).trim()
+                          const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
+                          if (soeMatches && soeMatches.length > 0) {
+                            soePageMain = soeMatches[0]
+                            break
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              
+              if (sizeInfo) {
+                proposalText = `F&I new (${qtyValue})no ${sizeInfo}${displayName.toLowerCase()} as per ${soePageMain}`
+              } else {
+                proposalText = `F&I new (${qtyValue})no ${displayName.toLowerCase()} as per ${soePageMain}`
+              }
               
               // Add proposal text
               spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
@@ -4302,8 +6864,12 @@ const Spreadsheet = () => {
                 `${pfx}B${currentRow}`
               )
               
-              // Add FT (LF) to column C if available
-              if (totalFT > 0 && sumRowIndex > 0) {
+              // Calculate and set row height based on content
+              const dynamicHeight = calculateRowHeight(proposalText)
+              spreadsheet.setRowHeight(dynamicHeight, currentRow, proposalSheetIndex)
+              
+              // Add FT (LF) to column C - reference to calculation sheet sum row
+              if (sumRowIndex > 0) {
                 spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
                 spreadsheet.cellFormat(
                   { 
@@ -4315,8 +6881,8 @@ const Spreadsheet = () => {
                 )
               }
               
-              // Add LBS to column E if available
-              if (totalLBS > 0 && sumRowIndex > 0) {
+              // Add LBS to column E - reference to calculation sheet sum row
+              if (sumRowIndex > 0) {
                 spreadsheet.updateCell({ formula: `='${calcSheetName}'!K${sumRowIndex}` }, `${pfx}E${currentRow}`)
                 spreadsheet.cellFormat(
                   { 
@@ -4328,8 +6894,8 @@ const Spreadsheet = () => {
                 )
               }
               
-              // Add QTY to column G if available
-              if (totalQty > 0 && sumRowIndex > 0) {
+              // Add QTY to column G - reference to calculation sheet sum row
+              if (sumRowIndex > 0) {
                 spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
                 spreadsheet.cellFormat(
                   { 
@@ -4340,6 +6906,17 @@ const Spreadsheet = () => {
                   `${pfx}G${currentRow}`
                 )
               }
+              
+              // Add 180 to second LF column (column I) - same as other SOE items
+              spreadsheet.updateCell({ value: 180 }, `${pfx}I${currentRow}`)
+              spreadsheet.cellFormat(
+                { 
+                  fontWeight: 'bold', 
+                  textAlign: 'right',
+                  backgroundColor: '#E2EFDA'
+                },
+                `${pfx}I${currentRow}:N${currentRow}`
+              )
               
               // Add $/1000 formula in column H
               const dollarFormula = `=ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)`
@@ -4354,13 +6931,819 @@ const Spreadsheet = () => {
                 `${pfx}H${currentRow}`
               )
               
-              // Increase row height
-              spreadsheet.setRowHeight(currentRow, 41, proposalSheetIndex)
+              // Apply currency format
+              try {
+                spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+              } catch (e) {
+                // Fallback already applied in cellFormat
+              }
+              
+              // Row height already set above based on proposal text
               
               currentRow++ // Move to next row
             })
           })
+          // Add Tie back anchor section right after Bracing
+          // Add Tie back anchor header
+          const tieBackText = `Tie back anchor: including applicable washers, steel bearing plates, locking hex nuts as required`
+          spreadsheet.updateCell({ value: tieBackText }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              color: '#000000', 
+              textAlign: 'left',
+              backgroundColor: '#D0CECE',
+              textDecoration: 'underline',
+              border: '1px solid #000000'
+            },
+            `${pfx}B${currentRow}`
+          )
+          spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+          currentRow++
+          
+          // Get tie back anchor groups
+          let tieBackGroups = soeSubsectionItems.get('Tie back') || []
+          const tieBackAnchorGroups = soeSubsectionItems.get('Tie back anchor') || []
+          tieBackGroups = [...tieBackGroups, ...tieBackAnchorGroups]
+          
+          // If not found, try to find from calculation data
+          if (tieBackGroups.length === 0 && calculationData && calculationData.length > 0) {
+            const foundRows = []
+            let inSubsection = false
+            
+            calculationData.forEach((row, index) => {
+              const rowNum = index + 2
+              const colB = row[1]
+              
+              if (colB && typeof colB === 'string') {
+                const bText = colB.trim().toLowerCase()
+                if ((bText.includes('tie back') || bText.includes('tie back anchor')) && bText.endsWith(':')) {
+                  inSubsection = true
+                  return
+                }
+                
+                if (inSubsection) {
+                  if (bText.endsWith(':') && !bText.includes('tie back')) {
+                    inSubsection = false
+                    return
+                  }
+                  
+                  if (bText && !bText.endsWith(':') && row[2] !== undefined) {
+                    const takeoff = parseFloat(row[2]) || 0
+                    if (takeoff > 0) {
+                      foundRows.push({
+                        rowNum: rowNum,
+                        particulars: colB.trim(),
+                        takeoff: takeoff,
+                        qty: parseFloat(row[12]) || 0,
+                        height: parseFloat(row[7]) || 0,
+                        lbs: parseFloat(row[10]) || 0,
+                        rawRowNumber: rowNum
+                      })
+                    }
+                  }
+                }
+              }
+            })
+            
+            if (foundRows.length > 0) {
+              tieBackGroups = [foundRows]
+            }
+          }
+          
+          // Process tie back anchor groups
+          if (tieBackGroups.length > 0) {
+            tieBackGroups.forEach((group) => {
+              if (group.length === 0) return
+              
+              // Calculate totals
+              let totalTakeoff = 0
+              let totalQty = 0
+              let totalFT = 0
+              let totalLBS = 0
+              let lastRowNumber = 0
+              
+              group.forEach(item => {
+                totalTakeoff += item.takeoff || 0
+                totalQty += item.qty || 0
+                const itemFT = (item.height || 0) * (item.takeoff || 0)
+                totalFT += itemFT
+                totalLBS += item.lbs || 0
+                lastRowNumber = Math.max(lastRowNumber, item.rawRowNumber || 0)
+              })
+              
+              const sumRowIndex = lastRowNumber
+              const calcSheetName = 'Calculations Sheet'
+              
+              // Get first item's particulars for extracting details
+              let firstItemParticulars = ''
+              group.forEach(item => {
+                if (!firstItemParticulars && item.particulars) {
+                  firstItemParticulars = item.particulars
+                }
+              })
+              
+              // Extract free length and bond length from particulars
+              let freeLength = "28'-0\""
+              let bondLength = "20'-0\""
+              if (firstItemParticulars) {
+                const freeLengthMatch = firstItemParticulars.match(/Free\s+length\s*=\s*([0-9'\"\-\s]+)/i)
+                if (freeLengthMatch) {
+                  freeLength = freeLengthMatch[1].trim()
+                }
+                const bondLengthMatch = firstItemParticulars.match(/Bond\s+length\s*=\s*([0-9'\"\-\s]+)/i)
+                if (bondLengthMatch) {
+                  bondLength = bondLengthMatch[1].trim()
+                }
+              }
+              
+              // Extract drill hole size (default to 5 ½"Ø)
+              let drillHole = '5 ½"Ø'
+              if (firstItemParticulars) {
+                const drillMatch = firstItemParticulars.match(/([\d\s½¼¾]+)"?\s*Ø/i)
+                if (drillMatch) {
+                  drillHole = drillMatch[1].trim() + '"Ø'
+                }
+              }
+              
+              // Get SOE page references from raw data
+              let soePageMain = 'SOE-002.00'
+              if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+                const headers = rawData[0]
+                const dataRows = rawData.slice(1)
+                const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+                const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+                
+                if (digitizerIdx !== -1 && pageIdx !== -1) {
+                  for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                    const row = dataRows[rowIndex]
+                    const digitizerItem = row[digitizerIdx]
+                    if (digitizerItem && typeof digitizerItem === 'string') {
+                      const itemText = digitizerItem.toLowerCase()
+                      if (itemText.includes('tie back') || itemText.includes('hollow bar')) {
+                        const pageValue = row[pageIdx]
+                        if (pageValue) {
+                          const pageStr = String(pageValue).trim()
+                          const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
+                          if (soeMatches && soeMatches.length > 0) {
+                            soePageMain = soeMatches[0]
+                            break
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              
+              // Generate proposal text: F&I new (X)no tie back anchors (L=XX'-XX" + XX'-XX" bond length), XX ½"Ø drill hole as per SOE-XXX.XX
+              const qtyValue = Math.round(totalQty || totalTakeoff)
+              const proposalText = `F&I new (${qtyValue})no tie back anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain}`
+              
+              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+              spreadsheet.cellFormat(
+                { 
+                  fontWeight: 'bold', 
+                  color: '#000000', 
+                  textAlign: 'left',
+                  backgroundColor: 'white',
+                  verticalAlign: 'top'
+                },
+                `${pfx}B${currentRow}`
+              )
+              
+              // Add FT (LF) to column C
+              if (sumRowIndex > 0) {
+                spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
+                spreadsheet.cellFormat(
+                  { 
+                    fontWeight: 'bold', 
+                    textAlign: 'right',
+                    backgroundColor: 'white'
+                  },
+                  `${pfx}C${currentRow}`
+                )
+              }
+              
+              // Add LBS to column E
+              if (sumRowIndex > 0) {
+                spreadsheet.updateCell({ formula: `='${calcSheetName}'!K${sumRowIndex}` }, `${pfx}E${currentRow}`)
+                spreadsheet.cellFormat(
+                  { 
+                    fontWeight: 'bold', 
+                    textAlign: 'right',
+                    backgroundColor: 'white'
+                  },
+                  `${pfx}E${currentRow}`
+                )
+              }
+              
+              // Add QTY to column G
+              if (sumRowIndex > 0) {
+                spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
+                spreadsheet.cellFormat(
+                  { 
+                    fontWeight: 'bold', 
+                    textAlign: 'right',
+                    backgroundColor: 'white'
+                  },
+                  `${pfx}G${currentRow}`
+                )
+              }
+              
+              // Add 180 to second LF column (column I)
+              spreadsheet.updateCell({ value: 180 }, `${pfx}I${currentRow}`)
+              spreadsheet.cellFormat(
+                { 
+                  fontWeight: 'bold', 
+                  textAlign: 'right',
+                  backgroundColor: '#E2EFDA'
+                },
+                `${pfx}I${currentRow}:N${currentRow}`
+              )
+              
+              // Add $/1000 formula in column H
+              const dollarFormula = `=ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)`
+              spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
+              spreadsheet.cellFormat(
+                { 
+                  fontWeight: 'bold', 
+                  textAlign: 'right',
+                  backgroundColor: 'white',
+                  format: '$#,##0.0'
+                },
+                `${pfx}H${currentRow}`
+              )
+              
+              // Apply currency format
+              try {
+                spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+              } catch (e) {
+                // Fallback already applied in cellFormat
+              }
+              
+              // Calculate and set row height based on content in column B
+              const proposalTextForHeight = proposalText || (spreadsheet.getCellValue ? spreadsheet.getCellValue(`${pfx}B${currentRow}`) : '')
+              const dynamicHeight = calculateRowHeight(proposalTextForHeight)
+              spreadsheet.setRowHeight(dynamicHeight, currentRow, proposalSheetIndex)
+              
+              currentRow++
+            })
+          }
+          
           return // Skip the normal processing for Bracing
+        }
+        
+        // Add Tie back anchor section if it's in the list (but it should already be handled above)
+        if (subsectionName === 'Tie back' || subsectionName === 'Tie back anchor') {
+          // Add Tie back anchor header
+          const tieBackText = `Tie back anchor: including applicable washers, steel bearing plates, locking hex nuts as required`
+          spreadsheet.updateCell({ value: tieBackText }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              color: '#000000', 
+              textAlign: 'left',
+              backgroundColor: '#D0CECE',
+              textDecoration: 'underline',
+              border: '1px solid #000000'
+            },
+            `${pfx}B${currentRow}`
+          )
+          spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+          currentRow++
+          
+          // Get tie back anchor groups
+          let tieBackGroups = soeSubsectionItems.get('Tie back') || []
+          const tieBackAnchorGroups = soeSubsectionItems.get('Tie back anchor') || []
+          tieBackGroups = [...tieBackGroups, ...tieBackAnchorGroups]
+          
+          // If not found, try to find from calculation data
+          if (tieBackGroups.length === 0 && calculationData && calculationData.length > 0) {
+            const foundRows = []
+            let inSubsection = false
+            
+            calculationData.forEach((row, index) => {
+              const rowNum = index + 2
+              const colB = row[1]
+              
+              if (colB && typeof colB === 'string') {
+                const bText = colB.trim().toLowerCase()
+                if ((bText.includes('tie back') || bText.includes('tie back anchor')) && bText.endsWith(':')) {
+                  inSubsection = true
+                  return
+                }
+                
+                if (inSubsection) {
+                  if (bText.endsWith(':') && !bText.includes('tie back')) {
+                    inSubsection = false
+                    return
+                  }
+                  
+                  if (bText && !bText.endsWith(':') && row[2] !== undefined) {
+                    const takeoff = parseFloat(row[2]) || 0
+                    if (takeoff > 0) {
+                      foundRows.push({
+                        rowNum: rowNum,
+                        particulars: colB.trim(),
+                        takeoff: takeoff,
+                        qty: parseFloat(row[12]) || 0,
+                        height: parseFloat(row[7]) || 0,
+                        lbs: parseFloat(row[10]) || 0,
+                        rawRowNumber: rowNum
+                      })
+                    }
+                  }
+                }
+              }
+            })
+            
+            if (foundRows.length > 0) {
+              tieBackGroups = [foundRows]
+            }
+          }
+          
+          // Process tie back anchor groups
+          if (tieBackGroups.length > 0) {
+            tieBackGroups.forEach((group) => {
+              if (group.length === 0) return
+              
+              // Calculate totals
+              let totalTakeoff = 0
+              let totalQty = 0
+              let totalFT = 0
+              let totalLBS = 0
+              let lastRowNumber = 0
+              
+              group.forEach(item => {
+                totalTakeoff += item.takeoff || 0
+                totalQty += item.qty || 0
+                const itemFT = (item.height || 0) * (item.takeoff || 0)
+                totalFT += itemFT
+                totalLBS += item.lbs || 0
+                lastRowNumber = Math.max(lastRowNumber, item.rawRowNumber || 0)
+              })
+              
+              const sumRowIndex = lastRowNumber
+              const calcSheetName = 'Calculations Sheet'
+              
+              // Get first item's particulars for extracting details
+              let firstItemParticulars = ''
+              group.forEach(item => {
+                if (!firstItemParticulars && item.particulars) {
+                  firstItemParticulars = item.particulars
+                }
+              })
+              
+              // Extract free length and bond length from particulars
+              let freeLength = "28'-0\""
+              let bondLength = "20'-0\""
+              if (firstItemParticulars) {
+                const freeLengthMatch = firstItemParticulars.match(/Free\s+length\s*=\s*([0-9'\"\-\s]+)/i)
+                if (freeLengthMatch) {
+                  freeLength = freeLengthMatch[1].trim()
+                }
+                const bondLengthMatch = firstItemParticulars.match(/Bond\s+length\s*=\s*([0-9'\"\-\s]+)/i)
+                if (bondLengthMatch) {
+                  bondLength = bondLengthMatch[1].trim()
+                }
+              }
+              
+              // Extract drill hole size (default to 5 ½"Ø)
+              let drillHole = '5 ½"Ø'
+              if (firstItemParticulars) {
+                const drillMatch = firstItemParticulars.match(/([\d\s½¼¾]+)"?\s*Ø/i)
+                if (drillMatch) {
+                  drillHole = drillMatch[1].trim() + '"Ø'
+                }
+              }
+              
+              // Get SOE page references from raw data
+              let soePageMain = 'SOE-002.00'
+              if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+                const headers = rawData[0]
+                const dataRows = rawData.slice(1)
+                const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+                const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+                
+                if (digitizerIdx !== -1 && pageIdx !== -1) {
+                  for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                    const row = dataRows[rowIndex]
+                    const digitizerItem = row[digitizerIdx]
+                    if (digitizerItem && typeof digitizerItem === 'string') {
+                      const itemText = digitizerItem.toLowerCase()
+                      if (itemText.includes('tie back') || itemText.includes('hollow bar')) {
+                        const pageValue = row[pageIdx]
+                        if (pageValue) {
+                          const pageStr = String(pageValue).trim()
+                          const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
+                          if (soeMatches && soeMatches.length > 0) {
+                            soePageMain = soeMatches[0]
+                            break
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              
+              // Generate proposal text: F&I new (X)no tie back anchors (L=XX'-XX" + XX'-XX" bond length), XX ½"Ø drill hole as per SOE-XXX.XX
+              const qtyValue = Math.round(totalQty || totalTakeoff)
+              const proposalText = `F&I new (${qtyValue})no tie back anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain}`
+              
+              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+              spreadsheet.cellFormat(
+                { 
+                  fontWeight: 'bold', 
+                  color: '#000000', 
+                  textAlign: 'left',
+                  backgroundColor: 'white',
+                  verticalAlign: 'top'
+                },
+                `${pfx}B${currentRow}`
+              )
+              
+              // Add FT (LF) to column C
+              if (sumRowIndex > 0) {
+                spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
+                spreadsheet.cellFormat(
+                  { 
+                    fontWeight: 'bold', 
+                    textAlign: 'right',
+                    backgroundColor: 'white'
+                  },
+                  `${pfx}C${currentRow}`
+                )
+              }
+              
+              // Add LBS to column E
+              if (sumRowIndex > 0) {
+                spreadsheet.updateCell({ formula: `='${calcSheetName}'!K${sumRowIndex}` }, `${pfx}E${currentRow}`)
+                spreadsheet.cellFormat(
+                  { 
+                    fontWeight: 'bold', 
+                    textAlign: 'right',
+                    backgroundColor: 'white'
+                  },
+                  `${pfx}E${currentRow}`
+                )
+              }
+              
+              // Add QTY to column G
+              if (sumRowIndex > 0) {
+                spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
+                spreadsheet.cellFormat(
+                  { 
+                    fontWeight: 'bold', 
+                    textAlign: 'right',
+                    backgroundColor: 'white'
+                  },
+                  `${pfx}G${currentRow}`
+                )
+              }
+              
+              // Add 180 to second LF column (column I)
+              spreadsheet.updateCell({ value: 180 }, `${pfx}I${currentRow}`)
+              spreadsheet.cellFormat(
+                { 
+                  fontWeight: 'bold', 
+                  textAlign: 'right',
+                  backgroundColor: '#E2EFDA'
+                },
+                `${pfx}I${currentRow}:N${currentRow}`
+              )
+              
+              // Add $/1000 formula in column H
+              const dollarFormula = `=ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)`
+              spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
+              spreadsheet.cellFormat(
+                { 
+                  fontWeight: 'bold', 
+                  textAlign: 'right',
+                  backgroundColor: 'white',
+                  format: '$#,##0.0'
+                },
+                `${pfx}H${currentRow}`
+              )
+              
+              // Apply currency format
+              try {
+                spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+              } catch (e) {
+                // Fallback already applied in cellFormat
+              }
+              
+              // Calculate and set row height based on content in column B
+              const proposalTextForHeight = proposalText || (spreadsheet.getCellValue ? spreadsheet.getCellValue(`${pfx}B${currentRow}`) : '')
+              const dynamicHeight = calculateRowHeight(proposalTextForHeight)
+              spreadsheet.setRowHeight(dynamicHeight, currentRow, proposalSheetIndex)
+              
+              currentRow++
+            })
+          }
+          
+          // Add Tie down anchor section right after Tie back anchor (only if items exist)
+          // Get tie down anchor groups first to check if any exist
+          let tieDownGroups = soeSubsectionItems.get('Tie down') || []
+          const tieDownAnchorGroups = soeSubsectionItems.get('Tie down anchor') || []
+          tieDownGroups = [...tieDownGroups, ...tieDownAnchorGroups]
+          
+          // If not found, try to find from calculation data
+          if (tieDownGroups.length === 0 && calculationData && calculationData.length > 0) {
+            const foundRows = []
+            let inSubsection = false
+            
+            calculationData.forEach((row, index) => {
+              const rowNum = index + 2
+              const colB = row[1]
+              
+              if (colB && typeof colB === 'string') {
+                const bText = colB.trim().toLowerCase()
+                if ((bText.includes('tie down') || bText.includes('tie down anchor')) && bText.endsWith(':')) {
+                  inSubsection = true
+                  return
+                }
+                
+                if (inSubsection) {
+                  if (bText.endsWith(':') && !bText.includes('tie down')) {
+                    inSubsection = false
+                    return
+                  }
+                  
+                  if (bText && !bText.endsWith(':') && row[2] !== undefined) {
+                    const takeoff = parseFloat(row[2]) || 0
+                    if (takeoff > 0) {
+                      foundRows.push({
+                        rowNum: rowNum,
+                        particulars: colB.trim(),
+                        takeoff: takeoff,
+                        qty: parseFloat(row[12]) || 0,
+                        height: parseFloat(row[7]) || 0,
+                        lbs: parseFloat(row[10]) || 0,
+                        rawRowNumber: rowNum
+                      })
+                    }
+                  }
+                }
+              }
+            })
+            
+            if (foundRows.length > 0) {
+              tieDownGroups = [foundRows]
+            }
+          }
+          
+          // Only add Tie down anchor section if items exist
+          if (tieDownGroups.length > 0 && tieDownGroups.some(g => g.length > 0)) {
+            // Add Tie down anchor header
+            const tieDownText = `Tie down anchor: including applicable washers, steel bearing plates, locking hex nuts as required`
+            spreadsheet.updateCell({ value: tieDownText }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                color: '#000000', 
+                textAlign: 'left',
+                backgroundColor: '#D0CECE',
+                textDecoration: 'underline',
+                border: '1px solid #000000'
+              },
+              `${pfx}B${currentRow}`
+            )
+            spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+            currentRow++
+            
+            // Process tie down anchor groups
+            tieDownGroups.forEach((group) => {
+              if (group.length === 0) return
+              
+              // Calculate totals
+              let totalTakeoff = 0
+              let totalQty = 0
+              let totalFT = 0
+              let totalLBS = 0
+              let lastRowNumber = 0
+              let firstItemParticulars = ''
+              
+              group.forEach(item => {
+                totalTakeoff += item.takeoff || 0
+                totalQty += item.qty || 0
+                const itemFT = (item.height || 0) * (item.takeoff || 0)
+                totalFT += itemFT
+                totalLBS += item.lbs || 0
+                lastRowNumber = Math.max(lastRowNumber, item.rawRowNumber || 0)
+                // Get first item's particulars for extracting details
+                if (!firstItemParticulars && item.particulars) {
+                  firstItemParticulars = item.particulars
+                }
+              })
+              
+              const sumRowIndex = lastRowNumber
+              const calcSheetName = 'Calculations Sheet'
+              
+              // Extract free length and bond length from particulars
+              let freeLength = "28'-0\""
+              let bondLength = "20'-0\""
+              if (firstItemParticulars) {
+                const freeLengthMatch = firstItemParticulars.match(/Free\s+length\s*=\s*([0-9'\"\-\s]+)/i)
+                if (freeLengthMatch) {
+                  freeLength = freeLengthMatch[1].trim()
+                }
+                const bondLengthMatch = firstItemParticulars.match(/Bond\s+length\s*=\s*([0-9'\"\-\s]+)/i)
+                if (bondLengthMatch) {
+                  bondLength = bondLengthMatch[1].trim()
+                }
+              }
+              
+              // Extract drill hole size (default to 5 ½"Ø)
+              let drillHole = '5 ½"Ø'
+              if (firstItemParticulars) {
+                const drillMatch = firstItemParticulars.match(/([\d\s½¼¾]+)"?\s*Ø/i)
+                if (drillMatch) {
+                  drillHole = drillMatch[1].trim() + '"Ø'
+                }
+              }
+              
+              // Get SOE page references from raw data
+              let soePageMain = 'SOE-002.00'
+              if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+                const headers = rawData[0]
+                const dataRows = rawData.slice(1)
+                const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+                const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+                
+                if (digitizerIdx !== -1 && pageIdx !== -1) {
+                  for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                    const row = dataRows[rowIndex]
+                    const digitizerItem = row[digitizerIdx]
+                    if (digitizerItem && typeof digitizerItem === 'string') {
+                      const itemText = digitizerItem.toLowerCase()
+                      if (itemText.includes('tie down') || itemText.includes('hollow down')) {
+                        const pageValue = row[pageIdx]
+                        if (pageValue) {
+                          const pageStr = String(pageValue).trim()
+                          const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
+                          if (soeMatches && soeMatches.length > 0) {
+                            soePageMain = soeMatches[0]
+                            break
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              
+              // Generate proposal text: F&I new (X)no tie down anchors (L=XX'-XX" + XX'-XX" bond length), XX ½"Ø drill hole as per SOE-XXX.XX
+              const qtyValue = Math.round(totalQty || totalTakeoff)
+              const proposalText = `F&I new (${qtyValue})no tie down anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain}`
+              
+              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+              spreadsheet.cellFormat(
+                { 
+                  fontWeight: 'bold', 
+                  color: '#000000', 
+                  textAlign: 'left',
+                  backgroundColor: 'white',
+                  verticalAlign: 'top'
+                },
+                `${pfx}B${currentRow}`
+              )
+              
+              // Add FT (LF) to column C
+              if (sumRowIndex > 0) {
+                spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
+                spreadsheet.cellFormat(
+                  { 
+                    fontWeight: 'bold', 
+                    textAlign: 'right',
+                    backgroundColor: 'white'
+                  },
+                  `${pfx}C${currentRow}`
+                )
+              }
+              
+              // Add LBS to column E
+              if (sumRowIndex > 0) {
+                spreadsheet.updateCell({ formula: `='${calcSheetName}'!K${sumRowIndex}` }, `${pfx}E${currentRow}`)
+                spreadsheet.cellFormat(
+                  { 
+                    fontWeight: 'bold', 
+                    textAlign: 'right',
+                    backgroundColor: 'white'
+                  },
+                  `${pfx}E${currentRow}`
+                )
+              }
+              
+              // Add QTY to column G
+              if (sumRowIndex > 0) {
+                spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
+                spreadsheet.cellFormat(
+                  { 
+                    fontWeight: 'bold', 
+                    textAlign: 'right',
+                    backgroundColor: 'white'
+                  },
+                  `${pfx}G${currentRow}`
+                )
+              }
+              
+              // Add 180 to second LF column (column I)
+              spreadsheet.updateCell({ value: 180 }, `${pfx}I${currentRow}`)
+              spreadsheet.cellFormat(
+                { 
+                  fontWeight: 'bold', 
+                  textAlign: 'right',
+                  backgroundColor: '#E2EFDA'
+                },
+                `${pfx}I${currentRow}:N${currentRow}`
+              )
+              
+              // Add $/1000 formula in column H
+              const dollarFormula = `=ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)`
+              spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
+              spreadsheet.cellFormat(
+                { 
+                  fontWeight: 'bold', 
+                  textAlign: 'right',
+                  backgroundColor: 'white',
+                  format: '$#,##0.0'
+                },
+                `${pfx}H${currentRow}`
+              )
+              
+              // Apply currency format
+              try {
+                spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+              } catch (e) {
+                // Fallback already applied in cellFormat
+              }
+              
+              // Calculate and set row height based on content in column B
+              const proposalTextForHeight = proposalText || (spreadsheet.getCellValue ? spreadsheet.getCellValue(`${pfx}B${currentRow}`) : '')
+              const dynamicHeight = calculateRowHeight(proposalTextForHeight)
+              spreadsheet.setRowHeight(dynamicHeight, currentRow, proposalSheetIndex)
+              
+              currentRow++
+            })
+          }
+          
+          return // Skip normal processing for Tie back anchor (Tie down anchor is already added above)
+        }
+        
+        // Skip normal processing for Tie down anchor (it's already added right after Tie back anchor above)
+        if (subsectionName === 'Tie down' || subsectionName === 'Tie down anchor') {
+          return
+        }
+        
+        // Special handling for Misc. subsection - handle it early and return
+        if (subsectionName.toLowerCase() === 'misc.' || subsectionName.toLowerCase() === 'misc') {
+          // Add subsection header
+          spreadsheet.updateCell({ value: `${subsectionName}:` }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              color: '#000000', 
+              textAlign: 'left',
+              backgroundColor: '#D0CECE',
+              textDecoration: 'underline',
+              border: '1px solid #000000'
+            },
+            `${pfx}B${currentRow}`
+          )
+          spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+          currentRow++
+          
+          // Add hardcoded text items
+          const miscItems = [
+            'Cut-off to grade included',
+            'Pilings will be threaded at both ends and installed in 10\' or 15\' increments',
+            'Obstruction removal drilling using DTHH per hour: $995/h'
+          ]
+          
+          miscItems.forEach((item) => {
+            spreadsheet.updateCell({ value: item }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'normal', 
+                color: '#000000', 
+                textAlign: 'left',
+                backgroundColor: 'white',
+                verticalAlign: 'top'
+              },
+              `${pfx}B${currentRow}`
+            )
+            spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+            currentRow++
+          })
+          
+          // Skip all other processing for Misc.
+          return
         }
         
         // Add subsection header with grey background
@@ -4395,15 +7778,651 @@ const Spreadsheet = () => {
         // Handle mapping: if subsectionName is "Dowels", also check for "Dowel bar"
         // If subsectionName is "Concrete buttons", also check for "Buttons"
         let groups = soeSubsectionItems.get(subsectionName) || []
+        
+        // Also try case-insensitive match for soeSubsectionItems
+        if (groups.length === 0) {
+          for (const [key, value] of soeSubsectionItems.entries()) {
+            if (key.toLowerCase() === subsectionName.toLowerCase()) {
+              groups = value || []
+              break
+            }
+          }
+        }
+        
+        
         if (subsectionName === 'Dowels') {
           const dowelBarGroups = soeSubsectionItems.get('Dowel bar') || []
           groups = [...groups, ...dowelBarGroups]
-        } else if (subsectionName === 'Concrete buttons') {
-          // Also check for "Buttons" subsection name
-          const buttonsGroups = soeSubsectionItems.get('Buttons') || []
-          groups = [...groups, ...buttonsGroups]
+        } else if (subsectionName === 'Concrete buttons' || subsectionName === 'Buttons') {
+          // Also check for "Buttons" subsection name if looking for "Concrete buttons"
+          if (subsectionName === 'Concrete buttons') {
+            const buttonsGroups = soeSubsectionItems.get('Buttons') || []
+            groups = [...groups, ...buttonsGroups]
+          }
+          // Also check for "Concrete buttons" if looking for "Buttons"
+          if (subsectionName === 'Buttons') {
+            const concreteButtonsGroups = soeSubsectionItems.get('Concrete buttons') || []
+            groups = [...groups, ...concreteButtonsGroups]
+          }
+        } else if (subsectionName === 'Guilde wall' || subsectionName === 'Guide wall') {
+          // Also check for "Guide wall" if looking for "Guilde wall" (typo)
+          if (subsectionName === 'Guilde wall') {
+            const guideWallGroups = soeSubsectionItems.get('Guide wall') || []
+            groups = [...groups, ...guideWallGroups]
+          }
+          // Also check for "Guilde wall" if looking for "Guide wall"
+          if (subsectionName === 'Guide wall') {
+            const guildeWallGroups = soeSubsectionItems.get('Guilde wall') || []
+            groups = [...groups, ...guildeWallGroups]
+          }
         }
-        groups.forEach((group) => {
+        
+        
+        // For Parging, Heel blocks, Underpinning, Concrete soil retention pier, Form board, Guide wall, Dowels, Rock pins, Rock stabilization, Shotcrete, and Buttons/Concrete buttons, first check window items, then soeSubsectionItems, then calculationData
+        if ((subsectionName.toLowerCase() === 'parging' || 
+             subsectionName.toLowerCase() === 'heel blocks' || 
+             subsectionName.toLowerCase() === 'underpinning' ||
+             subsectionName.toLowerCase() === 'concrete soil retention piers' ||
+             subsectionName.toLowerCase() === 'concrete soil retention pier' ||
+             subsectionName.toLowerCase() === 'form board' ||
+             subsectionName.toLowerCase() === 'guide wall' ||
+             subsectionName.toLowerCase() === 'guilde wall' ||
+             subsectionName.toLowerCase() === 'dowels' ||
+             subsectionName.toLowerCase() === 'dowel bar' ||
+             subsectionName.toLowerCase() === 'rock pins' ||
+             subsectionName.toLowerCase() === 'rock pin' ||
+             subsectionName.toLowerCase() === 'rock stabilization' ||
+             subsectionName.toLowerCase() === 'shotcrete' ||
+             subsectionName.toLowerCase() === 'permission grouting' ||
+             subsectionName.toLowerCase() === 'mud slab' ||
+             subsectionName.toLowerCase() === 'buttons' ||
+             subsectionName.toLowerCase() === 'concrete buttons' ||
+             subsectionName.toLowerCase() === 'sheet pile' ||
+             subsectionName.toLowerCase() === 'sheet piles' ||
+             subsectionName.toLowerCase() === 'timber lagging' ||
+             subsectionName.toLowerCase() === 'timber sheeting')) {
+          
+          // For these subsections, check window items first even if groups is not empty
+          // This ensures we get the processed items from generateCalculationSheet
+          const isParging = subsectionName.toLowerCase() === 'parging'
+          const isHeelBlocks = subsectionName.toLowerCase() === 'heel blocks'
+          const isUnderpinning = subsectionName.toLowerCase() === 'underpinning'
+          const isConcreteSoilRetention = subsectionName.toLowerCase() === 'concrete soil retention piers' || subsectionName.toLowerCase() === 'concrete soil retention pier'
+          const isFormBoard = subsectionName.toLowerCase() === 'form board'
+          const isGuideWall = subsectionName.toLowerCase() === 'guide wall' || subsectionName.toLowerCase() === 'guilde wall'
+          const isDowels = subsectionName.toLowerCase() === 'dowels' || subsectionName.toLowerCase() === 'dowel bar'
+          const isRockPins = subsectionName.toLowerCase() === 'rock pins' || subsectionName.toLowerCase() === 'rock pin'
+          const isRockStabilization = subsectionName.toLowerCase() === 'rock stabilization'
+          const isShotcrete = subsectionName.toLowerCase() === 'shotcrete'
+          const isPermissionGrouting = subsectionName.toLowerCase() === 'permission grouting'
+          const isMudSlab = subsectionName.toLowerCase() === 'mud slab'
+          const isButtons = subsectionName.toLowerCase() === 'buttons' || subsectionName.toLowerCase() === 'concrete buttons'
+          const isSheetPile = subsectionName.toLowerCase() === 'sheet pile' || subsectionName.toLowerCase() === 'sheet piles'
+          const isTimberLagging = subsectionName.toLowerCase() === 'timber lagging'
+          const isTimberSheeting = subsectionName.toLowerCase() === 'timber sheeting'
+          
+          // Check window items first (these are processed items from generateCalculationSheet)
+          if (isParging && window.pargingItems && window.pargingItems.length > 0) {
+            const formattedItems = window.pargingItems.map(item => ({
+              particulars: item.particulars || '',
+              takeoff: item.takeoff || 0,
+              unit: item.unit || '',
+              height: item.parsed?.heightRaw || item.height || 0,
+              sqft: 0,
+              lbs: 0,
+              qty: item.qty || 0,
+              rawRowNumber: item.rawRowNumber || 0
+            }))
+            groups = [formattedItems]
+          } else if (isGuideWall && window.guideWallItems && window.guideWallItems.length > 0) {
+            const formattedItems = window.guideWallItems.map(item => ({
+              particulars: item.particulars || '',
+              takeoff: item.takeoff || 0,
+              unit: item.unit || '',
+              height: item.parsed?.heightRaw || item.height || 0,
+              sqft: 0,
+              lbs: 0,
+              qty: item.qty || 0,
+              parsed: item.parsed || {},
+              rawRowNumber: item.rawRowNumber || 0
+            }))
+            groups = [formattedItems]
+          } else if (isDowels && window.dowelBarItems && window.dowelBarItems.length > 0) {
+            const formattedItems = window.dowelBarItems.map(item => ({
+              particulars: item.particulars || '',
+              takeoff: item.takeoff || 0,
+              unit: item.unit || '',
+              height: item.parsed?.heightRaw || item.height || 0,
+              sqft: 0,
+              lbs: 0,
+              qty: item.qty || 0,
+              parsed: item.parsed || {},
+              rawRowNumber: item.rawRowNumber || 0
+            }))
+            groups = [formattedItems]
+          } else if (isRockPins && window.rockPinItems && window.rockPinItems.length > 0) {
+            const formattedItems = window.rockPinItems.map(item => ({
+              particulars: item.particulars || '',
+              takeoff: item.takeoff || 0,
+              unit: item.unit || '',
+              height: item.parsed?.heightRaw || item.height || 0,
+              sqft: 0,
+              lbs: 0,
+              qty: item.qty || 0,
+              parsed: item.parsed || {},
+              rawRowNumber: item.rawRowNumber || 0
+            }))
+            groups = [formattedItems]
+          } else if (isRockStabilization && window.rockStabilizationItems && window.rockStabilizationItems.length > 0) {
+            const formattedItems = window.rockStabilizationItems.map(item => ({
+              particulars: item.particulars || '',
+              takeoff: item.takeoff || 0,
+              unit: item.unit || '',
+              height: item.parsed?.heightRaw || item.height || 0,
+              sqft: 0,
+              lbs: 0,
+              qty: item.qty || 0,
+              parsed: item.parsed || {},
+              rawRowNumber: item.rawRowNumber || 0
+            }))
+            groups = [formattedItems]
+          } else if (isShotcrete && window.shotcreteItems && window.shotcreteItems.length > 0) {
+            const formattedItems = window.shotcreteItems.map(item => ({
+              particulars: item.particulars || '',
+              takeoff: item.takeoff || 0,
+              unit: item.unit || '',
+              height: item.parsed?.heightRaw || item.height || 0,
+              sqft: 0,
+              lbs: 0,
+              qty: item.qty || 0,
+              parsed: item.parsed || {},
+              rawRowNumber: item.rawRowNumber || 0
+            }))
+            groups = [formattedItems]
+          } else if (isPermissionGrouting && window.permissionGroutingItems && window.permissionGroutingItems.length > 0) {
+            const formattedItems = window.permissionGroutingItems.map(item => ({
+              particulars: item.particulars || '',
+              takeoff: item.takeoff || 0,
+              unit: item.unit || '',
+              height: item.parsed?.heightRaw || item.height || 0,
+              sqft: 0,
+              lbs: 0,
+              qty: item.qty || 0,
+              parsed: item.parsed || {},
+              rawRowNumber: item.rawRowNumber || 0
+            }))
+            groups = [formattedItems]
+          } else if (isMudSlab && window.mudSlabItems && window.mudSlabItems.length > 0) {
+            const formattedItems = window.mudSlabItems.map(item => ({
+              particulars: item.particulars || '',
+              takeoff: item.takeoff || 0,
+              unit: item.unit || '',
+              height: item.parsed?.heightRaw || item.height || 0,
+              sqft: 0,
+              lbs: 0,
+              qty: item.qty || 0,
+              parsed: item.parsed || {},
+              rawRowNumber: item.rawRowNumber || 0
+            }))
+            groups = [formattedItems]
+          } else if (isButtons && window.buttonItems && window.buttonItems.length > 0) {
+            const formattedItems = window.buttonItems.map(item => ({
+              particulars: item.particulars || '',
+              takeoff: item.takeoff || 0,
+              unit: item.unit || '',
+              height: item.parsed?.height || item.parsed?.heightRaw || item.height || 0,
+              sqft: 0,
+              lbs: 0,
+              qty: item.qty || 0,
+              parsed: item.parsed || {},
+              rawRowNumber: item.rawRowNumber || 0
+            }))
+            groups = [formattedItems]
+          } else if (isSheetPile && window.sheetPileItems && window.sheetPileItems.length > 0) {
+            const formattedItems = window.sheetPileItems.map(item => ({
+              particulars: item.particulars || '',
+              takeoff: item.takeoff || 0,
+              unit: item.unit || '',
+              height: item.parsed?.heightRaw || item.height || 0,
+              sqft: 0,
+              lbs: 0,
+              qty: item.qty || 0,
+              parsed: item.parsed || {},
+              rawRowNumber: item.rawRowNumber || 0
+            }))
+            groups = [formattedItems]
+          }
+          
+          // If still no groups, then check soeSubsectionItems and calculationData
+          if (groups.length === 0) {
+            const searchTerm = isParging ? 'parging' : isHeelBlocks ? 'heel block' : isUnderpinning ? 'underpinning' : isConcreteSoilRetention ? 'concrete soil retention pier' : isFormBoard ? 'form board' : isGuideWall ? 'guide wall' : isDowels ? 'dowel' : isRockPins ? 'rock pin' : isRockStabilization ? 'rock stabilization' : isShotcrete ? 'shotcrete' : isPermissionGrouting ? 'permission grouting' : isMudSlab ? 'mud slab' : isButtons ? 'button' : isSheetPile ? 'sheet pile' : isTimberLagging ? 'timber lagging' : isTimberSheeting ? 'timber sheeting' : ''
+            
+            // For parging, check window.pargingItems (already checked above, but keep for fallback)
+            if (isParging) {
+            const pargingItemsFromWindow = window.pargingItems || []
+            if (pargingItemsFromWindow.length > 0) {
+              // Convert pargingItems to the format expected by groups
+              const formattedItems = pargingItemsFromWindow.map(item => ({
+                particulars: item.particulars || '',
+                takeoff: item.takeoff || 0,
+                unit: item.unit || '',
+                height: item.parsed?.heightRaw || item.height || 0,
+                sqft: 0,
+                lbs: 0,
+                qty: item.qty || 0,
+                rawRowNumber: item.rawRowNumber || 0
+              }))
+              groups = [formattedItems]
+            }
+          }
+          
+          // For guide wall, check window.guideWallItems
+          if (isGuideWall) {
+            const guideWallItemsFromWindow = window.guideWallItems || []
+            if (guideWallItemsFromWindow.length > 0) {
+              // Convert guideWallItems to the format expected by groups
+              const formattedItems = guideWallItemsFromWindow.map(item => ({
+                particulars: item.particulars || '',
+                takeoff: item.takeoff || 0,
+                unit: item.unit || '',
+                height: item.parsed?.heightRaw || item.height || 0,
+                sqft: 0,
+                lbs: 0,
+                qty: item.qty || 0,
+                parsed: item.parsed || {},
+                rawRowNumber: item.rawRowNumber || 0
+              }))
+              groups = [formattedItems]
+            }
+          }
+          
+          // For dowels, check window.dowelBarItems
+          if (isDowels) {
+            const dowelBarItemsFromWindow = window.dowelBarItems || []
+            if (dowelBarItemsFromWindow.length > 0) {
+              // Convert dowelBarItems to the format expected by groups
+              const formattedItems = dowelBarItemsFromWindow.map(item => ({
+                particulars: item.particulars || '',
+                takeoff: item.takeoff || 0,
+                unit: item.unit || '',
+                height: item.parsed?.heightRaw || item.height || 0,
+                sqft: 0,
+                lbs: 0,
+                qty: item.qty || 0,
+                parsed: item.parsed || {},
+                rawRowNumber: item.rawRowNumber || 0
+              }))
+              groups = [formattedItems]
+            }
+          }
+          
+          // For rock pins, check window.rockPinItems
+          if (isRockPins) {
+            const rockPinItemsFromWindow = window.rockPinItems || []
+            if (rockPinItemsFromWindow.length > 0) {
+              // Convert rockPinItems to the format expected by groups
+              const formattedItems = rockPinItemsFromWindow.map(item => ({
+                particulars: item.particulars || '',
+                takeoff: item.takeoff || 0,
+                unit: item.unit || '',
+                height: item.parsed?.heightRaw || item.height || 0,
+                sqft: 0,
+                lbs: 0,
+                qty: item.qty || 0,
+                parsed: item.parsed || {},
+                rawRowNumber: item.rawRowNumber || 0
+              }))
+              groups = [formattedItems]
+            }
+          }
+          
+          // For rock stabilization, check window.rockStabilizationItems
+          if (isRockStabilization) {
+            const rockStabilizationItemsFromWindow = window.rockStabilizationItems || []
+            if (rockStabilizationItemsFromWindow.length > 0) {
+              // Convert rockStabilizationItems to the format expected by groups
+              const formattedItems = rockStabilizationItemsFromWindow.map(item => ({
+                particulars: item.particulars || '',
+                takeoff: item.takeoff || 0,
+                unit: item.unit || '',
+                height: item.parsed?.heightRaw || item.height || 0,
+                sqft: 0,
+                lbs: 0,
+                qty: item.qty || 0,
+                parsed: item.parsed || {},
+                rawRowNumber: item.rawRowNumber || 0
+              }))
+              groups = [formattedItems]
+            }
+          }
+          
+          // For shotcrete, check window.shotcreteItems
+          if (isShotcrete) {
+            const shotcreteItemsFromWindow = window.shotcreteItems || []
+            if (shotcreteItemsFromWindow.length > 0) {
+              // Convert shotcreteItems to the format expected by groups
+              const formattedItems = shotcreteItemsFromWindow.map(item => ({
+                particulars: item.particulars || '',
+                takeoff: item.takeoff || 0,
+                unit: item.unit || '',
+                height: item.parsed?.heightRaw || item.height || 0,
+                sqft: 0,
+                lbs: 0,
+                qty: item.qty || 0,
+                parsed: item.parsed || {},
+                rawRowNumber: item.rawRowNumber || 0
+              }))
+              groups = [formattedItems]
+            }
+          }
+          
+          // For permission grouting, check window.permissionGroutingItems
+          if (isPermissionGrouting) {
+            const permissionGroutingItemsFromWindow = window.permissionGroutingItems || []
+            if (permissionGroutingItemsFromWindow.length > 0) {
+              // Convert permissionGroutingItems to the format expected by groups
+              const formattedItems = permissionGroutingItemsFromWindow.map(item => ({
+                particulars: item.particulars || '',
+                takeoff: item.takeoff || 0,
+                unit: item.unit || '',
+                height: item.parsed?.heightRaw || item.height || 0,
+                sqft: 0,
+                lbs: 0,
+                qty: item.qty || 0,
+                parsed: item.parsed || {},
+                rawRowNumber: item.rawRowNumber || 0
+              }))
+              groups = [formattedItems]
+            }
+          }
+          
+          // For mud slab, check window.mudSlabItems
+          if (isMudSlab) {
+            const mudSlabItemsFromWindow = window.mudSlabItems || []
+            if (mudSlabItemsFromWindow.length > 0) {
+              // Convert mudSlabItems to the format expected by groups
+              const formattedItems = mudSlabItemsFromWindow.map(item => ({
+                particulars: item.particulars || '',
+                takeoff: item.takeoff || 0,
+                unit: item.unit || '',
+                height: item.parsed?.heightRaw || item.height || 0,
+                sqft: 0,
+                lbs: 0,
+                qty: item.qty || 0,
+                parsed: item.parsed || {},
+                rawRowNumber: item.rawRowNumber || 0
+              }))
+              groups = [formattedItems]
+            }
+          }
+          
+          // For sheet pile, check window.sheetPileItems
+          if (isSheetPile) {
+            const sheetPileItemsFromWindow = window.sheetPileItems || []
+            if (sheetPileItemsFromWindow.length > 0) {
+              // Convert sheetPileItems to the format expected by groups
+              const formattedItems = sheetPileItemsFromWindow.map(item => ({
+                particulars: item.particulars || '',
+                takeoff: item.takeoff || 0,
+                unit: item.unit || '',
+                height: item.parsed?.heightRaw || item.height || 0,
+                sqft: 0,
+                lbs: 0,
+                qty: item.qty || 0,
+                parsed: item.parsed || {},
+                rawRowNumber: item.rawRowNumber || 0
+              }))
+              groups = [formattedItems]
+            }
+          }
+          
+          // For buttons, check window.buttonItems
+          if (isButtons) {
+            const buttonItemsFromWindow = window.buttonItems || []
+            if (buttonItemsFromWindow.length > 0) {
+              // Convert buttonItems to the format expected by groups
+              const formattedItems = buttonItemsFromWindow.map(item => ({
+                particulars: item.particulars || '',
+                takeoff: item.takeoff || 0,
+                unit: item.unit || '',
+                height: item.parsed?.height || item.parsed?.heightRaw || item.height || 0,
+                sqft: 0,
+                lbs: 0,
+                qty: item.qty || 0,
+                parsed: item.parsed || {},
+                rawRowNumber: item.rawRowNumber || 0
+              }))
+              groups = [formattedItems]
+            }
+          }
+          
+          // If still no groups, try soeSubsectionItems
+          if (groups.length === 0) {
+            let groupsFromMap = soeSubsectionItems.get(subsectionName) || []
+            // Also try case-insensitive match
+            if (groupsFromMap.length === 0) {
+              for (const [key, value] of soeSubsectionItems.entries()) {
+                if (key.toLowerCase() === subsectionName.toLowerCase()) {
+                  groupsFromMap = value || []
+                  break
+                }
+              }
+            }
+            if (groupsFromMap.length > 0 && groupsFromMap[0].length > 0) {
+              groups = groupsFromMap
+            } else {
+              // Search calculationData directly
+              const foundRows = []
+              let inSubsection = false
+              
+              if (calculationData && calculationData.length > 0) {
+                calculationData.forEach((row, index) => {
+                  const rowNum = index + 2
+                  const colB = row[1]
+                  
+                    if (colB && typeof colB === 'string') {
+                    const bText = colB.trim()
+                    const bTextLower = bText.toLowerCase()
+                    // For underpinning, exclude shims from the main underpinning group
+                    if (isUnderpinning && bTextLower.includes('shim')) {
+                      // Skip shims - they'll be handled separately
+                      return
+                    }
+                    if (bTextLower.includes(searchTerm) && bText.endsWith(':')) {
+                      inSubsection = true
+                      return
+                    }
+                    
+                    if (inSubsection) {
+                      if (bText.endsWith(':') && !bTextLower.includes(searchTerm)) {
+                        inSubsection = false
+                        return
+                      }
+                      
+                      if (bText && !bText.endsWith(':') && row[2] !== undefined) {
+                        const takeoff = parseFloat(row[2]) || 0
+                        // For underpinning, exclude shims
+                        if (isUnderpinning && bTextLower.includes('shim')) {
+                          return
+                        }
+                        if (takeoff > 0 || bTextLower.includes(searchTerm)) {
+                          // Parse height from row or from particulars for Timber lagging/Timber sheeting
+                          let parsedHeight = parseFloat(row[7]) || 0
+                          // Try to extract height from particulars if not in row
+                          if (parsedHeight === 0 && (isTimberLagging || isTimberSheeting)) {
+                            const hMatch = bText.match(/H=([0-9'"\-]+)/i)
+                            if (hMatch) {
+                              // Parse dimension string to feet
+                              const parseDim = (dimStr) => {
+                                if (!dimStr) return 0
+                                const match = dimStr.match(/(\d+)(?:'-?)?(\d+)?/)
+                                if (!match) return 0
+                                const feet = parseInt(match[1]) || 0
+                                const inches = parseInt(match[2]) || 0
+                                return feet + (inches / 12)
+                              }
+                              parsedHeight = parseDim(hMatch[1])
+                            }
+                          }
+                          
+                          foundRows.push({
+                            rowNum: rowNum,
+                            particulars: bText,
+                            takeoff: takeoff,
+                            qty: parseFloat(row[12]) || 0,
+                            height: parsedHeight,
+                            sqft: parseFloat(row[9]) || 0,
+                            lbs: parseFloat(row[10]) || 0,
+                            rawRowNumber: rowNum,
+                            parsed: {
+                              heightRaw: parsedHeight
+                            }
+                          })
+                        }
+                      }
+                    }
+                  }
+                })
+                
+                if (foundRows.length > 0) {
+                  groups = [foundRows]
+                }
+              }
+            }
+          }
+          }
+        }
+        
+        // If no groups found but subsection is in display list, skip processing
+        if (groups.length === 0 || groups.every(g => g.length === 0)) {
+          return
+        }
+        
+        // Find form board items related to concrete soil retention pier
+        if (subsectionName.toLowerCase() === 'concrete soil retention piers' || subsectionName.toLowerCase() === 'concrete soil retention pier') {
+          const formBoardItems = []
+          
+          // Check soeSubsectionItems for form board
+          const formBoardGroups = soeSubsectionItems.get('Form board') || []
+          if (formBoardGroups.length > 0) {
+            formBoardGroups.forEach(group => {
+              group.forEach(item => {
+                formBoardItems.push({
+                  particulars: item.particulars || '',
+                  takeoff: item.takeoff || 0,
+                  qty: item.qty || 0,
+                  height: item.height || item.parsed?.heightRaw || 0,
+                  sqft: item.sqft || 0,
+                  rowIndex: item.rawRowNumber || 0
+                })
+              })
+            })
+          }
+          
+          // Also search calculation data for form board items
+          if (calculationData && calculationData.length > 0) {
+            let foundConcreteSoilRetention = false
+            let inFormBoardSection = false
+            
+            for (let i = 0; i < calculationData.length; i++) {
+              const row = calculationData[i]
+              const colB = row[1]
+              
+              if (colB && typeof colB === 'string') {
+                const bText = colB.trim()
+                const bTextLower = bText.toLowerCase()
+                
+                // Check if we're in concrete soil retention pier section
+                if (bTextLower.includes('concrete soil retention pier') && bText.endsWith(':')) {
+                  foundConcreteSoilRetention = true
+                  inFormBoardSection = false
+                  continue
+                }
+                
+                // Check if we've moved to form board section (after concrete soil retention pier)
+                if (foundConcreteSoilRetention && bTextLower.includes('form board') && bText.endsWith(':')) {
+                  inFormBoardSection = true
+                  continue
+                }
+                
+                // If we're in form board section and it's a data row (not a header)
+                if (inFormBoardSection && bText && !bText.endsWith(':')) {
+                  if (bTextLower.includes('form board')) {
+                    const takeoff = parseFloat(row[2]) || 0
+                    if (takeoff > 0 || bTextLower.includes('form board')) {
+                      // Check if we already have this item (avoid duplicates)
+                      const existing = formBoardItems.find(fb => fb.particulars === bText && fb.takeoff === takeoff)
+                      if (!existing) {
+                        formBoardItems.push({
+                          particulars: bText,
+                          takeoff: takeoff,
+                          qty: parseFloat(row[12]) || 0,
+                          height: parseFloat(row[7]) || 0,
+                          sqft: parseFloat(row[9]) || 0,
+                          rowIndex: i + 2
+                        })
+                      }
+                    }
+                  }
+                }
+                
+                // Stop if we hit another subsection after form board
+                if (inFormBoardSection && bText.endsWith(':') && !bTextLower.includes('form board')) {
+                  break
+                }
+              }
+            }
+          }
+          
+        }
+        
+        // For Underpinning, separate underpinning items from shims
+        let underpinningGroups = []
+        let shimsGroups = []
+        if (subsectionName.toLowerCase() === 'underpinning') {
+          groups.forEach(group => {
+            // Separate items within each group
+            const underpinningItems = []
+            const shimsItems = []
+            
+            group.forEach(item => {
+              const particulars = (item.particulars || '').trim()
+              
+              // Check if this is a shims item
+              // An item is a shim if:
+              // 1. It starts with "Shims" (case-insensitive) as a standalone word, OR
+              // 2. It contains "shim" or "wedge" as a standalone word
+              // AND it does NOT start with "Underpinning" followed by dimensions
+              const startsWithShims = /^shims\b/i.test(particulars)
+              const hasShimWord = /\b(shim|wedge)\b/i.test(particulars)
+              const isUnderpinningWithDimensions = /^underpinning\s+\d+['"]?\s*x\s*\d+['"]?/i.test(particulars)
+              
+              // If it starts with "Underpinning" followed by dimensions, it's definitely an underpinning item
+              if (isUnderpinningWithDimensions) {
+                underpinningItems.push(item)
+              } else if (startsWithShims || hasShimWord) {
+                // This is a shims item (has shim/wedge keyword and is not an underpinning item with dimensions)
+                shimsItems.push(item)
+              } else {
+                // Default: treat as underpinning item if we're in the underpinning subsection
+                underpinningItems.push(item)
+              }
+            })
+            
+            // Add non-empty groups
+            if (underpinningItems.length > 0) {
+              underpinningGroups.push(underpinningItems)
+            }
+            if (shimsItems.length > 0) {
+              shimsGroups.push(shimsItems)
+            }
+          })
+        } else {
+          underpinningGroups = groups
+        }
+        
+        // Process underpinning items first
+        underpinningGroups.forEach((group) => {
           if (group.length === 0) return
           
           // Calculate totals for the group
@@ -4416,15 +8435,49 @@ const Spreadsheet = () => {
           let avgHeight = 0
           let heightCount = 0
           
+          // Helper function to parse dimension string (e.g., "21'-1"" -> 21.083)
+          const parseDimension = (dimStr) => {
+            if (!dimStr) return 0
+            const match = dimStr.match(/(\d+)(?:'-?)?(\d+)?/)
+            if (!match) return 0
+            const feet = parseInt(match[1]) || 0
+            const inches = parseInt(match[2]) || 0
+            return feet + (inches / 12)
+          }
+          
           group.forEach(item => {
             totalTakeoff += item.takeoff || 0
             totalQty += item.qty || 0
-            const itemFT = (item.height || 0) * (item.takeoff || 0)
+            // For parging, FT(I) = C, so FT is just the takeoff value, not height * takeoff
+            let itemFT = 0
+            if (subsectionName.toLowerCase() === 'parging') {
+              itemFT = item.takeoff || 0
+            } else {
+              itemFT = (item.height || 0) * (item.takeoff || 0)
+            }
             totalFT += itemFT
             totalLBS += item.lbs || 0
             totalSQFT += item.sqft || 0
-            if (item.height > 0) {
-              avgHeight += item.height * (item.takeoff || 1)
+            
+            // For Parging and Underpinning, extract height from particulars if not in height field
+            let itemHeight = item.height || 0
+            if ((subsectionName.toLowerCase() === 'parging' || subsectionName.toLowerCase() === 'underpinning') && !itemHeight && item.particulars) {
+              const particulars = item.particulars || ''
+              // Try H= pattern first
+              let hMatch = particulars.match(/H=([0-9'"\-]+)/i) || particulars.match(/Height=([0-9'"\-]+)/i)
+              if (hMatch) {
+                itemHeight = parseDimension(hMatch[1])
+              } else if (subsectionName.toLowerCase() === 'underpinning') {
+                // For underpinning, try to parse from format like "2'-4"x4'-0" wide, Height=4'-7""
+                const heightMatch = particulars.match(/Height=([0-9'"\-]+)/i)
+                if (heightMatch) {
+                  itemHeight = parseDimension(heightMatch[1])
+                }
+              }
+            }
+            
+            if (itemHeight > 0) {
+              avgHeight += itemHeight * (item.takeoff || 1)
               heightCount += item.takeoff || 1
             }
             lastRowNumber = Math.max(lastRowNumber, item.rawRowNumber || 0)
@@ -4434,13 +8487,1111 @@ const Spreadsheet = () => {
             avgHeight = avgHeight / heightCount
           }
           
-          // Find the sum row for this group (same row as last item)
-          const sumRowIndex = lastRowNumber
+          // Find the sum row for this group
+          // For parging, heel blocks, underpinning, concrete soil retention piers, and form board, the sum row is the row after the last item (where the sum formula is)
+          let sumRowIndex = lastRowNumber
+          const subsectionLower = subsectionName.toLowerCase()
+          if (subsectionLower === 'parging' || 
+              subsectionLower === 'heel blocks' || 
+              subsectionLower === 'underpinning' ||
+              subsectionLower === 'concrete soil retention piers' ||
+              subsectionLower === 'concrete soil retention pier' ||
+              subsectionLower === 'form board') {
+            // For these subsections, sum row is after the last item row
+            sumRowIndex = lastRowNumber + 1
+          }
           const calcSheetName = 'Calculations Sheet'
           
           // Generate proposal text based on subsection type
-          // This will be enhanced later with proper parsing and formatting
-          let proposalText = `${subsectionName} item: ${Math.round(totalQty)} nos`
+          let proposalText = ''
+          
+          // Special handling for Underpinning
+          if (subsectionName.toLowerCase() === 'underpinning') {
+            // Parse underpinning items to extract width and height
+            let minWidth = Infinity
+            let maxWidth = 0
+            let totalWidth = 0
+            let widthCount = 0
+            
+            group.forEach(item => {
+              const particulars = item.particulars || ''
+              // Parse width from particulars like "2'-4"x1'-0" wide" or "2'-4"x4'-0" wide"
+              const widthMatch = particulars.match(/(\d+)['"]?\s*x\s*(\d+)['"]?\s*-\s*(\d+)['"]?\s*wide/i) || 
+                                 particulars.match(/(\d+)['"]?\s*x\s*(\d+)['"]?\s*wide/i)
+              if (widthMatch) {
+                // Width is the second dimension (after x)
+                const widthFeet = parseInt(widthMatch[2]) || 0
+                const widthInches = parseInt(widthMatch[3]) || 0
+                const width = widthFeet + (widthInches / 12)
+                
+                if (width > 0) {
+                  minWidth = Math.min(minWidth, width)
+                  maxWidth = Math.max(maxWidth, width)
+                  totalWidth += width * (item.takeoff || 1)
+                  widthCount += item.takeoff || 1
+                }
+              } else {
+                // Try to get width from parsed data (column G)
+                const width = item.parsed?.width || item.width || 0
+                if (width > 0) {
+                  minWidth = Math.min(minWidth, width)
+                  maxWidth = Math.max(maxWidth, width)
+                  totalWidth += width * (item.takeoff || 1)
+                  widthCount += item.takeoff || 1
+                }
+              }
+            })
+            
+            // Format width range
+            let widthText = ''
+            if (minWidth < Infinity && maxWidth > 0) {
+              if (minWidth === maxWidth) {
+                const wFeet = Math.floor(minWidth)
+                const wInches = Math.round((minWidth - wFeet) * 12)
+                widthText = wInches === 0 ? `${wFeet}'-0"` : `${wFeet}'-${wInches}"`
+              } else {
+                const minWFeet = Math.floor(minWidth)
+                const minWInches = Math.round((minWidth - minWFeet) * 12)
+                const maxWFeet = Math.floor(maxWidth)
+                const maxWInches = Math.round((maxWidth - maxWFeet) * 12)
+                const minWText = minWInches === 0 ? `${minWFeet}'-0"` : `${minWFeet}'-${minWInches}"`
+                const maxWText = maxWInches === 0 ? `${maxWFeet}'-0"` : `${maxWFeet}'-${maxWInches}"`
+                widthText = `${minWText} to ${maxWText}`
+              }
+            }
+            
+            // Format average height
+            const roundToMultipleOf5 = (value) => Math.ceil(value / 5) * 5
+            const avgHeightRounded = heightCount > 0 ? roundToMultipleOf5(avgHeight) : 0
+            const heightFeet = Math.floor(avgHeightRounded)
+            const heightInches = Math.round((avgHeightRounded - heightFeet) * 12)
+            const heightText = heightInches === 0 ? `${heightFeet}'-0"` : `${heightFeet}'-${heightInches}"`
+            
+            // Get total quantity
+            const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
+            
+            // Get SOE page reference from raw data
+            let soePageMain = 'SOE-101.00'
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                  const row = dataRows[rowIndex]
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('underpinning') && !itemText.includes('shim')) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
+                        if (soeMatches && soeMatches.length > 0) {
+                          soePageMain = soeMatches[0]
+                          break
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format: F&I new (##)no. (#'-0" to #'-0" wide) underpinning piers (Havg=#'-#"), reinforced w/#5@12"O.C., E.W., E.F.
+            if (widthText) {
+              proposalText = `F&I new (${totalQtyValue})no. (${widthText} wide) underpinning piers (Havg=${heightText}), reinforced w/#5@12"O.C., E.W., E.F.`
+            } else {
+              proposalText = `F&I new (${totalQtyValue})no. underpinning piers (Havg=${heightText}), reinforced w/#5@12"O.C., E.W., E.F.`
+            }
+          } else if (subsectionName.toLowerCase() === 'heel blocks') {
+            // Get total quantity from sum row (column M)
+            const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
+            
+            // Get SOE page reference from raw data
+            let soePageMain = 'SOE-101.00'
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                  const row = dataRows[rowIndex]
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('heel block')) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
+                        if (soeMatches && soeMatches.length > 0) {
+                          soePageMain = soeMatches[0]
+                          break
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format: F&I new (X)no typ. heel blocks for raker support as per SOE-XXX.XX
+            proposalText = `F&I new (${totalQtyValue})no typ. heel blocks for raker support as per ${soePageMain}`
+          } else if (subsectionName.toLowerCase() === 'concrete soil retention piers' || subsectionName.toLowerCase() === 'concrete soil retention pier') {
+            // Get total quantity from sum row (column M)
+            const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
+            
+            // Get SOE page reference from raw data
+            let soePageMain = 'SOE-101.00'
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                  const row = dataRows[rowIndex]
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('concrete soil retention pier')) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
+                        if (soeMatches && soeMatches.length > 0) {
+                          soePageMain = soeMatches[0]
+                          break
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format: F&I new (X)no concrete soil retention pier as per SOE-XXX.XX
+            proposalText = `F&I new (${totalQtyValue})no concrete soil retention pier as per ${soePageMain}`
+            
+            // Find and add form board proposal text right after concrete soil retention pier
+            // Search for form board items in calculation data
+            const formBoardItems = []
+            if (calculationData && calculationData.length > 0) {
+              let foundConcreteSoilRetention = false
+              let inFormBoardSection = false
+              
+              for (let i = 0; i < calculationData.length; i++) {
+                const row = calculationData[i]
+                const colB = row[1]
+                
+                if (colB && typeof colB === 'string') {
+                  const bText = colB.trim()
+                  const bTextLower = bText.toLowerCase()
+                  
+                  // Check if we're in concrete soil retention pier section
+                  if (bTextLower.includes('concrete soil retention pier') && bText.endsWith(':')) {
+                    foundConcreteSoilRetention = true
+                    inFormBoardSection = false
+                    continue
+                  }
+                  
+                  // Check if we've moved to form board section (after concrete soil retention pier)
+                  if (foundConcreteSoilRetention && bTextLower.includes('form board') && bText.endsWith(':')) {
+                    inFormBoardSection = true
+                    continue
+                  }
+                  
+                  // If we're in form board section and it's a data row (not a header)
+                  if (inFormBoardSection && bText && !bText.endsWith(':')) {
+                    if (bTextLower.includes('form board')) {
+                      const takeoff = parseFloat(row[2]) || 0
+                      if (takeoff > 0 || bTextLower.includes('form board')) {
+                        formBoardItems.push({
+                          particulars: bText,
+                          takeoff: takeoff,
+                          qty: parseFloat(row[12]) || 0,
+                          height: parseFloat(row[7]) || 0,
+                          sqft: parseFloat(row[9]) || 0,
+                          rowIndex: i + 2
+                        })
+                      }
+                    }
+                  }
+                  
+                  // Stop if we hit another subsection after form board
+                  if (inFormBoardSection && bText.endsWith(':') && !bTextLower.includes('form board')) {
+                    break
+                  }
+                }
+              }
+            }
+            
+            // Also check soeSubsectionItems for form board
+            const formBoardGroups = soeSubsectionItems.get('Form board') || []
+            if (formBoardGroups.length > 0) {
+              formBoardGroups.forEach(group => {
+                group.forEach(item => {
+                  formBoardItems.push({
+                    particulars: item.particulars || '',
+                    takeoff: item.takeoff || 0,
+                    qty: item.qty || 0,
+                    height: item.height || item.parsed?.heightRaw || 0,
+                    sqft: item.sqft || 0,
+                    rowIndex: item.rawRowNumber || 0
+                  })
+                })
+              })
+            }
+            
+            // Generate form board proposal text if items found
+            if (formBoardItems.length > 0) {
+              // Calculate totals
+              let formBoardTotalQty = 0
+              let formBoardTotalTakeoff = 0
+              formBoardItems.forEach(item => {
+                formBoardTotalQty += item.qty || 0
+                formBoardTotalTakeoff += item.takeoff || 0
+              })
+              const formBoardTotalQtyValue = Math.round(formBoardTotalQty || formBoardTotalTakeoff || 0)
+              
+              // Extract thickness from items
+              let formBoardThickness = '1"' // Default thickness
+              if (formBoardItems.length > 0) {
+                const firstItem = formBoardItems[0]
+                const particulars = (firstItem.particulars || '').trim()
+                const thicknessMatch = particulars.match(/(\d+(?:\/\d+)?)"?\s*form\s*board/i)
+                if (thicknessMatch) {
+                  formBoardThickness = `${thicknessMatch[1]}"`
+                }
+              }
+              
+              // Get SOE page reference for form board
+              let formBoardSoePage = 'SOE-300.00' // Default for form board
+              if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+                const headers = rawData[0]
+                const dataRows = rawData.slice(1)
+                const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+                const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+                
+                if (digitizerIdx !== -1 && pageIdx !== -1) {
+                  for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                    const row = dataRows[rowIndex]
+                    const digitizerItem = row[digitizerIdx]
+                    if (digitizerItem && typeof digitizerItem === 'string') {
+                      const itemText = digitizerItem.toLowerCase()
+                      if (itemText.includes('form board')) {
+                        const pageValue = row[pageIdx]
+                        if (pageValue) {
+                          const pageStr = String(pageValue).trim()
+                          const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
+                          if (soeMatches && soeMatches.length > 0) {
+                            formBoardSoePage = soeMatches[0]
+                            break
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+              
+              // Store form board proposal text to add after concrete soil retention pier
+              window.formBoardProposalText = `F&I new (${formBoardThickness} thick) form board w/ filter fabric between tunnel and retention pier as per ${formBoardSoePage}`
+              window.formBoardItems = formBoardItems
+            }
+            
+            // Console log the proposal text line and data
+          } else if (subsectionName.toLowerCase() === 'parging') {
+            // Calculate average height
+            const roundToMultipleOf5 = (value) => Math.ceil(value / 5) * 5
+            const avgHeightRounded = roundToMultipleOf5(avgHeight)
+            
+            // Format height
+            const heightFeet = Math.floor(avgHeightRounded)
+            const heightInches = Math.round((avgHeightRounded - heightFeet) * 12)
+            let heightText = ''
+            if (heightInches === 0) {
+              heightText = `${heightFeet}'-0"`
+            } else {
+              heightText = `${heightFeet}'-${heightInches}"`
+            }
+            
+            // Get SOE page reference from raw data
+            let soePageMain = 'SOE-101.00'
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                  const row = dataRows[rowIndex]
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('parging')) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
+                        if (soeMatches && soeMatches.length > 0) {
+                          soePageMain = soeMatches[0]
+                          break
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format: New parging (Havg=XX'-XX") as per SOE-XXX.XX
+            proposalText = `New parging (Havg=${heightText}) as per ${soePageMain}`
+          } else if (subsectionName.toLowerCase() === 'form board') {
+            // Get total quantity from sum row (column M)
+            const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
+            
+            // Extract thickness from items (e.g., "1" form board" -> "1"")
+            let thickness = '1"' // Default thickness
+            if (group.length > 0) {
+              const firstItem = group[0]
+              const particulars = (firstItem.particulars || '').trim()
+              // Match pattern like "1" form board" or "1\" form board"
+              const thicknessMatch = particulars.match(/(\d+(?:\/\d+)?)"?\s*form\s*board/i)
+              if (thicknessMatch) {
+                thickness = `${thicknessMatch[1]}"`
+              }
+            }
+            
+            // Get SOE page reference from raw data
+            let soePageMain = 'SOE-300.00' // Default for form board
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                  const row = dataRows[rowIndex]
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('form board')) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
+                        if (soeMatches && soeMatches.length > 0) {
+                          soePageMain = soeMatches[0]
+                          break
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format: F&I new (1" thick) form board w/ filter fabric between tunnel and retention pier as per SOE-300.00
+            proposalText = `F&I new (${thickness} thick) form board w/ filter fabric between tunnel and retention pier as per ${soePageMain}`
+          } else if (subsectionName.toLowerCase() === 'concrete buttons' || subsectionName.toLowerCase() === 'buttons') {
+            // Get total quantity from sum row (column M)
+            const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
+            
+            // Extract width from items (for format: 3'-0"x3'-0" wide)
+            let widthText = ''
+            if (group.length > 0) {
+              const firstItem = group[0]
+              const particulars = firstItem.particulars || ''
+              
+              // Extract dimensions from bracket format: Concrete button (3'-0"x3'-0"x1'-0")
+              const bracketMatch = particulars.match(/\(([^)]+)\)/)
+              if (bracketMatch) {
+                const dimsStr = bracketMatch[1].split('x').map(d => d.trim())
+                if (dimsStr.length >= 2) {
+                  // Use first two dimensions (length x width)
+                  widthText = `${dimsStr[0]}x${dimsStr[1]}`
+                }
+              } else {
+                // Fallback to parsed values if bracket not found
+                const length = firstItem.parsed?.length
+                const width = firstItem.parsed?.width
+                if (length && width) {
+                  // Format numeric values back to dimension strings
+                  const formatDim = (val) => {
+                    if (typeof val === 'number') {
+                      const feet = Math.floor(val)
+                      const inches = Math.round((val - feet) * 12)
+                      return inches === 0 ? `${feet}'-0"` : `${feet}'-${inches}"`
+                    }
+                    return val
+                  }
+                  widthText = `${formatDim(length)}x${formatDim(width)}`
+                }
+              }
+            }
+            
+            // Calculate average height from parsed height values
+            let totalHeight = 0
+            let heightCount = 0
+            group.forEach(item => {
+              // For buttons, height is in parsed.height (from bracket dimensions)
+              const height = item.parsed?.height || item.parsed?.heightRaw || item.height || 0
+              if (height > 0) {
+                totalHeight += height * (item.takeoff || 0)
+                heightCount += (item.takeoff || 0)
+              }
+            })
+            const avgHeight = heightCount > 0 ? totalHeight / heightCount : 0
+            
+            // Format average height (use actual average, format as feet and inches)
+            const heightFeet = Math.floor(avgHeight)
+            const heightInches = Math.round((avgHeight - heightFeet) * 12)
+            const heightText = heightInches === 0 ? `${heightFeet}'-0"` : `${heightFeet}'-${heightInches}"`
+            
+            // Get SOE page reference from raw data (could be SOESK-01 or SOE-XXX.XX)
+            let soePageMain = 'SOE-101.00' // Default
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                  const row = dataRows[rowIndex]
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('button')) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        // Match SOE-XXX.XX or SOESK-XX format
+                        const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                        if (soeMatches && soeMatches.length > 0) {
+                          soePageMain = soeMatches[0]
+                          break
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format: F&I new (12)no (3'-0"x3'-0" wide) concrete buttons (Havg=3'-3") as per SOESK-01
+            proposalText = widthText 
+              ? `F&I new (${totalQtyValue})no (${widthText} wide) concrete buttons (Havg=${heightText}) as per ${soePageMain}`
+              : `F&I new (${totalQtyValue})no concrete buttons (Havg=${heightText}) as per ${soePageMain}`
+          } else if (subsectionName.toLowerCase() === 'guide wall' || subsectionName.toLowerCase() === 'guilde wall') {
+            // Extract widths from items
+            const widths = new Set()
+            let height = ''
+            if (group.length > 0) {
+              group.forEach(item => {
+                const particulars = item.particulars || ''
+                const bracketMatch = particulars.match(/\(([^)]+)\)/)
+                if (bracketMatch) {
+                  const dimsStr = bracketMatch[1].split('x').map(d => d.trim())
+                  if (dimsStr.length >= 1) {
+                    widths.add(dimsStr[0])
+                  }
+                  if (dimsStr.length >= 2) {
+                    height = dimsStr[1]
+                  }
+                }
+              })
+            }
+            const widthText = Array.from(widths).join(' & ')
+            
+            // Get SOE page references
+            let soePageMain = 'SOE-100.00'
+            let soePageDetails = 'SOE-300.00'
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                  const row = dataRows[rowIndex]
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('guide wall')) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                        if (soeMatches && soeMatches.length > 0) {
+                          soePageMain = soeMatches[0]
+                          if (soeMatches.length > 1) {
+                            soePageDetails = soeMatches[1]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format: F&I new (4'-6½" & 5'-3½" wide) guide wall (H=3'-0") as per SOE-100.00 & details on SOE-300.00
+            proposalText = widthText 
+              ? `F&I new (${widthText} wide) guide wall (H=${height || '3\'-0"'}) as per ${soePageMain}${soePageDetails ? ` & details on ${soePageDetails}` : ''}`
+              : `F&I new guide wall (H=${height || '3\'-0"'}) as per ${soePageMain}${soePageDetails ? ` & details on ${soePageDetails}` : ''}`
+          } else if (subsectionName.toLowerCase() === 'dowels' || subsectionName.toLowerCase() === 'dowel bar') {
+            // Get total quantity
+            const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
+            
+            // Extract bar size and rock socket
+            let barSize = ''
+            let rockSocket = ''
+            group.forEach(item => {
+              const particulars = item.particulars || ''
+              const barMatch = particulars.match(/#(\d+)/)
+              if (barMatch && !barSize) {
+                barSize = `#${barMatch[1]}`
+              }
+              const rsMatch = particulars.match(/RS=([0-9'"\-]+)/i)
+              if (rsMatch && !rockSocket) {
+                rockSocket = rsMatch[1]
+              }
+            })
+            
+            // Calculate average height
+            let totalHeight = 0
+            let heightCount = 0
+            group.forEach(item => {
+              const height = item.parsed?.heightRaw || 0
+              if (height > 0) {
+                totalHeight += height * (item.takeoff || 0)
+                heightCount += (item.takeoff || 0)
+              }
+            })
+            const avgHeight = heightCount > 0 ? totalHeight / heightCount : 0
+            const heightFeet = Math.floor(avgHeight)
+            const heightInches = Math.round((avgHeight - heightFeet) * 12)
+            const heightText = heightInches === 0 ? `${heightFeet}'-0"` : `${heightFeet}'-${heightInches}"`
+            
+            // Get SOE page references
+            let soePageMain = 'SOESK-01'
+            let soePageDetails = 'SOESK-02'
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                  const row = dataRows[rowIndex]
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('dowel')) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                        if (soeMatches && soeMatches.length > 0) {
+                          soePageMain = soeMatches[0]
+                          if (soeMatches.length > 1) {
+                            soePageDetails = soeMatches[1]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format: F&I new (48)no 4-#9 steel dowels bar (Havg=6'-3", 4'-0" rock socket) as per SOESK-01
+            proposalText = `F&I new (${totalQtyValue})no 4-${barSize || '#9'} steel dowels bar (Havg=${heightText}, ${rockSocket || '4\'-0"'} rock socket) as per ${soePageMain}`
+          } else if (subsectionName.toLowerCase() === 'rock pins' || subsectionName.toLowerCase() === 'rock pin') {
+            // Get total quantity
+            const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
+            
+            // Extract rock socket
+            let rockSocket = ''
+            group.forEach(item => {
+              const particulars = item.particulars || ''
+              const rsMatch = particulars.match(/RS=([0-9'"\-]+)/i)
+              if (rsMatch && !rockSocket) {
+                rockSocket = rsMatch[1]
+              }
+            })
+            
+            // Calculate average height
+            let totalHeight = 0
+            let heightCount = 0
+            group.forEach(item => {
+              const height = item.parsed?.heightRaw || 0
+              if (height > 0) {
+                totalHeight += height * (item.takeoff || 0)
+                heightCount += (item.takeoff || 0)
+              }
+            })
+            const avgHeight = heightCount > 0 ? totalHeight / heightCount : 0
+            const heightFeet = Math.floor(avgHeight)
+            const heightInches = Math.round((avgHeight - heightFeet) * 12)
+            const heightText = heightInches === 0 ? `${heightFeet}'-0"` : `${heightFeet}'-${heightInches}"`
+            
+            // Get SOE page references
+            let soePageMain = 'SOESK-01'
+            let soePageDetails = 'SOESK-02'
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                  const row = dataRows[rowIndex]
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('rock pin')) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                        if (soeMatches && soeMatches.length > 0) {
+                          soePageMain = soeMatches[0]
+                          if (soeMatches.length > 1) {
+                            soePageDetails = soeMatches[1]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format: F&I new (24)no rock pins (Havg=6'-3", 4'-0" rock socket) as per SOESK-01
+            proposalText = `F&I new (${totalQtyValue})no rock pins (Havg=${heightText}, ${rockSocket || '4\'-0"'} rock socket) as per ${soePageMain}`
+          } else if (subsectionName.toLowerCase() === 'rock stabilization') {
+            // Get SOE page references
+            let soePageMain = 'SOE-100.00'
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                  const row = dataRows[rowIndex]
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('rock stabilization')) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                        if (soeMatches && soeMatches.length > 0) {
+                          soePageMain = soeMatches[0]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format: F&I new rock stabilization as per SOE-100.00
+            proposalText = `F&I new rock stabilization as per ${soePageMain}`
+          } else if (subsectionName.toLowerCase() === 'shotcrete') {
+            // Extract thickness and wire mesh
+            let thickness = ''
+            let wireMesh = ''
+            group.forEach(item => {
+              const particulars = item.particulars || ''
+              const thickMatch = particulars.match(/(\d+(?:\/\d+)?)"?\s*thick/i)
+              if (thickMatch && !thickness) {
+                thickness = `${thickMatch[1]}"`
+              }
+              const meshMatch = particulars.match(/(\d+x\d+)\s*wire\s*mesh/i)
+              if (meshMatch && !wireMesh) {
+                wireMesh = meshMatch[1]
+              }
+            })
+            
+            // Calculate average height
+            let totalHeight = 0
+            let heightCount = 0
+            group.forEach(item => {
+              const height = item.parsed?.heightRaw || 0
+              if (height > 0) {
+                totalHeight += height * (item.takeoff || 0)
+                heightCount += (item.takeoff || 0)
+              }
+            })
+            const avgHeight = heightCount > 0 ? totalHeight / heightCount : 0
+            const heightFeet = Math.floor(avgHeight)
+            const heightInches = Math.round((avgHeight - heightFeet) * 12)
+            const heightText = heightInches === 0 ? `${heightFeet}'-0"` : `${heightFeet}'-${heightInches}"`
+            
+            // Get SOE page references
+            let soePageMain = 'SOESK-01'
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                  const row = dataRows[rowIndex]
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('shotcrete')) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                        if (soeMatches && soeMatches.length > 0) {
+                          soePageMain = soeMatches[0]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format: F&I new (6" thick) shotcrete w/ 6x6 wire mesh (Havg=23'-0") as per SOESK-01
+            proposalText = `F&I new (${thickness || '6"'} thick) shotcrete w/ ${wireMesh || '6x6'} wire mesh (Havg=${heightText}) as per ${soePageMain}`
+          } else if (subsectionName.toLowerCase() === 'permission grouting') {
+            // Calculate average height
+            let totalHeight = 0
+            let heightCount = 0
+            group.forEach(item => {
+              const height = item.parsed?.heightRaw || 0
+              if (height > 0) {
+                totalHeight += height * (item.takeoff || 0)
+                heightCount += (item.takeoff || 0)
+              }
+            })
+            const avgHeight = heightCount > 0 ? totalHeight / heightCount : 0
+            const heightFeet = Math.floor(avgHeight)
+            const heightInches = Math.round((avgHeight - heightFeet) * 12)
+            const heightText = heightInches === 0 ? `${heightFeet}'-0"` : `${heightFeet}'-${heightInches}"`
+            
+            // Get SOE page references
+            let soePageMain = 'SOESK-01'
+            let soePageDetails = 'SOESK-02'
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                  const row = dataRows[rowIndex]
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('permission grouting')) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                        if (soeMatches && soeMatches.length > 0) {
+                          soePageMain = soeMatches[0]
+                          if (soeMatches.length > 1) {
+                            soePageDetails = soeMatches[1]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format: F&I new permission grouting (Havg=16'-0") as per SOESK-01
+            proposalText = `F&I new permission grouting (Havg=${heightText}) as per ${soePageMain}`
+          } else if (subsectionName.toLowerCase() === 'mud slab') {
+            // Extract thickness from mud slab items (e.g., "w/ 2" mud slab" -> "2"")
+            let thickness = '2"' // Default thickness
+            if (group.length > 0) {
+              for (const item of group) {
+                const particulars = (item.particulars || '').trim()
+                // Match pattern like "w/ 2" mud slab" or "w/ 2\" mud slab"
+                const thicknessMatch = particulars.match(/w\/\s*(\d+(?:\/\d+)?)["']?\s*mud\s*slab/i)
+                if (thicknessMatch) {
+                  thickness = `${thicknessMatch[1]}"`
+                  break
+                }
+              }
+            }
+            
+            // Get SOE page reference from raw data
+            let soePageMain = 'SOE-101.00'
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                  const row = dataRows[rowIndex]
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('mud slab')) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                        if (soeMatches && soeMatches.length > 0) {
+                          soePageMain = soeMatches[0]
+                          break
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format: Allow to (2" thick) mud slab as per SOE-101.00
+            proposalText = `Allow to (${thickness} thick) mud slab as per ${soePageMain}`
+          } else if (subsectionName.toLowerCase() === 'sheet pile' || subsectionName.toLowerCase() === 'sheet piles') {
+            // Extract sheet pile type (e.g., "NZ-14", "PZC-12", etc.)
+            let sheetPileType = ''
+            if (group.length > 0) {
+              const firstItem = group[0]
+              const particulars = (firstItem.particulars || '').trim()
+              
+              // Match sheet pile type patterns: NZ-14, PZC-12, PZ-22, AZ-18, etc.
+              const typeMatch = particulars.match(/\b([A-Z]{2,3}[- ]?\d+(?:[-/]\d+)?(?:[-/]\d+)?)\b/i)
+              if (typeMatch) {
+                sheetPileType = typeMatch[1].replace(/\s+/g, '-') // Normalize spaces to hyphens
+              }
+            }
+            
+            // Extract height (H) from items
+            let height = ''
+            let heightRaw = 0
+            group.forEach(item => {
+              const h = item.parsed?.heightRaw || 0
+              if (h > 0 && !heightRaw) {
+                heightRaw = h
+                const heightFeet = Math.floor(h)
+                const heightInches = Math.round((h - heightFeet) * 12)
+                height = heightInches === 0 ? `${heightFeet}'-0"` : `${heightFeet}'-${heightInches}"`
+              }
+            })
+            
+            // Extract embedment (E) from items
+            let embedment = ''
+            if (group.length > 0) {
+              const firstItem = group[0]
+              const particulars = (firstItem.particulars || '').trim()
+              const eMatch = particulars.match(/E=([0-9'"\-]+)/i)
+              if (eMatch) {
+                // Parse dimension string to feet
+                const parseDim = (dimStr) => {
+                  if (!dimStr) return 0
+                  const match = dimStr.match(/(\d+)(?:'-?)?(\d+)?/)
+                  if (!match) return 0
+                  const feet = parseInt(match[1]) || 0
+                  const inches = parseInt(match[2]) || 0
+                  return feet + (inches / 12)
+                }
+                const embedmentRaw = parseDim(eMatch[1])
+                if (embedmentRaw > 0) {
+                  const embedmentFeet = Math.floor(embedmentRaw)
+                  const embedmentInches = Math.round((embedmentRaw - embedmentFeet) * 12)
+                  embedment = embedmentInches === 0 ? `${embedmentFeet}'-0"` : `${embedmentFeet}'-${embedmentInches}"`
+                }
+              }
+            }
+            
+            // Get SOE page reference from raw data
+            let soePageMain = 'SOE-102.00'
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                  const row = dataRows[rowIndex]
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('sheet pile')) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                        if (soeMatches && soeMatches.length > 0) {
+                          soePageMain = soeMatches[0]
+                          break
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format: F&I new [NZ-14] sheet pile (H=27'-0", E=18'-6"embedment) as per SOE-102.00
+            if (embedment) {
+              proposalText = `F&I new [${sheetPileType || '#'}] sheet pile (H=${height || '#'}, E=${embedment}embedment) as per ${soePageMain}`
+            } else {
+              proposalText = `F&I new [${sheetPileType || '#'}] sheet pile (H=${height || '#'}) as per ${soePageMain}`
+            }
+          } else if (subsectionName.toLowerCase() === 'timber lagging') {
+            // Extract dimensions from items (e.g., "3"x10"" from "Timber lagging 3"x10"")
+            let dimensions = ''
+            if (group.length > 0) {
+              const firstItem = group[0]
+              const particulars = (firstItem.particulars || '').trim()
+              
+              // Match pattern like "3"x10"" or "3\"x10\"" or "3x10"
+              const dimMatch = particulars.match(/(\d+(?:\/\d+)?)["']?\s*x\s*(\d+(?:\/\d+)?)["']?/i)
+              if (dimMatch) {
+                dimensions = `${dimMatch[1]}"x${dimMatch[2]}"`
+              }
+            }
+            
+            // Calculate average height
+            let totalHeight = 0
+            let heightCount = 0
+            group.forEach(item => {
+              const height = item.parsed?.heightRaw || item.height || 0
+              if (height > 0) {
+                totalHeight += height * (item.takeoff || 0)
+                heightCount += (item.takeoff || 0)
+              }
+            })
+            const avgHeight = heightCount > 0 ? totalHeight / heightCount : 0
+            const heightFeet = Math.floor(avgHeight)
+            const heightInches = Math.round((avgHeight - heightFeet) * 12)
+            const heightText = heightInches === 0 ? `${heightFeet}'-0"` : `${heightFeet}'-${heightInches}"`
+            
+            // Get SOE page reference from raw data
+            let soePageMain = 'SOE-101.00'
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                  const row = dataRows[rowIndex]
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('timber lagging')) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                        if (soeMatches && soeMatches.length > 0) {
+                          soePageMain = soeMatches[0]
+                          break
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format: F&I new 3"x10" timber lagging for the exposed depths (Havg=10'-6") as per SOE-101.00
+            proposalText = `F&I new ${dimensions || '##'} timber lagging for the exposed depths (Havg=${heightText || '##'}) as per ${soePageMain}`
+            
+            // Store soePageMain for backpacking line
+            window.timberLaggingSoePage = soePageMain
+          } else if (subsectionName.toLowerCase() === 'timber sheeting') {
+            // Extract dimensions from items (e.g., "3"x10"" from "Timber sheeting 3"x10"")
+            let dimensions = ''
+            if (group.length > 0) {
+              const firstItem = group[0]
+              const particulars = (firstItem.particulars || '').trim()
+              
+              // Match pattern like "3"x10"" or "3\"x10\"" or "3x10"
+              const dimMatch = particulars.match(/(\d+(?:\/\d+)?)["']?\s*x\s*(\d+(?:\/\d+)?)["']?/i)
+              if (dimMatch) {
+                dimensions = `${dimMatch[1]}"x${dimMatch[2]}"`
+              }
+            }
+            
+            // Calculate average height
+            let totalHeight = 0
+            let heightCount = 0
+            group.forEach(item => {
+              const height = item.parsed?.heightRaw || item.height || 0
+              if (height > 0) {
+                totalHeight += height * (item.takeoff || 0)
+                heightCount += (item.takeoff || 0)
+              }
+            })
+            const avgHeight = heightCount > 0 ? totalHeight / heightCount : 0
+            const heightFeet = Math.floor(avgHeight)
+            const heightInches = Math.round((avgHeight - heightFeet) * 12)
+            const heightText = heightInches === 0 ? `${heightFeet}'-0"` : `${heightFeet}'-${heightInches}"`
+            
+            // Get SOE page reference from raw data
+            let soePageMain = 'SOE-101.00'
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                  const row = dataRows[rowIndex]
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('timber sheeting')) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                        if (soeMatches && soeMatches.length > 0) {
+                          soePageMain = soeMatches[0]
+                          break
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format: F&I new 3"x10" timber sheeting (Havg=10'-6") as per SOE-101.00
+            proposalText = `F&I new ${dimensions || '##'} timber sheeting (Havg=${heightText || '##'}) as per ${soePageMain}`
+          } else {
+            // Default proposal text for other subsections
+            proposalText = `${subsectionName} item: ${Math.round(totalQty)} nos`
+          }
           
           // Add proposal text
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
@@ -4456,8 +9607,34 @@ const Spreadsheet = () => {
             `${pfx}B${currentRow}`
           )
           
+          // Calculate and set row height based on content
+          const dynamicHeight = calculateRowHeight(proposalText)
+          spreadsheet.setRowHeight(dynamicHeight, currentRow, proposalSheetIndex)
+          
+          // For Timber lagging, add second line for backpacking
+          if (subsectionName.toLowerCase() === 'timber lagging') {
+            currentRow++
+            const backpackingSoePage = window.timberLaggingSoePage || 'SOE-101.00'
+            const backpackingText = `F&I new backpacking @ timber lagging ${backpackingSoePage}`
+            spreadsheet.updateCell({ value: backpackingText }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                color: '#000000', 
+                textAlign: 'left',
+                backgroundColor: 'white',
+                verticalAlign: 'top'
+              },
+              `${pfx}B${currentRow}`
+            )
+            spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+          }
+          
           // Add FT (LF) to column C - reference to calculation sheet sum row if available
-          if (totalFT > 0 && sumRowIndex > 0) {
+          // For parging, FT(I) = C, so we should reference column I from the sum row (which sums column C)
+          if (subsectionName.toLowerCase() === 'parging' && sumRowIndex > 0) {
+            // For parging, column I in the sum row contains the sum of column C (takeoff)
             spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
             spreadsheet.cellFormat(
               { 
@@ -4466,6 +9643,65 @@ const Spreadsheet = () => {
                 backgroundColor: 'white'
               },
               `${pfx}C${currentRow}`
+            )
+          } else if (totalFT > 0 && sumRowIndex > 0) {
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}C${currentRow}`
+            )
+          }
+          
+          // Add SQFT to column D for Parging, Heel blocks, Underpinning, Concrete soil retention piers, and Form board - reference to calculation sheet sum row
+          const subsectionLowerName2 = subsectionName.toLowerCase()
+          if ((subsectionLowerName2 === 'parging' || 
+               subsectionLowerName2 === 'heel blocks' || 
+               subsectionLowerName2 === 'underpinning' ||
+               subsectionLowerName2 === 'concrete soil retention piers' ||
+               subsectionLowerName2 === 'concrete soil retention pier' ||
+               subsectionLowerName2 === 'form board') && sumRowIndex > 0) {
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${sumRowIndex}` }, `${pfx}D${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}D${currentRow}`
+            )
+          }
+          
+          // Add CY to column F for Underpinning and Concrete soil retention piers - reference to calculation sheet sum row
+          if ((subsectionLowerName2 === 'underpinning' ||
+               subsectionLowerName2 === 'concrete soil retention piers' ||
+               subsectionLowerName2 === 'concrete soil retention pier') && sumRowIndex > 0) {
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!L${sumRowIndex}` }, `${pfx}F${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}F${currentRow}`
+            )
+          }
+          
+          // Add QTY to column G for Underpinning and Concrete soil retention piers - reference to calculation sheet sum row
+          if ((subsectionLowerName2 === 'underpinning' ||
+               subsectionLowerName2 === 'concrete soil retention piers' ||
+               subsectionLowerName2 === 'concrete soil retention pier') && sumRowIndex > 0) {
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}G${currentRow}`
             )
           }
           
@@ -4483,7 +9719,8 @@ const Spreadsheet = () => {
           }
           
           // Add QTY to column G - reference to calculation sheet sum row if available
-          if (totalQty > 0 && sumRowIndex > 0) {
+          // For heel blocks, always add QTY from sum row
+          if ((totalQty > 0 || subsectionName.toLowerCase() === 'heel blocks') && sumRowIndex > 0) {
             spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
             spreadsheet.cellFormat(
               { 
@@ -4492,6 +9729,1347 @@ const Spreadsheet = () => {
                 backgroundColor: 'white'
               },
               `${pfx}G${currentRow}`
+            )
+          }
+          
+          // Add 180 to second LF column (column I) - same as other SOE items
+          spreadsheet.updateCell({ value: 180 }, `${pfx}I${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              textAlign: 'right',
+              backgroundColor: '#E2EFDA'
+            },
+            `${pfx}I${currentRow}:N${currentRow}`
+          )
+          
+          // Add $/1000 formula in column H
+          const dollarFormula = `=ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)`
+          spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              textAlign: 'right',
+              backgroundColor: 'white',
+              format: '$#,##0.0'
+            },
+            `${pfx}H${currentRow}`
+          )
+          
+          // Apply currency format
+          try {
+            spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+          } catch (e) {
+            // Fallback already applied in cellFormat
+          }
+          
+          // Row height already set above based on proposal text
+          
+          currentRow++ // Move to next row
+          
+          // If this is concrete soil retention pier and form board items exist, add form board text on next row
+          if ((subsectionName.toLowerCase() === 'concrete soil retention piers' || subsectionName.toLowerCase() === 'concrete soil retention pier') && window.formBoardProposalText) {
+            const formBoardText = window.formBoardProposalText
+            const formBoardItems = window.formBoardItems || []
+            
+            // Add form board proposal text
+            spreadsheet.updateCell({ value: formBoardText }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                color: '#000000', 
+                textAlign: 'left',
+                backgroundColor: 'white',
+                verticalAlign: 'top'
+              },
+              `${pfx}B${currentRow}`
+            )
+            
+            // Calculate and set row height based on content
+            const formBoardDynamicHeight = calculateRowHeight(formBoardText)
+            spreadsheet.setRowHeight(formBoardDynamicHeight, currentRow, proposalSheetIndex)
+            
+            // Calculate form board totals for columns
+            let formBoardTotalTakeoff = 0
+            let formBoardTotalSQFT = 0
+            let formBoardLastRowNumber = 0
+            formBoardItems.forEach(item => {
+              formBoardTotalTakeoff += item.takeoff || 0
+              formBoardTotalSQFT += item.sqft || 0
+              formBoardLastRowNumber = Math.max(formBoardLastRowNumber, item.rowIndex || 0)
+            })
+            
+            // Find form board sum row in calculation sheet
+            let formBoardSumRowIndex = formBoardLastRowNumber + 1
+            
+            // Add FT (LF) to column C - reference to calculation sheet sum row
+            if (formBoardSumRowIndex > 0) {
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${formBoardSumRowIndex}` }, `${pfx}C${currentRow}`)
+              spreadsheet.cellFormat(
+                { 
+                  fontWeight: 'bold', 
+                  textAlign: 'right',
+                  backgroundColor: 'white'
+                },
+                `${pfx}C${currentRow}`
+              )
+            }
+            
+            // Add SQFT to column D - reference to calculation sheet sum row
+            if (formBoardSumRowIndex > 0) {
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${formBoardSumRowIndex}` }, `${pfx}D${currentRow}`)
+              spreadsheet.cellFormat(
+                { 
+                  fontWeight: 'bold', 
+                  textAlign: 'right',
+                  backgroundColor: 'white'
+                },
+                `${pfx}D${currentRow}`
+              )
+            }
+            
+            // Add 180 to second LF column (column I)
+            spreadsheet.updateCell({ value: 180 }, `${pfx}I${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: '#E2EFDA'
+              },
+              `${pfx}I${currentRow}:N${currentRow}`
+            )
+            
+            // Add $/1000 formula in column H
+            const formBoardDollarFormula = `=ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)`
+            spreadsheet.updateCell({ formula: formBoardDollarFormula }, `${pfx}H${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white',
+                format: '$#,##0.0'
+              },
+              `${pfx}H${currentRow}`
+            )
+            
+            // Apply currency format
+            try {
+              spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+            } catch (e) {
+              // Fallback already applied in cellFormat
+            }
+            
+            // Row height already set above based on form board proposal text
+            
+            // Clear the stored form board data
+            window.formBoardProposalText = null
+            window.formBoardItems = null
+            
+            currentRow++ // Move to next row after form board
+          }
+        })
+        
+        // Process shims groups if this is underpinning
+        if (subsectionName.toLowerCase() === 'underpinning' && shimsGroups.length > 0) {
+          shimsGroups.forEach((shimsGroup) => {
+            if (shimsGroup.length === 0) return
+            
+            // Calculate totals for shims
+            let shimsTotalTakeoff = 0
+            let shimsTotalQty = 0
+            let shimsLastRowNumber = 0
+            
+            shimsGroup.forEach(item => {
+              shimsTotalTakeoff += item.takeoff || 0
+              shimsTotalQty += item.qty || 0
+              shimsLastRowNumber = Math.max(shimsLastRowNumber, item.rawRowNumber || 0)
+            })
+            
+            // Find the sum row for shims (after the last shims item)
+            const shimsSumRowIndex = shimsLastRowNumber + 1
+            
+            // Generate shims proposal text
+            const shimsQtyValue = Math.round(shimsTotalQty || shimsTotalTakeoff || 0)
+            const shimsProposalText = `F&I new (${shimsQtyValue})no. sets of 2"x4" @2'-0" O.C. min shim/wedge plates for transfer of vertical load & fill the gab between B.O. existing foundation & T.O. new underpinning w/non-shrink grout/dry pack`
+            
+            // Add shims proposal text
+            spreadsheet.updateCell({ value: shimsProposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                color: '#000000', 
+                textAlign: 'left',
+                backgroundColor: 'white',
+                verticalAlign: 'top'
+              },
+              `${pfx}B${currentRow}`
+            )
+            
+            // Calculate and set row height based on content
+            const shimsDynamicHeight = calculateRowHeight(shimsProposalText)
+            spreadsheet.setRowHeight(shimsDynamicHeight, currentRow, proposalSheetIndex)
+            
+            // Add QTY to column G for shims
+            if (shimsSumRowIndex > 0) {
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${shimsSumRowIndex}` }, `${pfx}G${currentRow}`)
+              spreadsheet.cellFormat(
+                { 
+                  fontWeight: 'bold', 
+                  textAlign: 'right',
+                  backgroundColor: 'white'
+                },
+                `${pfx}G${currentRow}`
+              )
+            }
+            
+            // Add 180 to second LF column (column I)
+            spreadsheet.updateCell({ value: 180 }, `${pfx}I${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: '#E2EFDA'
+              },
+              `${pfx}I${currentRow}:N${currentRow}`
+            )
+            
+            // Add $/1000 formula in column H
+            const shimsDollarFormula = `=ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)`
+            spreadsheet.updateCell({ formula: shimsDollarFormula }, `${pfx}H${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white',
+                format: '$#,##0.0'
+              },
+              `${pfx}H${currentRow}`
+            )
+            
+            // Apply currency format
+            try {
+              spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+            } catch (e) {
+              // Fallback already applied in cellFormat
+            }
+            
+            // Row height already set above based on shims proposal text
+            
+            currentRow++ // Move to next row
+          })
+        }
+      })
+      
+      // Add Rock anchor scope heading after SOE scope
+      spreadsheet.updateCell({ value: 'Rock anchor scope:' }, `${pfx}B${currentRow}`)
+      spreadsheet.cellFormat(
+        { 
+          fontWeight: 'bold', 
+          color: '#000000', 
+          textAlign: 'center',
+          backgroundColor: '#BDD7EE',
+          border: '1px solid #000000'
+        },
+        `${pfx}B${currentRow}`
+      )
+      spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+      currentRow++
+      
+      // Add Rock anchors subheading
+      spreadsheet.updateCell({ value: 'Rock anchors: including applicable washers, steel bearing plates, locking hex nuts as required' }, `${pfx}B${currentRow}`)
+      spreadsheet.cellFormat(
+        { 
+          fontWeight: 'bold', 
+          color: '#000000', 
+          textAlign: 'left',
+          backgroundColor: '#D0CECE',
+          textDecoration: 'underline',
+          border: '1px solid #000000'
+        },
+        `${pfx}B${currentRow}`
+      )
+      spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+      currentRow++
+      
+      // Process Rock anchor items from calculation data
+      const rockAnchorItems = []
+      if (calculationData && calculationData.length > 0) {
+        let inRockAnchorSection = false
+        calculationData.forEach((row, index) => {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('rock anchor') && bText.endsWith(':')) {
+              inRockAnchorSection = true
+              return
+            }
+            
+            if (inRockAnchorSection) {
+              if (bText.endsWith(':') && !bText.includes('rock anchor')) {
+                inRockAnchorSection = false
+                return
+              }
+              
+              if (bText && !bText.endsWith(':') && row[2] !== undefined) {
+                const takeoff = parseFloat(row[2]) || 0
+                if (takeoff > 0 || bText.includes('rock anchor')) {
+                  // Try to extract free length and bond length from particulars
+                  let freeLength = ''
+                  let bondLength = ''
+                  const freeLengthMatch = bText.match(/free length=([0-9'"\-]+)/i)
+                  const bondLengthMatch = bText.match(/bond length=\s*([0-9'"\-]+)/i)
+                  if (freeLengthMatch) {
+                    freeLength = freeLengthMatch[1].trim()
+                  }
+                  if (bondLengthMatch) {
+                    bondLength = bondLengthMatch[1].trim()
+                  }
+                  
+                  rockAnchorItems.push({
+                    rowIndex: index + 2,
+                    particulars: colB.trim(),
+                    takeoff: takeoff,
+                    qty: parseFloat(row[12]) || 0,
+                    freeLength: freeLength,
+                    bondLength: bondLength,
+                    rawRowNumber: index + 2
+                  })
+                }
+              }
+            }
+          }
+        })
+      }
+      
+      // Process and display Rock anchor items (grouped)
+      if (rockAnchorItems.length > 0) {
+        // Group rock anchor items by similar characteristics (drill hole, free length, bond length)
+        const rockAnchorGroups = new Map()
+        rockAnchorItems.forEach((item) => {
+          // Extract drill hole size
+          let drillHole = '##"Ø'
+          const drillMatch = item.particulars.match(/([\d\s½¼¾]+)"?\s*Ø/i)
+          if (drillMatch) {
+            drillHole = `${drillMatch[1].trim()}"Ø`
+          }
+          
+          // Create group key based on drill hole, free length, and bond length
+          const freeLengthText = item.freeLength || '##'
+          const bondLengthText = item.bondLength || '##'
+          const groupKey = `${drillHole}|${freeLengthText}|${bondLengthText}`
+          
+          if (!rockAnchorGroups.has(groupKey)) {
+            rockAnchorGroups.set(groupKey, [])
+          }
+          rockAnchorGroups.get(groupKey).push(item)
+        })
+        
+        // Process each group and generate one proposal text per group
+        rockAnchorGroups.forEach((group, groupKey) => {
+          // Calculate total quantity for the group
+          let totalQty = 0
+          let totalTakeoff = 0
+          let lastRowNumber = 0
+          let drillHole = '##"Ø'
+          let freeLengthText = '##'
+          let bondLengthText = '##'
+          
+          group.forEach((item) => {
+            totalQty += item.qty || 0
+            totalTakeoff += item.takeoff || 0
+            lastRowNumber = Math.max(lastRowNumber, item.rawRowNumber || 0)
+            
+            // Get values from first item in group
+            if (group.indexOf(item) === 0) {
+              const drillMatch = item.particulars.match(/([\d\s½¼¾]+)"?\s*Ø/i)
+              if (drillMatch) {
+                drillHole = `${drillMatch[1].trim()}"Ø`
+              }
+              freeLengthText = item.freeLength || '##'
+              bondLengthText = item.bondLength || '##'
+            }
+          })
+          
+          const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
+          
+          // Get SOE/FO page reference from raw data
+          let soePageMain = 'FO-101.00'
+          if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+            const headers = rawData[0]
+            const dataRows = rawData.slice(1)
+            const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+            const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+            
+            if (digitizerIdx !== -1 && pageIdx !== -1) {
+              for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                const row = dataRows[rowIndex]
+                const digitizerItem = row[digitizerIdx]
+                if (digitizerItem && typeof digitizerItem === 'string') {
+                  const itemText = digitizerItem.toLowerCase()
+                  if (itemText.includes('rock anchor')) {
+                    const pageValue = row[pageIdx]
+                    if (pageValue) {
+                      const pageStr = String(pageValue).trim()
+                      const soeMatches = pageStr.match(/(SOE|SOESK|FO)-[\d.]+/gi)
+                      if (soeMatches && soeMatches.length > 0) {
+                        soePageMain = soeMatches[0]
+                        break
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          
+          // Generate proposal text with placeholders for missing values
+          // Format: F&I new (41)no (1.25"Ø thick) threaded bar (or approved equal) (100 Kips tension load capacity & 80 Kips lock off load capacity) 150KSI rock anchors (5-KSI grout infilled) (L=13'-3" + 10'-6" bond length), 4"Ø drill hole as per FO-101.00
+          const proposalText = `F&I new (${totalQtyValue})no (##"Ø thick) threaded bar (or approved equal) (## Kips tension load capacity & ## Kips lock off load capacity) ##KSI rock anchors (##-KSI grout infilled) (L=${freeLengthText} + ${bondLengthText} bond length), ${drillHole} drill hole as per ${soePageMain}`
+          
+          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              color: '#000000', 
+              textAlign: 'left',
+              backgroundColor: 'white',
+              verticalAlign: 'top'
+            },
+            `${pfx}B${currentRow}`
+          )
+          
+          // Calculate and set row height based on content
+          const rockAnchorDynamicHeight = calculateRowHeight(proposalText)
+          spreadsheet.setRowHeight(rockAnchorDynamicHeight, currentRow, proposalSheetIndex)
+          
+          // Add FT (LF) to column C - sum of all items in group
+          let totalFT = 0
+          group.forEach(item => {
+            if (item.rawRowNumber > 0) {
+              const calcSheetName = 'Calculations Sheet'
+              // We'll sum all FT values from the group
+              totalFT += parseFloat(calculationData[item.rawRowNumber - 2]?.[8] || 0) || 0
+            }
+          })
+          
+          // Find sum row for rock anchors (last row number + 1)
+          const sumRowIndex = lastRowNumber + 1
+          if (sumRowIndex > 0) {
+            const calcSheetName = 'Calculations Sheet'
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}C${currentRow}`
+            )
+          }
+          
+          // Add QTY to column G - sum of all items in group
+          if (sumRowIndex > 0) {
+            const calcSheetName = 'Calculations Sheet'
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}G${currentRow}`
+            )
+          }
+          
+          // Row height already set above based on rock anchor proposal text
+          currentRow++
+        })
+      }
+      
+      // Process Rock bolt items from calculation data
+      const rockBoltItems = []
+      if (calculationData && calculationData.length > 0) {
+        let inRockBoltSection = false
+        calculationData.forEach((row, index) => {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('rock bolt') && bText.endsWith(':')) {
+              inRockBoltSection = true
+              return
+            }
+            
+            if (inRockBoltSection) {
+              if (bText.endsWith(':') && !bText.includes('rock bolt')) {
+                inRockBoltSection = false
+                return
+              }
+              
+              if (bText && !bText.endsWith(':') && row[2] !== undefined) {
+                const takeoff = parseFloat(row[2]) || 0
+                if (takeoff > 0 || bText.includes('rock bolt')) {
+                  // Extract bond length from particulars: "Rock bolt @ 7'-0" O.C. (Bond length=10'-0")"
+                  let bondLength = ''
+                  const bondLengthMatch = bText.match(/bond length=([0-9'"\-]+)/i)
+                  if (bondLengthMatch) {
+                    bondLength = bondLengthMatch[1].trim()
+                  }
+                  
+                  // Extract O.C. spacing (for reference, but not in output format)
+                  let ocSpacing = ''
+                  const ocMatch = bText.match(/@\s*([0-9'"\-]+)\s*['"]?\s*o\.?c\.?/i)
+                  if (ocMatch) {
+                    ocSpacing = ocMatch[1].trim()
+                  }
+                  
+                  rockBoltItems.push({
+                    rowIndex: index + 2,
+                    particulars: colB.trim(),
+                    takeoff: takeoff,
+                    qty: parseFloat(row[12]) || 0,
+                    bondLength: bondLength,
+                    ocSpacing: ocSpacing,
+                    rawRowNumber: index + 2
+                  })
+                }
+              }
+            }
+          }
+        })
+      }
+      
+      // Process and display Rock bolt items (grouped)
+      if (rockBoltItems.length > 0) {
+        // Group rock bolt items by similar characteristics (drill hole, bond length)
+        const rockBoltGroups = new Map()
+        rockBoltItems.forEach((item) => {
+          // Extract drill hole size
+          let drillHole = '##"Ø'
+          const drillMatch = item.particulars.match(/([\d\s½¼¾]+)"?\s*Ø/i)
+          if (drillMatch) {
+            drillHole = `${drillMatch[1].trim()}"Ø`
+          }
+          
+          // Create group key based on drill hole and bond length
+          const bondLengthText = item.bondLength || '##'
+          const groupKey = `${drillHole}|${bondLengthText}`
+          
+          if (!rockBoltGroups.has(groupKey)) {
+            rockBoltGroups.set(groupKey, [])
+          }
+          rockBoltGroups.get(groupKey).push(item)
+        })
+        
+        // Process each group and generate one proposal text per group
+        rockBoltGroups.forEach((group, groupKey) => {
+          // Calculate total quantity for the group
+          let totalQty = 0
+          let totalTakeoff = 0
+          let lastRowNumber = 0
+          let drillHole = '##"Ø'
+          let bondLengthText = '##'
+          
+          group.forEach((item) => {
+            totalQty += item.qty || 0
+            totalTakeoff += item.takeoff || 0
+            lastRowNumber = Math.max(lastRowNumber, item.rawRowNumber || 0)
+            
+            // Get values from first item in group
+            if (group.indexOf(item) === 0) {
+              const drillMatch = item.particulars.match(/([\d\s½¼¾]+)"?\s*Ø/i)
+              if (drillMatch) {
+                drillHole = `${drillMatch[1].trim()}"Ø`
+              }
+              bondLengthText = item.bondLength || '##'
+            }
+          })
+          
+          const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
+          
+          // Get SOE page reference from raw data
+          let soePageMain = 'SOE-A-100.00'
+          if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+            const headers = rawData[0]
+            const dataRows = rawData.slice(1)
+            const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+            const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+            
+            if (digitizerIdx !== -1 && pageIdx !== -1) {
+              for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+                const row = dataRows[rowIndex]
+                const digitizerItem = row[digitizerIdx]
+                if (digitizerItem && typeof digitizerItem === 'string') {
+                  const itemText = digitizerItem.toLowerCase()
+                  if (itemText.includes('rock bolt')) {
+                    const pageValue = row[pageIdx]
+                    if (pageValue) {
+                      const pageStr = String(pageValue).trim()
+                      const soeMatches = pageStr.match(/(SOE|SOESK|FO|SOE-A)-[\d.]+/gi)
+                      if (soeMatches && soeMatches.length > 0) {
+                        soePageMain = soeMatches[0]
+                        break
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          
+          // Generate proposal text
+          // Format: F&I new (11)no threaded bar (or approved equal) 150KSI (20°) rock bolts/dowel (L=10'-0"), 3"Ø drill hole as per SOE-A-100.00
+          const proposalText = `F&I new (${totalQtyValue})no threaded bar (or approved equal) ##KSI (##°) rock bolts/dowel (L=${bondLengthText}), ${drillHole} drill hole as per ${soePageMain}`
+          
+          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              color: '#000000', 
+              textAlign: 'left',
+              backgroundColor: 'white',
+              verticalAlign: 'top'
+            },
+            `${pfx}B${currentRow}`
+          )
+          
+          // Calculate and set row height based on content
+          const rockBoltDynamicHeight = calculateRowHeight(proposalText)
+          spreadsheet.setRowHeight(rockBoltDynamicHeight, currentRow, proposalSheetIndex)
+          
+          // Find sum row for rock bolts (last row number + 1)
+          const sumRowIndex = lastRowNumber + 1
+          if (sumRowIndex > 0) {
+            const calcSheetName = 'Calculations Sheet'
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}C${currentRow}`
+            )
+          }
+          
+          // Add QTY to column G - sum of all items in group
+          if (sumRowIndex > 0) {
+            const calcSheetName = 'Calculations Sheet'
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}G${currentRow}`
+            )
+          }
+          
+          // Row height already set above based on rock bolt proposal text
+          currentRow++
+        })
+      }
+      
+      // Add empty row to separate Rock anchor scope from Foundation scope
+      currentRow++
+      
+      // Note: Green background for columns I-N will be applied at the end after all data is written
+      
+      // Add Foundation subsection headers (similar to SOE subsections)
+      const foundationSubsectionItems = window.foundationSubsectionItems || new Map()
+      const foundationSubsectionOrder = [
+        'Drilled foundation pile',  // Will display as "Foundation drilled piles scope:"
+        'Driven foundation pile',   // Will display as "Foundation driven piles scope:"
+        'Helical foundation pile',  // Will display as "Foundation helical piles scope:"
+        'Stelcor drilled displacement pile', // Will display as "Stelcor piles scope:"
+        'CFA pile'                  // Will display as "CAF piles scope:"
+      ]
+      
+      // Get all unique foundation subsection names from collected items
+      // Map new format names to old format for display
+      const foundationSubsectionDisplayMap = {
+        'Drilled foundation pile': 'Foundation drilled piles',
+        'Driven foundation pile': 'Foundation driven piles',
+        'Helical foundation pile': 'Foundation helical piles',
+        'Stelcor drilled displacement pile': 'Stelcor piles',
+        'CFA pile': 'CAF piles'
+      }
+      
+      const collectedFoundationSubsections = new Set()
+      foundationSubsectionItems.forEach((groups, name) => {
+        if (groups.length > 0) {
+          collectedFoundationSubsections.add(name)
+        }
+      })
+      
+      // Display foundation subsections in order (only up to CFA pile)
+      const foundationSubsectionsToDisplay = []
+      foundationSubsectionOrder.forEach(name => {
+        if (collectedFoundationSubsections.has(name)) {
+          foundationSubsectionsToDisplay.push(name)
+          collectedFoundationSubsections.delete(name)
+        }
+      })
+      // Do not add any remaining subsections - only show up to CFA pile
+      
+      foundationSubsectionsToDisplay.forEach((subsectionName) => {
+        // Map new format names to old format for display
+        let displayName = subsectionName
+        if (foundationSubsectionDisplayMap[subsectionName]) {
+          displayName = foundationSubsectionDisplayMap[subsectionName]
+        }
+        
+        // Add subsection header with blue background and "scope:" suffix
+        const subsectionText = `${displayName} scope:`
+        
+        spreadsheet.updateCell({ value: subsectionText }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { 
+            fontWeight: 'bold', 
+            color: '#000000', 
+            textAlign: 'center',
+            backgroundColor: '#BDD7EE',
+            border: '1px solid #000000'
+          },
+          `${pfx}B${currentRow}`
+        )
+        
+        // Increase row height
+        spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+        
+        currentRow++ // Move to next row
+        
+        // Track the start row for this subsection (for total calculation)
+        // This is the first row where proposal text will be written
+        const subsectionStartRow = currentRow
+        
+        // Calculate QTY sum from processor groups (sum of all takeoff values) - BEFORE processing groups
+        // Use the summed takeoff from processDrilledFoundationPileItems (or other processors)
+        let qtySumValue = 0
+        let pileType = 'drilled' // default
+        let diameter = null
+        let thickness = null
+        
+        // Map subsection names to processor group arrays
+        const processorGroupsMap = {
+          'Drilled foundation pile': window.drilledFoundationPileGroups || [],
+          'Foundation drilled piles': window.drilledFoundationPileGroups || [],
+          'Driven foundation pile': window.drivenFoundationPileItems || [],
+          'Foundation driven piles': window.drivenFoundationPileItems || [],
+          'Helical foundation pile': window.helicalFoundationPileGroups || [],
+          'Foundation helical piles': window.helicalFoundationPileGroups || [],
+          'Stelcor drilled displacement pile': window.stelcorDrilledDisplacementPileItems || [],
+          'CFA pile': window.cfaPileItems || []
+        }
+        
+        // Get the processor groups for this subsection
+        const processorGroups = processorGroupsMap[subsectionName] || []
+        
+        // Set pileType based on subsection
+        if (subsectionName === 'Drilled foundation pile' || subsectionName === 'Foundation drilled piles') {
+          pileType = 'drilled'
+        } else if (subsectionName === 'Driven foundation pile' || subsectionName === 'Foundation driven piles') {
+          pileType = 'driven'
+        } else if (subsectionName === 'Helical foundation pile' || subsectionName === 'Foundation helical piles') {
+          pileType = 'helical'
+        } else if (subsectionName === 'Stelcor drilled displacement pile') {
+          pileType = 'stelcor'
+        } else if (subsectionName === 'CFA pile') {
+          pileType = 'cfa'
+        }
+        
+        // Process each group individually (for drilled piles, generate separate proposal text for each group)
+        // For other types, still sum all groups
+        const isDrilledPiles = subsectionName === 'Drilled foundation pile' || subsectionName === 'Foundation drilled piles'
+        
+        if (!isDrilledPiles) {
+          // For non-drilled piles, sum all groups (existing logic)
+          processorGroups.forEach(itemOrGroup => {
+            // Check if it's a grouped structure (has items array) or flat item structure
+            if (itemOrGroup.items && Array.isArray(itemOrGroup.items) && itemOrGroup.items.length > 0) {
+              // For helical piles: need to sum all items in the group
+              const groupTakeoff = itemOrGroup.items.reduce((sum, item) => sum + (item.takeoff || 0), 0)
+              qtySumValue += groupTakeoff
+            } else if (itemOrGroup.takeoff !== undefined) {
+              // For flat array items (like driven piles, stelcor, CFA), use takeoff directly
+              qtySumValue += itemOrGroup.takeoff || 0
+            }
+          })
+          
+          // Round the final sum
+          qtySumValue = Math.round(qtySumValue)
+        }
+        
+        // Log the sum for debugging
+        
+        
+        // Generate proposal text - for drilled piles, generate per group; for others, generate once
+        if (isDrilledPiles && processorGroups.length > 0) {
+          // Process each group individually for drilled piles
+          processorGroups.forEach((itemOrGroup, groupIndex) => {
+            if (!itemOrGroup.items || !Array.isArray(itemOrGroup.items) || itemOrGroup.items.length === 0) return
+            
+            const groupTakeoff = itemOrGroup.items[0]?.takeoff || 0
+            if (groupTakeoff === 0) return
+            
+            const groupQty = Math.round(groupTakeoff)
+            const groupHasInflu = itemOrGroup.hasInflu || false
+            
+            
+            // Extract data for this specific group
+            const firstItem = itemOrGroup.items[0]
+            let groupDiameter = null
+            let groupThickness = null
+            
+            if (firstItem?.particulars) {
+              const particulars = firstItem.particulars
+              const dtMatch = particulars.match(/([\d.]+)"\s*Ø\s*x\s*([\d.]+)"/i)
+              if (dtMatch) {
+                groupDiameter = parseFloat(dtMatch[1])
+                groupThickness = parseFloat(dtMatch[2])
+              }
+            }
+            
+            // Calculate height and rock socket for this group
+            let groupAvgHeight = 0
+            let groupHeightCount = 0
+            let groupAvgRockSocket = 0
+            let groupRockSocketCount = 0
+            
+            itemOrGroup.items.forEach(item => {
+              if (item.parsed?.calculatedHeight) {
+                const heightValue = parseFloat(item.parsed.calculatedHeight)
+                if (!isNaN(heightValue)) {
+                  const itemTakeoff = item.takeoff || 1
+                  groupAvgHeight += heightValue * itemTakeoff
+                  groupHeightCount += itemTakeoff
+                }
+              }
+              
+              if (item.particulars) {
+                const particulars = String(item.particulars)
+                const rockSocketMatch = particulars.match(/([\d.]+)['"]?-?([\d.]+)?["']?\s*(?:rock\s*socket|rock)/i)
+                if (rockSocketMatch) {
+                  let rockSocketFeet = parseFloat(rockSocketMatch[1])
+                  if (rockSocketMatch[2]) {
+                    rockSocketFeet += parseFloat(rockSocketMatch[2]) / 12
+                  }
+                  const itemTakeoff = item.takeoff || 1
+                  groupAvgRockSocket += rockSocketFeet * itemTakeoff
+                  groupRockSocketCount += itemTakeoff
+                }
+              }
+            })
+            
+            if (groupHeightCount > 0) {
+              groupAvgHeight = groupAvgHeight / groupHeightCount
+            }
+            if (groupRockSocketCount > 0) {
+              groupAvgRockSocket = groupAvgRockSocket / groupRockSocketCount
+            }
+            
+            // Round to nearest multiple of 5
+            const roundToMultipleOf5 = (value) => Math.ceil(value / 5) * 5
+            const avgHeightRounded = roundToMultipleOf5(groupAvgHeight)
+            const avgRockSocketRounded = roundToMultipleOf5(groupAvgRockSocket)
+            
+            // Format height
+            const heightFeet = Math.floor(avgHeightRounded)
+            const heightInches = Math.round((avgHeightRounded - heightFeet) * 12)
+            let heightText = heightInches === 0 ? `${heightFeet}'-0"` : `${heightFeet}'-${heightInches}"`
+            
+            // Format rock socket
+            const rockSocketFeet = Math.floor(avgRockSocketRounded)
+            const rockSocketInches = Math.round((avgRockSocketRounded - rockSocketFeet) * 12)
+            let rockSocketText = groupRockSocketCount > 0 
+              ? (rockSocketInches === 0 ? `${rockSocketFeet}'-0"` : `${rockSocketFeet}'-${rockSocketInches}"`)
+              : "0'-0\""
+            
+            // Extract reference codes (same for all groups)
+            let foReference = 'FO-101.00'
+            let soeReference = 'SOE-101.00'
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRows = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              
+              if (digitizerIdx !== -1 && pageIdx !== -1) {
+                for (const row of dataRows) {
+                  const digitizerItem = row[digitizerIdx]
+                  if (digitizerItem && typeof digitizerItem === 'string') {
+                    const itemText = digitizerItem.toLowerCase()
+                    if (itemText.includes('drilled') && (itemText.includes('foundation') || itemText.includes('pile'))) {
+                      const pageValue = row[pageIdx]
+                      if (pageValue) {
+                        const pageStr = String(pageValue).trim()
+                        const foMatch = pageStr.match(/FO-[\d.]+/i)
+                        if (foMatch && !foReference) foReference = foMatch[0]
+                        const soeMatch = pageStr.match(/SOE-[\d.]+/i)
+                        if (soeMatch && !soeReference) soeReference = soeMatch[0]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            // Format diameter and thickness
+            let diameterThicknessText = ''
+            if (groupDiameter && groupThickness) {
+              const formatDiameter = (d) => {
+                if (d % 1 === 0) return `${d}`
+                const fractionMap = {
+                  0.125: '1/8', 0.25: '1/4', 0.375: '3/8', 0.5: '1/2',
+                  0.625: '5/8', 0.75: '3/4', 0.875: '7/8'
+                }
+                const whole = Math.floor(d)
+                const decimal = d - whole
+                const fraction = fractionMap[Math.round(decimal * 1000) / 1000]
+                if (fraction) {
+                  return whole > 0 ? `${whole}-${fraction}` : fraction
+                }
+                return d.toString()
+              }
+              const formattedDiam = formatDiameter(groupDiameter)
+              diameterThicknessText = `(${formattedDiam}" ØX${groupThickness}" thick)`
+            }
+            
+            // If group has Influ, add empty row with background color BEFORE the proposal text
+            if (groupHasInflu) {
+              // Add empty row with background color #FCE4D6
+              spreadsheet.cellFormat(
+                { backgroundColor: '#FCE4D6' },
+                `${pfx}B${currentRow}:${pfx}H${currentRow}`
+              )
+              spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+              currentRow++
+            }
+            
+            // Generate proposal text for this group
+            let proposalText = `F&I new (${groupQty})no drilled cassion pile`
+            proposalText += ` (# tons design compression, # tons design tension & # ton design lateral load)`
+            if (diameterThicknessText) {
+              proposalText += `, ${diameterThicknessText}`
+            }
+            proposalText += `, (#-KSI grout infilled)`
+            proposalText += ` with (#)qty #00-#" ## Ksi full length reinforcement`
+            proposalText += ` (H=${heightText}, ${rockSocketText} rock socket)`
+            proposalText += ` as per ${foReference}, ${soeReference}`
+            
+            // Add proposal text
+            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            
+            // Apply color if group has Influ
+            const cellFormat = {
+              fontWeight: 'bold',
+              color: '#000000',
+              textAlign: 'left',
+              verticalAlign: 'top'
+            }
+            if (groupHasInflu) {
+              cellFormat.backgroundColor = '#FCE4D6'
+            } else {
+              cellFormat.backgroundColor = 'white'
+            }
+            
+            spreadsheet.cellFormat(cellFormat, `${pfx}B${currentRow}`)
+            
+            // Add other columns (FT, LBS, QTY, etc.)
+            const calcSheetName = 'Calculations Sheet'
+            
+            // Find the sum row for this group in the calculation sheet
+            // The sum row contains the FT sum formula for this group
+            let groupSumRowIndex = 0
+            
+            // Find the formulaData entry for this group
+            // Groups are processed in the same order in both generateCalculationSheet and here
+            // So we can match by groupIndex, but we need to ensure we're getting the right one
+            if (formulaData && Array.isArray(formulaData)) {
+              // Get all foundation_sum formulas for drilled foundation pile, sorted by row
+              const drilledFoundationSumFormulas = formulaData
+                .filter(f => 
+                  f.itemType === 'foundation_sum' && 
+                  f.subsectionName === 'Drilled foundation pile'
+                )
+                .sort((a, b) => a.firstDataRow - b.firstDataRow) // Sort by firstDataRow to match group order
+              
+              // Use groupIndex to get the corresponding sum row
+              // The sum row is at formula.row, and firstDataRow is the data row
+              // So the sum row is at firstDataRow + 1 (data row + 1 = sum row)
+              if (drilledFoundationSumFormulas[groupIndex]) {
+                const formulaInfo = drilledFoundationSumFormulas[groupIndex]
+                // The sum row should be firstDataRow + 1 (data row + 1 = sum row)
+                // Use firstDataRow + 1 directly to ensure we get the correct sum row
+                groupSumRowIndex = formulaInfo.firstDataRow + 1
+                
+                
+                // Reference the FT sum from column I of the sum row
+                spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${groupSumRowIndex}` }, `${pfx}C${currentRow}`)
+              }
+            }
+            
+            // Format FT column
+            if (groupSumRowIndex > 0 || groupFTSum > 0) {
+              spreadsheet.cellFormat(
+                {
+                  fontWeight: 'bold',
+                  textAlign: 'right',
+                  backgroundColor: groupHasInflu ? '#FCE4D6' : 'white'
+                },
+                `${pfx}C${currentRow}`
+              )
+            }
+            
+            // Add LBS to column E - reference to calculation sheet sum row (column K)
+            if (groupSumRowIndex > 0) {
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!K${groupSumRowIndex}` }, `${pfx}E${currentRow}`)
+              spreadsheet.cellFormat(
+                {
+                  fontWeight: 'bold',
+                  textAlign: 'right',
+                  backgroundColor: groupHasInflu ? '#FCE4D6' : 'white'
+                },
+                `${pfx}E${currentRow}`
+              )
+            }
+            
+            // Add QTY
+            spreadsheet.updateCell({ value: groupQty }, `${pfx}G${currentRow}`)
+            spreadsheet.cellFormat(
+              {
+                fontWeight: 'bold',
+                textAlign: 'right',
+                backgroundColor: groupHasInflu ? '#FCE4D6' : 'white'
+              },
+              `${pfx}G${currentRow}`
+            )
+            
+            // Add hardcoded second LF value in column I for drilled piles: 150
+            spreadsheet.updateCell({ value: 150 }, `${pfx}I${currentRow}`)
+            spreadsheet.cellFormat(
+              {
+                fontWeight: 'bold',
+                textAlign: 'right',
+                backgroundColor: groupHasInflu ? '#FCE4D6' : 'white'
+              },
+              `${pfx}I${currentRow}`
+            )
+            
+            // Add $/1000 formula
+            const dollarFormula = `=ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)`
+            spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
+            spreadsheet.cellFormat(
+              {
+                fontWeight: 'bold',
+                textAlign: 'right',
+                backgroundColor: groupHasInflu ? '#FCE4D6' : 'white',
+                format: '$#,##0.0'
+              },
+              `${pfx}H${currentRow}`
+            )
+            
+            // Row height already set above based on proposal text
+            currentRow++
+          })
+        } else if (qtySumValue > 0) {
+          // For non-drilled piles, generate single proposal text (existing logic)
+          // Get height and other details from groups if available
+          const groups = foundationSubsectionItems.get(subsectionName) || []
+          let avgHeight = 0
+          let heightCount = 0
+          let lastRowNumber = 0
+          let sumRowIndex = 0
+          const calcSheetName = 'Calculations Sheet'
+          
+          // Calculate averages from processor groups first
+          let avgRockSocket = 0
+          let rockSocketCount = 0
+          
+          // Extract height and rock socket from processor groups
+          processorGroups.forEach(itemOrGroup => {
+            if (itemOrGroup.items && Array.isArray(itemOrGroup.items)) {
+              itemOrGroup.items.forEach(item => {
+                // Extract height from parsed data or particulars
+                if (item.parsed?.calculatedHeight) {
+                  const heightValue = parseFloat(item.parsed.calculatedHeight)
+                  if (!isNaN(heightValue)) {
+                    const itemTakeoff = item.takeoff || 1
+                    avgHeight += heightValue * itemTakeoff
+                    heightCount += itemTakeoff
+                  }
+                }
+                
+                // Extract rock socket from particulars
+                if (item.particulars) {
+                  const particulars = String(item.particulars)
+                  // Look for rock socket pattern like "7'-0" rock socket" or "7' rock socket" or "4'-0" rock socket"
+                  const rockSocketMatch = particulars.match(/([\d.]+)['"]?-?([\d.]+)?["']?\s*(?:rock\s*socket|rock)/i)
+                  if (rockSocketMatch) {
+                    let rockSocketFeet = parseFloat(rockSocketMatch[1])
+                    if (rockSocketMatch[2]) {
+                      rockSocketFeet += parseFloat(rockSocketMatch[2]) / 12 // Add inches
+                    }
+                    const itemTakeoff = item.takeoff || 1
+                    avgRockSocket += rockSocketFeet * itemTakeoff
+                    rockSocketCount += itemTakeoff
+                  }
+                }
+              })
+            }
+          })
+          
+          groups.forEach((group) => {
+            if (group.length === 0) return
+            group.forEach(item => {
+              if (item.height > 0) {
+                avgHeight += item.height * (item.takeoff || 1)
+                heightCount += item.takeoff || 1
+              }
+              // Extract rock socket from particulars or height column
+              if (item.particulars) {
+                const particulars = String(item.particulars)
+                // Look for rock socket pattern like "7'-0" rock socket" or "7' rock socket"
+                const rockSocketMatch = particulars.match(/([\d.]+)['"]?-?([\d.]+)?["']?\s*(?:rock\s*socket|rock)/i)
+                if (rockSocketMatch) {
+                  let rockSocketFeet = parseFloat(rockSocketMatch[1])
+                  if (rockSocketMatch[2]) {
+                    rockSocketFeet += parseFloat(rockSocketMatch[2]) / 12 // Add inches
+                  }
+                  avgRockSocket += rockSocketFeet * (item.takeoff || 1)
+                  rockSocketCount += item.takeoff || 1
+                }
+              }
+              lastRowNumber = Math.max(lastRowNumber, item.rawRowNumber || 0)
+            })
+          })
+          
+          if (heightCount > 0) {
+            avgHeight = avgHeight / heightCount
+          }
+          
+          if (rockSocketCount > 0) {
+            avgRockSocket = avgRockSocket / rockSocketCount
+          }
+          
+          // Round height to nearest multiple of 5
+          const roundToMultipleOf5 = (value) => {
+            return Math.ceil(value / 5) * 5
+          }
+          const avgHeightRounded = roundToMultipleOf5(avgHeight)
+          const avgRockSocketRounded = roundToMultipleOf5(avgRockSocket)
+          
+          // Format height
+          const heightFeet = Math.floor(avgHeightRounded)
+          const heightInches = Math.round((avgHeightRounded - heightFeet) * 12)
+          let heightText = ''
+          if (heightInches === 0) {
+            heightText = `${heightFeet}'-0"`
+          } else {
+            heightText = `${heightFeet}'-${heightInches}"`
+          }
+          
+          // Format rock socket
+          const rockSocketFeet = Math.floor(avgRockSocketRounded)
+          const rockSocketInches = Math.round((avgRockSocketRounded - rockSocketFeet) * 12)
+          let rockSocketText = "0'-0\""
+          if (rockSocketCount > 0) {
+            if (rockSocketInches === 0) {
+              rockSocketText = `${rockSocketFeet}'-0"`
+            } else {
+              rockSocketText = `${rockSocketFeet}'-${rockSocketInches}"`
+            }
+          }
+          
+          // Find the sum row for this subsection from formulaData
+          // The sum row contains the FT sum formula for this subsection
+          if (formulaData && Array.isArray(formulaData)) {
+            // Find the foundation_sum formula for this subsection
+            const subsectionSumFormula = formulaData.find(f => 
+              f.itemType === 'foundation_sum' && 
+              f.subsectionName === subsectionName
+            )
+            
+            if (subsectionSumFormula) {
+              sumRowIndex = subsectionSumFormula.row
+            } else {
+              // Fallback: use lastRowNumber + 1
+              sumRowIndex = lastRowNumber + 1
+            }
+          } else {
+            // Fallback: use lastRowNumber + 1
+            sumRowIndex = lastRowNumber + 1
+          }
+          
+          // Extract reference codes (FO-101.00, SOE-101.00) from raw data
+          let foReference = ''
+          let soeReference = ''
+          
+          if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+            const headers = rawData[0]
+            const dataRows = rawData.slice(1)
+            const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+            const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+            
+            if (digitizerIdx !== -1 && pageIdx !== -1) {
+              // Search for foundation drilled pile items
+              for (const row of dataRows) {
+                const digitizerItem = row[digitizerIdx]
+                if (digitizerItem && typeof digitizerItem === 'string') {
+                  const itemText = digitizerItem.toLowerCase()
+                  // Check if it's a drilled foundation pile
+                  if (itemText.includes('drilled') && (itemText.includes('foundation') || itemText.includes('pile'))) {
+                    const pageValue = row[pageIdx]
+                    if (pageValue) {
+                      const pageStr = String(pageValue).trim()
+                      // Extract FO reference
+                      const foMatch = pageStr.match(/FO-[\d.]+/i)
+                      if (foMatch && !foReference) {
+                        foReference = foMatch[0]
+                      }
+                      // Extract SOE reference
+                      const soeMatch = pageStr.match(/SOE-[\d.]+/i)
+                      if (soeMatch && !soeReference) {
+                        soeReference = soeMatch[0]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+          
+          // Default references if not found
+          if (!foReference) foReference = 'FO-101.00'
+          if (!soeReference) soeReference = 'SOE-101.00'
+          
+          // Format diameter and thickness for display (e.g., "9-5/8" ØX0.545" thick")
+          let diameterThicknessText = ''
+          if (diameter && thickness) {
+            // Convert decimal diameter to fraction format if needed (e.g., 9.625 -> 9-5/8)
+            const formatDiameter = (d) => {
+              if (d % 1 === 0) return `${d}`
+              // Check common fractions
+              const fractionMap = {
+                0.125: '1/8', 0.25: '1/4', 0.375: '3/8', 0.5: '1/2',
+                0.625: '5/8', 0.75: '3/4', 0.875: '7/8'
+              }
+              const whole = Math.floor(d)
+              const decimal = d - whole
+              const fraction = fractionMap[Math.round(decimal * 1000) / 1000]
+              if (fraction) {
+                return whole > 0 ? `${whole}-${fraction}` : fraction
+              }
+              return d.toString()
+            }
+            const formattedDiam = formatDiameter(diameter)
+            diameterThicknessText = `(${formattedDiam}" ØX${thickness}" thick)`
+          }
+          
+          // Generate proposal text
+          // Format: F&I new (8)no drilled cassion pile (140 tons design compression, 70 tons design tension & 1 ton design lateral load), (9-5/8" ØX0.545" thick), (6-KSI grout infilled) with (1)qty #24" 80 Ksi full length reinforcement (H=40'-0", 7'-0" rock socket) as per FO-101.00, SOE-101.00
+          let pileTypeText = pileType === 'drilled' ? 'drilled cassion pile' : `${pileType} mini-piles`
+          let proposalText = `F&I new (${qtySumValue})no ${pileTypeText}`
+          
+          // Add capacity (keep as placeholders # with "design" prefix)
+          proposalText += ` (# tons design compression, # tons design tension & # ton design lateral load)`
+          
+          // Add steel casing if diameter and thickness available
+          if (diameterThicknessText) {
+            proposalText += `, ${diameterThicknessText}`
+          }
+          
+          // Add grout (keep 6 as #)
+          proposalText += `, (#-KSI grout infilled)`
+          
+          // Add reinforcement (placeholder)
+          proposalText += ` with (#)qty #00-#" ## Ksi full length reinforcement`
+          
+          // Add height and rock socket (comma separated, not +)
+          proposalText += ` (H=${heightText}, ${rockSocketText} rock socket)`
+          
+          // Add reference codes
+          proposalText += ` as per ${foReference}, ${soeReference}`
+          
+          // Add proposal text
+          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              color: '#000000', 
+              textAlign: 'left',
+              backgroundColor: 'white',
+              verticalAlign: 'top'
+            },
+            `${pfx}B${currentRow}`
+          )
+          
+          // Calculate and set row height based on content
+          const foundationPileDynamicHeight = calculateRowHeight(proposalText)
+          spreadsheet.setRowHeight(foundationPileDynamicHeight, currentRow, proposalSheetIndex)
+          
+          // Add FT (LF) to column C - reference to calculation sheet sum row if available
+          // Column I (index 8) contains FT for foundation items
+          if (sumRowIndex > 0) {
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}C${currentRow}`
+            )
+          }
+          
+          // Add LBS to column E - reference to calculation sheet sum row if available
+          if (sumRowIndex > 0) {
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!K${sumRowIndex}` }, `${pfx}E${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}E${currentRow}`
+            )
+          }
+          
+          // Add QTY to column G - use the calculated sum value
+          spreadsheet.updateCell({ value: qtySumValue }, `${pfx}G${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              textAlign: 'right',
+              backgroundColor: 'white'
+            },
+            `${pfx}G${currentRow}`
+          )
+          
+          // Add hardcoded second LF value in column I based on subsection
+          const secondLFValues = {
+            'Drilled foundation pile': 150,
+            'Driven foundation pile': 115,
+            'Helical foundation pile': 120,
+            'Stelcor drilled displacement pile': 90,
+            'CFA pile': 90
+          }
+          const secondLFValue = secondLFValues[subsectionName] || 0
+          if (secondLFValue > 0) {
+            spreadsheet.updateCell({ value: secondLFValue }, `${pfx}I${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}I${currentRow}`
             )
           }
           
@@ -4508,20 +11086,691 @@ const Spreadsheet = () => {
             `${pfx}H${currentRow}`
           )
           
-          // Increase row height
-          spreadsheet.setRowHeight(currentRow, 41, proposalSheetIndex)
+          // Row height already set above based on foundation pile proposal text
           
           currentRow++ // Move to next row
-        })
+        }
+        
+        // Add misc. section for this foundation subsection (after all proposal text items)
+        const miscSections = {
+          'Drilled foundation pile': {
+            title: 'Drilled pile misc.:',
+            included: [
+              'Plates & locking nuts included',
+              'Pilings will be threaded at both ends and installed in 5\' or 10\' increments',
+              'Single mobilization & demobilization of drilling equipment included',
+              'Surveying, stakeout, pile numbering plan & as-built plan included',
+              'Two lateral reactionary load tests included',
+              'Video inspections included',
+              'Engineering & Shop drawings included'
+            ],
+            additional: [
+              'Additional linear foot of pile: $155/LF additional if required',
+              'Reactionary load test (using production piles as reactionary piles): $15,000 additional if required',
+              'Obstruction removal drilling per hour: $995/hour additional if required'
+            ]
+          },
+          'Driven foundation pile': {
+            title: 'Driven piles misc.:',
+            included: [
+              'The Entire Length of each driven pile is charged including any cut off length',
+              'Single mobilization & demobilization of drilling equipment included',
+              'Surveying, stakeout, pile numbering plan & as-built plan included',
+              'Single compression reactionary load tests included',
+              'Single lateral reactionary load tests included',
+              'Engineering & Shop drawings included'
+            ],
+            additional: [
+              'Additional linear foot of pile: $120/LF additional if required'
+            ]
+          },
+          'Helical foundation pile': {
+            title: 'Helical pile misc.:',
+            included: [
+              'Upon completion: cut-off of helical pile tops after grade marks & capping with and applicable flat plate',
+              'If torque is not adequate upon reaching the 7\' depth, additional lengths will be added & billed',
+              'Pile location, stake out, deviation, pile numbering plans, grade marks for cut-offs included'
+            ],
+            additional: []
+          },
+          'Stelcor drilled displacement pile': {
+            title: 'Stelcor pile misc.:',
+            included: [
+              'Plates & locking nuts included',
+              'Single mobilization & demobilization of drilling equipment included',
+              'Surveying, stakeout, pile numbering plan & as-built plan included',
+              'Single compression reactionary load test included',
+              'Engineering & Shop drawings included'
+            ],
+            additional: [
+              'Additional linear foot of pile: $95/LF additional if required',
+              'Reactionary lateral load test (using production piles as reactionary piles): $6,000 additional if required',
+              'Obstruction removal drilling per hour: $995/hour additional if required'
+            ]
+          },
+          'CFA pile': {
+            title: 'CFA pile misc.:',
+            included: [
+              'Plates & locking nuts included',
+              'Single mobilization & demobilization of drilling equipment included',
+              'Surveying, stakeout, pile numbering plan & as-built plan included',
+              'Single compression reactionary load test included',
+              'Engineering & Shop drawings included'
+            ],
+            additional: [
+              'Additional linear foot of pile: $95/LF additional if required',
+              'Reactionary lateral load test (using production piles as reactionary piles): $6,000 additional if required',
+              'Obstruction removal drilling per hour: $995/hour additional if required'
+            ]
+          }
+        }
+        
+        // Check if we have a misc section for this subsection
+        const miscSection = miscSections[subsectionName]
+        if (miscSection) {
+          // Add misc. title
+          spreadsheet.updateCell({ value: miscSection.title }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              color: '#000000', 
+              textAlign: 'left',
+              backgroundColor: 'white',
+              textDecoration: 'underline'
+            },
+            `${pfx}B${currentRow}`
+          )
+          spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+          currentRow++
+          
+          // Add included items
+          miscSection.included.forEach(item => {
+            spreadsheet.updateCell({ value: item }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'normal', 
+                color: '#000000', 
+                textAlign: 'left',
+                backgroundColor: 'white',
+                verticalAlign: 'top'
+              },
+              `${pfx}B${currentRow}`
+            )
+            spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+            currentRow++
+          })
+          
+          // Add additional cost items
+          miscSection.additional.forEach(item => {
+            spreadsheet.updateCell({ value: item }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'normal', 
+                color: '#000000', 
+                textAlign: 'left',
+                backgroundColor: 'white',
+                verticalAlign: 'top'
+              },
+              `${pfx}B${currentRow}`
+            )
+            spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+            currentRow++
+          })
+        }
+        
+        // Add individual total row for this subsection (after misc section)
+        // Calculate the end row (current row - 1, before the total row we're about to add)
+        const subsectionEndRow = currentRow - 1
+        
+        // Only add total if there are proposal rows for this subsection
+        if (subsectionEndRow >= subsectionStartRow) {
+          // Determine the total label based on subsection
+          const totalLabels = {
+            'Drilled foundation pile': 'Foundation Piles Total:',
+            'Helical foundation pile': 'Helical Pile Total:',
+            'Stelcor drilled displacement pile': 'Stelcor Piles Total:',
+            'CFA pile': 'CFA Piles Total:',
+            'Driven foundation pile': 'Foundation Piles Total:' // Driven piles use same label as drilled
+          }
+          const totalLabel = totalLabels[subsectionName] || 'Foundation Piles Total:'
+          
+          currentRow++
+          // Format like Demolition Total: label in D:E, total in F:G
+          spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
+          spreadsheet.updateCell({ value: totalLabel }, `${pfx}D${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              color: '#000000', 
+              textAlign: 'left',
+              backgroundColor: '#BDD7EE',
+              border: '1px solid #000000'
+            },
+            `${pfx}D${currentRow}:E${currentRow}`
+          )
+          
+          // Add total formula: =SUM(H{startRow}:H{endRow})*1000 in merged F:G
+          spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
+          spreadsheet.updateCell({ formula: `=SUM(H${subsectionStartRow}:H${subsectionEndRow})*1000` }, `${pfx}F${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              color: '#000000', 
+              textAlign: 'right',
+              backgroundColor: '#BDD7EE',
+              border: '1px solid #000000',
+              format: '$#,##0.00'
+            },
+            `${pfx}F${currentRow}:G${currentRow}`
+          )
+          
+          // Apply currency format using numberFormat
+          try {
+            spreadsheet.numberFormat('$#,##0.00', `${pfx}F${currentRow}:G${currentRow}`)
+          } catch (e) {
+            // Fallback to cellFormat if numberFormat doesn't work
+            spreadsheet.cellFormat(
+              { 
+                format: '$#,##0.00'
+              },
+              `${pfx}F${currentRow}:G${currentRow}`
+            )
+          }
+          
+          // Apply background color to entire row B:G (like Demolition Total)
+          spreadsheet.cellFormat(
+            { 
+              backgroundColor: '#BDD7EE'
+            },
+            `${pfx}B${currentRow}:G${currentRow}`
+          )
+          
+          currentRow++
+          
+          // Add empty row after the total (like Demolition Total)
+          currentRow++
+        }
       })
       
-      // Apply green background to rows 36-56, columns I-N
+      // Add empty row after all foundation sections
+      currentRow++
+      
+      // Add Substructure concrete scope header
+      spreadsheet.updateCell({ value: 'Substructure concrete scope:' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat(
         { 
-          backgroundColor: '#E2EFDA'
+          fontWeight: 'bold', 
+          color: '#000000', 
+          textAlign: 'center',
+          backgroundColor: '#BDD7EE',
+          border: '1px solid #000000',
+          textDecoration: 'underline'
         },
-        `${pfx}I36:N56`
+        `${pfx}B${currentRow}`
       )
+      
+      // Increase row height
+      spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+      
+      currentRow++
+      
+      // Add empty row after Substructure concrete scope
+      currentRow++
+      
+      // Add Below grade waterproofing scope header
+      spreadsheet.updateCell({ value: 'Below grade waterproofing scope:' }, `${pfx}B${currentRow}`)
+      spreadsheet.cellFormat(
+        { 
+          fontWeight: 'bold', 
+          color: '#000000', 
+          textAlign: 'center',
+          backgroundColor: '#BDD7EE',
+          border: '1px solid #000000',
+          textDecoration: 'underline'
+        },
+        `${pfx}B${currentRow}`
+      )
+      
+      // Increase row height
+      spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+      
+      currentRow++
+      
+      // Add proposal text with present waterproofing items
+      const waterproofingItems = window.waterproofingPresentItems || []
+      
+      if (waterproofingItems.length > 0) {
+        // Map item names to display format
+        const itemDisplayMap = {
+          'foundation walls': 'foundation walls',
+          'retaining wall': 'retaining wall',
+          'vehicle barrier wall': 'vehicle barrier wall',
+          'concrete liner wall': 'concrete liner wall',
+          'stem wall': 'stem wall',
+          'grease trap pit wall': 'grease trap pit wall',
+          'house trap pit wall': 'house trap pit wall',
+          'detention tank wall': 'detention tank wall',
+          'elevator pit walls': 'elevator pit walls',
+          'duplex sewage ejector pit wall': 'duplex sewage ejector pit wall'
+        }
+        
+        // Convert to display names
+        const displayItems = waterproofingItems.map(item => itemDisplayMap[item] || item)
+        
+        // Join with " & " for the last two, and commas for others
+        let itemsText = ''
+        if (displayItems.length === 1) {
+          itemsText = displayItems[0]
+        } else if (displayItems.length === 2) {
+          itemsText = displayItems.join(' & ')
+        } else {
+          // Join all but last with commas, then " & " for the last one
+          itemsText = displayItems.slice(0, -1).join(', ') + ' & ' + displayItems[displayItems.length - 1]
+        }
+        
+        const proposalText = `F&I new Precon by WR Meadows waterproofing membrane (vertical only) with Hydro duct protection/drainage board & R15 2"XPS Rigid Insulation @ ${itemsText}`
+        
+          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              color: '#000000', 
+              textAlign: 'left',
+              backgroundColor: 'white',
+              verticalAlign: 'top'
+            },
+            `${pfx}B${currentRow}`
+          )
+          
+          // Calculate and set row height based on content
+          const waterproofingDynamicHeight = calculateRowHeight(proposalText)
+          spreadsheet.setRowHeight(waterproofingDynamicHeight, currentRow, proposalSheetIndex)
+          
+          // Find the FT and SQFT totals from waterproofing sum rows (columns I and J)
+        let waterproofingFTSumRow = 0
+        const calcSheetName = 'Calculations Sheet'
+        
+        if (formulaData && Array.isArray(formulaData)) {
+          // Find waterproofing sum rows (exterior_side_sum or negative_side_sum)
+          const waterproofingSumFormulas = formulaData.filter(f => 
+            (f.itemType === 'waterproofing_exterior_side_sum' || f.itemType === 'waterproofing_negative_side_sum') &&
+            f.section === 'waterproofing'
+          )
+          
+          // Use the first sum row found (or combine if needed)
+          if (waterproofingSumFormulas.length > 0) {
+            // For now, use the first sum row. If there are multiple, we might need to sum them
+            waterproofingFTSumRow = waterproofingSumFormulas[0].row
+            
+            // Add FT (LF) to column C - reference to calculation sheet sum row (column I)
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${waterproofingFTSumRow}` }, `${pfx}C${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}C${currentRow}`
+            )
+            // Apply 2 decimal format
+            try {
+              spreadsheet.numberFormat('#,##0.00', `${pfx}C${currentRow}`)
+            } catch (e) {
+              spreadsheet.cellFormat({ format: '#,##0.00' }, `${pfx}C${currentRow}`)
+            }
+            
+            // Add SQFT to column D - reference to calculation sheet sum row (column J)
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${waterproofingFTSumRow}` }, `${pfx}D${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}D${currentRow}`
+            )
+            // Apply 2 decimal format
+            try {
+              spreadsheet.numberFormat('#,##0.00', `${pfx}D${currentRow}`)
+            } catch (e) {
+              spreadsheet.cellFormat({ format: '#,##0.00' }, `${pfx}D${currentRow}`)
+            }
+            
+            // Add 15 to column J (SF)
+            spreadsheet.updateCell({ value: 15 }, `${pfx}J${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}J${currentRow}`
+            )
+            
+            // Add $/1000 formula in column H
+            const dollarFormula = `=ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)`
+            spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white',
+                format: '$#,##0.0'
+              },
+              `${pfx}H${currentRow}`
+            )
+            // Apply currency format using numberFormat
+            try {
+              spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}`)
+            } catch (e) {
+              // Fallback already applied in cellFormat
+            }
+          }
+        }
+        
+        // Row height already set above based on waterproofing proposal text
+        currentRow++
+        
+        // Add negative side proposal text if negative side items are present
+        const negativeSideItems = window.waterproofingNegativeSideItems || []
+        if (negativeSideItems.length > 0) {
+          // Map item names to display format
+          const negativeSideDisplayMap = {
+            'detention tank wall': 'detention tank wall',
+            'elevator pit walls': 'elevator pit walls',
+            'detention tank slab': 'detention tank slab',
+            'duplex sewage ejector pit wall': 'duplex sewage ejector pit wall',
+            'duplex sewage ejector pit slab': 'duplex sewage ejector pit slab',
+            'elevator pit slab': 'elevator pit slab'
+          }
+          
+          // Convert to display names
+          const displayNegativeItems = negativeSideItems.map(item => negativeSideDisplayMap[item] || item)
+          
+          // Join with " & " for the last two, and commas for others
+          let negativeItemsText = ''
+          if (displayNegativeItems.length === 1) {
+            negativeItemsText = displayNegativeItems[0]
+          } else if (displayNegativeItems.length === 2) {
+            negativeItemsText = displayNegativeItems.join(' & ')
+          } else {
+            // Join all but last with commas, then " & " for the last one
+            negativeItemsText = displayNegativeItems.slice(0, -1).join(', ') + ' & ' + displayNegativeItems[displayNegativeItems.length - 1]
+          }
+          
+          const negativeProposalText = `F&I new Aquafin waterproofing @ negative side of the ${negativeItemsText}`
+          
+          spreadsheet.updateCell({ value: negativeProposalText }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              color: '#000000', 
+              textAlign: 'left',
+              backgroundColor: 'white',
+              verticalAlign: 'top'
+            },
+            `${pfx}B${currentRow}`
+          )
+          
+          // Calculate and set row height based on content
+          const negativeSideDynamicHeight = calculateRowHeight(negativeProposalText)
+          spreadsheet.setRowHeight(negativeSideDynamicHeight, currentRow, proposalSheetIndex)
+          
+          // Find the FT and SQFT totals from negative side sum row (columns I and J)
+          let negativeSideSumRow = 0
+          
+          if (formulaData && Array.isArray(formulaData)) {
+            // Find negative side sum row
+            const negativeSideSumFormula = formulaData.find(f => 
+              f.itemType === 'waterproofing_negative_side_sum' &&
+              f.section === 'waterproofing'
+            )
+            
+            if (negativeSideSumFormula) {
+              negativeSideSumRow = negativeSideSumFormula.row
+              
+              // Add FT (LF) to column C - reference to calculation sheet sum row (column I)
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${negativeSideSumRow}` }, `${pfx}C${currentRow}`)
+              spreadsheet.cellFormat(
+                { 
+                  fontWeight: 'bold', 
+                  textAlign: 'right',
+                  backgroundColor: 'white'
+                },
+                `${pfx}C${currentRow}`
+              )
+              // Apply 2 decimal format
+              try {
+                spreadsheet.numberFormat('#,##0.00', `${pfx}C${currentRow}`)
+              } catch (e) {
+                spreadsheet.cellFormat({ format: '#,##0.00' }, `${pfx}C${currentRow}`)
+              }
+              
+              // Add SQFT to column D - reference to calculation sheet sum row (column J)
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${negativeSideSumRow}` }, `${pfx}D${currentRow}`)
+              spreadsheet.cellFormat(
+                { 
+                  fontWeight: 'bold', 
+                  textAlign: 'right',
+                  backgroundColor: 'white'
+                },
+                `${pfx}D${currentRow}`
+              )
+              // Apply 2 decimal format
+              try {
+                spreadsheet.numberFormat('#,##0.00', `${pfx}D${currentRow}`)
+              } catch (e) {
+                spreadsheet.cellFormat({ format: '#,##0.00' }, `${pfx}D${currentRow}`)
+              }
+            }
+          }
+          
+          // Add 20 to column J (SF) for negative side
+          spreadsheet.updateCell({ value: 20 }, `${pfx}J${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              textAlign: 'right',
+              backgroundColor: 'white'
+            },
+            `${pfx}J${currentRow}`
+          )
+          
+          // Add $/1000 formula in column H
+          const negativeDollarFormula = `=ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)`
+          spreadsheet.updateCell({ formula: negativeDollarFormula }, `${pfx}H${currentRow}`)
+          spreadsheet.cellFormat(
+            { 
+              fontWeight: 'bold', 
+              textAlign: 'right',
+              backgroundColor: 'white',
+              format: '$#,##0.0'
+            },
+            `${pfx}H${currentRow}`
+          )
+          // Apply currency format using numberFormat
+          try {
+            spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}`)
+          } catch (e) {
+            // Fallback already applied in cellFormat
+          }
+          
+          // Row height already set above based on negative side proposal text
+          currentRow++
+        }
+      } else {
+        // No items found, show "No details provided"
+        spreadsheet.updateCell({ value: 'No details provided' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { 
+            fontWeight: 'normal', 
+            color: '#000000', 
+            textAlign: 'left',
+            backgroundColor: 'white'
+          },
+          `${pfx}B${currentRow}`
+        )
+        spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+        currentRow++
+      }
+      
+      // Add horizontal insulation proposal text if present (check calculation sheet for horizontal insulation sum)
+      // Horizontal insulation items are always created in the calculation sheet, so check formulaData
+      let hasHorizontalInsulation = false
+      if (formulaData && Array.isArray(formulaData)) {
+        const horizontalInsulationSumFormula = formulaData.find(f => 
+          f.itemType === 'waterproofing_horizontal_insulation_sum' &&
+          f.section === 'waterproofing'
+        )
+        hasHorizontalInsulation = !!horizontalInsulationSumFormula
+      }
+      
+      if (hasHorizontalInsulation) {
+        const horizontalProposalText = `F&I new (2" thick) XPS rigid insulation @ SOG & grade beam`
+        
+        spreadsheet.updateCell({ value: horizontalProposalText }, `${pfx}B${currentRow}`)
+        spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+        spreadsheet.cellFormat(
+          { 
+            fontWeight: 'bold', 
+            color: '#000000', 
+            textAlign: 'left',
+            backgroundColor: 'white',
+            verticalAlign: 'top'
+          },
+          `${pfx}B${currentRow}`
+        )
+        
+        // Calculate and set row height based on content
+        const horizontalInsulationDynamicHeight = calculateRowHeight(horizontalProposalText)
+        spreadsheet.setRowHeight(horizontalInsulationDynamicHeight, currentRow, proposalSheetIndex)
+        
+        // Find the SQFT total from horizontal insulation sum row (column J)
+        let horizontalInsulationSumRow = 0
+        const calcSheetName = 'Calculations Sheet'
+        
+        if (formulaData && Array.isArray(formulaData)) {
+          // Find horizontal insulation sum row
+          const horizontalInsulationSumFormula = formulaData.find(f => 
+            f.itemType === 'waterproofing_horizontal_insulation_sum' &&
+            f.section === 'waterproofing'
+          )
+          
+          if (horizontalInsulationSumFormula) {
+            horizontalInsulationSumRow = horizontalInsulationSumFormula.row
+            
+            // Add SQFT to column D - reference to calculation sheet sum row (column J)
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${horizontalInsulationSumRow}` }, `${pfx}D${currentRow}`)
+            spreadsheet.cellFormat(
+              { 
+                fontWeight: 'bold', 
+                textAlign: 'right',
+                backgroundColor: 'white'
+              },
+              `${pfx}D${currentRow}`
+            )
+            // Apply 2 decimal format
+            try {
+              spreadsheet.numberFormat('#,##0.00', `${pfx}D${currentRow}`)
+            } catch (e) {
+              spreadsheet.cellFormat({ format: '#,##0.00' }, `${pfx}D${currentRow}`)
+            }
+          }
+        }
+        
+        // Add 15 to column J (SF)
+        spreadsheet.updateCell({ value: 15 }, `${pfx}J${currentRow}`)
+        spreadsheet.cellFormat(
+          { 
+            fontWeight: 'bold', 
+            textAlign: 'right',
+            backgroundColor: 'white'
+          },
+          `${pfx}J${currentRow}`
+        )
+        
+        // Add $/1000 formula in column H
+        const horizontalDollarFormula = `=ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)`
+        spreadsheet.updateCell({ formula: horizontalDollarFormula }, `${pfx}H${currentRow}`)
+        spreadsheet.cellFormat(
+          { 
+            fontWeight: 'bold', 
+            textAlign: 'right',
+            backgroundColor: 'white',
+            format: '$#,##0.0'
+          },
+          `${pfx}H${currentRow}`
+        )
+        // Apply currency format using numberFormat
+        try {
+          spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}`)
+        } catch (e) {
+          // Fallback already applied in cellFormat
+        }
+        
+        // Row height already set above based on horizontal insulation proposal text
+        currentRow++
+      }
+      
+      // Add note about WR Meadows Installer
+      spreadsheet.updateCell({ value: 'Note: Capstone Contracting Corp is a licensed WR Meadows Installer ' }, `${pfx}B${currentRow}`)
+      spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+      spreadsheet.cellFormat(
+        { 
+          fontWeight: 'normal', 
+          color: '#000000', 
+          textAlign: 'center',
+          backgroundColor: 'white',
+          verticalAlign: 'middle'
+        },
+        `${pfx}B${currentRow}`
+      )
+      spreadsheet.setRowHeight(currentRow, 22, proposalSheetIndex)
+      currentRow++
+      
+      // Individual totals are now added after each subsection's misc section
+      
+      // Apply green background and $ prefix format to columns I-N for all data rows (from row 2 to currentRow-1)
+      // Also apply $ prefix format to column H ($/1000)
+      // Row 1 is the header, so data starts from row 2
+      if (currentRow > 2) {
+        const lastDataRow = currentRow - 1
+        // Apply green background to columns I-N
+        spreadsheet.cellFormat(
+          { 
+            backgroundColor: '#E2EFDA'
+          },
+          `${pfx}I2:N${lastDataRow}`
+        )
+        // Apply $ prefix format to column H ($/1000) using numberFormat
+        try {
+          spreadsheet.numberFormat('$#,##0.0', `${pfx}H2:H${lastDataRow}`)
+        } catch (e) {
+          // Fallback to cellFormat if numberFormat doesn't work
+          spreadsheet.cellFormat(
+            { 
+              format: '$#,##0.0'
+            },
+            `${pfx}H2:H${lastDataRow}`
+          )
+        }
+        // Apply $ prefix format to columns I-N using numberFormat
+        try {
+          spreadsheet.numberFormat('$#,##0.0', `${pfx}I2:N${lastDataRow}`)
+        } catch (e) {
+          // Fallback to cellFormat if numberFormat doesn't work
+          spreadsheet.cellFormat(
+            { 
+              format: '$#,##0.0'
+            },
+            `${pfx}I2:N${lastDataRow}`
+          )
+        }
+      }
     }
   }
 

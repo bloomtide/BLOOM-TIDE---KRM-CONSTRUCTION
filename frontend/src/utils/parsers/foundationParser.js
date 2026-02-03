@@ -449,8 +449,6 @@ export const parseDrilledFoundationPile = (itemName) => {
     let hStr = null
     let rsStr = null
 
-    console.log('[Drilled Foundation Pile] Parsing itemName:', itemName)
-
     // First, try to match the full pattern: H=<dim>+ <dim> RS or H=<dim>+<dim> RS
     // Match H= followed by dimension (digits, dash, digits, quote, dash, digits, quote), 
     // then optionally + followed by dimension and RS
@@ -459,27 +457,22 @@ export const parseDrilledFoundationPile = (itemName) => {
     // Dimension format: \d+'-\d+" (e.g., "32'-6"")
     // This ensures we capture the full dimension, not just the first digit
     const fullMatch = itemName.match(/H\s*=\s*(\d+'-\d+")\s*(?:\+\s*(\d+'-\d+")\s*RS\b)?/i)
-    console.log('[Drilled Foundation Pile] fullMatch:', fullMatch)
     if (fullMatch) {
         hStr = (fullMatch[1] || '').trim()
         // Remove trailing quote if present
         hStr = hStr.replace(/["\s]+$/, '').trim()
-        console.log('[Drilled Foundation Pile] hStr after fullMatch:', hStr)
         if (fullMatch[2]) {
             rsStr = (fullMatch[2] || '').trim()
             rsStr = rsStr.replace(/["\s]+$/, '').trim()
-            console.log('[Drilled Foundation Pile] rsStr after fullMatch:', rsStr)
         }
     }
 
     // If RS wasn't captured above, try "RS=<dim>" format
     if (!rsStr) {
         const rsEqMatch = itemName.match(/RS\s*=\s*(\d+'-\d+")/i)
-        console.log('[Drilled Foundation Pile] rsEqMatch:', rsEqMatch)
         if (rsEqMatch) {
             rsStr = (rsEqMatch[1] || '').trim()
             rsStr = rsStr.replace(/["\s]+$/, '').trim()
-            console.log('[Drilled Foundation Pile] rsStr after rsEqMatch:', rsStr)
         }
     }
 
@@ -488,36 +481,26 @@ export const parseDrilledFoundationPile = (itemName) => {
         // Match: + followed by dimension followed by RS
         // Dimension pattern: \d+'-\d+" which matches "7'-0"" or "18'-3""
         const rsPlusMatch = itemName.match(/\+\s*(\d+'-\d+")\s*RS\b/i)
-        console.log('[Drilled Foundation Pile] rsPlusMatch:', rsPlusMatch)
         if (rsPlusMatch) {
             rsStr = (rsPlusMatch[1] || '').trim()
             rsStr = rsStr.replace(/["\s]+$/, '').trim()
-            console.log('[Drilled Foundation Pile] rsStr after rsPlusMatch:', rsStr)
         }
     }
-
-    console.log('[Drilled Foundation Pile] Final hStr:', hStr)
-    console.log('[Drilled Foundation Pile] Final rsStr:', rsStr)
 
     // Parse the extracted strings using convertToFeet
     if (hStr) {
         result.height = parseDimension(hStr)
-        console.log('[Drilled Foundation Pile] Parsed height (ft):', result.height, 'from string:', hStr)
     }
     if (rsStr) {
         result.rockSocket = parseDimension(rsStr)
-        console.log('[Drilled Foundation Pile] Parsed rockSocket (ft):', result.rockSocket, 'from string:', rsStr)
     }
 
     // Calculate total height
     if (result.rockSocket && result.height) {
         const total = result.height + result.rockSocket
-        console.log('[Drilled Foundation Pile] Total before rounding:', total, '(height:', result.height, '+ rockSocket:', result.rockSocket, ')')
         result.calculatedHeight = roundToMultipleOf5(total)
-        console.log('[Drilled Foundation Pile] Calculated height (rounded to multiple of 5):', result.calculatedHeight)
     } else if (result.height) {
         result.calculatedHeight = roundToMultipleOf5(result.height)
-        console.log('[Drilled Foundation Pile] Calculated height (only H, rounded to multiple of 5):', result.calculatedHeight)
     }
 
     // Check for dual diameter (e.g., "9-5/8" Øx0.545" & 13-3/8" Ø")
@@ -698,30 +681,24 @@ const parseBracketDimensions = (itemName) => {
     const parts = bracketContent.split('x').map(p => p.trim())
     const dims = parts.map((p, index) => {
         let trimmed = p.trim()
-        console.log(`[parseBracketDimensions] Part ${index} (before cleanup): "${trimmed}"`)
 
         // Handle case where there's a leading apostrophe before a digit (e.g., "'1'-0"" -> "1'-0"")
         trimmed = trimmed.replace(/^'+(?=\d)/, '')
 
-        console.log(`[parseBracketDimensions] Part ${index} (after cleanup): "${trimmed}"`)
-
         // Feet-inches format
         if (trimmed.includes("'")) {
             const result = parseDimension(trimmed)
-            console.log(`[parseBracketDimensions] Parsed "${trimmed}" as ${result} feet`)
             return result
         }
 
         // Inches-only format (e.g., 22")
         if (trimmed.match(/^\d+["']?$/)) {
             const result = parseFloat(trimmed.replace(/["']/g, '')) / 12
-            console.log(`[parseBracketDimensions] Parsed "${trimmed}" as ${result} feet (inches only)`)
             return result
         }
 
         // Fallback
         const result = parseDimension(trimmed)
-        console.log(`[parseBracketDimensions] Fallback parsed "${trimmed}" as ${result} feet`)
         return result
     })
 
@@ -779,9 +756,6 @@ export const parseStripFooting = (itemName) => {
         result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
         
         // Debug logging
-        console.log('[Strip Footing] Parsing:', itemName)
-        console.log('[Strip Footing] Extracted dims:', dims)
-        console.log('[Strip Footing] Width:', result.width, 'Height:', result.height)
     }
 
     return result
@@ -830,9 +804,6 @@ export const parsePilaster = (itemName) => {
         result.width = dims[1]   // Width (G) - already in feet
         result.height = dims[2]  // Height (H) - already in feet
         
-        console.log('[Pilaster] Parsing:', itemName)
-        console.log('[Pilaster] Extracted dims:', dims)
-        console.log('[Pilaster] Length:', result.length, 'Width:', result.width, 'Height:', result.height)
     }
 
     return result
