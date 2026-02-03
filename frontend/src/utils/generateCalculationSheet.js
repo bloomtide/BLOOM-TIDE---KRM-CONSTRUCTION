@@ -75,6 +75,7 @@ import {
   generateFoundationFormulas
 } from './processors/foundationProcessor'
 import { processExteriorSideItems, processExteriorSidePitItems, processNegativeSideWallItems, processNegativeSideSlabItems } from './processors/waterproofingProcessor'
+import { processSuperstructureItems } from './processors/superstructureProcessor'
 
 /**
  * Generates the Calculations Sheet structure based on the selected template
@@ -187,6 +188,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let exteriorSidePitItems = []
   let negativeSideWallItems = []
   let negativeSideSlabItems = []
+  let trenchingTakeoff = ''
+  let superstructureItems = { cipSlab8: [], cipRoofSlab8: [], balconySlab: [], terraceSlab: [], patchSlab: [], slabSteps: [], lwConcreteFill: [], slabOnMetalDeck: [], toppingSlab: [], thermalBreak: [], raisedSlab: { kneeWall: [], raisedSlab: [] }, builtUpSlab: { kneeWall: [], builtUpSlab: [] }, builtUpStair: { kneeWall: [], builtUpStairs: [] }, builtupRamps: { kneeWall: [], ramp: [] }, concreteHanger: [], shearWalls: [], parapetWalls: [], columnsTakeoff: [], concretePost: [], concreteEncasement: [], dropPanelBracket: [], dropPanelH: [], beams: [], curbs: [], concretePad: [], nonShrinkGrout: [], repairScope: [] }
   const foundationSlabRows = {} // Populated when building Foundation section; used by Waterproofing Exterior side pit items
   let rockExcavationTotals = { totalSQFT: 0, totalCY: 0 } // Initialize rock excavation totals
   let lineDrillTotalFT = 0 // Initialize line drill total FT
@@ -283,6 +286,19 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     exteriorSidePitItems = processExteriorSidePitItems(dataRows, headers)
     negativeSideWallItems = processNegativeSideWallItems(dataRows, headers)
     negativeSideSlabItems = processNegativeSideSlabItems(dataRows, headers)
+    superstructureItems = processSuperstructureItems(dataRows, headers)
+    const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
+    const totalIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'total')
+    if (digitizerIdx >= 0 && totalIdx >= 0) {
+      for (const row of dataRows) {
+        const particulars = row[digitizerIdx]
+        if (particulars && String(particulars).trim().toLowerCase() === 'trenching') {
+          const total = row[totalIdx]
+          trenchingTakeoff = total !== '' && total != null && total !== undefined ? parseFloat(total) : ''
+          break
+        }
+      }
+    }
   }
 
   // Generate the structure
@@ -296,11 +312,41 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
       sectionRow[10] = 'CY'        // Column K (LBS column becomes CY)
       sectionRow[11] = '1.3*CY'    // Column L (CY column becomes 1.3*CY)
     }
+    if (section.section === 'Trenching') {
+      sectionRow[2] = '' // formula =L{patchbackRow} applied in Spreadsheet
+      sectionRow[3] = 'CY'
+    }
 
     rows.push(sectionRow)
 
-    // Add empty row after section
-    rows.push(Array(template.columns.length).fill(''))
+    // Add empty row after section (or Trenching items)
+    if (section.section === 'Trenching') {
+      const trenchingHeaderRow = rows.length
+      rows.push(Array(template.columns.length).fill(''))
+      const demoRow = trenchingHeaderRow + 2
+      const trenchingItems = [
+        { name: 'Demo', takeoff: trenchingTakeoff, g: 2.5, hFormula: '4/12', unit: 'FT', isFirst: true },
+        { name: 'Excavation', takeoffRefRow: demoRow, g: 2.5, h: 2.5, unit: 'FT' },
+        { name: 'Backfill', takeoffRefRow: demoRow, g: 2.5, h: 1.67, unit: 'FT' },
+        { name: 'Gravel', takeoffRefRow: demoRow, g: 2.5, h: 0.5, unit: 'FT', lYellow: true },
+        { name: 'Patchback', takeoffRefRow: demoRow, g: 2.5, h: 0.33, unit: 'FT' }
+      ]
+      trenchingItems.forEach((item) => {
+        const itemRow = Array(template.columns.length).fill('')
+        itemRow[1] = item.name
+        if (item.isFirst && item.takeoff !== undefined && item.takeoff !== '') itemRow[2] = item.takeoff
+        itemRow[3] = item.unit || 'FT'
+        itemRow[6] = item.g
+        if (item.h !== undefined) itemRow[7] = item.h
+        if (item.hFormula) itemRow[7] = '' // formula applied in Spreadsheet
+        rows.push(itemRow)
+        formulas.push({ row: rows.length, itemType: 'trenching_item', section: 'trenching', ...item })
+      })
+      formulas.push({ row: trenchingHeaderRow, itemType: 'trenching_section_header', section: 'trenching', patchbackRow: rows.length })
+      // One empty row after Trenching is added by the final else (sections without subsections)
+    } else {
+      rows.push(Array(template.columns.length).fill(''))
+    }
 
     // Handle Demolition section with subsections
     if (section.section === 'Demolition') {
@@ -2739,6 +2785,602 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         }
 
         rows.push(Array(template.columns.length).fill(''))
+      })
+    } else if (section.section === 'Superstructure') {
+      section.subsections.forEach((subsection) => {
+        const subsectionRow = Array(template.columns.length).fill('')
+        subsectionRow[1] = subsection.name + ':'
+        rows.push(subsectionRow)
+
+        if (subsection.name === 'CIP Slabs') {
+          const slab8FirstRow = rows.length + 1
+          superstructureItems.cipSlab8.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'SQ FT'
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_item', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const slab8LastRow = rows.length
+          if (superstructureItems.cipSlab8.length > 0) {
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: slab8FirstRow, lastDataRow: slab8LastRow })
+          }
+          rows.push(Array(template.columns.length).fill(''))
+          const roofFirstRow = rows.length + 1
+          superstructureItems.cipRoofSlab8.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'SQ FT'
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_item', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const roofLastRow = rows.length
+          if (superstructureItems.cipRoofSlab8.length > 0) {
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: roofFirstRow, lastDataRow: roofLastRow })
+          }
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Balcony slab' && superstructureItems.balconySlab.length > 0) {
+          const firstRow = rows.length + 1
+          superstructureItems.balconySlab.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'SQ FT'
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_item', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({ row: rows.length, itemType: 'superstructure_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Terrace slab' && superstructureItems.terraceSlab.length > 0) {
+          const firstRow = rows.length + 1
+          superstructureItems.terraceSlab.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'SQ FT'
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_item', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({ row: rows.length, itemType: 'superstructure_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Patch slab' && superstructureItems.patchSlab.length > 0) {
+          const firstRow = rows.length + 1
+          superstructureItems.patchSlab.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'SQ FT'
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_item', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({ row: rows.length, itemType: 'superstructure_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Slab steps' && superstructureItems.slabSteps.length > 0) {
+          const firstRow = rows.length + 1
+          superstructureItems.slabSteps.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'FT'
+            if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_slab_step', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({ row: rows.length, itemType: 'superstructure_slab_steps_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'LW concrete fill' && superstructureItems.lwConcreteFill.length > 0) {
+          const firstRow = rows.length + 1
+          superstructureItems.lwConcreteFill.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'SQ FT'
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_lw_concrete_fill', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({ row: rows.length, itemType: 'superstructure_lw_concrete_fill_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Slab on metal deck' && superstructureItems.slabOnMetalDeck && superstructureItems.slabOnMetalDeck.length > 0) {
+          const groups = superstructureItems.slabOnMetalDeck
+          groups.forEach((group, groupIndex) => {
+            const itemFirstRow = rows.length + 1
+            group.items.forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'SQ FT'
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'superstructure_somd_item', section: 'superstructure', subsectionName: subsection.name })
+            })
+            const itemLastRow = rows.length
+            rows.push(Array(template.columns.length).fill(''))
+            const gen1Row = rows.length + 1
+            const gen1RowData = Array(template.columns.length).fill('')
+            gen1RowData[1] = group.particulars
+            gen1RowData[3] = 'SQ FT'
+            rows.push(gen1RowData)
+            formulas.push({ row: rows.length, itemType: 'superstructure_somd_gen1', section: 'superstructure', subsectionName: subsection.name, firstDataRow: itemFirstRow, lastDataRow: itemLastRow, heightFormula: `${group.firstValueInches}/12` })
+            const gen2Row = rows.length + 1
+            const gen2RowData = Array(template.columns.length).fill('')
+            gen2RowData[3] = 'SQ FT'
+            rows.push(gen2RowData)
+            formulas.push({ row: rows.length, itemType: 'superstructure_somd_gen2', section: 'superstructure', subsectionName: subsection.name, takeoffRefRow: gen1Row, heightValue: group.secondValueInches / 12 })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_somd_sum', section: 'superstructure', subsectionName: subsection.name, gen1Row, gen2Row })
+            rows.push(Array(template.columns.length).fill(''))
+            if (groupIndex < groups.length - 1) {
+              rows.push(Array(template.columns.length).fill(''))
+              rows.push(Array(template.columns.length).fill(''))
+            }
+          })
+        } else if (subsection.name === 'Topping slab' && superstructureItems.toppingSlab && superstructureItems.toppingSlab.length > 0) {
+          const firstRow = rows.length + 1
+          superstructureItems.toppingSlab.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'SQ FT'
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_topping_slab', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({ row: rows.length, itemType: 'superstructure_topping_slab_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Thermal break' && superstructureItems.thermalBreak && superstructureItems.thermalBreak.length > 0) {
+          const firstRow = rows.length + 1
+          superstructureItems.thermalBreak.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'FT'
+            if (item.parsed?.qty != null) itemRow[4] = item.parsed.qty
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_thermal_break', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({ row: rows.length, itemType: 'superstructure_thermal_break_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Raised slab' && superstructureItems.raisedSlab && (superstructureItems.raisedSlab.kneeWall.length > 0 || superstructureItems.raisedSlab.raisedSlab.length > 0)) {
+          const kneeWallFirstRow = rows.length + 1
+          superstructureItems.raisedSlab.kneeWall.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'FT'
+            if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_raised_knee_wall', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const hasKneeWall = superstructureItems.raisedSlab.kneeWall.length > 0
+          const hasRaisedSlab = superstructureItems.raisedSlab.raisedSlab.length > 0
+          if (hasKneeWall && hasRaisedSlab) {
+            const raisedSlabFirstRow = rows.length + 2
+            const styrofoamRow = Array(template.columns.length).fill('')
+            styrofoamRow[1] = 'Styrofoam'
+            rows.push(styrofoamRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_raised_styrofoam', section: 'superstructure', subsectionName: subsection.name, takeoffRefRow: raisedSlabFirstRow, heightRefRow: kneeWallFirstRow })
+          }
+          superstructureItems.raisedSlab.raisedSlab.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'SQ FT'
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_raised_slab', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Built-up slab' && superstructureItems.builtUpSlab && (superstructureItems.builtUpSlab.kneeWall.length > 0 || superstructureItems.builtUpSlab.builtUpSlab.length > 0)) {
+          const kneeWallFirstRow = rows.length + 1
+          superstructureItems.builtUpSlab.kneeWall.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'FT'
+            if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_builtup_knee_wall', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const hasKneeWall = superstructureItems.builtUpSlab.kneeWall.length > 0
+          const hasBuiltUpSlab = superstructureItems.builtUpSlab.builtUpSlab.length > 0
+          if (hasKneeWall && hasBuiltUpSlab) {
+            const builtUpSlabFirstRow = rows.length + 2
+            const styrofoamRow = Array(template.columns.length).fill('')
+            styrofoamRow[1] = 'Styrofoam'
+            rows.push(styrofoamRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_builtup_styrofoam', section: 'superstructure', subsectionName: subsection.name, takeoffRefRow: builtUpSlabFirstRow, heightRefRow: kneeWallFirstRow })
+          }
+          superstructureItems.builtUpSlab.builtUpSlab.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'SQ FT'
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_builtup_slab', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Builtup ramps' && superstructureItems.builtupRamps && (superstructureItems.builtupRamps.kneeWall.length > 0 || superstructureItems.builtupRamps.ramp.length > 0)) {
+          const kneeWallFirstRow = rows.length + 1
+          const kneeWalls = [...superstructureItems.builtupRamps.kneeWall].sort((a, b) => (a.parsed?.groupId ?? 1) - (b.parsed?.groupId ?? 1))
+          kneeWalls.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'FT'
+            if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_builtup_ramps_knee_wall', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const kneeLastRow = rows.length
+          if (kneeWalls.length > 0) {
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_builtup_ramps_knee_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: kneeWallFirstRow, lastDataRow: kneeLastRow })
+          }
+          rows.push(Array(template.columns.length).fill(''))
+          const ramps = [...superstructureItems.builtupRamps.ramp].sort((a, b) => (a.parsed?.groupId ?? 1) - (b.parsed?.groupId ?? 1))
+          const styroFirstRow = rows.length + 1
+          const rampFirstRow = rows.length + ramps.length + 3
+          ramps.forEach((_, idx) => {
+            const styrofoamRow = Array(template.columns.length).fill('')
+            const kneeWall = kneeWalls[idx]
+            const sizeInches = kneeWall?.parsed?.heightValue != null ? (kneeWall.parsed.heightValue * 12).toFixed(0) : ''
+            const groupId = kneeWall?.parsed?.groupId ?? ramps[idx].parsed?.groupId ?? idx + 1
+            styrofoamRow[1] = `Styrofoam ${sizeInches}" (${groupId})`
+            styrofoamRow[3] = 'SQ FT'
+            rows.push(styrofoamRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_builtup_ramps_styrofoam', section: 'superstructure', subsectionName: subsection.name, takeoffRefRow: rampFirstRow + idx, heightRefRow: kneeWallFirstRow + idx })
+          })
+          const rampFirstRowActual = rows.length + 2
+          if (ramps.length > 0) {
+            const styroSumRow = Array(template.columns.length).fill('')
+            rows.push(styroSumRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_builtup_ramps_styro_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: styroFirstRow, lastDataRow: styroFirstRow + ramps.length - 1 })
+          }
+          rows.push(Array(template.columns.length).fill(''))
+          ramps.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'SQ FT'
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_builtup_ramps_ramp', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const rampLastRow = rows.length
+          if (ramps.length > 0) {
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_builtup_ramps_ramp_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: rampFirstRowActual, lastDataRow: rampLastRow })
+          }
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Built-up stair' && superstructureItems.builtUpStair && (superstructureItems.builtUpStair.kneeWall.length > 0 || superstructureItems.builtUpStair.builtUpStairs.length > 0)) {
+          const kneeWallFirstRow = rows.length + 1
+          superstructureItems.builtUpStair.kneeWall.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'FT'
+            if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_builtup_stair_knee_wall', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const styrofoamRow = Array(template.columns.length).fill('')
+          styrofoamRow[1] = 'Styrofoam'
+          styrofoamRow[3] = 'SQ FT'
+          rows.push(styrofoamRow)
+          const stairFirstRow = rows.length + 1
+          const stairLastRowForJSum = rows.length + 1 + superstructureItems.builtUpStair.builtUpStairs.length
+          formulas.push({ row: rows.length, itemType: 'superstructure_builtup_stair_styrofoam', section: 'superstructure', subsectionName: subsection.name, takeoffJSumFirstRow: stairFirstRow, takeoffJSumLastRow: stairLastRowForJSum, heightRefRow: kneeWallFirstRow })
+          superstructureItems.builtUpStair.builtUpStairs.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'Treads'
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_builtup_stairs', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const stairSlabDataRow = Array(template.columns.length).fill('')
+          stairSlabDataRow[1] = 'Stair slab'
+          stairSlabDataRow[3] = 'FT'
+          rows.push(stairSlabDataRow)
+          formulas.push({ row: rows.length, itemType: 'superstructure_stair_slab', section: 'superstructure', subsectionName: subsection.name, takeoffRefRow: stairFirstRow, widthRefRow: stairFirstRow, heightValue: 0.5 })
+          const stairLastRow = rows.length
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({ row: rows.length, itemType: 'superstructure_builtup_stair_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: stairFirstRow, lastDataRow: stairLastRow })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Concrete hanger' && superstructureItems.concreteHanger && superstructureItems.concreteHanger.length > 0) {
+          const firstRow = rows.length + 1
+          superstructureItems.concreteHanger.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'EA'
+            if (item.parsed?.lengthValue != null) itemRow[5] = item.parsed.lengthValue
+            if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_concrete_hanger', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({ row: rows.length, itemType: 'superstructure_concrete_hanger_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Shear Walls' && superstructureItems.shearWalls && superstructureItems.shearWalls.length > 0) {
+          const shearGroups = {}
+          superstructureItems.shearWalls.forEach((item) => {
+            const w = item.parsed?.widthValue
+            const key = w != null ? String(w) : 'other'
+            if (!shearGroups[key]) shearGroups[key] = []
+            shearGroups[key].push(item)
+          })
+          const groupKeys = Object.keys(shearGroups)
+          groupKeys.forEach((key, groupIndex) => {
+            const groupItems = shearGroups[key]
+            const firstRow = rows.length + 1
+            groupItems.forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'FT'
+              if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+              if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'superstructure_shear_wall', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+            })
+            const lastRow = rows.length
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_shear_walls_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: lastRow })
+            rows.push(Array(template.columns.length).fill(''))
+            if (groupIndex < groupKeys.length - 1) {
+              rows.push(Array(template.columns.length).fill(''))
+            }
+          })
+        } else if (subsection.name === 'Parapet walls' && superstructureItems.parapetWalls && superstructureItems.parapetWalls.length > 0) {
+          const firstRow = rows.length + 1
+          superstructureItems.parapetWalls.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'FT'
+            if (item.parsed?.qty != null) itemRow[4] = item.parsed.qty
+            if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_parapet_wall', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({ row: rows.length, itemType: 'superstructure_parapet_walls_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Columns') {
+          const firstItem = superstructureItems.columnsTakeoff?.[0]
+          const takeoffRow = rows.length + 1
+          const row1 = Array(template.columns.length).fill('')
+          row1[1] = 'As per Takeoff count'
+          row1[2] = 160
+          row1[3] = 'EA'
+          rows.push(row1)
+          formulas.push({ row: rows.length, itemType: 'superstructure_columns_takeoff', parsedData: firstItem, section: 'superstructure', subsectionName: subsection.name })
+          rows.push(Array(template.columns.length).fill(''))
+          const row2 = Array(template.columns.length).fill('')
+          row2[1] = 'Final as per schedule count'
+          row2[3] = 'EA'
+          rows.push(row2)
+          formulas.push({ row: rows.length, itemType: 'superstructure_columns_final', section: 'superstructure', subsectionName: subsection.name, takeoffRefRow: takeoffRow })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Concrete post' && superstructureItems.concretePost && superstructureItems.concretePost.length > 0) {
+          const firstRow = rows.length + 1
+          superstructureItems.concretePost.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'EA'
+            if (item.parsed?.lengthValue != null) itemRow[5] = item.parsed.lengthValue
+            if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_concrete_post', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({ row: rows.length, itemType: 'superstructure_concrete_post_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Concrete encasement' && superstructureItems.concreteEncasement && superstructureItems.concreteEncasement.length > 0) {
+          const firstRow = rows.length + 1
+          superstructureItems.concreteEncasement.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'EA'
+            if (item.parsed?.lengthValue != null) itemRow[5] = item.parsed.lengthValue
+            if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_concrete_encasement', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({ row: rows.length, itemType: 'superstructure_concrete_encasement_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Drop panel' && (superstructureItems.dropPanelBracket?.length > 0 || superstructureItems.dropPanelH?.length > 0)) {
+          const firstRow = rows.length + 1
+          ;(superstructureItems.dropPanelBracket || []).forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'EA'
+            if (item.parsed?.lengthValue != null) itemRow[5] = item.parsed.lengthValue
+            if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_drop_panel_bracket', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          ;(superstructureItems.dropPanelH || []).forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'SQ FT'
+            if (item.parsed?.qty != null) itemRow[4] = item.parsed.qty
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_drop_panel_h', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const lastRow = rows.length
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({ row: rows.length, itemType: 'superstructure_drop_panel_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: lastRow })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Beams' && superstructureItems.beams && superstructureItems.beams.length > 0) {
+          const firstRow = rows.length + 1
+          superstructureItems.beams.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'FT'
+            if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_beam', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({ row: rows.length, itemType: 'superstructure_beams_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Curbs' && superstructureItems.curbs && superstructureItems.curbs.length > 0) {
+          const curbGroups = {}
+          superstructureItems.curbs.forEach((item) => {
+            const key = String(item.parsed?.widthValue ?? '')
+            if (!curbGroups[key]) curbGroups[key] = []
+            curbGroups[key].push(item)
+          })
+          Object.keys(curbGroups).forEach((key, groupIndex) => {
+            const groupItems = curbGroups[key]
+            const firstRow = rows.length + 1
+            groupItems.forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'FT'
+              if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+              if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'superstructure_curb', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+            })
+            const lastRow = rows.length
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_curbs_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: lastRow })
+            rows.push(Array(template.columns.length).fill(''))
+            if (groupIndex < Object.keys(curbGroups).length - 1) rows.push(Array(template.columns.length).fill(''))
+          })
+        } else if (subsection.name === 'Concrete pad' && superstructureItems.concretePad && superstructureItems.concretePad.length > 0) {
+          const padGroups = {}
+          superstructureItems.concretePad.forEach((item) => {
+            const h = item.parsed?.heightValue ?? 0
+            const key = String(h)
+            if (!padGroups[key]) padGroups[key] = []
+            padGroups[key].push(item)
+          })
+          Object.keys(padGroups).forEach((key, groupIndex) => {
+            const groupItems = padGroups[key]
+            const firstRow = rows.length + 1
+            groupItems.forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.parsed?.noBracket ? 'EA' : (item.unit || 'SQ FT')
+              if (item.parsed?.qty != null) itemRow[4] = item.parsed.qty
+              if (!item.parsed?.noBracket && item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'superstructure_concrete_pad', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+            })
+            const lastRow = rows.length
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_concrete_pad_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: lastRow })
+            rows.push(Array(template.columns.length).fill(''))
+            if (groupIndex < Object.keys(padGroups).length - 1) rows.push(Array(template.columns.length).fill(''))
+          })
+        } else if (subsection.name === 'Non-shrink grout' && superstructureItems.nonShrinkGrout && superstructureItems.nonShrinkGrout.length > 0) {
+          const firstRow = rows.length + 1
+          superstructureItems.nonShrinkGrout.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'EA'
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_non_shrink_grout', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({ row: rows.length, itemType: 'superstructure_non_shrink_grout_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Repair scope' && superstructureItems.repairScope && superstructureItems.repairScope.length > 0) {
+          superstructureItems.repairScope.forEach((item) => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || 'FT'
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'superstructure_repair_scope', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+          })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'For Superstructure Extra line item use this') {
+          const extraItems = [
+            { name: 'In SQ FT', unit: 'SQ FT', h: 1, type: 'superstructure_extra_sqft' },
+            { name: 'In FT', unit: 'FT', g: 1, h: 1, type: 'superstructure_extra_ft' },
+            { name: 'In EA', unit: 'EA', f: 1, g: 1, h: 1, type: 'superstructure_extra_ea' }
+          ]
+          extraItems.forEach(item => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.name
+            itemRow[2] = 1
+            itemRow[3] = item.unit
+            if (item.f) itemRow[5] = item.f
+            if (item.g) itemRow[6] = item.g
+            if (item.h) itemRow[7] = item.h
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: item.type, section: 'superstructure', subsectionName: subsection.name })
+          })
+          rows.push(Array(template.columns.length).fill(''))
+        } else {
+          rows.push(Array(template.columns.length).fill(''))
+        }
       })
     } else if (section.subsections && section.subsections.length > 0) {
       // Handle other sections with subsections

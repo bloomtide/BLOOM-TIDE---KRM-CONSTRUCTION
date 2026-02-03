@@ -1,0 +1,1851 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import { SpreadsheetComponent, SheetsDirective, SheetDirective, ColumnsDirective, ColumnDirective } from '@syncfusion/ej2-react-spreadsheet'
+import { FiEye, FiSettings, FiArrowLeft } from 'react-icons/fi'
+import toast from 'react-hot-toast'
+import Sidebar from '../components/Sidebar'
+import TopBar from '../components/TopBar'
+import RawDataPreviewModal from '../components/RawDataPreviewModal'
+import ProposalSettingsModal from '../components/ProposalSettingsModal'
+import { proposalAPI } from '../services/proposalService'
+import { generateCalculationSheet, generateColumnConfigs } from '../utils/generateCalculationSheet'
+import { generateDemolitionFormulas } from '../utils/processors/demolitionProcessor'
+import { generateExcavationFormulas } from '../utils/processors/excavationProcessor'
+import { generateRockExcavationFormulas } from '../utils/processors/rockExcavationProcessor'
+import { generateSoeFormulas } from '../utils/processors/soeProcessor'
+import { generateFoundationFormulas } from '../utils/processors/foundationProcessor'
+import { generateWaterproofingFormulas } from '../utils/processors/waterproofingProcessor'
+import { useSidebar } from '../context/SidebarContext'
+
+const ProposalDetail = () => {
+  const { proposalId } = useParams()
+  const navigate = useNavigate()
+  const { sidebarCollapsed, toggleSidebar } = useSidebar()
+  const [proposal, setProposal] = useState(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [calculationData, setCalculationData] = useState([])
+  const [formulaData, setFormulaData] = useState([])
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState(null)
+  const [isSpreadsheetLoading, setIsSpreadsheetLoading] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [saveError, setSaveError] = useState(null)
+  const spreadsheetRef = useRef(null)
+  const saveTimeoutRef = useRef(null)
+  const maxWaitTimeoutRef = useRef(null)
+  const hasLoadedFromJson = useRef(false)
+  const isSavingRef = useRef(false)
+  const pendingSaveRef = useRef(false)
+  const retryCountRef = useRef(0)
+  const lastSaveTimeRef = useRef(null)
+
+  // Load proposal data
+  useEffect(() => {
+    if (proposalId) {
+      fetchProposal()
+    }
+  }, [proposalId])
+
+  const fetchProposal = async () => {
+    try {
+      setIsLoading(true)
+      const response = await proposalAPI.getById(proposalId)
+      setProposal(response.proposal)
+    } catch (error) {
+      console.error('Error fetching proposal:', error)
+      toast.error('Error loading proposal')
+      navigate('/proposals')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Generate or load spreadsheet data
+  useEffect(() => {
+    if (!proposal) return
+
+    // If we have spreadsheet JSON saved, we'll load it after spreadsheet is created
+    // Otherwise, generate sheets from raw data
+    if (!proposal.spreadsheetJson && proposal.rawExcelData) {
+      const { headers, rows } = proposal.rawExcelData
+      const rawData = [headers, ...rows]
+
+      const template = proposal.template || 'capstone'
+      const result = generateCalculationSheet(template, rawData)
+      setCalculationData(result.rows)
+      setFormulaData(result.formulas)
+    }
+  }, [proposal])
+
+  // Apply data and formulas or load from JSON
+  useEffect(() => {
+    if (!spreadsheetRef.current || !proposal) return
+
+    // If we have saved JSON and haven't loaded it yet, load it
+    if (proposal.spreadsheetJson && !hasLoadedFromJson.current) {
+      setIsSpreadsheetLoading(true)
+      try {
+        // Handle both old format (just Workbook) and new format (full jsonObject with Workbook property)
+        const jsonData = proposal.spreadsheetJson.Workbook 
+          ? proposal.spreadsheetJson  // New format: full jsonObject
+          : { Workbook: proposal.spreadsheetJson }  // Old format: just Workbook, wrap it
+        spreadsheetRef.current.openFromJson({ file: jsonData })
+        hasLoadedFromJson.current = true
+        setLastSaved(new Date(proposal.updatedAt))
+
+        // Restore images after loading the spreadsheet JSON
+        // Images are stored separately since saveAsJson doesn't include them
+        if (proposal.images && proposal.images.length > 0) {
+          restoreImages(proposal.images)
+        }
+      } catch (error) {
+        toast.error('Error loading saved spreadsheet')
+      } finally {
+        setIsSpreadsheetLoading(false)
+      }
+    }
+    // Otherwise, apply generated data if we have it
+    else if (calculationData.length > 0 && !hasLoadedFromJson.current) {
+      applyDataToSpreadsheet()
+    }
+  }, [calculationData, formulaData, proposal])
+
+  const applyDataToSpreadsheet = async () => {
+    if (!spreadsheetRef.current) return
+
+    setIsSpreadsheetLoading(true)
+    // Use setTimeout to allow React to update the UI with loading state
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    try {
+      // Build complete spreadsheet model as JSON for batch loading
+      const spreadsheetModel = buildSpreadsheetModel()
+
+      // Load the entire spreadsheet at once - much faster than individual cell updates
+      spreadsheetRef.current.openFromJson({ file: spreadsheetModel })
+      hasLoadedFromJson.current = true
+
+      // Apply all formulas and styles after data is loaded
+      // Small delay to ensure spreadsheet is fully rendered
+      await new Promise(resolve => setTimeout(resolve, 100))
+      applyFormulasAndStyles()
+
+      // Trigger initial save to persist the styled spreadsheet
+      markDirtyAndScheduleSave()
+    } catch (error) {
+      console.error('Error loading spreadsheet model:', error)
+      toast.error('Error loading spreadsheet')
+    } finally {
+      setIsSpreadsheetLoading(false)
+    }
+  }
+
+  // Build spreadsheet model with raw data only (formulas and styles applied after loading)
+  const buildSpreadsheetModel = () => {
+    const calculationsRows = []
+    
+    // Build rows for Calculations sheet - raw data only
+    calculationData.forEach((row, rowIndex) => {
+      const cells = []
+      
+      row.forEach((cellValue, colIndex) => {
+        const cell = {}
+        
+        if (cellValue !== '' && cellValue !== null && cellValue !== undefined) {
+          // For Particulars column (B), prevent date conversion
+          if (colIndex === 1 && typeof cellValue === 'string') {
+            if (/^[A-Z]+-\d+/.test(cellValue) || /^\d+-\d+/.test(cellValue)) {
+              cell.value = "'" + cellValue
+            } else {
+              cell.value = cellValue
+            }
+            cell.format = '@' // Text format
+          } else {
+            cell.value = cellValue
+          }
+        }
+        
+        cells.push(cell)
+      })
+      
+      calculationsRows.push({ cells })
+    })
+
+    // Column configurations
+    const columns = generateColumnConfigs().map(config => ({ width: config.width }))
+
+    // Build the complete workbook model (no formulas - they're applied after loading)
+    const workbookModel = {
+      Workbook: {
+        sheets: [
+          {
+            name: 'Calculations',
+            rows: calculationsRows,
+            columns: columns
+          },
+          {
+            name: 'Proposal',
+            rows: [],
+            columns: []
+          }
+        ],
+        activeSheetIndex: 0
+      }
+    }
+
+    return workbookModel
+  }
+
+  // NOTE: The complete formula and styling logic from Spreadsheet.jsx needs to be implemented here.
+  // Due to the size (~1900 lines), this is a reference to copy the logic from:
+  // frontend/src/pages/Spreadsheet.jsx lines 81-2169
+  // 
+  // The applyFormulasAndStyles function should:
+  // 1. Apply formulas using spreadsheet.updateCell({ formula: ... })
+  // 2. Apply styles using spreadsheet.cellFormat({...})
+  // 3. Handle all sections: demolition, excavation, rock_excavation, soe, foundation, waterproofing, superstructure, trenching
+  // 
+  // For now, using a simplified version - copy the full logic from Spreadsheet.jsx for production
+  const applyFormulasAndStyles = () => {
+    if (!spreadsheetRef.current) return
+    const spreadsheet = spreadsheetRef.current
+
+    // Deferred foundation sum formulas
+    const deferredFoundationSumL = []
+
+    // Apply formulas from formulaData
+    formulaData.forEach((formulaInfo) => {
+      const { row, itemType, parsedData, section, subsection } = formulaInfo
+
+      let formulas
+      try {
+        if (section === 'demolition') {
+          if (itemType === 'demolition_sum') {
+            const { firstDataRow, lastDataRow, subsection: subName } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            if (subName === 'Demo isolated footing') {
+              spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            }
+            return
+          }
+
+          if (itemType === 'demo_extra_sqft') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+
+          if (itemType === 'demo_extra_ft') {
+            spreadsheet.updateCell({ formula: `=C${row}*G${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+
+          if (itemType === 'demo_extra_ea') {
+            spreadsheet.updateCell({ formula: `=C${row}*F${row}*G${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+
+          formulas = generateDemolitionFormulas(itemType === 'demolition_item' ? subsection : itemType, row, parsedData)
+        } else if (section === 'excavation') {
+          if (itemType === 'excavation_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+
+          if (itemType === 'excavation_havg') {
+            const { sumRowNumber } = formulaInfo
+            spreadsheet.updateCell({ formula: `=(L${sumRowNumber}*27)/J${sumRowNumber}` }, `C${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'normal', fontStyle: 'normal' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#000000', fontWeight: 'normal' }, `C${row}`)
+            return
+          }
+
+          if (itemType === 'backfill_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+
+          if (itemType === 'mud_slab_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+
+          if (itemType === 'backfill_extra_sqft') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+
+          if (itemType === 'backfill_extra_ft') {
+            spreadsheet.updateCell({ formula: `=C${row}*G${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+
+          if (itemType === 'backfill_extra_ea') {
+            spreadsheet.updateCell({ formula: `=C${row}*F${row}*G${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+
+          if (itemType === 'soil_exc_extra_sqft') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `K${row}`)
+            spreadsheet.updateCell({ formula: `=K${row}*1.3` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', textDecoration: 'line-through' }, `K${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+
+          if (itemType === 'soil_exc_extra_ft') {
+            spreadsheet.updateCell({ formula: `=C${row}*G${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `K${row}`)
+            spreadsheet.updateCell({ formula: `=K${row}*1.3` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', textDecoration: 'line-through' }, `K${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+
+          if (itemType === 'soil_exc_extra_ea') {
+            spreadsheet.updateCell({ formula: `=C${row}*F${row}*G${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `K${row}`)
+            spreadsheet.updateCell({ formula: `=K${row}*1.3` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', textDecoration: 'line-through' }, `K${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+
+          formulas = generateExcavationFormulas(itemType === 'excavation_item' ? (parsedData?.itemType || itemType) : itemType, row, parsedData)
+        } else if (section === 'rock_excavation') {
+          if (itemType === 'rock_excavation_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+
+          if (itemType === 'rock_excavation_havg') {
+            const { sumRowNumber } = formulaInfo
+            spreadsheet.updateCell({ formula: `=(L${sumRowNumber}*27)/J${sumRowNumber}` }, `C${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'normal', fontStyle: 'normal' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#000000', fontWeight: 'normal' }, `C${row}`)
+            return
+          }
+
+          if (itemType === 'line_drill_sub_header') {
+            spreadsheet.cellFormat({ color: '#000000', fontStyle: 'italic', fontWeight: 'normal' }, `E${row}`)
+            spreadsheet.cellFormat({ color: '#000000', fontStyle: 'italic', fontWeight: 'normal' }, `H${row}`)
+            return
+          }
+
+          if (itemType === 'line_drill_concrete_pier') {
+            const { refRow } = formulaInfo
+            if (refRow) {
+              spreadsheet.updateCell({ formula: `=B${refRow}` }, `B${row}`)
+              spreadsheet.updateCell({ formula: `=((G${refRow}+F${refRow})*2)*C${refRow}` }, `C${row}`)
+              spreadsheet.updateCell({ formula: `=H${refRow}` }, `H${row}`)
+            }
+            spreadsheet.updateCell({ value: 'FT' }, `D${row}`)
+            spreadsheet.updateCell({ formula: `=ROUNDUP(H${row}/2,0)` }, `E${row}`)
+            spreadsheet.updateCell({ formula: `=E${row}*C${row}` }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+
+          if (itemType === 'line_drill_sewage_pit') {
+            const { refRow } = formulaInfo
+            if (refRow) {
+              spreadsheet.updateCell({ formula: `=B${refRow}` }, `B${row}`)
+              spreadsheet.updateCell({ formula: `=SQRT(C${refRow})*4` }, `C${row}`)
+              spreadsheet.updateCell({ formula: `=H${refRow}` }, `H${row}`)
+            }
+            spreadsheet.updateCell({ value: 'FT' }, `D${row}`)
+            spreadsheet.updateCell({ formula: `=ROUNDUP(H${row}/2,0)` }, `E${row}`)
+            spreadsheet.updateCell({ formula: `=E${row}*C${row}` }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+
+          if (itemType === 'line_drill_sump_pit') {
+            const { refRow } = formulaInfo
+            if (refRow) {
+              spreadsheet.updateCell({ formula: `=B${refRow}` }, `B${row}`)
+              spreadsheet.updateCell({ formula: `=C${refRow}*8` }, `C${row}`)
+            }
+            spreadsheet.updateCell({ value: 'FT' }, `D${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+
+          if (itemType === 'line_drilling') {
+            const rockFormulas = generateRockExcavationFormulas(itemType, row, parsedData)
+            if (rockFormulas.qty) spreadsheet.updateCell({ formula: `=${rockFormulas.qty}` }, `E${row}`)
+            if (rockFormulas.ft) spreadsheet.updateCell({ formula: `=${rockFormulas.ft}` }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+
+          if (itemType === 'line_drill_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})*2` }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            return
+          }
+
+          if (itemType === 'rock_exc_extra_sqft') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+
+          if (itemType === 'rock_exc_extra_ft') {
+            spreadsheet.updateCell({ formula: `=C${row}*G${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+
+          if (itemType === 'rock_exc_extra_ea') {
+            spreadsheet.updateCell({ formula: `=C${row}*F${row}*G${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+
+          formulas = generateRockExcavationFormulas(itemType === 'rock_excavation_item' ? (parsedData?.itemType || itemType) : itemType, row, parsedData)
+        } else if (section === 'soe') {
+          // SOE section - use generateSoeFormulas for items
+          const soeItemTypes = ['soldier_pile_item', 'soe_generic_item', 'backpacking_item', 'supporting_angle', 'parging', 'heel_block', 'underpinning', 'shims', 'rock_anchor', 'rock_bolt', 'anchor', 'tie_back', 'concrete_soil_retention_pier', 'guide_wall', 'dowel_bar', 'rock_pin', 'shotcrete', 'permission_grouting', 'button', 'rock_stabilization', 'form_board']
+          
+          if (soeItemTypes.includes(itemType)) {
+            const soeFormulas = generateSoeFormulas(itemType, row, parsedData || formulaInfo)
+            if (soeFormulas.takeoff) spreadsheet.updateCell({ formula: `=${soeFormulas.takeoff}` }, `C${row}`)
+            if (soeFormulas.length !== undefined) {
+              if (typeof soeFormulas.length === 'string') {
+                spreadsheet.updateCell({ formula: `=${soeFormulas.length}` }, `F${row}`)
+              } else {
+                spreadsheet.updateCell({ value: soeFormulas.length }, `F${row}`)
+              }
+            }
+            if (soeFormulas.width !== undefined) {
+              if (typeof soeFormulas.width === 'string') {
+                spreadsheet.updateCell({ formula: `=${soeFormulas.width}` }, `G${row}`)
+              } else {
+                spreadsheet.updateCell({ value: soeFormulas.width }, `G${row}`)
+              }
+            }
+            if (soeFormulas.height !== undefined) {
+              if (typeof soeFormulas.height === 'string') {
+                spreadsheet.updateCell({ formula: `=${soeFormulas.height}` }, `H${row}`)
+              } else {
+                spreadsheet.updateCell({ value: soeFormulas.height }, `H${row}`)
+              }
+            }
+            if (soeFormulas.qty !== undefined) {
+              if (typeof soeFormulas.qty === 'string') {
+                spreadsheet.updateCell({ formula: `=${soeFormulas.qty}` }, `E${row}`)
+              } else {
+                spreadsheet.updateCell({ value: soeFormulas.qty }, `E${row}`)
+              }
+            }
+            if (soeFormulas.ft) {
+              spreadsheet.updateCell({ formula: `=${soeFormulas.ft}` }, `I${row}`)
+            }
+            if (soeFormulas.sqFt) {
+              spreadsheet.updateCell({ formula: `=${soeFormulas.sqFt}` }, `J${row}`)
+            }
+            if (soeFormulas.lbs) {
+              spreadsheet.updateCell({ formula: `=${soeFormulas.lbs}` }, `K${row}`)
+            }
+            if (soeFormulas.cy) {
+              spreadsheet.updateCell({ formula: `=${soeFormulas.cy}` }, `L${row}`)
+            }
+            if (soeFormulas.qtyFinal) {
+              spreadsheet.updateCell({ formula: `=${soeFormulas.qtyFinal}` }, `M${row}`)
+            }
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            
+            if (itemType === 'backpacking_item') {
+              spreadsheet.cellFormat({ color: '#000000' }, `C${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            }
+            if (itemType === 'shims') {
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            }
+            return
+          }
+
+          if (itemType === 'soldier_pile_group_sum' || itemType === 'soe_generic_sum') {
+            const { firstDataRow, lastDataRow, subsectionName } = formulaInfo
+            const ftSumSubsections = ['Rock anchors', 'Rock bolts', 'Anchor', 'Tie back', 'Dowel bar', 'Rock pins', 'Shotcrete', 'Permission grouting', 'Form board', 'Guide wall']
+            const sqFtSubsections = ['Sheet pile', 'Timber lagging', 'Timber sheeting', 'Parging', 'Heel blocks', 'Underpinning', 'Concrete soil retention piers', 'Guide wall', 'Shotcrete', 'Permission grouting', 'Buttons', 'Form board', 'Rock stabilization']
+            const lbsSubsections = ['Secondary secant piles', 'Sheet pile', 'Waler', 'Raker', 'Upper Raker', 'Lower Raker', 'Stand off', 'Kicker', 'Channel', 'Roll chock', 'Stud beam', 'Inner corner brace', 'Knee brace', 'Supporting angle']
+            const qtySubsections = ['Primary secant piles', 'Secondary secant piles', 'Tangent piles', 'Waler', 'Raker', 'Upper Raker', 'Lower Raker', 'Stand off', 'Kicker', 'Channel', 'Roll chock', 'Stud beam', 'Inner corner brace', 'Knee brace', 'Supporting angle', 'Heel blocks', 'Underpinning', 'Rock anchors', 'Rock bolts', 'Anchor', 'Tie back', 'Concrete soil retention piers', 'Dowel bar', 'Rock pins', 'Buttons']
+            const cySubsections = ['Heel blocks', 'Underpinning', 'Concrete soil retention piers', 'Guide wall', 'Shotcrete', 'Buttons', 'Rock stabilization']
+
+            if (subsectionName !== 'Heel blocks' && (ftSumSubsections.includes(subsectionName) || !['Concrete soil retention piers', 'Buttons', 'Rock stabilization'].includes(subsectionName))) {
+              spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            }
+            if (sqFtSubsections.includes(subsectionName)) {
+              spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            }
+            if (itemType === 'soldier_pile_group_sum' || lbsSubsections.includes(subsectionName)) {
+              spreadsheet.updateCell({ formula: `=SUM(K${firstDataRow}:K${lastDataRow})` }, `K${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `K${row}`)
+            }
+            if (itemType === 'soldier_pile_group_sum' || qtySubsections.includes(subsectionName)) {
+              spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            }
+            if (cySubsections.includes(subsectionName)) {
+              spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            }
+            return
+          }
+        } else if (section === 'foundation') {
+          // Foundation section continues in the full Spreadsheet.jsx - copy all the logic
+          // For brevity, using generateFoundationFormulas for items
+          if (itemType === 'foundation_sum') {
+            const { firstDataRow, lastDataRow, subsectionName, isDualDiameter, excludeISum, excludeJSum, cySumOnly, lSumRange } = formulaInfo
+            
+            if (!excludeISum) {
+              const ftSumSubsections = ['Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile', 'Grade beams', 'Tie beam', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Drilled foundation pile', 'Strip Footings', 'Stem wall', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Grease trap', 'House trap', 'SOG', 'Stairs on grade Stairs', 'Electric conduit']
+              if (ftSumSubsections.includes(subsectionName)) {
+                spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+                spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+              }
+            }
+
+            if (subsectionName === 'Drilled foundation pile' && isDualDiameter) {
+              spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+              spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            }
+
+            if (!excludeJSum && !cySumOnly) {
+              const sqFtSubsections = ['Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Strip Footings', 'Grade beams', 'Tie beam', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Stem wall', 'Elevator Pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Grease trap', 'House trap', 'Mat slab', 'SOG', 'Stairs on grade Stairs']
+              if (sqFtSubsections.includes(subsectionName)) {
+                spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+                spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+              }
+            }
+
+            const lbsSubsections = ['Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile']
+            if (lbsSubsections.includes(subsectionName)) {
+              spreadsheet.updateCell({ formula: `=SUM(K${firstDataRow}:K${lastDataRow})` }, `K${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `K${row}`)
+            }
+
+            const qtySubsections = ['Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile', 'Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Stairs on grade Stairs']
+            if (qtySubsections.includes(subsectionName)) {
+              spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            }
+
+            // CY sum
+            if (cySumOnly) {
+              spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            } else if (!formulaInfo.excludeLSum) {
+              const cySubsections = ['Pile caps', 'Strip Footings', 'Isolated Footings', 'Pilaster', 'Grade beams', 'Tie beam', 'Thickened slab', 'Pier', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Stem wall', 'Elevator Pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Grease trap', 'House trap', 'Mat slab', 'SOG', 'Stairs on grade Stairs']
+              if (cySubsections.includes(subsectionName)) {
+                const lFormula = lSumRange ? `=SUM(${lSumRange})` : `=SUM(L${firstDataRow}:L${lastDataRow})`
+                deferredFoundationSumL.push({ row, lFormula })
+                spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+              }
+            }
+            return
+          }
+
+          if (itemType === 'foundation_section_cy_sum') {
+            const { sumRows } = formulaInfo
+            if (sumRows && sumRows.length > 0) {
+              const sumRefs = sumRows.map((r) => `L${r}`).join(',')
+              spreadsheet.updateCell({ formula: `=SUM(${sumRefs})` }, `C${row}`)
+            }
+            return
+          }
+
+          if (itemType === 'foundation_extra_sqft') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+
+          if (itemType === 'foundation_extra_ft') {
+            spreadsheet.updateCell({ formula: `=C${row}*G${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+
+          if (itemType === 'foundation_extra_ea') {
+            spreadsheet.updateCell({ formula: `=C${row}*F${row}*G${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+
+          // Foundation items using generateFoundationFormulas
+          const foundationItemTypes = ['drilled_foundation_pile', 'helical_foundation_pile', 'driven_foundation_pile', 'stelcor_drilled_displacement_pile', 'cfa_pile', 'pile_cap', 'strip_footing', 'isolated_footing', 'pilaster', 'grade_beam', 'tie_beam', 'thickened_slab', 'buttress_takeoff', 'buttress_final', 'pier', 'corbel', 'linear_wall', 'foundation_wall', 'retaining_wall', 'barrier_wall', 'stem_wall', 'elevator_pit', 'detention_tank', 'duplex_sewage_ejector_pit', 'deep_sewage_ejector_pit', 'grease_trap', 'house_trap', 'mat_slab', 'mud_slab_foundation', 'sog', 'stairs_on_grade', 'electric_conduit']
+          if (foundationItemTypes.includes(itemType)) {
+            const foundationFormulas = generateFoundationFormulas(itemType, row, parsedData || formulaInfo)
+            if (foundationFormulas.takeoff) spreadsheet.updateCell({ formula: `=${foundationFormulas.takeoff}` }, `C${row}`)
+            if (foundationFormulas.length != null) {
+              if (typeof foundationFormulas.length === 'string') {
+                spreadsheet.updateCell({ formula: `=${foundationFormulas.length}` }, `F${row}`)
+              } else {
+                spreadsheet.updateCell({ value: foundationFormulas.length }, `F${row}`)
+              }
+            }
+            if (foundationFormulas.width != null) {
+              if (typeof foundationFormulas.width === 'string') {
+                spreadsheet.updateCell({ formula: `=${foundationFormulas.width}` }, `G${row}`)
+              } else {
+                spreadsheet.updateCell({ value: foundationFormulas.width }, `G${row}`)
+              }
+            }
+            if (foundationFormulas.height != null) {
+              if (typeof foundationFormulas.height === 'string') {
+                spreadsheet.updateCell({ formula: `=${foundationFormulas.height}` }, `H${row}`)
+              } else {
+                spreadsheet.updateCell({ value: foundationFormulas.height }, `H${row}`)
+              }
+            }
+            if (foundationFormulas.qty !== undefined) {
+              if (typeof foundationFormulas.qty === 'string') {
+                spreadsheet.updateCell({ formula: `=${foundationFormulas.qty}` }, `E${row}`)
+              } else {
+                spreadsheet.updateCell({ value: foundationFormulas.qty }, `E${row}`)
+              }
+            }
+            if (foundationFormulas.ft) spreadsheet.updateCell({ formula: `=${foundationFormulas.ft}` }, `I${row}`)
+            if (foundationFormulas.sqFt) spreadsheet.updateCell({ formula: `=${foundationFormulas.sqFt}` }, `J${row}`)
+            if (foundationFormulas.sqFt2) spreadsheet.updateCell({ formula: `=${foundationFormulas.sqFt2}` }, `J${row}`)
+            if (foundationFormulas.lbs) spreadsheet.updateCell({ formula: `=${foundationFormulas.lbs}` }, `K${row}`)
+            if (foundationFormulas.cy) spreadsheet.updateCell({ formula: `=${foundationFormulas.cy}` }, `L${row}`)
+            if (foundationFormulas.qtyFinal) spreadsheet.updateCell({ formula: `=${foundationFormulas.qtyFinal}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+        } else if (section === 'waterproofing') {
+          // Waterproofing formulas
+          const waterproofingFormulas = generateWaterproofingFormulas(itemType, row, parsedData || formulaInfo)
+          if (waterproofingFormulas.ft) spreadsheet.updateCell({ formula: `=${waterproofingFormulas.ft}` }, `I${row}`)
+          if (waterproofingFormulas.height != null) spreadsheet.updateCell({ value: waterproofingFormulas.height }, `H${row}`)
+          if (waterproofingFormulas.heightFormula) spreadsheet.updateCell({ formula: `=${waterproofingFormulas.heightFormula}` }, `H${row}`)
+          if (waterproofingFormulas.sqFt) spreadsheet.updateCell({ formula: `=${waterproofingFormulas.sqFt}` }, `J${row}`)
+          if (waterproofingFormulas.cy) spreadsheet.updateCell({ formula: `=${waterproofingFormulas.cy}` }, `L${row}`)
+          return
+        } else if (section === 'trenching') {
+          if (itemType === 'trenching_section_header') {
+            const { patchbackRow } = formulaInfo
+            if (patchbackRow != null) {
+              spreadsheet.updateCell({ formula: `=L${patchbackRow}` }, `C${row}`)
+            }
+            return
+          }
+          if (itemType === 'trenching_item') {
+            const { takeoffRefRow, hFormula, lYellow } = formulaInfo
+            if (takeoffRefRow != null) {
+              spreadsheet.updateCell({ formula: `=C${takeoffRefRow}` }, `C${row}`)
+            }
+            if (hFormula) {
+              spreadsheet.updateCell({ formula: `=${hFormula}` }, `H${row}`)
+            }
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*G${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            if (lYellow) {
+              spreadsheet.cellFormat({ backgroundColor: '#FFF2CC' }, `L${row}`)
+            }
+            return
+          }
+        } else if (section === 'superstructure') {
+          // Superstructure section - complete formula logic from Spreadsheet.jsx
+          if (itemType === 'superstructure_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_slab_steps_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_lw_concrete_fill_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_item') {
+            const parsed = parsedData || formulaInfo
+            const heightFormula = parsed?.parsed?.heightFormula
+            const heightValue = parsed?.parsed?.heightValue
+            if (heightFormula) spreadsheet.updateCell({ formula: `=${heightFormula}` }, `H${row}`)
+            if (heightValue != null) spreadsheet.updateCell({ value: heightValue }, `H${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_slab_step') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_lw_concrete_fill') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_somd_item') {
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_somd_gen1') {
+            const { firstDataRow, lastDataRow, heightFormula } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(C${firstDataRow}:C${lastDataRow})` }, `C${row}`)
+            if (heightFormula) spreadsheet.updateCell({ formula: `=${heightFormula}` }, `H${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=(J${row}*H${row})/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ backgroundColor: '#DDEBF7' }, `H${row}`)
+            return
+          }
+          if (itemType === 'superstructure_somd_gen2') {
+            const { takeoffRefRow, heightValue } = formulaInfo
+            if (takeoffRefRow != null) spreadsheet.updateCell({ formula: `=C${takeoffRefRow}` }, `C${row}`)
+            if (heightValue != null) spreadsheet.updateCell({ value: heightValue }, `H${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=(J${row}*H${row})/27/2` }, `L${row}`)
+            spreadsheet.cellFormat({ backgroundColor: '#DDEBF7' }, `H${row}`)
+            return
+          }
+          if (itemType === 'superstructure_somd_sum') {
+            const { gen1Row, gen2Row } = formulaInfo
+            if (gen1Row != null) spreadsheet.updateCell({ formula: `=J${gen1Row}` }, `J${row}`)
+            if (gen1Row != null && gen2Row != null) spreadsheet.updateCell({ formula: `=SUM(L${gen1Row}:L${gen2Row})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_topping_slab') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_topping_slab_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_thermal_break') {
+            const parsed = parsedData || formulaInfo
+            const qty = parsed?.parsed?.qty
+            if (qty != null) {
+              spreadsheet.updateCell({ formula: `=C${row}*E${row}` }, `I${row}`)
+            } else {
+              spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            }
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_thermal_break_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            return
+          }
+          if (itemType === 'superstructure_raised_knee_wall') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_raised_styrofoam') {
+            const { takeoffRefRow, heightRefRow } = formulaInfo
+            if (takeoffRefRow != null) spreadsheet.updateCell({ formula: `=C${takeoffRefRow}` }, `C${row}`)
+            if (heightRefRow != null) spreadsheet.updateCell({ formula: `=H${heightRefRow}` }, `H${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_raised_slab') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_raised_slab_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_builtup_knee_wall') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_builtup_styrofoam') {
+            const { takeoffRefRow, heightRefRow } = formulaInfo
+            if (takeoffRefRow != null) spreadsheet.updateCell({ formula: `=C${takeoffRefRow}` }, `C${row}`)
+            if (heightRefRow != null) spreadsheet.updateCell({ formula: `=H${heightRefRow}` }, `H${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_builtup_slab') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_builtup_slab_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_builtup_ramps_knee_wall') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_builtup_ramps_knee_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_builtup_ramps_styrofoam') {
+            const { takeoffRefRow, heightRefRow } = formulaInfo
+            if (takeoffRefRow != null) spreadsheet.updateCell({ formula: `=C${takeoffRefRow}` }, `C${row}`)
+            if (heightRefRow != null) spreadsheet.updateCell({ formula: `=H${heightRefRow}` }, `H${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_builtup_ramps_styro_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_builtup_ramps_ramp') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_builtup_ramps_ramp_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_builtup_stair_knee_wall') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_builtup_stair_styrofoam') {
+            const { takeoffJSumFirstRow, takeoffJSumLastRow, heightRefRow } = formulaInfo
+            if (takeoffJSumFirstRow != null && takeoffJSumLastRow != null) {
+              spreadsheet.updateCell({ formula: `=SUM(J${takeoffJSumFirstRow}:J${takeoffJSumLastRow})` }, `C${row}`)
+            }
+            if (heightRefRow != null) spreadsheet.updateCell({ formula: `=H${heightRefRow}` }, `H${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_builtup_stairs') {
+            spreadsheet.updateCell({ formula: `=11/12` }, `F${row}`)
+            spreadsheet.updateCell({ formula: `=7/12` }, `H${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}*G${row}*F${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_stair_slab') {
+            const { takeoffRefRow, widthRefRow, heightValue } = formulaInfo
+            if (takeoffRefRow != null) spreadsheet.updateCell({ formula: `=C${takeoffRefRow}*1.3` }, `C${row}`)
+            if (widthRefRow != null) spreadsheet.updateCell({ formula: `=G${widthRefRow}` }, `G${row}`)
+            if (heightValue != null) spreadsheet.updateCell({ value: heightValue }, `H${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_builtup_stair_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+          if (itemType === 'superstructure_concrete_hanger') {
+            spreadsheet.updateCell({ formula: `=G${row}*F${row}*C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_concrete_hanger_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+          if (itemType === 'superstructure_shear_wall') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_shear_walls_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_parapet_wall') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_parapet_walls_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_columns_takeoff') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', textDecoration: 'line-through' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#000000', textDecoration: 'line-through' }, `C${row}`)
+            spreadsheet.cellFormat({ color: '#000000', textDecoration: 'line-through' }, `D${row}`)
+            spreadsheet.cellFormat({ color: '#000000', textDecoration: 'line-through' }, `M${row}`)
+            return
+          }
+          if (itemType === 'superstructure_columns_final') {
+            const { takeoffRefRow } = formulaInfo
+            if (takeoffRefRow != null) spreadsheet.updateCell({ formula: `=C${takeoffRefRow}` }, `C${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'normal' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'normal' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'normal' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+          if (itemType === 'superstructure_concrete_post') {
+            spreadsheet.updateCell({ formula: `=G${row}*H${row}*C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*F${row}/27` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_concrete_post_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+          if (itemType === 'superstructure_concrete_encasement') {
+            spreadsheet.updateCell({ formula: `=G${row}*H${row}*C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*F${row}/27` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_concrete_encasement_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+          if (itemType === 'superstructure_drop_panel_bracket') {
+            spreadsheet.updateCell({ formula: `=G${row}*H${row}*C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*F${row}/27` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_drop_panel_h') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=E${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_drop_panel_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+          if (itemType === 'superstructure_beam') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_beams_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_curb') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_curbs_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'superstructure_concrete_pad') {
+            const noBracket = formulaInfo.parsedData?.parsed?.noBracket
+            if (noBracket) {
+              spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            } else {
+              spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+              spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+              spreadsheet.updateCell({ formula: `=E${row}` }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            }
+            return
+          }
+          if (itemType === 'superstructure_concrete_pad_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+          if (itemType === 'superstructure_non_shrink_grout') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'superstructure_non_shrink_grout_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+          if (itemType === 'superstructure_repair_scope') {
+            const subType = formulaInfo.parsedData?.parsed?.itemSubType
+            if (subType === 'wall') spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            else if (subType === 'slab') spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            else if (subType === 'column') spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'normal', fontStyle: 'normal' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'normal', fontStyle: 'normal' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'normal', fontStyle: 'normal' }, `M${row}`)
+            return
+          }
+          if (itemType === 'superstructure_repair_scope_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            return
+          }
+          if (itemType === 'superstructure_extra_sqft') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+          if (itemType === 'superstructure_extra_ft') {
+            spreadsheet.updateCell({ formula: `=C${row}*G${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+          if (itemType === 'superstructure_extra_ea') {
+            spreadsheet.updateCell({ formula: `=C${row}*F${row}*G${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+        }
+
+        // Apply generic formulas if we got them from generators
+        if (formulas) {
+          if (formulas.qty) spreadsheet.updateCell({ formula: `=${formulas.qty}` }, `E${row}`)
+          if (formulas.ft) spreadsheet.updateCell({ formula: `=${formulas.ft}` }, `I${row}`)
+          if (formulas.sqFt) spreadsheet.updateCell({ formula: `=${formulas.sqFt}` }, `J${row}`)
+          if (formulas.lbs) {
+            spreadsheet.updateCell({ formula: `=${formulas.lbs}` }, `K${row}`)
+            if (section === 'excavation' && parsedData?.subsection !== 'backfill') {
+              spreadsheet.cellFormat({ textDecoration: 'line-through' }, `K${row}`)
+            }
+          }
+          if (formulas.cy) spreadsheet.updateCell({ formula: `=${formulas.cy}` }, `L${row}`)
+          if (formulas.qtyFinal) spreadsheet.updateCell({ formula: `=${formulas.qtyFinal}` }, `M${row}`)
+        }
+      } catch (error) {
+        console.error(`Error applying formula at row ${row}:`, error)
+      }
+    })
+
+    // Apply deferred foundation sum L formulas
+    deferredFoundationSumL.forEach(({ row: r, lFormula }) => {
+      try {
+        spreadsheet.updateCell({ formula: lFormula }, `L${r}`)
+      } catch (e) {
+        console.error(`Error applying deferred Foundation sum L at row ${r}:`, e)
+      }
+    })
+
+    // Apply formatting
+    try {
+      // Format header row - Estimate column (A) has yellow background
+      spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'center', backgroundColor: '#FFFF00', color: '#000000' }, 'A1')
+      spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'center', color: '#000000' }, 'B1:M1')
+
+      // Format section and subsection headers
+      calculationData.forEach((row, rowIndex) => {
+        const rowNum = rowIndex + 1
+        
+        if (row[0] && !row[1]) {
+          const sectionName = String(row[0])
+          let backgroundColor = '#F4B084'
+          if (sectionName === 'Demolition') backgroundColor = '#E5B7AF'
+          else if (['Excavation', 'Rock Excavation', 'SOE', 'Foundation', 'Waterproofing', 'Trenching', 'Superstructure', 'B.P.P. Alternate #2 scope', 'Civil / Sitework'].includes(sectionName)) {
+            backgroundColor = '#C6E0B4'
+          }
+          spreadsheet.cellFormat({ fontWeight: 'bold', backgroundColor, fontSize: '11pt' }, `A${rowNum}:M${rowNum}`)
+          if (sectionName === 'Foundation' || sectionName === 'Trenching') {
+            spreadsheet.cellFormat({ fontWeight: 'normal', backgroundColor, fontSize: '11pt' }, `C${rowNum}:D${rowNum}`)
+          }
+        }
+        
+        if (!row[0] && row[1]) {
+          const bContent = String(row[1])
+          if (bContent.endsWith(':') || bContent.startsWith('  ')) {
+            if (bContent.includes('For demo Extra line item use this') || bContent.includes('For Backfill Extra line item use this') || bContent.includes('For soil excavation Extra line item use this') || bContent.includes('For rock excavation Extra line item use this') || bContent.includes('For foundation Extra line item use this') || bContent.includes('For Superstructure Extra line item use this')) {
+              spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic', backgroundColor: '#FFFF00' }, `B${rowNum}`)
+            } else if (bContent.includes('Line drill:') || bContent.includes('Underpinning:')) {
+              spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic', backgroundColor: '#E2EFDA' }, `B${rowNum}`)
+            } else {
+              spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic' }, `B${rowNum}`)
+            }
+          } else if (bContent !== 'Havg') {
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${rowNum}`)
+          }
+        }
+      })
+
+      // Column formatting
+      spreadsheet.cellFormat({ textAlign: 'center' }, 'A:A')
+      const numColumns = ['E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M']
+      numColumns.forEach(col => {
+        try { spreadsheet.numberFormat('0.00', `${col}:${col}`) } catch (e) { }
+      })
+    } catch (error) {
+      console.error('Error applying formatting:', error)
+    }
+  }
+
+  // Constants for auto-save timing
+  const DEBOUNCE_DELAY = 2000 // Wait 2 seconds after last change before saving
+  const MAX_WAIT_TIME = 10000 // Force save after 10 seconds of continuous changes
+  const MAX_RETRY_COUNT = 3
+  const RETRY_DELAY = 2000
+
+  // Extract all images from the spreadsheet for separate storage
+  // Syncfusion's saveAsJson() doesn't include images, so we need to extract them manually
+  const extractImages = useCallback(() => {
+    if (!spreadsheetRef.current) return []
+
+    const spreadsheet = spreadsheetRef.current
+    const images = []
+
+    try {
+      // Access sheets from the spreadsheet model
+      const sheets = spreadsheet.sheets
+      
+      if (!sheets || !Array.isArray(sheets)) {
+        return images
+      }
+
+      sheets.forEach((sheet, sheetIndex) => {
+        try {
+          // Try both 'image' and 'images' property names
+          const sheetImages = sheet.image || sheet.images || []
+          
+          if (sheetImages && Array.isArray(sheetImages) && sheetImages.length > 0) {
+            sheetImages.forEach((image, idx) => {
+              if (image && image.src) {
+                images.push({
+                  sheetIndex,
+                  imageId: image.id || `image_${sheetIndex}_${idx}_${Date.now()}`,
+                  src: image.src,
+                  top: image.top || 0,
+                  left: image.left || 0,
+                  width: image.width,
+                  height: image.height,
+                })
+              }
+            })
+          }
+        } catch (sheetError) {
+          // Silently handle errors for individual sheets
+        }
+      })
+    } catch (error) {
+      console.error('Error extracting images:', error)
+    }
+
+    return images
+  }, [])
+
+  // Restore images to the spreadsheet after loading from JSON
+  const restoreImages = useCallback((savedImages) => {
+    if (!spreadsheetRef.current || !savedImages || savedImages.length === 0) return
+
+    const spreadsheet = spreadsheetRef.current
+
+    // Small delay to ensure spreadsheet is fully loaded
+    setTimeout(() => {
+      savedImages.forEach((image) => {
+        try {
+          // Build the image model for Syncfusion
+          const imageModel = [{
+            src: image.src,
+            id: image.imageId,
+            top: image.top || 0,
+            left: image.left || 0,
+            width: image.width,
+            height: image.height,
+          }]
+
+          // Insert the image into the correct sheet
+          spreadsheet.insertImage(imageModel, `A1`, image.sheetIndex)
+        } catch (error) {
+          // Silently handle image restoration errors
+        }
+      })
+    }, 500)
+  }, [])
+
+  // Core save function with retry logic
+  const saveSpreadsheet = useCallback(async (isManual = false) => {
+    if (!spreadsheetRef.current || !proposalId) return false
+
+    // Prevent concurrent saves
+    if (isSavingRef.current) {
+      pendingSaveRef.current = true
+      return false
+    }
+
+    isSavingRef.current = true
+    setIsSaving(true)
+    setSaveError(null)
+
+    try {
+      // Get the spreadsheet JSON
+      const json = await spreadsheetRef.current.saveAsJson()
+
+      // Extract images separately since saveAsJson doesn't include them
+      const images = extractImages()
+
+      // Save both spreadsheet JSON and images
+      await proposalAPI.update(proposalId, {
+        spreadsheetJson: json.jsonObject,
+        images: images
+      })
+
+      const now = new Date()
+      setLastSaved(now)
+      lastSaveTimeRef.current = now
+      setHasUnsavedChanges(false)
+      retryCountRef.current = 0
+      
+      return true
+    } catch (error) {
+      console.error('Error saving spreadsheet:', error)
+      setSaveError(error.message || 'Failed to save')
+      
+      // Retry logic for failed saves
+      if (retryCountRef.current < MAX_RETRY_COUNT) {
+        retryCountRef.current++
+        setTimeout(() => {
+          saveSpreadsheet(false)
+        }, RETRY_DELAY)
+      } else {
+        // Show error only after all retries failed
+        toast.error('Failed to save changes. Please check your connection.', {
+          duration: 5000,
+        })
+      }
+      return false
+    } finally {
+      isSavingRef.current = false
+      setIsSaving(false)
+
+      // If there was a pending save request, process it
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current = false
+        setTimeout(() => {
+          markDirtyAndScheduleSave()
+        }, 500)
+      }
+    }
+  }, [proposalId, extractImages])
+
+  // Mark as dirty and schedule a save
+  const markDirtyAndScheduleSave = useCallback(() => {
+    setHasUnsavedChanges(true)
+    setSaveError(null)
+
+    // Clear existing debounce timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+
+    // Set debounce timeout - save after user stops making changes
+    saveTimeoutRef.current = setTimeout(() => {
+      saveSpreadsheet(false)
+      // Clear max wait timeout since we're saving now
+      if (maxWaitTimeoutRef.current) {
+        clearTimeout(maxWaitTimeoutRef.current)
+        maxWaitTimeoutRef.current = null
+      }
+    }, DEBOUNCE_DELAY)
+
+    // Set max wait timeout - force save if user keeps making continuous changes
+    if (!maxWaitTimeoutRef.current) {
+      maxWaitTimeoutRef.current = setTimeout(() => {
+        // Clear debounce timeout and save immediately
+        if (saveTimeoutRef.current) {
+          clearTimeout(saveTimeoutRef.current)
+          saveTimeoutRef.current = null
+        }
+        saveSpreadsheet(false)
+        maxWaitTimeoutRef.current = null
+      }, MAX_WAIT_TIME)
+    }
+  }, [saveSpreadsheet])
+
+  // Cleanup timeouts on unmount and save any pending changes
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+      if (maxWaitTimeoutRef.current) clearTimeout(maxWaitTimeoutRef.current)
+    }
+  }, [])
+
+  // Warn user before leaving with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = 'You have unsaved changes. Are you sure you want to leave?'
+        // Try to save before leaving
+        if (spreadsheetRef.current && proposalId) {
+          saveSpreadsheet(false)
+        }
+        return e.returnValue
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [hasUnsavedChanges, proposalId, saveSpreadsheet])
+
+  // Handle Ctrl+S to trigger immediate save
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        
+        // Clear pending timeouts and save immediately
+        if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+        if (maxWaitTimeoutRef.current) clearTimeout(maxWaitTimeoutRef.current)
+        maxWaitTimeoutRef.current = null
+        
+        if (hasUnsavedChanges) {
+          saveSpreadsheet(true)
+        }
+        
+        toast('✌🏻 You are good to go: your changes are being autosaved', {
+          duration: 3000,
+          position: 'bottom-right',
+          style: {
+            fontSize: '13px',
+          },
+          icon: null,
+        })
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [hasUnsavedChanges, saveSpreadsheet])
+
+  // Handle spreadsheet cell save event
+  const handleCellSave = useCallback(() => {
+    markDirtyAndScheduleSave()
+  }, [markDirtyAndScheduleSave])
+
+  // Handle spreadsheet action complete event - captures most changes
+  const handleActionComplete = useCallback((args) => {
+    // Actions that should NOT trigger a save (read-only operations)
+    const noSaveActions = [
+      'gotoSheet', 'copy', 'select', 'scroll', 'zoom',
+      'find', 'getData', 'refresh'
+    ]
+    
+    // Save on any action that's not in the no-save list
+    if (args.action && !noSaveActions.includes(args.action)) {
+      markDirtyAndScheduleSave()
+    }
+  }, [markDirtyAndScheduleSave])
+
+  // Handle before cell save - captures formula and value changes
+  const handleBeforeCellSave = useCallback(() => {
+    // This fires before the cell is saved
+  }, [])
+
+  // Handle cell edit event - captures when editing starts
+  const handleCellEdit = useCallback(() => {
+    // We'll save when editing completes via cellSave
+  }, [])
+
+  // Handle before cell update for format changes
+  const handleBeforeCellUpdate = useCallback(() => {
+    markDirtyAndScheduleSave()
+  }, [markDirtyAndScheduleSave])
+
+  // Fallback: Periodically check for image changes
+  // This catches image insertions that might not trigger actionComplete
+  const lastImageCountRef = useRef(0)
+  
+  useEffect(() => {
+    if (!spreadsheetRef.current || !hasLoadedFromJson.current) return
+
+    const checkForImageChanges = () => {
+      try {
+        const images = extractImages()
+        const currentCount = images.length
+        
+        if (currentCount !== lastImageCountRef.current) {
+          lastImageCountRef.current = currentCount
+          markDirtyAndScheduleSave()
+        }
+      } catch (error) {
+        // Ignore errors during image check
+      }
+    }
+
+    // Check for image changes every 2 seconds
+    const intervalId = setInterval(checkForImageChanges, 2000)
+
+    return () => clearInterval(intervalId)
+  }, [extractImages, markDirtyAndScheduleSave])
+
+  const handleSettingsSave = async (settingsData) => {
+    try {
+      await proposalAPI.update(proposalId, settingsData)
+      setProposal(prev => ({ ...prev, ...settingsData }))
+      toast.success('Settings updated successfully')
+    } catch (error) {
+      console.error('Error updating settings:', error)
+      toast.error('Error updating settings')
+      throw error
+    }
+  }
+
+  // Handle navigation away - save first if there are unsaved changes
+  const handleNavigateBack = useCallback(async () => {
+    if (hasUnsavedChanges) {
+      // Clear pending timeouts
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+      if (maxWaitTimeoutRef.current) clearTimeout(maxWaitTimeoutRef.current)
+      
+      // Show saving indicator
+      toast.loading('Saving changes...', { id: 'nav-save' })
+      
+      try {
+        await saveSpreadsheet(true)
+        toast.success('Changes saved!', { id: 'nav-save', duration: 1500 })
+      } catch (error) {
+        toast.error('Failed to save, navigating anyway...', { id: 'nav-save', duration: 1500 })
+      }
+    }
+    
+    navigate('/proposals')
+  }, [hasUnsavedChanges, saveSpreadsheet, navigate])
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen bg-gray-50">
+        <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <TopBar />
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-gray-500">Loading proposal...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!proposal) {
+    return (
+      <div className="flex h-screen bg-gray-50">
+        <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <TopBar />
+          <div className="flex-1 flex items-center justify-center">
+            <p className="text-gray-500">Proposal not found</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex h-screen bg-gray-50">
+      <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <TopBar
+          leftContent={
+            <div className="flex items-center gap-4">
+              <button
+                onClick={handleNavigateBack}
+                className="p-2 -ml-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                title="Back to Proposals"
+              >
+                <FiArrowLeft size={20} />
+              </button>
+              <div>
+                <h1 className="text-lg font-semibold text-gray-900">{proposal.name}</h1>
+                <p className="text-sm text-gray-500 flex items-center gap-2">
+                  <span>{proposal.client} • {proposal.project}</span>
+                  <span className="text-gray-300">|</span>
+                  {isSaving ? (
+                    <span className="flex items-center gap-1.5 text-blue-600">
+                      <span className="inline-block w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>
+                      Saving...
+                    </span>
+                  ) : saveError ? (
+                    <span className="flex items-center gap-1.5 text-red-600">
+                      <span className="inline-block w-2 h-2 bg-red-600 rounded-full"></span>
+                      Save failed - retrying...
+                    </span>
+                  ) : hasUnsavedChanges ? (
+                    <span className="flex items-center gap-1.5 text-amber-600">
+                      <span className="inline-block w-2 h-2 bg-amber-500 rounded-full"></span>
+                      Unsaved changes
+                    </span>
+                  ) : lastSaved ? (
+                    <span className="flex items-center gap-1.5 text-green-600">
+                      <span className="inline-block w-2 h-2 bg-green-500 rounded-full"></span>
+                      Saved {lastSaved.toLocaleTimeString()}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">Ready</span>
+                  )}
+                </p>
+              </div>
+            </div>
+          }
+          actionButtons={
+            <>
+              <button
+                onClick={() => setIsPreviewModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <FiEye size={18} />
+                Preview Raw Data
+              </button>
+              <button
+                onClick={() => setIsSettingsModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <FiSettings size={18} />
+                Settings
+              </button>
+            </>
+          }
+        />
+
+        {/* Spreadsheet */}
+        <div className="flex-1 overflow-hidden relative">
+          {isSpreadsheetLoading && (
+            <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center z-50">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent mb-4"></div>
+                <p className="text-gray-700 font-medium">Generating spreadsheet...</p>
+                <p className="text-gray-500 text-sm mt-1">This may take a moment for large files</p>
+              </div>
+            </div>
+          )}
+          <SpreadsheetComponent
+            ref={spreadsheetRef}
+            allowOpen={true}
+            allowSave={true}
+            showFormulaBar={true}
+            showRibbon={true}
+            showSheetTabs={true}
+            allowEditing={true}
+            allowUndoRedo={true}
+            allowImage={true}
+            // Cell events
+            cellSave={handleCellSave}
+            cellEdit={handleCellEdit}
+            beforeCellSave={handleBeforeCellSave}
+            beforeCellUpdate={handleBeforeCellUpdate}
+            // Action events - captures all modifications including images
+            actionComplete={handleActionComplete}
+            // File menu events - trigger save after file menu operations
+            fileMenuItemSelect={() => setTimeout(() => markDirtyAndScheduleSave(), 1000)}
+            // Created event
+            created={() => {}}
+          >
+            <SheetsDirective>
+              <SheetDirective name="Calculations">
+                <ColumnsDirective>
+                  {generateColumnConfigs().map((config, idx) => (
+                    <ColumnDirective key={idx} width={config.width} />
+                  ))}
+                </ColumnsDirective>
+              </SheetDirective>
+              <SheetDirective name="Proposal" />
+            </SheetsDirective>
+          </SpreadsheetComponent>
+        </div>
+      </div>
+
+      {/* Modals */}
+      <RawDataPreviewModal
+        isOpen={isPreviewModalOpen}
+        onClose={() => setIsPreviewModalOpen(false)}
+        rawExcelData={proposal.rawExcelData}
+      />
+
+      <ProposalSettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        proposal={proposal}
+        onSave={handleSettingsSave}
+      />
+    </div >
+  )
+}
+
+export default ProposalDetail
