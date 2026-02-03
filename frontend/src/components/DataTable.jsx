@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { FiEdit2, FiDownload, FiTrash2 } from 'react-icons/fi'
+import Pagination from './Pagination'
 
 const DataTable = ({
     columns = [],
@@ -8,8 +9,10 @@ const DataTable = ({
     onDownload,
     onDelete,
     onBulkDelete,
+    onRowClick,
     showActions = true,
-    showCheckbox = true
+    showCheckbox = true,
+    pagination,
 }) => {
     const [selectedRows, setSelectedRows] = useState([])
     const [selectAll, setSelectAll] = useState(false)
@@ -90,7 +93,13 @@ const DataTable = ({
                             data.map((row, rowIndex) => (
                                 <tr
                                     key={rowIndex}
-                                    className="hover:bg-gray-50 transition-colors"
+                                    className={`hover:bg-gray-50 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
+                                    onClick={(e) => {
+                                        // Don't trigger row click if clicking on checkbox or action buttons
+                                        if (onRowClick && !e.target.closest('input') && !e.target.closest('button')) {
+                                            onRowClick(row, rowIndex)
+                                        }
+                                    }}
                                 >
                                     {showCheckbox && (
                                         <td className="px-6 py-4">
@@ -107,7 +116,7 @@ const DataTable = ({
                                             key={colIndex}
                                             className="px-6 py-4 text-sm text-gray-900"
                                         >
-                                            {column.render ? column.render(row) : row[column.key]}
+                                            {column.render ? column.render(row[column.key]) : row[column.key]}
                                         </td>
                                     ))}
                                     {showActions && (
@@ -149,6 +158,16 @@ const DataTable = ({
                     </tbody>
                 </table>
             </div>
+
+            {pagination && (
+                <Pagination
+                    currentPage={pagination.currentPage}
+                    totalPages={pagination.totalPages}
+                    onPageChange={pagination.onPageChange}
+                    totalItems={pagination.totalItems}
+                    itemsPerPage={pagination.itemsPerPage}
+                />
+            )}
         </div>
     )
 }

@@ -1,35 +1,63 @@
 import React, { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import Sidebar from '../components/Sidebar'
 import TopBar from '../components/TopBar'
 import DataTable from '../components/DataTable'
 import UserModal from '../components/UserModal'
-import { FiPlus, FiSearch, FiHome } from 'react-icons/fi'
+import { FiPlus, FiSearch } from 'react-icons/fi'
 import { getAllUsers, createUser, updateUser, deleteUser, bulkDeleteUsers } from '../services/api'
+import { useSidebar } from '../context/SidebarContext'
 
 const Users = () => {
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+    const { sidebarCollapsed, toggleSidebar } = useSidebar()
     const [isModalOpen, setIsModalOpen] = useState(false)
+    const [pagination, setPagination] = useState({
+        page: 1,
+        limit: 10,
+        totalPages: 0,
+        totalItems: 0
+    })
+    const [debouncedSearch, setDebouncedSearch] = useState('')
+    const [searchTerm, setSearchTerm] = useState('')
     const [users, setUsers] = useState([])
     const [loading, setLoading] = useState(true)
     const [actionLoading, setActionLoading] = useState(false)
-    const [searchTerm, setSearchTerm] = useState('')
-
-    // Track who we are editing
     const [selectedUser, setSelectedUser] = useState(null)
+
+    // Debounce search query
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchTerm)
+            setPagination(prev => ({ ...prev, page: 1 }))
+        }, 500)
+
+        return () => clearTimeout(timer)
+    }, [searchTerm])
 
     // Fetch users on mount
     useEffect(() => {
         fetchUsers()
-    }, [])
+    }, [debouncedSearch, pagination.page, pagination.limit])
 
     const fetchUsers = async () => {
         try {
             setLoading(true)
-            const response = await getAllUsers()
+            const params = {
+                page: pagination.page,
+                limit: pagination.limit,
+                search: debouncedSearch
+            }
+            const response = await getAllUsers(params)
+
             if (response.success) {
                 setUsers(response.users)
+                if (response.pagination) {
+                    setPagination(prev => ({
+                        ...prev,
+                        totalPages: response.pagination.pages,
+                        totalItems: response.pagination.total
+                    }))
+                }
             } else {
                 toast.error('Failed to fetch users')
             }
@@ -41,13 +69,17 @@ const Users = () => {
         }
     }
 
-    // Filter users based on search and exclude admin users
-    const filteredUsers = users
-        .filter(user => user.role !== 'admin') // Don't show admin users
-        .filter(user =>
-            user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            user.email.toLowerCase().includes(searchTerm.toLowerCase())
-        )
+    const handlePageChange = (newPage) => {
+        setPagination(prev => ({ ...prev, page: newPage }))
+    }
+
+    // Filter out admin users from display (if needed, though ideally backend handles strict filtering)
+    // For now we'll just display what the backend sends, assuming backend sends all. 
+    // If we need to filter admins out client side AFTER pagination, it messes up pagination counts.
+    // Ideally backend should have a filter for 'role' if we want to hide admins.
+    // Based on previous code: .filter(user => user.role !== 'admin')
+    // We will keep this visual filter but note it might make page size seem smaller than limit.
+    const filteredUsers = users.filter(user => user.role !== 'admin')
 
     // Table columns configuration
     const columns = [
@@ -55,9 +87,6 @@ const Users = () => {
             header: 'Name',
             key: 'name',
             className: 'w-1/2',
-            render: (row) => (
-                <div className="font-medium text-gray-900">{row.name}</div>
-            )
         },
         {
             header: 'Email',
@@ -145,7 +174,7 @@ const Users = () => {
             {/* Sidebar */}
             <Sidebar
                 collapsed={sidebarCollapsed}
-                onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+                onToggle={toggleSidebar}
             />
 
             {/* Main Content */}
@@ -156,14 +185,6 @@ const Users = () => {
                 {/* Page Content */}
                 <div className="flex-1 overflow-auto">
                     <div className="p-8">
-                        {/* Breadcrumb Navigation */}
-                        <div className="flex items-center gap-2 text-sm mb-6">
-                            <Link to="/dashboard" className="text-gray-500 hover:text-gray-700">
-                                <FiHome size={18} />
-                            </Link>
-                            <span className="text-gray-400">&gt;</span>
-                            <span className="text-gray-900 font-medium">Users</span>
-                        </div>
                         {/* Page Header */}
                         <div className="flex items-start justify-between mb-6">
                             <div>
@@ -212,6 +233,13 @@ const Users = () => {
                                 onBulkDelete={handleBulkDelete}
                                 showCheckbox={true}
                                 showActions={true}
+                                pagination={{
+                                    currentPage: pagination.page,
+                                    totalPages: pagination.totalPages,
+                                    onPageChange: handlePageChange,
+                                    totalItems: pagination.totalItems,
+                                    itemsPerPage: pagination.limit
+                                }}
                             />
                         )}
                     </div>

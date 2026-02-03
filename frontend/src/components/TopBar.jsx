@@ -3,7 +3,7 @@ import { FiBell, FiLogOut, FiUser } from 'react-icons/fi'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 
-const TopBar = () => {
+const TopBar = ({ leftContent, actionButtons }) => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -43,10 +43,16 @@ const TopBar = () => {
     };
 
     return (
-        <div className="bg-white border-b border-gray-200 px-8 py-4">
-            <div className="flex items-center justify-end">
-                {/* Right Section: Notifications and User */}
-                <div className="flex items-center gap-4">
+        <div className="bg-white border-b border-gray-200 px-8 py-[18px]">
+            <div className={`flex items-center ${leftContent ? 'justify-between' : 'justify-end'}`}>
+                {/* Left Section: Custom content (e.g., proposal info) */}
+                {leftContent && <div className="flex-1">{leftContent}</div>}
+                
+                {/* Right Section: Action Buttons and User */}
+                <div className="flex items-center gap-3">
+                    {/* Custom Action Buttons (e.g., Preview, Settings) */}
+                    {actionButtons}
+                    
                     {/* User Profile */}
                     <div className="relative" ref={profileMenuRef}>
                         <button

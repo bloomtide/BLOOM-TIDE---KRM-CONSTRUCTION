@@ -1,15 +1,45 @@
 import User from '../models/User.js';
 
-// @desc    Get all users
+// @desc    Get all users with pagination and search
 // @route   GET /api/users
 // @access  Private/Admin
 export const getUsers = async (req, res) => {
     try {
-        const users = await User.find().select('-password').sort('-createdAt');
+        const { page = 1, limit = 10, search } = req.query;
+
+        // Build query
+        const query = {};
+
+        // Search functionality
+        if (search) {
+            const searchRegex = new RegExp(search, 'i');
+            query.$or = [
+                { name: searchRegex },
+                { email: searchRegex }
+            ];
+        }
+
+        // Pagination
+        const pageNumber = parseInt(page, 10);
+        const limitNumber = parseInt(limit, 10);
+        const skip = (pageNumber - 1) * limitNumber;
+
+        const users = await User.find(query)
+            .select('-password')
+            .sort('-createdAt')
+            .skip(skip)
+            .limit(limitNumber);
+
+        const total = await User.countDocuments(query);
 
         res.status(200).json({
             success: true,
             count: users.length,
+            pagination: {
+                page: pageNumber,
+                pages: Math.ceil(total / limitNumber),
+                total
+            },
             users,
         });
     } catch (error) {

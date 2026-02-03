@@ -37,11 +37,12 @@ export const getCurrentUser = async () => {
 // ============================================
 
 /**
- * Get all users
- * @returns {Promise} List of all users
+ * Get all users with pagination and search
+ * @param {Object} params - Query parameters (page, limit, search)
+ * @returns {Promise} List of users and pagination info
  */
-export const getAllUsers = async () => {
-    const response = await api.get('/users');
+export const getAllUsers = async (params = {}) => {
+    const response = await api.get('/users', { params });
     return response.data;
 };
 
