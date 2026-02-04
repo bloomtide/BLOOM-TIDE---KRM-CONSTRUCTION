@@ -77,6 +77,7 @@ import {
 import { processExteriorSideItems, processExteriorSidePitItems, processNegativeSideWallItems, processNegativeSideSlabItems } from './processors/waterproofingProcessor'
 import { processSuperstructureItems } from './processors/superstructureProcessor'
 import { processBPPAlternateItems } from './processors/bppAlternateProcessor'
+import { processCivilDemoItems, processCivilOtherItems } from './processors/civilSiteworkProcessor'
 
 /**
  * Generates the Calculations Sheet structure based on the selected template
@@ -192,6 +193,29 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let trenchingTakeoff = ''
   let superstructureItems = { cipSlab8: [], cipRoofSlab8: [], balconySlab: [], terraceSlab: [], patchSlab: [], slabSteps: [], lwConcreteFill: [], slabOnMetalDeck: [], toppingSlab: [], thermalBreak: [], raisedSlab: { kneeWall: [], raisedSlab: [] }, builtUpSlab: { kneeWall: [], builtUpSlab: [] }, builtUpStair: { kneeWall: [], builtUpStairs: [] }, builtupRamps: { kneeWall: [], ramp: [] }, concreteHanger: [], shearWalls: [], parapetWalls: [], columnsTakeoff: [], concretePost: [], concreteEncasement: [], dropPanelBracket: [], dropPanelH: [], beams: [], curbs: [], concretePad: [], nonShrinkGrout: [], repairScope: [] }
   let bppAlternateItemsByStreet = {}
+  let civilDemoItems = {
+    'Demo asphalt': [],
+    'Demo curb': [],
+    'Demo fence': { 'chain_link_vinyl': [], 'wood': [], 'other': [] },
+    'Demo wall': [],
+    'Demo pipe': { 'remove_pipe': [], 'protect': [], 'other': [] },
+    'Demo rail': [],
+    'Demo sign': { 'single_sign': [], 'row_of_signs': [] },
+    'Demo manhole': [],
+    'Demo fire hydrant': [],
+    'Demo utility pole': [],
+    'Demo valve': [],
+    'Demo inlet': { 'protect': [], 'remove': [], 'other': [] }
+  }
+  let civilOtherItems = {
+    'Excavation': { 'transformer_pad': [], 'reinforced_sidewalk': [], 'bollard': [] },
+    'Gravel': { 'transformer_pad': [], 'reinforced_sidewalk': [], 'asphalt': [] },
+    'Concrete Pavement': [],
+    'Asphalt': [],
+    'Pads': [],
+    'Soil Erosion': { 'stabilized_entrance': [], 'silt_fence': [], 'inlet_filter': [] },
+    'Fence': { 'construction_fence': [], 'proposed_fence': [], 'guiderail': [] }
+  }
   const foundationSlabRows = {} // Populated when building Foundation section; used by Waterproofing Exterior side pit items
   if (rawData && rawData.length > 1) {
     const headers = rawData[0]
@@ -280,6 +304,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     negativeSideSlabItems = processNegativeSideSlabItems(dataRows, headers)
     superstructureItems = processSuperstructureItems(dataRows, headers)
     bppAlternateItemsByStreet = processBPPAlternateItems(dataRows, headers)
+    civilDemoItems = processCivilDemoItems(dataRows, headers)
+    civilOtherItems = processCivilOtherItems(dataRows, headers)
     const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
     const totalIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'total')
     if (digitizerIdx >= 0 && totalIdx >= 0) {
@@ -3517,6 +3543,667 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           rows.push(Array(template.columns.length).fill(''))
         })
       }
+    } else if (section.section === 'Civil / Sitework') {
+      // Civil / Sitework section
+      section.subsections.forEach((subsection) => {
+        // Add subsection header
+        const subsectionRow = Array(template.columns.length).fill('')
+        subsectionRow[1] = subsection.name + ':'
+        rows.push(subsectionRow)
+
+        if (subsection.name === 'Demo' && subsection.subSubsections) {
+          // Demo subsection with sub-subsections
+          subsection.subSubsections.forEach((subSubsection) => {
+            const subSubName = subSubsection.name
+            
+            // Add sub-subsection header
+            const subSubsectionRow = Array(template.columns.length).fill('')
+            subSubsectionRow[1] = subSubName + ':'
+            rows.push(subSubsectionRow)
+
+            // Handle Demo asphalt
+            if (subSubName === 'Demo asphalt' && civilDemoItems['Demo asphalt'].length > 0) {
+              const firstRow = rows.length + 1
+              civilDemoItems['Demo asphalt'].forEach((item) => {
+                const itemRow = Array(template.columns.length).fill('')
+                itemRow[1] = item.particulars
+                itemRow[2] = item.takeoff
+                itemRow[3] = item.unit || 'SQ FT'
+                if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+                rows.push(itemRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_asphalt', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+              })
+              // Sum row
+              const sumRow = Array(template.columns.length).fill('')
+              rows.push(sumRow)
+              formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['J', 'L'] })
+              rows.push(Array(template.columns.length).fill(''))
+            }
+            // Handle Demo curb
+            else if (subSubName === 'Demo curb' && civilDemoItems['Demo curb'].length > 0) {
+              const firstRow = rows.length + 1
+              civilDemoItems['Demo curb'].forEach((item) => {
+                const itemRow = Array(template.columns.length).fill('')
+                itemRow[1] = item.particulars
+                itemRow[2] = item.takeoff
+                itemRow[3] = item.unit || 'FT'
+                if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+                if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+                rows.push(itemRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_curb', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+              })
+              // Sum row
+              const sumRow = Array(template.columns.length).fill('')
+              rows.push(sumRow)
+              formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I', 'J', 'L'] })
+              rows.push(Array(template.columns.length).fill(''))
+            }
+            // Handle Demo fence (grouped by type)
+            else if (subSubName === 'Demo fence') {
+              const fenceGroups = civilDemoItems['Demo fence']
+              // Chain link / Vinyl fence group
+              if (fenceGroups['chain_link_vinyl'].length > 0) {
+                const firstRow = rows.length + 1
+                fenceGroups['chain_link_vinyl'].forEach((item) => {
+                  const itemRow = Array(template.columns.length).fill('')
+                  itemRow[1] = item.particulars
+                  itemRow[2] = item.takeoff
+                  itemRow[3] = item.unit || 'FT'
+                  if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+                  rows.push(itemRow)
+                  formulas.push({ row: rows.length, itemType: 'civil_demo_fence', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+                })
+                // Sum row
+                const sumRow = Array(template.columns.length).fill('')
+                rows.push(sumRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I', 'J'] })
+                rows.push(Array(template.columns.length).fill(''))
+              }
+              // Wood fence group
+              if (fenceGroups['wood'].length > 0) {
+                const firstRow = rows.length + 1
+                fenceGroups['wood'].forEach((item) => {
+                  const itemRow = Array(template.columns.length).fill('')
+                  itemRow[1] = item.particulars
+                  itemRow[2] = item.takeoff
+                  itemRow[3] = item.unit || 'FT'
+                  if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+                  rows.push(itemRow)
+                  formulas.push({ row: rows.length, itemType: 'civil_demo_fence', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+                })
+                // Sum row
+                const sumRow = Array(template.columns.length).fill('')
+                rows.push(sumRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I', 'J'] })
+                rows.push(Array(template.columns.length).fill(''))
+              }
+              // Other fence group
+              if (fenceGroups['other'].length > 0) {
+                const firstRow = rows.length + 1
+                fenceGroups['other'].forEach((item) => {
+                  const itemRow = Array(template.columns.length).fill('')
+                  itemRow[1] = item.particulars
+                  itemRow[2] = item.takeoff
+                  itemRow[3] = item.unit || 'FT'
+                  if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+                  rows.push(itemRow)
+                  formulas.push({ row: rows.length, itemType: 'civil_demo_fence', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+                })
+                // Sum row
+                const sumRow = Array(template.columns.length).fill('')
+                rows.push(sumRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I', 'J'] })
+                rows.push(Array(template.columns.length).fill(''))
+              }
+              // If no items, add empty row
+              if (fenceGroups['chain_link_vinyl'].length === 0 && fenceGroups['wood'].length === 0 && fenceGroups['other'].length === 0) {
+                rows.push(Array(template.columns.length).fill(''))
+              }
+            }
+            // Handle Demo wall
+            else if (subSubName === 'Demo wall' && civilDemoItems['Demo wall'].length > 0) {
+              const firstRow = rows.length + 1
+              civilDemoItems['Demo wall'].forEach((item) => {
+                const itemRow = Array(template.columns.length).fill('')
+                itemRow[1] = item.particulars
+                itemRow[2] = item.takeoff
+                itemRow[3] = item.unit || 'FT'
+                if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+                if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+                rows.push(itemRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_wall', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+              })
+              // Sum row
+              const sumRow = Array(template.columns.length).fill('')
+              rows.push(sumRow)
+              formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I', 'J', 'L'] })
+              rows.push(Array(template.columns.length).fill(''))
+            }
+            // Handle Demo pipe (grouped by type)
+            else if (subSubName === 'Demo pipe') {
+              const pipeGroups = civilDemoItems['Demo pipe']
+              // Remove pipe group
+              if (pipeGroups['remove_pipe'].length > 0) {
+                const firstRow = rows.length + 1
+                pipeGroups['remove_pipe'].forEach((item) => {
+                  const itemRow = Array(template.columns.length).fill('')
+                  itemRow[1] = item.particulars
+                  itemRow[2] = item.takeoff
+                  itemRow[3] = item.unit || 'FT'
+                  rows.push(itemRow)
+                  formulas.push({ row: rows.length, itemType: 'civil_demo_pipe', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+                })
+                // Sum row
+                const sumRow = Array(template.columns.length).fill('')
+                rows.push(sumRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I'] })
+                rows.push(Array(template.columns.length).fill(''))
+              }
+              // Protect pipe group
+              if (pipeGroups['protect'].length > 0) {
+                const firstRow = rows.length + 1
+                pipeGroups['protect'].forEach((item) => {
+                  const itemRow = Array(template.columns.length).fill('')
+                  itemRow[1] = item.particulars
+                  itemRow[2] = item.takeoff
+                  itemRow[3] = item.unit || 'FT'
+                  rows.push(itemRow)
+                  formulas.push({ row: rows.length, itemType: 'civil_demo_pipe', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+                })
+                // Sum row
+                const sumRow = Array(template.columns.length).fill('')
+                rows.push(sumRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I'] })
+                rows.push(Array(template.columns.length).fill(''))
+              }
+              // If no items, add empty row
+              if (pipeGroups['remove_pipe'].length === 0 && pipeGroups['protect'].length === 0) {
+                rows.push(Array(template.columns.length).fill(''))
+              }
+            }
+            // Handle Demo rail
+            else if (subSubName === 'Demo rail' && civilDemoItems['Demo rail'].length > 0) {
+              const firstRow = rows.length + 1
+              civilDemoItems['Demo rail'].forEach((item) => {
+                const itemRow = Array(template.columns.length).fill('')
+                itemRow[1] = item.particulars
+                itemRow[2] = item.takeoff
+                itemRow[3] = item.unit || 'FT'
+                rows.push(itemRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_rail', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+              })
+              // Sum row
+              const sumRow = Array(template.columns.length).fill('')
+              rows.push(sumRow)
+              formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I'] })
+              rows.push(Array(template.columns.length).fill(''))
+            }
+            // Handle Demo sign (grouped by type)
+            else if (subSubName === 'Demo sign') {
+              const signGroups = civilDemoItems['Demo sign']
+              // Single sign group
+              if (signGroups['single_sign'].length > 0) {
+                const firstRow = rows.length + 1
+                signGroups['single_sign'].forEach((item) => {
+                  const itemRow = Array(template.columns.length).fill('')
+                  itemRow[1] = item.particulars
+                  itemRow[2] = item.takeoff
+                  itemRow[3] = item.unit || 'EA'
+                  rows.push(itemRow)
+                  formulas.push({ row: rows.length, itemType: 'civil_demo_ea', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+                })
+                // Sum row
+                const sumRow = Array(template.columns.length).fill('')
+                rows.push(sumRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['M'] })
+                rows.push(Array(template.columns.length).fill(''))
+              }
+              // Row of signs group
+              if (signGroups['row_of_signs'].length > 0) {
+                const firstRow = rows.length + 1
+                signGroups['row_of_signs'].forEach((item) => {
+                  const itemRow = Array(template.columns.length).fill('')
+                  itemRow[1] = item.particulars
+                  itemRow[2] = item.takeoff
+                  itemRow[3] = item.unit || 'EA'
+                  rows.push(itemRow)
+                  formulas.push({ row: rows.length, itemType: 'civil_demo_ea', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+                })
+                // Sum row
+                const sumRow = Array(template.columns.length).fill('')
+                rows.push(sumRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['M'] })
+                rows.push(Array(template.columns.length).fill(''))
+              }
+              // If no items, add empty row
+              if (signGroups['single_sign'].length === 0 && signGroups['row_of_signs'].length === 0) {
+                rows.push(Array(template.columns.length).fill(''))
+              }
+            }
+            // Handle Demo manhole
+            else if (subSubName === 'Demo manhole' && civilDemoItems['Demo manhole'].length > 0) {
+              const firstRow = rows.length + 1
+              civilDemoItems['Demo manhole'].forEach((item) => {
+                const itemRow = Array(template.columns.length).fill('')
+                itemRow[1] = item.particulars
+                itemRow[2] = item.takeoff
+                itemRow[3] = item.unit || 'EA'
+                rows.push(itemRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_ea', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+              })
+              // Sum row
+              const sumRow = Array(template.columns.length).fill('')
+              rows.push(sumRow)
+              formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['M'] })
+              rows.push(Array(template.columns.length).fill(''))
+            }
+            // Handle Demo fire hydrant
+            else if (subSubName === 'Demo fire hydrant' && civilDemoItems['Demo fire hydrant'].length > 0) {
+              const firstRow = rows.length + 1
+              civilDemoItems['Demo fire hydrant'].forEach((item) => {
+                const itemRow = Array(template.columns.length).fill('')
+                itemRow[1] = item.particulars
+                itemRow[2] = item.takeoff
+                itemRow[3] = item.unit || 'EA'
+                rows.push(itemRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_ea', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+              })
+              // Sum row
+              const sumRow = Array(template.columns.length).fill('')
+              rows.push(sumRow)
+              formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['M'] })
+              rows.push(Array(template.columns.length).fill(''))
+            }
+            // Handle Demo utility pole
+            else if (subSubName === 'Demo utility pole' && civilDemoItems['Demo utility pole'].length > 0) {
+              const firstRow = rows.length + 1
+              civilDemoItems['Demo utility pole'].forEach((item) => {
+                const itemRow = Array(template.columns.length).fill('')
+                itemRow[1] = item.particulars
+                itemRow[2] = item.takeoff
+                itemRow[3] = item.unit || 'EA'
+                rows.push(itemRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_ea', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+              })
+              // Sum row
+              const sumRow = Array(template.columns.length).fill('')
+              rows.push(sumRow)
+              formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['M'] })
+              rows.push(Array(template.columns.length).fill(''))
+            }
+            // Handle Demo valve
+            else if (subSubName === 'Demo valve' && civilDemoItems['Demo valve'].length > 0) {
+              const firstRow = rows.length + 1
+              civilDemoItems['Demo valve'].forEach((item) => {
+                const itemRow = Array(template.columns.length).fill('')
+                itemRow[1] = item.particulars
+                itemRow[2] = item.takeoff
+                itemRow[3] = item.unit || 'EA'
+                rows.push(itemRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_ea', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+              })
+              // Sum row
+              const sumRow = Array(template.columns.length).fill('')
+              rows.push(sumRow)
+              formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['M'] })
+              rows.push(Array(template.columns.length).fill(''))
+            }
+            // Handle Demo inlet (grouped by type)
+            else if (subSubName === 'Demo inlet') {
+              const inletGroups = civilDemoItems['Demo inlet']
+              // Protect inlet group
+              if (inletGroups['protect'].length > 0) {
+                const firstRow = rows.length + 1
+                inletGroups['protect'].forEach((item) => {
+                  const itemRow = Array(template.columns.length).fill('')
+                  itemRow[1] = item.particulars
+                  itemRow[2] = item.takeoff
+                  itemRow[3] = item.unit || 'EA'
+                  rows.push(itemRow)
+                  formulas.push({ row: rows.length, itemType: 'civil_demo_ea', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+                })
+                // Sum row
+                const sumRow = Array(template.columns.length).fill('')
+                rows.push(sumRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['M'] })
+                rows.push(Array(template.columns.length).fill(''))
+              }
+              // Remove inlet group
+              if (inletGroups['remove'].length > 0) {
+                const firstRow = rows.length + 1
+                inletGroups['remove'].forEach((item) => {
+                  const itemRow = Array(template.columns.length).fill('')
+                  itemRow[1] = item.particulars
+                  itemRow[2] = item.takeoff
+                  itemRow[3] = item.unit || 'EA'
+                  rows.push(itemRow)
+                  formulas.push({ row: rows.length, itemType: 'civil_demo_ea', parsedData: item, section: 'civil_sitework', subsectionName: subSubName })
+                })
+                // Sum row
+                const sumRow = Array(template.columns.length).fill('')
+                rows.push(sumRow)
+                formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['M'] })
+                rows.push(Array(template.columns.length).fill(''))
+              }
+              // If no items, add empty row
+              if (inletGroups['protect'].length === 0 && inletGroups['remove'].length === 0) {
+                rows.push(Array(template.columns.length).fill(''))
+              }
+            }
+            else {
+              // No items for this sub-subsection
+              rows.push(Array(template.columns.length).fill(''))
+            }
+          })
+        } else if (subsection.name === 'Excavation') {
+          // Excavation subsection
+          const excItems = civilOtherItems['Excavation']
+          let hasItems = false
+          const firstDataRow = rows.length + 1
+          
+          // Transformer pad items
+          if (excItems['transformer_pad'].length > 0) {
+            hasItems = true
+            excItems['transformer_pad'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'SQ FT'
+              // Height is manual input, leave empty
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_exc_transformer', parsedData: item, section: 'civil_sitework', subsectionName: 'Excavation' })
+            })
+          }
+          
+          // Reinforced sidewalk items
+          if (excItems['reinforced_sidewalk'].length > 0) {
+            hasItems = true
+            excItems['reinforced_sidewalk'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'SQ FT'
+              // Height is manual input, leave empty
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_exc_sidewalk', parsedData: item, section: 'civil_sitework', subsectionName: 'Excavation' })
+            })
+          }
+          
+          // Bollard items
+          if (excItems['bollard'].length > 0) {
+            hasItems = true
+            excItems['bollard'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'EA'
+              // Height is manual input, leave empty
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_exc_bollard', parsedData: item, section: 'civil_sitework', subsectionName: 'Excavation' })
+            })
+          }
+          
+          // Sum row for all excavation items
+          if (hasItems) {
+            const lastDataRow = rows.length
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'civil_exc_sum', section: 'civil_sitework', subsectionName: 'Excavation', firstDataRow: firstDataRow, lastDataRow: lastDataRow })
+            rows.push(Array(template.columns.length).fill(''))
+          } else {
+            rows.push(Array(template.columns.length).fill(''))
+          }
+        } else if (subsection.name === 'Gravel') {
+          // Gravel subsection
+          const gravelItems = civilOtherItems['Gravel']
+          let hasItems = false
+          const firstDataRow = rows.length + 1
+          
+          // Transformer pad items
+          if (gravelItems['transformer_pad'].length > 0) {
+            hasItems = true
+            gravelItems['transformer_pad'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[3] = item.unit || 'SQ FT'
+              // Height is manual entry, leave blank initially
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_gravel_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Gravel' })
+            })
+          }
+          
+          // Reinforced sidewalk items
+          if (gravelItems['reinforced_sidewalk'].length > 0) {
+            hasItems = true
+            gravelItems['reinforced_sidewalk'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[3] = item.unit || 'SQ FT'
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_gravel_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Gravel' })
+            })
+          }
+          
+          // Asphalt items (Full depth asphalt pavement - non-BPP)
+          if (gravelItems['asphalt'].length > 0) {
+            hasItems = true
+            gravelItems['asphalt'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[3] = item.unit || 'SQ FT'
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_gravel_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Gravel' })
+            })
+          }
+          
+          // Sum row for all gravel items
+          if (hasItems) {
+            const lastDataRow = rows.length
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'civil_gravel_sum', section: 'civil_sitework', subsectionName: 'Gravel', firstDataRow: firstDataRow, lastDataRow: lastDataRow })
+            rows.push(Array(template.columns.length).fill(''))
+          } else {
+            rows.push(Array(template.columns.length).fill(''))
+          }
+        } else if (subsection.name === 'Concrete Pavement') {
+          // Concrete Pavement subsection
+          const cpItems = civilOtherItems['Concrete Pavement']
+          if (cpItems.length > 0) {
+            const firstRow = rows.length + 1
+            cpItems.forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'SQ FT'
+              if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_concrete_pavement', parsedData: item, section: 'civil_sitework', subsectionName: 'Concrete Pavement' })
+            })
+            // Sum row
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'civil_concrete_pavement_sum', section: 'civil_sitework', subsectionName: 'Concrete Pavement', firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+            rows.push(Array(template.columns.length).fill(''))
+          } else {
+            rows.push(Array(template.columns.length).fill(''))
+          }
+        } else if (subsection.name === 'Asphalt') {
+          // Asphalt subsection
+          const asphaltItems = civilOtherItems['Asphalt']
+          if (asphaltItems.length > 0) {
+            const firstRow = rows.length + 1
+            asphaltItems.forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'SQ FT'
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_asphalt', parsedData: item, section: 'civil_sitework', subsectionName: 'Asphalt' })
+            })
+            // Sum row
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'civil_asphalt_sum', section: 'civil_sitework', subsectionName: 'Asphalt', firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+            rows.push(Array(template.columns.length).fill(''))
+          } else {
+            rows.push(Array(template.columns.length).fill(''))
+          }
+        } else if (subsection.name === 'Pads') {
+          // Pads subsection
+          const padsItems = civilOtherItems['Pads']
+          if (padsItems.length > 0) {
+            const firstRow = rows.length + 1
+            padsItems.forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'SQ FT'
+              if (item.parsed?.qty != null) itemRow[4] = item.parsed.qty
+              if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_pads', parsedData: item, section: 'civil_sitework', subsectionName: 'Pads' })
+            })
+            // Sum row
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'civil_pads_sum', section: 'civil_sitework', subsectionName: 'Pads', firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+            rows.push(Array(template.columns.length).fill(''))
+          } else {
+            rows.push(Array(template.columns.length).fill(''))
+          }
+        } else if (subsection.name === 'Soil Erosion') {
+          // Soil Erosion subsection
+          const seItems = civilOtherItems['Soil Erosion']
+          let hasItems = false
+          
+          // Stabilized entrance items
+          if (seItems['stabilized_entrance'].length > 0) {
+            hasItems = true
+            seItems['stabilized_entrance'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'SQ FT'
+              if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_soil_stabilized', parsedData: item, section: 'civil_sitework', subsectionName: 'Soil Erosion' })
+            })
+          }
+          
+          // Silt fence items
+          if (seItems['silt_fence'].length > 0) {
+            hasItems = true
+            seItems['silt_fence'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'FT'
+              if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_soil_silt_fence', parsedData: item, section: 'civil_sitework', subsectionName: 'Soil Erosion' })
+            })
+          }
+          
+          // Inlet filter items
+          if (seItems['inlet_filter'].length > 0) {
+            hasItems = true
+            seItems['inlet_filter'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'EA'
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_soil_inlet_filter', parsedData: item, section: 'civil_sitework', subsectionName: 'Soil Erosion' })
+            })
+          }
+          
+          if (!hasItems) {
+            rows.push(Array(template.columns.length).fill(''))
+          } else {
+            rows.push(Array(template.columns.length).fill(''))
+          }
+        } else if (subsection.name === 'Fence') {
+          // Fence subsection
+          const fenceItems = civilOtherItems['Fence']
+          let hasItems = false
+          
+          // Construction fence items
+          if (fenceItems['construction_fence'].length > 0) {
+            hasItems = true
+            const firstRow = rows.length + 1
+            fenceItems['construction_fence'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'FT'
+              if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_fence', parsedData: item, section: 'civil_sitework', subsectionName: 'Fence' })
+            })
+            // Sum row
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'civil_fence_sum', section: 'civil_sitework', subsectionName: 'Fence', firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+            rows.push(Array(template.columns.length).fill(''))
+          }
+          
+          // Proposed fence items
+          if (fenceItems['proposed_fence'].length > 0) {
+            hasItems = true
+            const firstRow = rows.length + 1
+            fenceItems['proposed_fence'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'FT'
+              if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_fence', parsedData: item, section: 'civil_sitework', subsectionName: 'Fence' })
+            })
+            // Sum row
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'civil_fence_sum', section: 'civil_sitework', subsectionName: 'Fence', firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+            rows.push(Array(template.columns.length).fill(''))
+          }
+          
+          // Guiderail items
+          if (fenceItems['guiderail'].length > 0) {
+            hasItems = true
+            const firstRow = rows.length + 1
+            fenceItems['guiderail'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'FT'
+              if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_fence', parsedData: item, section: 'civil_sitework', subsectionName: 'Fence' })
+            })
+            // Sum row
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'civil_fence_sum', section: 'civil_sitework', subsectionName: 'Fence', firstDataRow: firstRow, lastDataRow: rows.length - 1 })
+            rows.push(Array(template.columns.length).fill(''))
+          }
+          
+          if (!hasItems) {
+            rows.push(Array(template.columns.length).fill(''))
+          }
+        } else if (subsection.subSubsections && subsection.subSubsections.length > 0) {
+          // Other subsections with sub-subsections (Site, Ele, Gas, Water)
+          subsection.subSubsections.forEach((subSubsection) => {
+            const subSubsectionRow = Array(template.columns.length).fill('')
+            subSubsectionRow[1] = '  ' + subSubsection.name + ':'
+            rows.push(subSubsectionRow)
+            rows.push(Array(template.columns.length).fill(''))
+          })
+        } else {
+          // Simple subsection without sub-subsections
+          rows.push(Array(template.columns.length).fill(''))
+        }
+      })
     } else if (section.subsections && section.subsections.length > 0) {
       // Handle other sections with subsections
       section.subsections.forEach((subsection) => {
