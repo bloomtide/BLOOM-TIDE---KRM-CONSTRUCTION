@@ -174,7 +174,16 @@ export const capstoneTemplate = {
     },
     {
       section: 'B.P.P. Alternate #2 scope',
-      subsections: []
+      subsections: [
+        { name: 'Gravel', items: [] },
+        { name: 'Concrete sidewalk', items: [] },
+        { name: 'Concrete driveway', items: [] },
+        { name: 'Concrete curb', items: [] },
+        { name: 'Concrete flush curb', items: [] },
+        { name: 'Expansion joint', items: [] },
+        { name: 'Conc road base', items: [] },
+        { name: 'Full depth asphalt pavement', items: [] }
+      ]
     },
     {
       section: 'Civil / Sitework',

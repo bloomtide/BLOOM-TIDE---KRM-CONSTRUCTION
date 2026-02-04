@@ -76,6 +76,7 @@ import {
 } from './processors/foundationProcessor'
 import { processExteriorSideItems, processExteriorSidePitItems, processNegativeSideWallItems, processNegativeSideSlabItems } from './processors/waterproofingProcessor'
 import { processSuperstructureItems } from './processors/superstructureProcessor'
+import { processBPPAlternateItems } from './processors/bppAlternateProcessor'
 
 /**
  * Generates the Calculations Sheet structure based on the selected template
@@ -190,6 +191,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let negativeSideSlabItems = []
   let trenchingTakeoff = ''
   let superstructureItems = { cipSlab8: [], cipRoofSlab8: [], balconySlab: [], terraceSlab: [], patchSlab: [], slabSteps: [], lwConcreteFill: [], slabOnMetalDeck: [], toppingSlab: [], thermalBreak: [], raisedSlab: { kneeWall: [], raisedSlab: [] }, builtUpSlab: { kneeWall: [], builtUpSlab: [] }, builtUpStair: { kneeWall: [], builtUpStairs: [] }, builtupRamps: { kneeWall: [], ramp: [] }, concreteHanger: [], shearWalls: [], parapetWalls: [], columnsTakeoff: [], concretePost: [], concreteEncasement: [], dropPanelBracket: [], dropPanelH: [], beams: [], curbs: [], concretePad: [], nonShrinkGrout: [], repairScope: [] }
+  let bppAlternateItemsByStreet = {}
   const foundationSlabRows = {} // Populated when building Foundation section; used by Waterproofing Exterior side pit items
   if (rawData && rawData.length > 1) {
     const headers = rawData[0]
@@ -277,6 +279,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     negativeSideWallItems = processNegativeSideWallItems(dataRows, headers)
     negativeSideSlabItems = processNegativeSideSlabItems(dataRows, headers)
     superstructureItems = processSuperstructureItems(dataRows, headers)
+    bppAlternateItemsByStreet = processBPPAlternateItems(dataRows, headers)
     const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
     const totalIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'total')
     if (digitizerIdx >= 0 && totalIdx >= 0) {
@@ -3346,6 +3349,174 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           rows.push(Array(template.columns.length).fill(''))
         }
       })
+    } else if (section.section === 'B.P.P. Alternate #2 scope') {
+      // B.P.P. Alternate #2 scope - organized by street name
+      const streetNames = Object.keys(bppAlternateItemsByStreet)
+      
+      if (streetNames.length > 0) {
+        streetNames.forEach((streetName, streetIndex) => {
+          const streetData = bppAlternateItemsByStreet[streetName]
+          
+          // Street name header row
+          const streetHeaderRow = Array(template.columns.length).fill('')
+          streetHeaderRow[1] = `Street name: ${streetName}`
+          rows.push(streetHeaderRow)
+          formulas.push({ row: rows.length, itemType: 'bpp_street_header', section: 'bpp_alternate', streetName })
+          
+          // Gravel rows (2 rows - 4" and 6" gravel, manual entry, col H empty)
+          const gravel4Row = Array(template.columns.length).fill('')
+          gravel4Row[1] = 'Gravel'
+          gravel4Row[3] = 'SQ FT'
+          // col H (height) is left empty for manual entry
+          rows.push(gravel4Row)
+          formulas.push({ row: rows.length, itemType: 'bpp_gravel', section: 'bpp_alternate', streetName, gravelType: '4inch' })
+          
+          const gravel6Row = Array(template.columns.length).fill('')
+          gravel6Row[1] = 'Gravel'
+          gravel6Row[3] = 'SQ FT'
+          // col H (height) is left empty for manual entry
+          rows.push(gravel6Row)
+          formulas.push({ row: rows.length, itemType: 'bpp_gravel', section: 'bpp_alternate', streetName, gravelType: '6inch' })
+          
+          rows.push(Array(template.columns.length).fill(''))
+          
+          // Concrete sidewalk items
+          if (streetData['Concrete sidewalk'] && streetData['Concrete sidewalk'].length > 0) {
+            const firstRow = rows.length + 1
+            streetData['Concrete sidewalk'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'SQ FT'
+              if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'bpp_concrete_sidewalk', parsedData: item, section: 'bpp_alternate', subsectionName: 'Concrete sidewalk' })
+            })
+            // Sum row
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Concrete sidewalk', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['J', 'L'] })
+            rows.push(Array(template.columns.length).fill(''))
+          }
+          
+          // Concrete driveway items
+          if (streetData['Concrete driveway'] && streetData['Concrete driveway'].length > 0) {
+            const firstRow = rows.length + 1
+            streetData['Concrete driveway'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'SQ FT'
+              if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'bpp_concrete_driveway', parsedData: item, section: 'bpp_alternate', subsectionName: 'Concrete driveway' })
+            })
+            // Sum row
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Concrete driveway', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['J', 'L'] })
+            rows.push(Array(template.columns.length).fill(''))
+          }
+          
+          // Concrete curb items
+          if (streetData['Concrete curb'] && streetData['Concrete curb'].length > 0) {
+            const firstRow = rows.length + 1
+            streetData['Concrete curb'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'FT'
+              if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+              if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'bpp_concrete_curb', parsedData: item, section: 'bpp_alternate', subsectionName: 'Concrete curb' })
+            })
+            // Sum row
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Concrete curb', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I', 'J', 'L'] })
+            rows.push(Array(template.columns.length).fill(''))
+          }
+          
+          // Concrete flush curb items
+          if (streetData['Concrete flush curb'] && streetData['Concrete flush curb'].length > 0) {
+            const firstRow = rows.length + 1
+            streetData['Concrete flush curb'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'FT'
+              if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+              if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'bpp_concrete_flush_curb', parsedData: item, section: 'bpp_alternate', subsectionName: 'Concrete flush curb' })
+            })
+            // Sum row
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Concrete flush curb', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I', 'J', 'L'] })
+            rows.push(Array(template.columns.length).fill(''))
+          }
+          
+          // Expansion joint items
+          if (streetData['Expansion joint'] && streetData['Expansion joint'].length > 0) {
+            const firstRow = rows.length + 1
+            streetData['Expansion joint'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'FT'
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'bpp_expansion_joint', parsedData: item, section: 'bpp_alternate', subsectionName: 'Expansion joint' })
+            })
+            // Sum row
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Expansion joint', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I'] })
+            rows.push(Array(template.columns.length).fill(''))
+          }
+          
+          // Conc road base row (manual entry, col H empty)
+          const concRoadBaseRow = Array(template.columns.length).fill('')
+          concRoadBaseRow[1] = 'Conc road base'
+          concRoadBaseRow[3] = 'SQ FT'
+          // col H (height) is left empty for manual entry
+          rows.push(concRoadBaseRow)
+          formulas.push({ row: rows.length, itemType: 'bpp_conc_road_base', section: 'bpp_alternate', streetName })
+          
+          // Full depth asphalt pavement items
+          if (streetData['Full depth asphalt pavement'] && streetData['Full depth asphalt pavement'].length > 0) {
+            const firstRow = rows.length + 1
+            streetData['Full depth asphalt pavement'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'SQ FT'
+              if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'bpp_full_depth_asphalt', parsedData: item, section: 'bpp_alternate', subsectionName: 'Full depth asphalt pavement' })
+            })
+            // Sum row
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Full depth asphalt pavement', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['J', 'L'] })
+            rows.push(Array(template.columns.length).fill(''))
+          }
+          
+          // Add spacing between streets
+          if (streetIndex < streetNames.length - 1) {
+            rows.push(Array(template.columns.length).fill(''))
+          }
+        })
+      } else {
+        // No items - just add subsection headers
+        section.subsections.forEach((subsection) => {
+          const subsectionRow = Array(template.columns.length).fill('')
+          subsectionRow[1] = subsection.name + ':'
+          rows.push(subsectionRow)
+          rows.push(Array(template.columns.length).fill(''))
+        })
+      }
     } else if (section.subsections && section.subsections.length > 0) {
       // Handle other sections with subsections
       section.subsections.forEach((subsection) => {
