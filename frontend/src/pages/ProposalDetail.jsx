@@ -15,6 +15,7 @@ import { generateRockExcavationFormulas } from '../utils/processors/rockExcavati
 import { generateSoeFormulas } from '../utils/processors/soeProcessor'
 import { generateFoundationFormulas } from '../utils/processors/foundationProcessor'
 import { generateWaterproofingFormulas } from '../utils/processors/waterproofingProcessor'
+import { buildProposalSheet } from '../utils/buildProposalSheet'
 import { useSidebar } from '../context/SidebarContext'
 
 const ProposalDetail = () => {
@@ -25,6 +26,19 @@ const ProposalDetail = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [calculationData, setCalculationData] = useState([])
   const [formulaData, setFormulaData] = useState([])
+  const [rockExcavationTotals, setRockExcavationTotals] = useState({ totalSQFT: 0, totalCY: 0 })
+  const [lineDrillTotalFT, setLineDrillTotalFT] = useState(0)
+  const rawDataRef = useRef(null)
+  const proposalBuiltRef = useRef(false)
+  const calculationDataRef = useRef([])
+  const generatedDataRef = useRef(null)
+  const formulaDataRef = useRef([])
+  const rockExcavationTotalsRef = useRef({ totalSQFT: 0, totalCY: 0 })
+  const lineDrillTotalFTRef = useRef(0)
+  calculationDataRef.current = calculationData
+  formulaDataRef.current = formulaData
+  rockExcavationTotalsRef.current = rockExcavationTotals
+  lineDrillTotalFTRef.current = lineDrillTotalFT
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -62,20 +76,88 @@ const ProposalDetail = () => {
     }
   }
 
-  // Generate or load spreadsheet data
+  // Generate calculation data from rawExcelData when available (needed for buildProposalSheet)
+  // Run for both new proposals (no spreadsheetJson) and saved proposals (have spreadsheetJson + rawExcelData from API)
   useEffect(() => {
-    if (!proposal) return
+    if (!proposal || !proposal.rawExcelData) {
+      generatedDataRef.current = null
+      return
+    }
 
-    // If we have spreadsheet JSON saved, we'll load it after spreadsheet is created
-    // Otherwise, generate sheets from raw data
-    if (!proposal.spreadsheetJson && proposal.rawExcelData) {
-      const { headers, rows } = proposal.rawExcelData
+    proposalBuiltRef.current = false
+    const { headers, rows } = proposal.rawExcelData
       const rawData = [headers, ...rows]
+      rawDataRef.current = rawData
 
       const template = proposal.template || 'capstone'
       const result = generateCalculationSheet(template, rawData)
       setCalculationData(result.rows)
       setFormulaData(result.formulas)
+      setRockExcavationTotals(result.rockExcavationTotals || { totalSQFT: 0, totalCY: 0 })
+      setLineDrillTotalFT(result.lineDrillTotalFT || 0)
+
+      // Store window globals for proposal sheet (used by buildProposalSheet)
+      window.soldierPileGroups = result.soldierPileGroups || []
+      window.soeSubsectionItems = new Map()
+      window.primarySecantItems = result.primarySecantItems || []
+      window.secondarySecantItems = result.secondarySecantItems || []
+      window.tangentPileItems = result.tangentPileItems || []
+      window.pargingItems = result.pargingItems || []
+      window.guideWallItems = result.guideWallItems || []
+      window.dowelBarItems = result.dowelBarItems || []
+      window.rockPinItems = result.rockPinItems || []
+      window.rockStabilizationItems = result.rockStabilizationItems || []
+      window.buttonItems = result.buttonItems || []
+      window.drilledFoundationPileGroups = result.drilledFoundationPileGroups || []
+      window.helicalFoundationPileGroups = result.helicalFoundationPileGroups || []
+      window.drivenFoundationPileItems = result.drivenFoundationPileItems || []
+      window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileItems || []
+      window.cfaPileItems = result.cfaPileItems || []
+      window.foundationSubsectionItems = new Map()
+      window.shotcreteItems = result.shotcreteItems || []
+      window.permissionGroutingItems = result.permissionGroutingItems || []
+      window.mudSlabItems = result.mudSlabItems || []
+
+      // Check which waterproofing items are present
+      if (rawData && rawData.length > 1) {
+        const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
+        const estimateIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'estimate')
+        const itemsToCheck = {
+          'foundation walls': /^FW\s*\(/i, 'retaining wall': /^RW\s*\(/i, 'vehicle barrier wall': /vehicle\s+barrier\s+wall\s*\(/i,
+          'concrete liner wall': /concrete\s+liner\s+wall\s*\(/i, 'stem wall': /stem\s+wall\s*\(/i, 'grease trap pit wall': /grease\s+trap\s+pit\s+wall/i,
+          'house trap pit wall': /house\s+trap\s+pit\s+wall/i, 'detention tank wall': /detention\s+tank\s+wall/i,
+          'elevator pit walls': /elev(?:ator)?\s+pit\s+wall/i, 'duplex sewage ejector pit wall': /duplex\s+sewage\s+ejector\s+pit\s+wall/i
+        }
+        const negativeSideItemsToCheck = {
+          'detention tank wall': /detention\s+tank\s+wall/i, 'elevator pit walls': /elev(?:ator)?\s+pit\s+wall/i,
+          'detention tank slab': /detention\s+tank\s+slab(?!\s+lid)/i, 'duplex sewage ejector pit wall': /duplex\s+sewage\s+ejector\s+pit\s+wall/i,
+          'duplex sewage ejector pit slab': /duplex\s+sewage\s+ejector\s+pit\s+slab/i, 'elevator pit slab': /elev(?:ator)?\s+pit\s+slab/i
+        }
+        const presentItems = []
+        const presentNegativeSideItems = []
+        const dataRows = rawData.slice(1)
+        dataRows.forEach(row => {
+          const digitizerItem = row[digitizerIdx]
+          if (!digitizerItem) return
+          if (estimateIdx >= 0 && row[estimateIdx] && String(row[estimateIdx]).trim() !== 'Waterproofing') return
+          const itemText = String(digitizerItem).trim()
+          Object.entries(itemsToCheck).forEach(([itemName, pattern]) => {
+            if (pattern.test(itemText) && !presentItems.includes(itemName)) presentItems.push(itemName)
+          })
+          Object.entries(negativeSideItemsToCheck).forEach(([itemName, pattern]) => {
+            if (pattern.test(itemText) && !presentNegativeSideItems.includes(itemName)) presentNegativeSideItems.push(itemName)
+          })
+        })
+        window.waterproofingPresentItems = presentItems
+        window.waterproofingNegativeSideItems = presentNegativeSideItems
+      }
+
+    // Store for buildProposalSheet when loading from JSON (state may not have updated yet)
+    generatedDataRef.current = {
+      rows: result.rows,
+      formulas: result.formulas,
+      rockExcavationTotals: result.rockExcavationTotals || { totalSQFT: 0, totalCY: 0 },
+      lineDrillTotalFT: result.lineDrillTotalFT || 0
     }
   }, [proposal])
 
@@ -86,25 +168,52 @@ const ProposalDetail = () => {
     // If we have saved JSON and haven't loaded it yet, load it
     if (proposal.spreadsheetJson && !hasLoadedFromJson.current) {
       setIsSpreadsheetLoading(true)
-      try {
-        // Handle both old format (just Workbook) and new format (full jsonObject with Workbook property)
-        const jsonData = proposal.spreadsheetJson.Workbook 
-          ? proposal.spreadsheetJson  // New format: full jsonObject
-          : { Workbook: proposal.spreadsheetJson }  // Old format: just Workbook, wrap it
-        spreadsheetRef.current.openFromJson({ file: jsonData })
-        hasLoadedFromJson.current = true
-        setLastSaved(new Date(proposal.updatedAt))
+      ;(async () => {
+        try {
+          // Handle both old format (just Workbook) and new format (full jsonObject with Workbook property)
+          const jsonData = proposal.spreadsheetJson.Workbook 
+            ? proposal.spreadsheetJson  // New format: full jsonObject
+            : { Workbook: proposal.spreadsheetJson }  // Old format: just Workbook, wrap it
+          spreadsheetRef.current.openFromJson({ file: jsonData })
+          hasLoadedFromJson.current = true
+          setLastSaved(new Date(proposal.updatedAt))
 
-        // Restore images after loading the spreadsheet JSON
-        // Images are stored separately since saveAsJson doesn't include them
-        if (proposal.images && proposal.images.length > 0) {
-          restoreImages(proposal.images)
+          // Restore images after loading the spreadsheet JSON
+          if (proposal.images && proposal.images.length > 0) {
+            restoreImages(proposal.images)
+          }
+
+          // Always rebuild Proposal Sheet from raw data (for real-time testing)
+          // Calculations Sheet stays as loaded from JSON - we never overwrite it
+          if (proposal.rawExcelData && generatedDataRef.current) {
+            const gen = generatedDataRef.current
+            try {
+              await new Promise(resolve => setTimeout(resolve, 100))
+              buildProposalSheet(spreadsheetRef.current, {
+                calculationData: gen.rows,
+                formulaData: gen.formulas,
+                rockExcavationTotals: gen.rockExcavationTotals,
+                lineDrillTotalFT: gen.lineDrillTotalFT,
+                rawData: rawDataRef.current
+              })
+              proposalBuiltRef.current = true
+              markDirtyAndScheduleSave()
+              await new Promise(resolve => setTimeout(resolve, 300))
+              if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current)
+                saveTimeoutRef.current = null
+              }
+              saveSpreadsheet(false)
+            } catch (e) {
+              console.error('Error building proposal sheet after load:', e)
+            }
+          }
+        } catch (error) {
+          toast.error('Error loading saved spreadsheet')
+        } finally {
+          setIsSpreadsheetLoading(false)
         }
-      } catch (error) {
-        toast.error('Error loading saved spreadsheet')
-      } finally {
-        setIsSpreadsheetLoading(false)
-      }
+      })()
     }
     // Otherwise, apply generated data if we have it
     else if (calculationData.length > 0 && !hasLoadedFromJson.current) {
@@ -132,8 +241,29 @@ const ProposalDetail = () => {
       await new Promise(resolve => setTimeout(resolve, 100))
       applyFormulasAndStyles()
 
-      // Trigger initial save to persist the styled spreadsheet
+      // Build the Proposal sheet from calculation data
+      try {
+        buildProposalSheet(spreadsheetRef.current, {
+          calculationData,
+          formulaData,
+          rockExcavationTotals,
+          lineDrillTotalFT,
+          rawData: rawDataRef.current
+        })
+        proposalBuiltRef.current = true
+      } catch (e) {
+        console.error('Error building proposal sheet:', e)
+      }
+
+      // Trigger initial save to persist both Calculations and Proposal sheets
       markDirtyAndScheduleSave()
+      // Immediate save so Proposal Sheet content persists (programmatic updates may not trigger save events)
+      await new Promise(resolve => setTimeout(resolve, 300))
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+        saveTimeoutRef.current = null
+      }
+      saveSpreadsheet(false)
     } catch (error) {
       console.error('Error loading spreadsheet model:', error)
       toast.error('Error loading spreadsheet')
@@ -177,16 +307,17 @@ const ProposalDetail = () => {
     const columns = generateColumnConfigs().map(config => ({ width: config.width }))
 
     // Build the complete workbook model (no formulas - they're applied after loading)
+    // Sheet names must match buildProposalSheet expectations: "Calculations Sheet", "Proposal Sheet"
     const workbookModel = {
       Workbook: {
         sheets: [
           {
-            name: 'Calculations',
+            name: 'Calculations Sheet',
             rows: calculationsRows,
             columns: columns
           },
           {
-            name: 'Proposal',
+            name: 'Proposal Sheet',
             rows: [],
             columns: []
           }
@@ -211,6 +342,13 @@ const ProposalDetail = () => {
   const applyFormulasAndStyles = () => {
     if (!spreadsheetRef.current) return
     const spreadsheet = spreadsheetRef.current
+
+    // Ensure we're on the Calculations Sheet when applying formulas
+    try {
+      spreadsheet.goTo('Calculations Sheet!A1')
+    } catch (e) {
+      // ignore
+    }
 
     // Deferred foundation sum formulas
     const deferredFoundationSumL = []
@@ -1455,15 +1593,25 @@ const ProposalDetail = () => {
     setSaveError(null)
 
     try {
-      // Get the spreadsheet JSON
+      // Get the spreadsheet JSON (includes all sheets: Calculations Sheet + Proposal Sheet)
       const json = await spreadsheetRef.current.saveAsJson()
+      const jsonObject = json.jsonObject || json
+
+      // Dev: verify both sheets are in the save payload
+      if (import.meta.env.DEV) {
+        const sheets = jsonObject?.Workbook?.sheets || []
+        const sheetNames = sheets.map(s => s.name || s.Name).filter(Boolean)
+        if (!sheetNames.includes('Proposal Sheet')) {
+          console.warn('[ProposalDetail] Save payload missing Proposal Sheet. Sheets:', sheetNames)
+        }
+      }
 
       // Extract images separately since saveAsJson doesn't include them
       const images = extractImages()
 
       // Save both spreadsheet JSON and images
       await proposalAPI.update(proposalId, {
-        spreadsheetJson: json.jsonObject,
+        spreadsheetJson: jsonObject,
         images: images
       })
 
@@ -1604,11 +1752,11 @@ const ProposalDetail = () => {
   const handleActionComplete = useCallback((args) => {
     // Actions that should NOT trigger a save (read-only operations)
     const noSaveActions = [
-      'gotoSheet', 'copy', 'select', 'scroll', 'zoom',
+      'copy', 'select', 'scroll', 'zoom',
       'find', 'getData', 'refresh'
     ]
-    
-    // Save on any action that's not in the no-save list
+    // Note: We DO save on 'gotoSheet' - when user switches away from Proposal Sheet,
+    // we need to capture any pending edits (cell may have been saved but we want to persist)
     if (args.action && !noSaveActions.includes(args.action)) {
       markDirtyAndScheduleSave()
     }
@@ -1815,17 +1963,34 @@ const ProposalDetail = () => {
             // File menu events - trigger save after file menu operations
             fileMenuItemSelect={() => setTimeout(() => markDirtyAndScheduleSave(), 1000)}
             // Created event
-            created={() => {}}
+            created={() => {
+              // Fallback: when spreadsheet is ready and we have generated data but proposal wasn't built yet (timing)
+              const calcData = calculationDataRef.current
+              if (calcData.length > 0 && !proposalBuiltRef.current && spreadsheetRef.current && !proposal?.spreadsheetJson) {
+                try {
+                  buildProposalSheet(spreadsheetRef.current, {
+                    calculationData: calcData,
+                    formulaData: formulaDataRef.current,
+                    rockExcavationTotals: rockExcavationTotalsRef.current,
+                    lineDrillTotalFT: lineDrillTotalFTRef.current,
+                    rawData: rawDataRef.current
+                  })
+                  proposalBuiltRef.current = true
+                } catch (e) {
+                  console.error('Error building proposal sheet (onCreated):', e)
+                }
+              }
+            }}
           >
             <SheetsDirective>
-              <SheetDirective name="Calculations">
+              <SheetDirective name="Calculations Sheet">
                 <ColumnsDirective>
                   {generateColumnConfigs().map((config, idx) => (
                     <ColumnDirective key={idx} width={config.width} />
                   ))}
                 </ColumnsDirective>
               </SheetDirective>
-              <SheetDirective name="Proposal" />
+              <SheetDirective name="Proposal Sheet" />
             </SheetsDirective>
           </SpreadsheetComponent>
         </div>

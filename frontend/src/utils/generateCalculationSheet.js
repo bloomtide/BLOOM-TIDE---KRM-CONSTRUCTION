@@ -3483,7 +3483,7 @@ export const applyCalculationSheetFormatting = (spreadsheet, sheetIndex = 0) => 
     // - Number formatting for numeric columns
     // - Border styling
   } catch (error) {
-    console.error('Error applying formatting:', error)
+    // Silently handle formatting errors
   }
 }
 
