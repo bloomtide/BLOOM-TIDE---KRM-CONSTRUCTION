@@ -15,12 +15,23 @@ connectDB();
 
 const app = express();
 
-// CORS configuration
-const corsOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
+// CORS configuration - supports multiple origins (comma-separated in env)
+const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
+    .split(',')
+    .map(origin => origin.trim());
 
 // Apply CORS headers to ALL responses (must be first middleware)
 app.use((req, res, next) => {
-    res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+    const origin = req.headers.origin;
+    
+    // Check if the request origin is in our allowed list
+    if (origin && allowedOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    } else if (allowedOrigins.length === 1) {
+        // Single origin configured, use it directly
+        res.setHeader('Access-Control-Allow-Origin', allowedOrigins[0]);
+    }
+    
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');

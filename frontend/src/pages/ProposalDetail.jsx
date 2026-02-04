@@ -1416,6 +1416,87 @@ const ProposalDetail = () => {
             spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
             return
           }
+        } else if (section === 'bpp_alternate') {
+          // B.P.P. Alternate #2 scope formulas
+          if (itemType === 'bpp_street_header') {
+            // Street header row - black text, underlined, bold
+            spreadsheet.cellFormat({ fontWeight: 'bold', textDecoration: 'underline', color: '#000000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'bpp_gravel') {
+            // Gravel: col B black text, col H empty, col I empty, col J = C, CY = J * H / 27
+            spreadsheet.cellFormat({ color: '#000000' }, `B${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'bpp_concrete_sidewalk' || itemType === 'bpp_concrete_driveway') {
+            // SQ FT items: col I empty, col J = C, CY = J * H / 27
+            const parsed = parsedData || formulaInfo
+            const heightFormula = parsed?.parsed?.heightFormula
+            if (heightFormula) {
+              spreadsheet.updateCell({ formula: `=${heightFormula}` }, `H${row}`)
+            }
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            return
+          }
+          if (itemType === 'bpp_concrete_curb' || itemType === 'bpp_concrete_flush_curb') {
+            // FT items: FT = C, SQ_FT = I * H, CY = J * G / 27
+            const parsed = parsedData || formulaInfo
+            const widthFormula = parsed?.parsed?.widthFormula
+            if (widthFormula) {
+              spreadsheet.updateCell({ formula: `=${widthFormula}` }, `G${row}`)
+            }
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            return
+          }
+          if (itemType === 'bpp_expansion_joint') {
+            // Expansion joint: FT = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            return
+          }
+          if (itemType === 'bpp_conc_road_base') {
+            // Conc road base: black text, col H empty, SQ_FT = C, CY = J * H / 27
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#000000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'bpp_full_depth_asphalt') {
+            // Full depth asphalt: col I empty, col J = C, CY = J * H / 27
+            const parsed = parsedData || formulaInfo
+            const heightFormula = parsed?.parsed?.heightFormula
+            if (heightFormula) {
+              spreadsheet.updateCell({ formula: `=${heightFormula}` }, `H${row}`)
+            }
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            return
+          }
+          if (itemType === 'bpp_sum') {
+            const { firstDataRow, lastDataRow, sumColumns } = formulaInfo
+            // Sum should be in J column, not I (for sidewalk, driveway, asphalt items)
+            if (sumColumns && sumColumns.includes('I')) {
+              spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            }
+            if (sumColumns && sumColumns.includes('J')) {
+              spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            }
+            if (sumColumns && sumColumns.includes('L')) {
+              spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            }
+            return
+          }
         }
 
         // Apply generic formulas if we got them from generators
@@ -1479,7 +1560,7 @@ const ProposalDetail = () => {
             } else {
               spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic' }, `B${rowNum}`)
             }
-          } else if (bContent !== 'Havg') {
+          } else if (bContent !== 'Havg' && bContent !== 'Gravel' && bContent !== 'Conc road base' && !bContent.startsWith('Street name:')) {
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${rowNum}`)
           }
         }
