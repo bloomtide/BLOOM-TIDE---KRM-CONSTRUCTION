@@ -1286,7 +1286,8 @@ const ProposalDetail = () => {
             return
           }
           if (itemType === 'bpp_gravel') {
-            // Gravel: col H empty, col I empty, col J = C, CY = J * H / 27
+            // Gravel: col B black text, col H empty, col I empty, col J = C, CY = J * H / 27
+            spreadsheet.cellFormat({ color: '#000000' }, `B${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
@@ -1421,7 +1422,7 @@ const ProposalDetail = () => {
             } else {
               spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic' }, `B${rowNum}`)
             }
-          } else if (bContent !== 'Havg') {
+          } else if (bContent !== 'Havg' && bContent !== 'Gravel' && bContent !== 'Conc road base' && !bContent.startsWith('Street name:')) {
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${rowNum}`)
           }
         }
