@@ -9714,7 +9714,22 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
       })
       
-      // Add empty row after all foundation sections
+      // Add Substructure concrete scope header (after CAF piles scope)
+      spreadsheet.updateCell({ value: 'Substructure concrete scope:' }, `${pfx}B${currentRow}`)
+      spreadsheet.cellFormat(
+        { 
+          fontWeight: 'bold', 
+          color: '#000000', 
+          textAlign: 'center',
+          backgroundColor: '#BDD7EE',
+          border: '1px solid #000000',
+          textDecoration: 'underline'
+        },
+        `${pfx}B${currentRow}`
+      )
+      currentRow++
+      
+      // Add empty row after Substructure concrete scope
       currentRow++
       
       // Add Below grade waterproofing scope header
