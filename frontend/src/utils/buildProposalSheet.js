@@ -9714,6 +9714,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
       })
       
+      // Substructure concrete scope - hidden
+      if (false) { // eslint-disable-line no-constant-condition
       // Add Substructure concrete scope header (after CAF piles scope)
       spreadsheet.updateCell({ value: 'Substructure concrete scope:' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat(
@@ -9729,8 +9731,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       )
       currentRow++
       
-      // Substructure concrete scope - hidden for now
-      if (false) { // eslint-disable-line no-constant-condition
+      // Substructure concrete scope table
       const substructureCalcSheet = 'Calculations Sheet'
       const pileSubsections = ['Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile']
       const allFoundationSums = (formulaData || []).filter(f =>
@@ -11937,6 +11938,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
       // Add Alternate #1: Sitework scope header
       let siteworkScopeStartRow = null
+      const siteworkTotalFRows = []
       {
         spreadsheet.merge(`${pfx}B${currentRow}:G${currentRow}`)
         spreadsheet.updateCell({ value: 'Add Alternate #1: Sitework scope: as per C-4' }, `${pfx}B${currentRow}`)
@@ -11956,7 +11958,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           fontWeight: 'bold', 
           color: '#000000', 
           textAlign: 'left',
-          backgroundColor: '#FEF2CB',
+          backgroundColor: '#FEF2CB', verticalAlign: 'middle',
           textDecoration: 'underline',
           border: '1px solid #000000'
         },
@@ -12359,15 +12361,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
         spreadsheet.updateCell({ value: 'Site Demo / Removals Total:' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
           `${pfx}B${currentRow}:E${currentRow}`
         )
         spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
         spreadsheet.updateCell({ formula: `=SUM(H${demoStartRow}:H${demoEndRow})*1000` }, `${pfx}F${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000', format: '$#,##0.00' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
           `${pfx}F${currentRow}:G${currentRow}`
         )
+        siteworkTotalFRows.push(currentRow)
         currentRow++
       }
       
@@ -12413,7 +12416,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       if (hasErosionItems) {
         spreadsheet.updateCell({ value: 'Erosion control:' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', textDecoration: 'underline', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', verticalAlign: 'middle', textDecoration: 'underline', border: '1px solid #000000' },
           `${pfx}B${currentRow}`
         )
         currentRow++
@@ -12453,15 +12456,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
         spreadsheet.updateCell({ value: 'Erosion & Sediment Control Total:' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
           `${pfx}B${currentRow}:E${currentRow}`
         )
         spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
         spreadsheet.updateCell({ formula: `=SUM(H${erosionDataStartRow}:H${erosionEndRow})*1000` }, `${pfx}F${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000', format: '$#,##0.00' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
           `${pfx}F${currentRow}:G${currentRow}`
         )
+        siteworkTotalFRows.push(currentRow)
         currentRow++
       }
       
@@ -12512,7 +12516,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       if (hasExcOrGravel) {
         spreadsheet.updateCell({ value: 'Excavation, backfill & grading scope:' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', textDecoration: 'underline', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', verticalAlign: 'middle', textDecoration: 'underline', border: '1px solid #000000' },
           `${pfx}B${currentRow}`
         )
         currentRow++
@@ -12543,15 +12547,18 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           )
           currentRow++
           
-          gravelItems.transformer_pad.forEach(({ rowNum }) => {
+          if (gravelItems.transformer_pad.length > 0) {
+            const tpRows = gravelItems.transformer_pad
+            const sumFormulaJ = tpRows.length === 1 ? `='${excGradingCalcSheet}'!J${tpRows[0].rowNum}` : `=SUM(${tpRows.map(r => `'${excGradingCalcSheet}'!J${r.rowNum}`).join(',')})`
+            const sumFormulaL = tpRows.length === 1 ? `='${excGradingCalcSheet}'!L${tpRows[0].rowNum}` : `=SUM(${tpRows.map(r => `'${excGradingCalcSheet}'!L${r.rowNum}`).join(',')})`
             spreadsheet.updateCell({ value: `F&I new (4" thick) gravel/crushed stone @ transformer concrete pad as per A-100.00` }, `${pfx}B${currentRow}`)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-            spreadsheet.updateCell({ formula: `='${excGradingCalcSheet}'!J${rowNum}` }, `${pfx}D${currentRow}`)
-            spreadsheet.updateCell({ formula: `='${excGradingCalcSheet}'!L${rowNum}` }, `${pfx}F${currentRow}`)
+            spreadsheet.updateCell({ formula: sumFormulaJ }, `${pfx}D${currentRow}`)
+            spreadsheet.updateCell({ formula: sumFormulaL }, `${pfx}F${currentRow}`)
             spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
             currentRow++
-          })
+          }
           
           const gravel6Rows = [...gravelItems.reinforced_sidewalk, ...gravelItems.asphalt]
           if (gravel6Rows.length > 0) {
@@ -12576,221 +12583,55 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
         spreadsheet.updateCell({ value: 'Excavation, Backfill & Grading Total:' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
           `${pfx}B${currentRow}:E${currentRow}`
         )
         spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
         spreadsheet.updateCell({ formula: `=SUM(H${excGradingDataStartRow}:H${excGradingEndRow})*1000` }, `${pfx}F${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000', format: '$#,##0.00' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
           `${pfx}F${currentRow}:G${currentRow}`
         )
+        siteworkTotalFRows.push(currentRow)
         currentRow++
       }
       
-      // Fence section
-      const fenceCalcSheet = 'Calculations Sheet'
-      const fenceSums = (formulaData || []).filter(f => f.itemType === 'civil_fence_sum' && f.section === 'civil_sitework')
-      const fenceItems = [
-        { proposalText: `F&I new construction fence (H=6'-0") as per SOE-100.00`, sumIndex: 0 },
-        { proposalText: `F&I new fence (H=10'-0") as per SOE-100.00`, sumIndex: 1 },
-        { proposalText: `F&I new guiderail (H=3'-6") as per SOE-100.00`, sumIndex: 2 }
-      ]
-      const hasFenceItems = fenceSums.length > 0
-      if (hasFenceItems) {
-        currentRow++
-        const fenceHeaderRow = currentRow
-        spreadsheet.updateCell({ value: 'Fence:' }, `${pfx}B${currentRow}`)
-        spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', textDecoration: 'underline', border: '1px solid #000000' },
-          `${pfx}B${currentRow}`
-        )
-        currentRow++
-        
-        fenceItems.forEach((item, idx) => {
-          const sumInfo = fenceSums[item.sumIndex]
-          if (!sumInfo) return
-          const sumRow = sumInfo.row
-          spreadsheet.updateCell({ value: item.proposalText }, `${pfx}B${currentRow}`)
-          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          spreadsheet.updateCell({ formula: `='${fenceCalcSheet}'!I${sumRow}` }, `${pfx}C${currentRow}`)
-          spreadsheet.updateCell({ formula: `='${fenceCalcSheet}'!J${sumRow}` }, `${pfx}D${currentRow}`)
-          spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
-          currentRow++
-        })
-        
-        const fenceEndRow = currentRow - 1
-        const fenceDataStartRow = fenceHeaderRow + 1
-        spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
-        spreadsheet.updateCell({ value: 'Construction Fence Total:' }, `${pfx}B${currentRow}`)
-        spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000' },
-          `${pfx}B${currentRow}:E${currentRow}`
-        )
-        spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
-        spreadsheet.updateCell({ formula: `=SUM(H${fenceDataStartRow}:H${fenceEndRow})*1000` }, `${pfx}F${currentRow}`)
-        spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000', format: '$#,##0.00' },
+      // Dewatering section (after Excavation, backfill & grading scope)
+      currentRow++
+      spreadsheet.updateCell({ value: 'Dewatering:' }, `${pfx}B${currentRow}`)
+      spreadsheet.cellFormat(
+        { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', verticalAlign: 'middle', textDecoration: 'underline', border: '1px solid #000000' },
+        `${pfx}B${currentRow}`
+      )
+      currentRow++
+      spreadsheet.updateCell({ value: 'Dewatering allowance - Budget $200k' }, `${pfx}B${currentRow}`)
+      spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+      spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+      currentRow++
+      spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
+      spreadsheet.updateCell({ value: 'Dewatering Total:' }, `${pfx}B${currentRow}`)
+      spreadsheet.cellFormat(
+        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
+        `${pfx}B${currentRow}:E${currentRow}`
+      )
+      spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
+      spreadsheet.updateCell({ value: 200000 }, `${pfx}F${currentRow}`)
+      spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
           `${pfx}F${currentRow}:G${currentRow}`
         )
+        siteworkTotalFRows.push(currentRow)
         currentRow++
-      }
       
-      // Site finishes section
-      const siteFinishesCalcSheet = 'Calculations Sheet'
-      const civilConcretePavementSum = (formulaData || []).find(f => f.itemType === 'civil_concrete_pavement_sum' && f.section === 'civil_sitework')
-      const civilAsphaltSum = (formulaData || []).find(f => f.itemType === 'civil_asphalt_sum' && f.section === 'civil_sitework')
-      const civilBollardFootingSum = (formulaData || []).find(f => f.itemType === 'civil_bollard_footing_sum' && f.section === 'civil_sitework')
+      // Utilities & drainage system section (below Dewatering)
       const siteSums = (formulaData || []).filter(f => f.itemType === 'civil_site_sum' && f.section === 'civil_sitework')
-      const bollardFootingItems = (formulaData || []).filter(f => f.itemType === 'civil_bollard_footing_item' && f.section === 'civil_sitework')
-      const trafficSignRows = bollardFootingItems.filter(f => (f.parsedData?.particulars || '').toLowerCase().includes('traffic')).map(f => f.row)
-      const sanitaryInvertItem = (formulaData || []).find(f => f.itemType === 'civil_drains_utilities_item' && (f.parsedData?.particulars || '').toLowerCase().includes('sanitary invert'))
-      
-      const hasSiteFinishes = civilConcretePavementSum || civilAsphaltSum || civilBollardFootingSum || siteSums.length > 0
-      if (hasSiteFinishes) {
-        currentRow++
-        const siteFinishesHeaderRow = currentRow
-        spreadsheet.updateCell({ value: 'Site finishes:' }, `${pfx}B${currentRow}`)
-        spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', textDecoration: 'underline', border: '1px solid #000000' },
-          `${pfx}B${currentRow}`
-        )
-        currentRow++
-        
-        if (civilConcretePavementSum) {
-          spreadsheet.updateCell({ value: 'Concrete pavement:' }, `${pfx}B${currentRow}`)
-          spreadsheet.cellFormat(
-            { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#D0CECE', textDecoration: 'underline', border: '1px solid #000000' },
-            `${pfx}B${currentRow}`
-          )
-          currentRow++
-          const cpRow = civilConcretePavementSum.row
-          spreadsheet.updateCell({ value: `F&I new (4" thick) concrete sidewalk, reinf w/ 6x6-W1.4xW1.4 w.w.f as per C-4 & details on C-11` }, `${pfx}B${currentRow}`)
-          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!J${cpRow}` }, `${pfx}D${currentRow}`)
-          spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!L${cpRow}` }, `${pfx}F${currentRow}`)
-          spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
-          currentRow++
-        }
-        
-        if (civilAsphaltSum) {
-          spreadsheet.updateCell({ value: 'Asphalt pavement:' }, `${pfx}B${currentRow}`)
-          spreadsheet.cellFormat(
-            { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#D0CECE', textDecoration: 'underline', border: '1px solid #000000' },
-            `${pfx}B${currentRow}`
-          )
-          currentRow++
-          const apRow = civilAsphaltSum.row
-          spreadsheet.updateCell({ value: `F&I new full depth asphalt pavement (1.5" thick) surface course on (3" thick) base course as per FO-001.00 & details on 9/C-11` }, `${pfx}B${currentRow}`)
-          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!J${apRow}` }, `${pfx}D${currentRow}`)
-          spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!L${apRow}` }, `${pfx}F${currentRow}`)
-          spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
-          currentRow++
-        }
-        
-        if (siteSums.length > 0 || trafficSignRows.length > 0) {
-          spreadsheet.updateCell({ value: 'Site:' }, `${pfx}B${currentRow}`)
-          spreadsheet.cellFormat(
-            { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#D0CECE', textDecoration: 'underline', border: '1px solid #000000' },
-            `${pfx}B${currentRow}`
-          )
-          currentRow++
-          
-          // Match by exact line (single item) or whole group (sum): search template/calculations for corresponding data
-          const getSiteSumByKey = (key) => (siteSums || []).find(s => s.siteGroupKey === key)
-          const siteProposalLines = [
-            { text: `F&I new (2)no traffic sign w/ footing (18" Ø, H=3'-0") as per C-4`, qtySource: 'traffic' },
-            { text: `F&I new (3)no fire hydrant as per C-6`, qtySource: 'sum', siteGroupKey: 'Hydrant' },
-            { text: `F&I new (9)no concrete wheel stop as per C-4`, qtySource: 'sum', siteGroupKey: 'Wheel stop' },
-            { text: `F&I new (11)no area drain as per C-6`, qtySource: 'sum', siteGroupKey: 'Area' },
-            { text: `F&I new (9)no floor drain as per C-6`, qtySource: 'sum', siteGroupKey: 'Floor' },
-            { text: `F&I new (5)no inlet filter protection as per C-6`, qtySource: 'sum', siteGroupKey: 'Protection' },
-            { text: `F&I new (8)no signages as per C-6`, qtySource: 'sum', siteGroupKey: 'Signages' },
-            { text: `F&I new (1)no sanitary invert as per C-6`, qtySource: 'sanitaryInvert' },
-            { text: `F&I new (1)no connection to existing sanitary main as per C-6`, qtySource: 'sum', siteGroupKey: 'Sanitary' }
-          ]
-          siteProposalLines.forEach((line) => {
-            let qtyFormula = ''
-            if (line.qtySource === 'traffic' && trafficSignRows.length > 0) {
-              qtyFormula = trafficSignRows.length === 1 ? `='${siteFinishesCalcSheet}'!M${trafficSignRows[0]}` : `=SUM(${trafficSignRows.map(r => `'${siteFinishesCalcSheet}'!M${r}`).join(',')})`
-            } else if (line.qtySource === 'sanitaryInvert' && sanitaryInvertItem) {
-              qtyFormula = `='${siteFinishesCalcSheet}'!M${sanitaryInvertItem.row}`
-            } else if (line.qtySource === 'sum' && line.siteGroupKey) {
-              const sumRow = getSiteSumByKey(line.siteGroupKey)
-              if (sumRow) qtyFormula = `='${siteFinishesCalcSheet}'!M${sumRow.row}`
-            }
-            if (!qtyFormula) return
-            spreadsheet.updateCell({ value: line.text }, `${pfx}B${currentRow}`)
-            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-            spreadsheet.updateCell({ formula: qtyFormula }, `${pfx}G${currentRow}`)
-            spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
-            currentRow++
-          })
-        }
-        
-        if (civilBollardFootingSum) {
-          spreadsheet.updateCell({ value: 'Concrete filled steel pipe bollard:' }, `${pfx}B${currentRow}`)
-          spreadsheet.cellFormat(
-            { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#D0CECE', textDecoration: 'underline', border: '1px solid #000000' },
-            `${pfx}B${currentRow}`
-          )
-          currentRow++
-          const bfRow = civilBollardFootingSum.row
-          spreadsheet.updateCell({ value: `F&I new (28)no (6" Ø wide) concrete filled steel pipe bollard (Havg=6'-0") as per C-4 & details on C-11` }, `${pfx}B${currentRow}`)
-          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!J${bfRow}` }, `${pfx}D${currentRow}`)
-          spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!L${bfRow}` }, `${pfx}F${currentRow}`)
-          spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!M${bfRow}` }, `${pfx}G${currentRow}`)
-          spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
-          currentRow++
-        }
-        
-        spreadsheet.updateCell({ value: 'Misc.:' }, `${pfx}B${currentRow}`)
-        spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#D0CECE', textDecoration: 'underline', border: '1px solid #000000' },
-          `${pfx}B${currentRow}`
-        )
-        currentRow++
-        spreadsheet.updateCell({ value: 'Temp Protection & Barriers' }, `${pfx}B${currentRow}`)
-        spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-        currentRow++
-        spreadsheet.updateCell({ value: 'DOT Permits, Temp DOT Barriers' }, `${pfx}B${currentRow}`)
-        spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-        currentRow++
-        
-        const siteFinishesEndRow = currentRow - 1
-        const siteFinishesDataStartRow = siteFinishesHeaderRow + 1
-        spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
-        spreadsheet.updateCell({ value: 'Site Finishes Total:' }, `${pfx}B${currentRow}`)
-        spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000' },
-          `${pfx}B${currentRow}:E${currentRow}`
-        )
-        spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
-        spreadsheet.updateCell({ formula: `=SUM(H${siteFinishesDataStartRow}:H${siteFinishesEndRow})*1000` }, `${pfx}F${currentRow}`)
-        spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000', format: '$#,##0.00' },
-          `${pfx}F${currentRow}:G${currentRow}`
-        )
-        currentRow++
-      }
-      
-      // Utilities & drainage system section
       const utilsCalcSheet = 'Calculations Sheet'
       const civilEleSums = (formulaData || []).filter(f => f.itemType === 'civil_ele_sum' && f.section === 'civil_sitework')
       const civilPadsSum = (formulaData || []).find(f => f.itemType === 'civil_pads_sum' && f.section === 'civil_sitework')
       const drainsUtilsItems = (formulaData || []).filter(f => f.itemType === 'civil_drains_utilities_item' && f.section === 'civil_sitework')
       const findDrainsItem = (keyword) => drainsUtilsItems.find(f => (f.parsedData?.particulars || '').toLowerCase().includes(keyword))
       const getSiteSumByKey = (key) => (siteSums || []).find(s => s.siteGroupKey === key)
-      
+
       const parseUtilsSectionFromCalc = (sectionName) => {
         const sums = { Excavation: null, Backfill: null, Gravel: null }
         if (!calculationData || calculationData.length === 0) return sums
@@ -12839,10 +12680,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
         return sums
       }
-      
+
       const gasSums = parseUtilsSectionFromCalc('Gas')
       const waterSums = parseUtilsSectionFromCalc('Water')
-      
+
       const civilEleExc = civilEleSums.find(f => f.subSubsectionName === 'Excavation')
       const civilEleBackfill = civilEleSums.find(f => f.subSubsectionName === 'Backfill')
       const civilEleGravel = civilEleSums.find(f => f.subSubsectionName === 'Gravel')
@@ -12855,23 +12696,33 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       const underslabItem = findDrainsItem('underslab drainage')
       const stormSewerItem = findDrainsItem('storm sewer piping')
       const sanitarySewerItem = findDrainsItem('sanitary sewer service')
-      const sanitInvertItem = findDrainsItem('sanitary invert')
-      
+      const sanitInvertRows = []
+      drainsUtilsItems.filter(f => (f.parsedData?.particulars || '').toLowerCase().includes('sanitary invert')).forEach(f => sanitInvertRows.push({ row: f.row, parsedData: f.parsedData }))
+      if (sanitInvertRows.length === 0 && calculationData && calculationData.length > 0) {
+        calculationData.forEach((row, i) => {
+          const colB = (row[1] || '').toString().trim()
+          if (colB.toLowerCase().includes('proposed sanitary invert')) {
+            sanitInvertRows.push({ row: i + 1, parsedData: { particulars: colB } })
+          }
+        })
+      }
+      const sanitInvertItem = sanitInvertRows.length > 0 ? sanitInvertRows : null
+
       const hasUtilities = civilEleExc || civilEleBackfill || civilEleGravel || civilPadsSum || eleConduitItem || utilPoleItem ||
         gasLateralItem || gasSums.Excavation || gasSums.Backfill || gasSums.Gravel || getSiteSumByKey('Gas') ||
         waterMainItem || fireServiceItem || waterServiceItem || underslabItem || waterSums.Excavation || waterSums.Backfill || waterSums.Gravel || getSiteSumByKey('Water') ||
         stormSewerItem || sanitarySewerItem || sanitInvertItem
-      
+
       if (hasUtilities) {
         currentRow++
         const utilsHeaderRow = currentRow
         spreadsheet.updateCell({ value: 'Utilities & drainage system:' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', textDecoration: 'underline', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', verticalAlign: 'middle', textDecoration: 'underline', border: '1px solid #000000' },
           `${pfx}B${currentRow}`
         )
         currentRow++
-        
+
         if (civilEleExc || civilEleBackfill || civilEleGravel || eleConduitItem || utilPoleItem || civilPadsSum) {
           spreadsheet.updateCell({ value: 'Electric service:' }, `${pfx}B${currentRow}`)
           spreadsheet.cellFormat(
@@ -12879,7 +12730,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             `${pfx}B${currentRow}`
           )
           currentRow++
-          
+
           if (civilEleExc) {
             spreadsheet.updateCell({ value: 'Allow to perform soil excavation, trucking & disposal (Havg=2\'-11") as per C-4' }, `${pfx}B${currentRow}`)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -12940,7 +12791,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             currentRow++
           }
         }
-        
+
         if (gasLateralItem || gasSums.Excavation || gasSums.Backfill || gasSums.Gravel || getSiteSumByKey('Gas')) {
           spreadsheet.updateCell({ value: 'Gas service:' }, `${pfx}B${currentRow}`)
           spreadsheet.cellFormat(
@@ -12996,7 +12847,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             currentRow++
           }
         }
-        
+
         if (waterMainItem || fireServiceItem || waterServiceItem || underslabItem || waterSums.Excavation || waterSums.Backfill || waterSums.Gravel || getSiteSumByKey('Water')) {
           spreadsheet.updateCell({ value: 'Water:' }, `${pfx}B${currentRow}`)
           spreadsheet.cellFormat(
@@ -13076,7 +12927,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             currentRow++
           }
         }
-        
+
         if (stormSewerItem || sanitarySewerItem || sanitInvertItem) {
           spreadsheet.updateCell({ value: 'Sewer:' }, `${pfx}B${currentRow}`)
           spreadsheet.cellFormat(
@@ -13100,73 +12951,356 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
             currentRow++
           }
-          if (sanitInvertItem) {
+          if (sanitInvertRows.length > 0) {
             spreadsheet.updateCell({ value: 'F&I new sanitary invert as per C-6' }, `${pfx}B${currentRow}`)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-            const p = (sanitInvertItem.parsedData?.particulars || '').toLowerCase()
-            if (p.includes('ft') || /\d+\.?\d*\s*'/.test(p)) {
-              spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!I${sanitInvertItem.row}` }, `${pfx}C${currentRow}`)
-            } else {
-              spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!M${sanitInvertItem.row}` }, `${pfx}G${currentRow}`)
-            }
+            const lfFormula = sanitInvertRows.length === 1
+              ? `='${utilsCalcSheet}'!I${sanitInvertRows[0].row}`
+              : `=AVERAGE(${sanitInvertRows.map(r => `'${utilsCalcSheet}'!I${r.row}`).join(',')})`
+            spreadsheet.updateCell({ formula: lfFormula }, `${pfx}C${currentRow}`)
             spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
             currentRow++
           }
         }
-        
+
         const utilsEndRow = currentRow - 1
         const utilsDataStartRow = utilsHeaderRow + 1
         spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
         spreadsheet.updateCell({ value: 'Utilities Total:' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
           `${pfx}B${currentRow}:E${currentRow}`
         )
         spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
         spreadsheet.updateCell({ formula: `=SUM(H${utilsDataStartRow}:H${utilsEndRow})*1000` }, `${pfx}F${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000', format: '$#,##0.00' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
           `${pfx}F${currentRow}:G${currentRow}`
         )
+        siteworkTotalFRows.push(currentRow)
         currentRow++
       }
-      
-      // Dewatering section
+
+      // Storm water management section (below Utilities & drainage system)
       currentRow++
-      spreadsheet.updateCell({ value: 'Dewatering:' }, `${pfx}B${currentRow}`)
+      const stormWaterHeaderRow = currentRow
+      spreadsheet.updateCell({ value: 'Storm water management:' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', textDecoration: 'underline', border: '1px solid #000000' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', verticalAlign: 'middle', textDecoration: 'underline', border: '1px solid #000000' },
         `${pfx}B${currentRow}`
       )
       currentRow++
-      spreadsheet.updateCell({ value: 'Dewatering allowance - Budget $200k' }, `${pfx}B${currentRow}`)
+      spreadsheet.updateCell({ value: 'F&I new stormwater manhole as per C-5' }, `${pfx}B${currentRow}`)
       spreadsheet.wrap(`${pfx}B${currentRow}`, true)
       spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+      spreadsheet.updateCell({ value: 1 }, `${pfx}G${currentRow}`)
+      spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
       currentRow++
+      const stormWaterEndRow = currentRow - 1
+      const stormWaterDataStartRow = stormWaterHeaderRow + 1
       spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
-      spreadsheet.updateCell({ value: 'Dewatering Total:' }, `${pfx}B${currentRow}`)
+      spreadsheet.updateCell({ value: 'Storm Water Management Total:' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
         `${pfx}B${currentRow}:E${currentRow}`
       )
       spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
-      spreadsheet.updateCell({ value: 200000 }, `${pfx}F${currentRow}`)
+      spreadsheet.updateCell({ value: 10000 }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000', format: '$#,##0.00' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
         `${pfx}F${currentRow}:G${currentRow}`
       )
+      siteworkTotalFRows.push(currentRow)
       currentRow++
+
+      // Site finishes section (after Storm water management)
+      const siteFinishesCalcSheet = 'Calculations Sheet'
+      const civilConcretePavementSum = (formulaData || []).find(f => f.itemType === 'civil_concrete_pavement_sum' && f.section === 'civil_sitework')
+      const civilAsphaltSum = (formulaData || []).find(f => f.itemType === 'civil_asphalt_sum' && f.section === 'civil_sitework')
+      const civilBollardFootingSum = (formulaData || []).find(f => f.itemType === 'civil_bollard_footing_sum' && f.section === 'civil_sitework')
+      const bollardFootingItems = (formulaData || []).filter(f => f.itemType === 'civil_bollard_footing_item' && f.section === 'civil_sitework')
+      const trafficSignRows = bollardFootingItems.filter(f => (f.parsedData?.particulars || '').toLowerCase().includes('traffic')).map(f => f.row)
+      const sanitaryInvertItem = (formulaData || []).find(f => f.itemType === 'civil_drains_utilities_item' && (f.parsedData?.particulars || '').toLowerCase().includes('sanitary invert'))
       
-      // Empty row below Dewatering
-      currentRow++
+      const hasSiteFinishes = civilConcretePavementSum || civilAsphaltSum || civilBollardFootingSum || siteSums.length > 0
+      const getSiteRefFromRawData = (pattern, fallback = 'C-6') => {
+        if (!rawData || !Array.isArray(rawData) || rawData.length < 2) return fallback
+        const headers = rawData[0]
+        const dataRows = rawData.slice(1)
+        const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
+        const pageIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'page')
+        for (const row of dataRows) {
+          const digitizerItem = (row[digitizerIdx] || '').toString()
+          if (pattern.test(digitizerItem)) {
+            if (pageIdx >= 0 && row[pageIdx]) {
+              const pageStr = String(row[pageIdx]).trim()
+              const refs = pageStr.match(/[A-Z]+-[\d.]+/gi)
+              if (refs && refs.length > 0) return refs[0]
+            }
+            const asPerMatch = digitizerItem.match(/as\s+per\s+([A-Z]+-[\d.]+)/i)
+            if (asPerMatch) return asPerMatch[1]
+            break
+          }
+        }
+        return fallback
+      }
+      const getSiteRefsFromRawData = (pattern, fallbackMain = 'C-6', fallbackDetails = 'C-11') => {
+        if (!rawData || !Array.isArray(rawData) || rawData.length < 2) return { main: fallbackMain, details: fallbackDetails }
+        const headers = rawData[0]
+        const dataRows = rawData.slice(1)
+        const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
+        const pageIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'page')
+        for (const row of dataRows) {
+          const digitizerItem = (row[digitizerIdx] || '').toString()
+          if (pattern.test(digitizerItem)) {
+            if (pageIdx >= 0 && row[pageIdx]) {
+              const pageStr = String(row[pageIdx]).trim()
+              const refs = pageStr.match(/[A-Z]+-[\d.]+/gi)
+              if (refs && refs.length >= 2) return { main: refs[0], details: refs[1] }
+              if (refs && refs.length === 1) return { main: refs[0], details: fallbackDetails }
+            }
+            const asPerMatch = digitizerItem.match(/as\s+per\s+([A-Z]+-[\d.]+)(?:\s+&\s+details\s+on\s+([A-Z]+-[\d.]+))?/i)
+            if (asPerMatch) return { main: asPerMatch[1], details: asPerMatch[2] || fallbackDetails }
+            break
+          }
+        }
+        return { main: fallbackMain, details: fallbackDetails }
+      }
+      const getSiteQtyFromSum = (sumInfo) => {
+        if (!sumInfo || !formulaData) return null
+        const items = formulaData.filter(f => f.itemType === 'civil_site_item' && f.row >= sumInfo.firstDataRow && f.row <= sumInfo.lastDataRow)
+        const bollardItems = formulaData.filter(f => (f.itemType === 'civil_bollard_footing_item' || f.itemType === 'civil_bollard_simple_item') && sumInfo.firstDataRow && sumInfo.lastDataRow && f.row >= sumInfo.firstDataRow && f.row <= sumInfo.lastDataRow)
+        const relevantItems = items.length > 0 ? items : bollardItems
+        if (relevantItems.length === 0 && calculationData && sumInfo.firstDataRow) {
+          let total = 0
+          for (let r = sumInfo.firstDataRow - 1; r < sumInfo.lastDataRow && r < calculationData.length; r++) {
+            const row = calculationData[r]
+            const qty = parseFloat(row[12]) || parseFloat(row[2]) || 0
+            if (!isNaN(qty)) total += qty
+          }
+          return total > 0 ? Math.round(total) : null
+        }
+        const total = relevantItems.reduce((s, i) => s + (parseFloat(i.parsedData?.takeoff) || 0), 0)
+        return total > 0 ? Math.round(total) : null
+      }
+      if (hasSiteFinishes) {
+        currentRow++
+        const siteFinishesHeaderRow = currentRow
+        spreadsheet.updateCell({ value: 'Site finishes:' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', verticalAlign: 'middle', textDecoration: 'underline', border: '1px solid #000000' },
+          `${pfx}B${currentRow}`
+        )
+        currentRow++
+        
+        if (civilConcretePavementSum) {
+          spreadsheet.updateCell({ value: 'Concrete pavement:' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat(
+            { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#D0CECE', textDecoration: 'underline', border: '1px solid #000000' },
+            `${pfx}B${currentRow}`
+          )
+          currentRow++
+          const cpRow = civilConcretePavementSum.row
+          const cpRefs = getSiteRefsFromRawData(/concrete\s+sidewalk|reinforced\s+sidewalk/i, 'C-4', 'C-11')
+          spreadsheet.updateCell({ value: `F&I new (4" thick) concrete sidewalk, reinf w/ 6x6-W1.4xW1.4 w.w.f as per ${cpRefs.main} & details on ${cpRefs.details}` }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!J${cpRow}` }, `${pfx}D${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!L${cpRow}` }, `${pfx}F${currentRow}`)
+          spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+          currentRow++
+        }
+        
+        if (civilAsphaltSum) {
+          spreadsheet.updateCell({ value: 'Asphalt pavement:' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat(
+            { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#D0CECE', textDecoration: 'underline', border: '1px solid #000000' },
+            `${pfx}B${currentRow}`
+          )
+          currentRow++
+          const apRow = civilAsphaltSum.row
+          const apRefs = getSiteRefsFromRawData(/asphalt\s+pavement|full\s+depth\s+asphalt/i, 'FO-001.00', 'C-11')
+          spreadsheet.updateCell({ value: `F&I new full depth asphalt pavement (1.5" thick) surface course on (3" thick) base course as per ${apRefs.main} & details on ${apRefs.details}` }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!J${apRow}` }, `${pfx}D${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!L${apRow}` }, `${pfx}F${currentRow}`)
+          spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+          currentRow++
+        }
+        
+        if (siteSums.length > 0 || trafficSignRows.length > 0) {
+          spreadsheet.updateCell({ value: 'Site:' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat(
+            { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#D0CECE', textDecoration: 'underline', border: '1px solid #000000' },
+            `${pfx}B${currentRow}`
+          )
+          currentRow++
+          
+          // Match by exact line (single item) or whole group (sum): search template/calculations for corresponding data
+          const getSiteSumByKey = (key) => (siteSums || []).find(s => s.siteGroupKey === key)
+          const siteProposalLines = [
+            { textBuilder: (qty, ref) => `F&I new (${qty ?? 2})no traffic sign w/ footing (18" Ø, H=3'-0") as per ${ref}`, qtySource: 'traffic' },
+            { textBuilder: (qty, ref) => `F&I new (${qty ?? 3})no fire hydrant as per ${ref}`, qtySource: 'sum', siteGroupKey: 'Hydrant' },
+            { textBuilder: (qty, ref) => `F&I new (${qty ?? 9})no concrete wheel stop as per ${ref}`, qtySource: 'sum', siteGroupKey: 'Wheel stop' },
+            { textBuilder: (qty, ref) => `F&I new (${qty ?? 11})no area drain as per ${ref}`, qtySource: 'sum', siteGroupKey: 'Area' },
+            { textBuilder: (qty, ref) => `F&I new (${qty ?? 9})no floor drain as per ${ref}`, qtySource: 'sum', siteGroupKey: 'Floor' },
+            { textBuilder: (qty, ref) => `F&I new (${qty ?? 5})no inlet filter protection as per ${ref}`, qtySource: 'sum', siteGroupKey: 'Protection' },
+            { textBuilder: (qty, ref) => `F&I new (${qty ?? 8})no signages as per ${ref}`, qtySource: 'sum', siteGroupKey: 'Signages' },
+            { textBuilder: (qty, ref) => `F&I new (${qty ?? 1})no sanitary invert as per ${ref}`, qtySource: 'sanitaryInvert' },
+            { textBuilder: (qty, ref) => `F&I new (${qty ?? 1})no connection to existing sanitary main as per ${ref}`, qtySource: 'sum', siteGroupKey: 'Sanitary' }
+          ]
+          siteProposalLines.forEach((line) => {
+            let qtyFormula = ''
+            let qtyVal = null
+            let ref = 'C-6'
+            if (line.qtySource === 'traffic' && trafficSignRows.length > 0) {
+              qtyFormula = trafficSignRows.length === 1 ? `='${siteFinishesCalcSheet}'!M${trafficSignRows[0]}` : `=SUM(${trafficSignRows.map(r => `'${siteFinishesCalcSheet}'!M${r}`).join(',')})`
+              ref = getSiteRefFromRawData(/traffic\s+sign/i)
+            } else if (line.qtySource === 'sanitaryInvert' && sanitaryInvertItem) {
+              qtyFormula = `='${siteFinishesCalcSheet}'!M${sanitaryInvertItem.row}`
+              qtyVal = (calculationData && sanitaryInvertItem.row) ? (parseFloat(calculationData[sanitaryInvertItem.row - 1]?.[12]) || parseFloat(calculationData[sanitaryInvertItem.row - 1]?.[2])) : null
+              ref = getSiteRefFromRawData(/sanitary\s+invert/i)
+            } else if (line.qtySource === 'sum' && line.siteGroupKey) {
+              const sumRow = getSiteSumByKey(line.siteGroupKey)
+              if (sumRow) {
+                qtyFormula = `='${siteFinishesCalcSheet}'!M${sumRow.row}`
+                qtyVal = getSiteQtyFromSum(sumRow)
+                const patternMap = { Hydrant: /fire\s+hydrant/i, 'Wheel stop': /wheel\s+stop/i, Area: /area\s+drain/i, Floor: /floor\s+drain/i, Protection: /inlet\s+filter/i, Signages: /signages/i, Sanitary: /connection\s+to\s+existing\s+sanitary/i }
+                ref = getSiteRefFromRawData(patternMap[line.siteGroupKey] || /./)
+              }
+            }
+            if (!qtyFormula) return
+            const text = typeof line.textBuilder === 'function' ? line.textBuilder(qtyVal, ref) : line.text
+            spreadsheet.updateCell({ value: text }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.updateCell({ formula: qtyFormula }, `${pfx}G${currentRow}`)
+            spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+            currentRow++
+          })
+        }
+        
+        if (civilBollardFootingSum) {
+          spreadsheet.updateCell({ value: 'Concrete filled steel pipe bollard:' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat(
+            { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#D0CECE', textDecoration: 'underline', border: '1px solid #000000' },
+            `${pfx}B${currentRow}`
+          )
+          currentRow++
+          const bfRow = civilBollardFootingSum.row
+          const bollardItems = formulaData.filter(f => f.itemType === 'civil_bollard_footing_item' && f.row >= civilBollardFootingSum.firstDataRow && f.row <= civilBollardFootingSum.lastDataRow)
+          const firstBollard = bollardItems[0]?.parsedData
+          const bollardDims = firstBollard?.parsed?.bollardDimensions || firstBollard?.bollardDimensions
+          const diaStr = bollardDims?.bollardDia ? `${bollardDims.bollardDia}"` : '6"'
+          const hFt = bollardDims?.bollardH ? Math.floor(bollardDims.bollardH) : 6
+          const hIn = bollardDims?.bollardH ? Math.round((bollardDims.bollardH % 1) * 12) : 0
+          const heightStr = hIn > 0 ? `${hFt}'-${hIn}"` : `${hFt}'-0"`
+          const bollardQty = getSiteQtyFromSum(civilBollardFootingSum)
+          const bollardRefs = getSiteRefsFromRawData(/bollard/i, 'C-4', 'C-11')
+          spreadsheet.updateCell({ value: `F&I new (${bollardQty ?? 28})no (${diaStr} Ø wide) concrete filled steel pipe bollard (Havg=${heightStr}) as per ${bollardRefs.main} & details on ${bollardRefs.details}` }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!J${bfRow}` }, `${pfx}D${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!L${bfRow}` }, `${pfx}F${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!M${bfRow}` }, `${pfx}G${currentRow}`)
+          spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+          currentRow++
+        }
+        
+        spreadsheet.updateCell({ value: 'Misc.:' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#D0CECE', textDecoration: 'underline', border: '1px solid #000000' },
+          `${pfx}B${currentRow}`
+        )
+        currentRow++
+        spreadsheet.updateCell({ value: 'Temp Protection & Barriers' }, `${pfx}B${currentRow}`)
+        spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+        currentRow++
+        spreadsheet.updateCell({ value: 'DOT Permits, Temp DOT Barriers' }, `${pfx}B${currentRow}`)
+        spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+        currentRow++
+        
+        const siteFinishesEndRow = currentRow - 1
+        const siteFinishesDataStartRow = siteFinishesHeaderRow + 1
+        spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
+        spreadsheet.updateCell({ value: 'Site Finishes Total:' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
+          `${pfx}B${currentRow}:E${currentRow}`
+        )
+        spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
+        spreadsheet.updateCell({ formula: `=SUM(H${siteFinishesDataStartRow}:H${siteFinishesEndRow})*1000` }, `${pfx}F${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
+          `${pfx}F${currentRow}:G${currentRow}`
+        )
+        siteworkTotalFRows.push(currentRow)
+        currentRow++
+      }
+
+      // Fence section
+      const fenceCalcSheet = 'Calculations Sheet'
+      const fenceSums = (formulaData || []).filter(f => f.itemType === 'civil_fence_sum' && f.section === 'civil_sitework')
+      const fenceRef0 = getSiteRefFromRawData(/construction\s+fence/i, 'SOE-100.00')
+      const fenceRef1 = getSiteRefFromRawData(/proposed\s+fence|fence\s+height/i, 'SOE-100.00')
+      const fenceRef2 = getSiteRefFromRawData(/guiderail/i, 'SOE-100.00')
+      const fenceItems = [
+        { proposalText: `F&I new construction fence (H=6'-0") as per ${fenceRef0}`, sumIndex: 0 },
+        { proposalText: `F&I new fence (H=10'-0") as per ${fenceRef1}`, sumIndex: 1 },
+        { proposalText: `F&I new guiderail (H=3'-6") as per ${fenceRef2}`, sumIndex: 2 }
+      ]
+      const hasFenceItems = fenceSums.length > 0
+      if (hasFenceItems) {
+        currentRow++
+        const fenceHeaderRow = currentRow
+        spreadsheet.updateCell({ value: 'Fence:' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', verticalAlign: 'middle', textDecoration: 'underline', border: '1px solid #000000' },
+          `${pfx}B${currentRow}`
+        )
+        currentRow++
+
+        fenceItems.forEach((item, idx) => {
+          const sumInfo = fenceSums[item.sumIndex]
+          if (!sumInfo) return
+          const sumRow = sumInfo.row
+          spreadsheet.updateCell({ value: item.proposalText }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${fenceCalcSheet}'!I${sumRow}` }, `${pfx}C${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${fenceCalcSheet}'!J${sumRow}` }, `${pfx}D${currentRow}`)
+          spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+          currentRow++
+        })
+
+        const fenceEndRow = currentRow - 1
+        const fenceDataStartRow = fenceHeaderRow + 1
+        spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
+        spreadsheet.updateCell({ value: 'Construction Fence Total:' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
+          `${pfx}B${currentRow}:E${currentRow}`
+        )
+        spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
+        spreadsheet.updateCell({ formula: `=SUM(H${fenceDataStartRow}:H${fenceEndRow})*1000` }, `${pfx}F${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
+          `${pfx}F${currentRow}:G${currentRow}`
+        )
+        siteworkTotalFRows.push(currentRow)
+        currentRow++
+      }
       
       // Allowances section
       currentRow++
       const allowancesHeaderRow = currentRow
       spreadsheet.updateCell({ value: 'Allowances:' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', textDecoration: 'underline', border: '1px solid #000000' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', verticalAlign: 'middle', textDecoration: 'underline', border: '1px solid #000000' },
         `${pfx}B${currentRow}`
       )
       currentRow++
@@ -13191,20 +13325,20 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
       spreadsheet.updateCell({ value: 'Allowances Total:' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
         `${pfx}B${currentRow}:E${currentRow}`
       )
       spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
       spreadsheet.updateCell({ value: 225000 }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000', format: '$#,##0.00' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
         `${pfx}F${currentRow}:G${currentRow}`
       )
+      siteworkTotalFRows.push(currentRow)
       currentRow++
       
-      // Add Alternate #1: Sitework Total row
-      const siteworkScopeEndRow = currentRow - 1
-      if (siteworkScopeEndRow >= siteworkScopeStartRow) {
+      // Add Alternate #1: Sitework Total row - sum of individual section F column totals
+      if (siteworkTotalFRows.length > 0) {
         spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
         spreadsheet.updateCell({ value: 'Add Alternate #1: Sitework Total:' }, `${pfx}D${currentRow}`)
         spreadsheet.cellFormat(
@@ -13212,9 +13346,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           `${pfx}D${currentRow}:E${currentRow}`
         )
         spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
-        spreadsheet.updateCell({ formula: `=SUM(H${siteworkScopeStartRow}:H${siteworkScopeEndRow})*1000` }, `${pfx}F${currentRow}`)
+        spreadsheet.updateCell({ formula: `=SUM(${siteworkTotalFRows.map(r => `F${r}`).join(',')})` }, `${pfx}F${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD6EE', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD6EE', border: '1px solid #000000', format: '$#,##0.00' },
           `${pfx}F${currentRow}:G${currentRow}`
         )
         currentRow++
@@ -13276,48 +13410,65 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           currentRow++
 
           // Demo/removal proposal lines with quantities from Calculations Sheet
-          // 1. Allow to saw-cut/demo/remove/dispose existing sidewalk - SF from sidewalk
+          // 1. Allow to saw-cut/demo/remove/dispose existing sidewalk - SF and CY from sidewalk
           spreadsheet.updateCell({ value: 'Allow to saw-cut/demo/remove/dispose existing sidewalk' }, `${pfx}B${currentRow}`)
           spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-          if (sidewalkRows.length > 0) spreadsheet.updateCell({ formula: buildSumFormula(sidewalkRows, 'J') }, `${pfx}D${currentRow}`)
+          if (sidewalkRows.length > 0) {
+            spreadsheet.updateCell({ formula: buildSumFormula(sidewalkRows, 'J') }, `${pfx}D${currentRow}`)
+            spreadsheet.updateCell({ formula: buildSumFormula(sidewalkRows, 'L') }, `${pfx}F${currentRow}`)
+          }
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
 
-          // 2. Allow to saw-cut/demo/remove/dispose existing 7" sidewalk/driveway - SF from driveway
+          // 2. Allow to saw-cut/demo/remove/dispose existing 7" sidewalk/driveway - SF and CY from driveway
           spreadsheet.updateCell({ value: 'Allow to saw-cut/demo/remove/dispose existing 7" sidewalk/driveway' }, `${pfx}B${currentRow}`)
           spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-          if (drivewayRows.length > 0) spreadsheet.updateCell({ formula: buildSumFormula(drivewayRows, 'J') }, `${pfx}D${currentRow}`)
+          if (drivewayRows.length > 0) {
+            spreadsheet.updateCell({ formula: buildSumFormula(drivewayRows, 'J') }, `${pfx}D${currentRow}`)
+            spreadsheet.updateCell({ formula: buildSumFormula(drivewayRows, 'L') }, `${pfx}F${currentRow}`)
+          }
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
 
-          // 3. Allow to strip existing asphalt & dispose - SF from asphalt
+          // 3. Allow to strip existing asphalt & dispose - SF and CY from asphalt
           spreadsheet.updateCell({ value: 'Allow to strip existing asphalt & dispose' }, `${pfx}B${currentRow}`)
           spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-          if (asphaltRows.length > 0) spreadsheet.updateCell({ formula: buildSumFormula(asphaltRows, 'J') }, `${pfx}D${currentRow}`)
+          if (asphaltRows.length > 0) {
+            spreadsheet.updateCell({ formula: buildSumFormula(asphaltRows, 'J') }, `${pfx}D${currentRow}`)
+            spreadsheet.updateCell({ formula: buildSumFormula(asphaltRows, 'L') }, `${pfx}F${currentRow}`)
+          }
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
 
-          // 4. Allow to demo existing concrete curb & dispose - LF from curb
+          // 4. Allow to demo existing concrete curb & dispose - LF and CY from curb
           spreadsheet.updateCell({ value: 'Allow to demo existing concrete curb & dispose' }, `${pfx}B${currentRow}`)
           spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-          if (curbRows.length > 0) spreadsheet.updateCell({ formula: buildSumFormula(curbRows, 'I') }, `${pfx}C${currentRow}`)
+          if (curbRows.length > 0) {
+            spreadsheet.updateCell({ formula: buildSumFormula(curbRows, 'I') }, `${pfx}C${currentRow}`)
+            spreadsheet.updateCell({ formula: buildSumFormula(curbRows, 'L') }, `${pfx}F${currentRow}`)
+          }
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
 
-          // 5. Allow to demo existing concrete flush curb & dispose - LF from flush curb
+          // 5. Allow to demo existing concrete flush curb & dispose - LF and CY from flush curb
           spreadsheet.updateCell({ value: 'Allow to demo existing concrete flush curb & dispose' }, `${pfx}B${currentRow}`)
           spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-          if (flushCurbRows.length > 0) spreadsheet.updateCell({ formula: buildSumFormula(flushCurbRows, 'I') }, `${pfx}C${currentRow}`)
+          if (flushCurbRows.length > 0) {
+            spreadsheet.updateCell({ formula: buildSumFormula(flushCurbRows, 'I') }, `${pfx}C${currentRow}`)
+            spreadsheet.updateCell({ formula: buildSumFormula(flushCurbRows, 'L') }, `${pfx}F${currentRow}`)
+          }
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
 
           // F&I proposal lines with quantities from Calculations Sheet
-          // 6. F&I new (6" thick) ¾" crushed stone - SF/CY from gravel (or sum of sidewalk+driveway+asphalt SF)
+          // 6. F&I new (6" thick) ¾" crushed stone - SF from sidewalk+driveway+asphalt, CY = SF×6"/12/27
           spreadsheet.updateCell({ value: 'F&I new (6" thick) ¾" crushed stone on compacted subgrade @ sidewalks & asphalt' }, `${pfx}B${currentRow}`)
           spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-          // SF = sum of sidewalk + driveway + asphalt SF
           const allSfRows = [...sidewalkRows, ...drivewayRows, ...asphaltRows]
-          if (allSfRows.length > 0) spreadsheet.updateCell({ formula: buildSumFormula(allSfRows, 'J') }, `${pfx}D${currentRow}`)
+          if (allSfRows.length > 0) {
+            spreadsheet.updateCell({ formula: buildSumFormula(allSfRows, 'J') }, `${pfx}D${currentRow}`)
+            spreadsheet.updateCell({ formula: buildSumFormula(allSfRows, 'L') }, `${pfx}F${currentRow}`)
+          }
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
 
