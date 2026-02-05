@@ -165,7 +165,36 @@ export const getProposalById = async (req, res) => {
 // @access  Private
 export const updateProposal = async (req, res) => {
     try {
-        const proposal = await Proposal.findById(req.params.id);
+        const { name, client, project, spreadsheetJson, images } = req.body;
+
+        // Build update object - only include fields that were sent
+        const update = {};
+        if (name !== undefined) update.name = name;
+        if (client !== undefined) update.client = client;
+        if (project !== undefined) update.project = project;
+        if (spreadsheetJson !== undefined) update.spreadsheetJson = spreadsheetJson;
+        if (images !== undefined) update.images = images;
+
+        if (Object.keys(update).length === 0) {
+            const proposal = await Proposal.findById(req.params.id);
+            if (!proposal) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Proposal not found',
+                });
+            }
+            return res.status(200).json({
+                success: true,
+                proposal,
+            });
+        }
+
+        // Use findByIdAndUpdate to ensure MongoDB persistence (bypasses Mongoose doc state)
+        const proposal = await Proposal.findByIdAndUpdate(
+            req.params.id,
+            { $set: update },
+            { new: true, runValidators: true }
+        );
 
         if (!proposal) {
             return res.status(404).json({
@@ -173,18 +202,6 @@ export const updateProposal = async (req, res) => {
                 message: 'Proposal not found',
             });
         }
-
-        // Update allowed fields
-        const { name, client, project, spreadsheetJson, images } = req.body;
-
-        if (name !== undefined) proposal.name = name;
-        if (client !== undefined) proposal.client = client;
-        if (project !== undefined) proposal.project = project;
-        if (spreadsheetJson !== undefined) proposal.spreadsheetJson = spreadsheetJson;
-        // Update images array (for storing spreadsheet images separately)
-        if (images !== undefined) proposal.images = images;
-
-        await proposal.save();
 
         res.status(200).json({
             success: true,

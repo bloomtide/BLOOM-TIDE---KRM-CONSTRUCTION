@@ -1,7 +1,7 @@
 import capstoneTemplate from './templates/capstoneTemplate'
 import { processDemolitionItems } from './processors/demolitionProcessor'
 import { processExcavationItems, processBackfillItems, processMudSlabItems } from './processors/excavationProcessor'
-import { processRockExcavationItems, processLineDrillItems } from './processors/rockExcavationProcessor'
+import { processRockExcavationItems, processLineDrillItems, calculateRockExcavationTotals, calculateLineDrillTotalFT } from './processors/rockExcavationProcessor'
 import {
   processSoldierPileItems,
   processPrimarySecantItems,
@@ -218,6 +218,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     'Concrete filled steel pipe bollard': []
   }
   const foundationSlabRows = {} // Populated when building Foundation section; used by Waterproofing Exterior side pit items
+  let rockExcavationTotals = { totalSQFT: 0, totalCY: 0 } // Initialize rock excavation totals
+  let lineDrillTotalFT = 0 // Initialize line drill total FT
   if (rawData && rawData.length > 1) {
     const headers = rawData[0]
     const dataRows = rawData.slice(1)
@@ -226,7 +228,15 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     backfillItems = processBackfillItems(dataRows, headers)
     mudSlabItems = processMudSlabItems(dataRows, headers)
     rockExcavationItems = processRockExcavationItems(dataRows, headers)
+    // Calculate rock excavation totals
+    if (rockExcavationItems.length > 0) {
+      rockExcavationTotals = calculateRockExcavationTotals(rockExcavationItems)
+    }
     lineDrillItems = processLineDrillItems(dataRows, headers)
+    // Calculate line drill total FT
+    if (lineDrillItems.length > 0) {
+      lineDrillTotalFT = calculateLineDrillTotalFT(lineDrillItems)
+    }
     soldierPileGroups = processSoldierPileItems(dataRows, headers)
     primarySecantItems = processPrimarySecantItems(dataRows, headers)
     secondarySecantItems = processSecondarySecantItems(dataRows, headers)
@@ -379,10 +389,36 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           rows.push(subsectionRow)
 
           if (subsection.name === 'For demo Extra line item use this') {
+          // Customized demo templates for extra line items
             const extraItems = [
-              { name: 'In SQ FT', unit: 'SQ FT', h: 1, type: 'demo_extra_sqft' },
-              { name: 'In FT', unit: 'FT', g: 1, h: 1, type: 'demo_extra_ft' },
-              { name: 'In EA', unit: 'EA', f: 1, g: 1, h: 1, type: 'demo_extra_ea' }
+            {
+              name: 'Demo SOG 4\" thick',
+              unit: 'SQ FT',
+              h: 1,
+              type: 'demo_extra_sqft'
+            },
+            {
+              name: 'Demo SF (2\'-0\"x1\'-0\")',
+              unit: 'SQ FT',
+              g: 1,
+              h: 1,
+              type: 'demo_extra_ft'
+            },
+            {
+              name: 'Demo FW (1\'-0\"x3\'-0\")',
+              unit: 'SQ FT',
+              g: 1,
+              h: 1,
+              type: 'demo_extra_ft'
+            },
+            {
+              name: 'Demo isolated footing (2\'-0\"x3\'-0\"x1\'-6\")',
+              unit: 'EA',
+              f: 1,
+              g: 1,
+              h: 1,
+              type: 'demo_extra_ea'
+            }
             ]
 
             extraItems.forEach(item => {
@@ -3465,12 +3501,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               itemRow[3] = item.unit || 'SQ FT'
               if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
               rows.push(itemRow)
-              formulas.push({ row: rows.length, itemType: 'bpp_concrete_sidewalk', parsedData: item, section: 'bpp_alternate', subsectionName: 'Concrete sidewalk' })
+              formulas.push({ row: rows.length, itemType: 'bpp_concrete_sidewalk', parsedData: item, section: 'bpp_alternate', subsectionName: 'Concrete sidewalk', streetName })
             })
             // Sum row
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
-            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Concrete sidewalk', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['J', 'L'] })
+            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Concrete sidewalk', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['J', 'L'], streetName })
             rows.push(Array(template.columns.length).fill(''))
           }
 
@@ -3484,12 +3520,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               itemRow[3] = item.unit || 'SQ FT'
               if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
               rows.push(itemRow)
-              formulas.push({ row: rows.length, itemType: 'bpp_concrete_driveway', parsedData: item, section: 'bpp_alternate', subsectionName: 'Concrete driveway' })
+              formulas.push({ row: rows.length, itemType: 'bpp_concrete_driveway', parsedData: item, section: 'bpp_alternate', subsectionName: 'Concrete driveway', streetName })
             })
             // Sum row
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
-            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Concrete driveway', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['J', 'L'] })
+            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Concrete driveway', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['J', 'L'], streetName })
             rows.push(Array(template.columns.length).fill(''))
           }
 
@@ -3504,12 +3540,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
               if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
               rows.push(itemRow)
-              formulas.push({ row: rows.length, itemType: 'bpp_concrete_curb', parsedData: item, section: 'bpp_alternate', subsectionName: 'Concrete curb' })
+              formulas.push({ row: rows.length, itemType: 'bpp_concrete_curb', parsedData: item, section: 'bpp_alternate', subsectionName: 'Concrete curb', streetName })
             })
             // Sum row
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
-            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Concrete curb', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I', 'J', 'L'] })
+            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Concrete curb', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I', 'J', 'L'], streetName })
             rows.push(Array(template.columns.length).fill(''))
           }
 
@@ -3524,12 +3560,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
               if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
               rows.push(itemRow)
-              formulas.push({ row: rows.length, itemType: 'bpp_concrete_flush_curb', parsedData: item, section: 'bpp_alternate', subsectionName: 'Concrete flush curb' })
+              formulas.push({ row: rows.length, itemType: 'bpp_concrete_flush_curb', parsedData: item, section: 'bpp_alternate', subsectionName: 'Concrete flush curb', streetName })
             })
             // Sum row
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
-            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Concrete flush curb', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I', 'J', 'L'] })
+            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Concrete flush curb', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I', 'J', 'L'], streetName })
             rows.push(Array(template.columns.length).fill(''))
           }
 
@@ -3542,12 +3578,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'FT'
               rows.push(itemRow)
-              formulas.push({ row: rows.length, itemType: 'bpp_expansion_joint', parsedData: item, section: 'bpp_alternate', subsectionName: 'Expansion joint' })
+              formulas.push({ row: rows.length, itemType: 'bpp_expansion_joint', parsedData: item, section: 'bpp_alternate', subsectionName: 'Expansion joint', streetName })
             })
             // Sum row
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
-            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Expansion joint', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I'] })
+            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Expansion joint', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I'], streetName })
             rows.push(Array(template.columns.length).fill(''))
           }
 
@@ -3569,12 +3605,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               itemRow[3] = item.unit || 'SQ FT'
               if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
               rows.push(itemRow)
-              formulas.push({ row: rows.length, itemType: 'bpp_full_depth_asphalt', parsedData: item, section: 'bpp_alternate', subsectionName: 'Full depth asphalt pavement' })
+              formulas.push({ row: rows.length, itemType: 'bpp_full_depth_asphalt', parsedData: item, section: 'bpp_alternate', subsectionName: 'Full depth asphalt pavement', streetName })
             })
             // Sum row
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
-            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Full depth asphalt pavement', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['J', 'L'] })
+            formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Full depth asphalt pavement', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['J', 'L'], streetName })
             rows.push(Array(template.columns.length).fill(''))
           }
 
@@ -4314,7 +4350,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 // Sum Row
                 const sumRow = Array(template.columns.length).fill('')
                 rows.push(sumRow)
-                formulas.push({ row: rows.length, itemType: 'civil_site_sum', section: 'civil_sitework', firstDataRow, lastDataRow: rows.length - 1 })
+                formulas.push({ row: rows.length, itemType: 'civil_site_sum', section: 'civil_sitework', siteGroupKey: subName, firstDataRow, lastDataRow: rows.length - 1 })
               }
             } else {
               // Nested group (Drain, Main line)
@@ -4334,7 +4370,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                   // Sum Row
                   const sumRow = Array(template.columns.length).fill('')
                   rows.push(sumRow)
-                  formulas.push({ row: rows.length, itemType: 'civil_site_sum', section: 'civil_sitework', firstDataRow, lastDataRow: rows.length - 1 })
+                  formulas.push({ row: rows.length, itemType: 'civil_site_sum', section: 'civil_sitework', siteGroupKey: key, firstDataRow, lastDataRow: rows.length - 1 })
 
                   // Gap
                   rows.push(Array(template.columns.length).fill(''))
@@ -4730,7 +4766,30 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     }
   })
 
-  return { rows, formulas }
+  return { 
+    rows, 
+    formulas, 
+    rockExcavationTotals, 
+    lineDrillTotalFT, 
+    soldierPileGroups, 
+    primarySecantItems,
+    secondarySecantItems,
+    tangentPileItems,
+    pargingItems,
+    guideWallItems,
+    dowelBarItems,
+    rockPinItems,
+    rockStabilizationItems,
+    shotcreteItems,
+    permissionGroutingItems,
+    buttonItems,
+    mudSlabItems,
+    drilledFoundationPileGroups,
+    helicalFoundationPileGroups,
+    drivenFoundationPileItems,
+    stelcorDrilledDisplacementPileItems,
+    cfaPileItems
+  }
 }
 
 /**
@@ -4781,7 +4840,7 @@ export const applyCalculationSheetFormatting = (spreadsheet, sheetIndex = 0) => 
     // - Number formatting for numeric columns
     // - Border styling
   } catch (error) {
-    console.error('Error applying formatting:', error)
+    // Silently handle formatting errors
   }
 }
 

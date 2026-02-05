@@ -187,9 +187,85 @@ export const processLineDrillItems = (rawDataRows, headers) => {
     return lineDrillItems
 }
 
+/**
+ * Calculates total SQFT and CY from processed rock excavation items
+ * @param {Array} rockExcavationItems - Processed rock excavation items
+ * @returns {object} - Object with totalSQFT and totalCY
+ */
+export const calculateRockExcavationTotals = (rockExcavationItems) => {
+    let totalSQFT = 0
+    let totalCY = 0
+
+    rockExcavationItems.forEach((item) => {
+        const { itemType, takeoff, length, width, height } = item
+        let sqft = 0
+        let cy = 0
+
+        switch (itemType) {
+            case 'concrete_pier':
+                // SQ FT (J) = C * F * G, CY (L) = J * H / 27
+                // C = takeoff, F = length, G = width, H = height
+                sqft = (takeoff || 0) * (length || 0) * (width || 0)
+                cy = sqft * (height || 0) / 27
+                break
+
+            case 'sewage_pit_slab':
+            case 'rock_exc':
+                // SQ FT (J) = C, CY (L) = J * H / 27
+                // C = takeoff, H = height
+                sqft = takeoff || 0
+                cy = sqft * (height || 0) / 27
+                break
+
+            case 'sump_pit':
+                // SQ FT (J) = 16 * C, CY (L) = 1.3 * C
+                // C = takeoff
+                sqft = 16 * (takeoff || 0)
+                cy = 1.3 * (takeoff || 0)
+                break
+
+            default:
+                break
+        }
+
+        totalSQFT += sqft
+        totalCY += cy
+    })
+
+    return {
+        totalSQFT: parseFloat(totalSQFT.toFixed(2)),
+        totalCY: parseFloat(totalCY.toFixed(2))
+    }
+}
+
+/**
+ * Calculates total FT from processed line drilling items
+ * Formula: FT = ROUNDUP(height/2, 0) * takeoff
+ * @param {Array} lineDrillItems - Processed line drilling items
+ * @returns {number} - Total FT
+ */
+export const calculateLineDrillTotalFT = (lineDrillItems) => {
+    let totalFT = 0
+
+    lineDrillItems.forEach((item) => {
+        const { takeoff, height } = item
+        // FT = ROUNDUP(height/2, 0) * takeoff
+        const qty = Math.ceil((height || 0) / 2)
+        const ft = qty * (takeoff || 0)
+        totalFT += ft
+    })
+
+    const result = parseFloat(totalFT.toFixed(2))
+
+    
+    return result
+}
+
 export default {
     isRockExcavationItem,
     generateRockExcavationFormulas,
     processRockExcavationItems,
-    processLineDrillItems
+    processLineDrillItems,
+    calculateRockExcavationTotals,
+    calculateLineDrillTotalFT
 }
