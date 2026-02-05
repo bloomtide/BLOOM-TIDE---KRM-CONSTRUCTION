@@ -169,6 +169,7 @@ export const capstoneTemplate = {
         { name: 'Concrete pad', items: [] },
         { name: 'Non-shrink grout', items: [] },
         { name: 'Repair scope', items: [] },
+        { name: 'Ele', items: [] },
         { name: 'For Superstructure Extra line item use this', items: [] }
       ]
     },

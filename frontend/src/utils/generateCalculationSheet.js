@@ -214,7 +214,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     'Asphalt': [],
     'Pads': [],
     'Soil Erosion': { 'stabilized_entrance': [], 'silt_fence': [], 'inlet_filter': [] },
-    'Fence': { 'construction_fence': [], 'proposed_fence': [], 'guiderail': [] }
+    'Fence': { 'construction_fence': [], 'proposed_fence': [], 'guiderail': [] },
+    'Concrete filled steel pipe bollard': []
   }
   const foundationSlabRows = {} // Populated when building Foundation section; used by Waterproofing Exterior side pit items
   if (rawData && rawData.length > 1) {
@@ -1098,13 +1099,13 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: firstGroupRow, 
-              lastDataRow: rows.length - 1, 
-              subsectionName: subsection.name 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: firstGroupRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name
             })
             if (groupIndex < helicalFoundationPileGroups.length - 1) {
               rows.push(Array(template.columns.length).fill(''))
@@ -1123,12 +1124,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           const sumRow = Array(template.columns.length).fill('')
           rows.push(sumRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'foundation_sum', 
-            section: 'foundation', 
-            firstDataRow: firstItemRow, 
-            lastDataRow: rows.length - 1, 
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: firstItemRow,
+            lastDataRow: rows.length - 1,
             subsectionName: subsection.name,
             foundationCySumRow: false // Do not include Driven foundation pile CY in Foundation section total
           })
@@ -1145,13 +1146,13 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           const sumRow = Array(template.columns.length).fill('')
           rows.push(sumRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'foundation_sum', 
-            section: 'foundation', 
-            firstDataRow: firstItemRow, 
-            lastDataRow: rows.length - 1, 
-            subsectionName: subsection.name 
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: firstItemRow,
+            lastDataRow: rows.length - 1,
+            subsectionName: subsection.name
           })
         } else if (subsection.name === 'CFA pile' && cfaPileItems.length > 0) {
           const firstItemRow = rows.length + 1
@@ -1166,12 +1167,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           const sumRow = Array(template.columns.length).fill('')
           rows.push(sumRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'foundation_sum', 
-            section: 'foundation', 
-            firstDataRow: firstItemRow, 
-            lastDataRow: rows.length - 1, 
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: firstItemRow,
+            lastDataRow: rows.length - 1,
             subsectionName: subsection.name,
             foundationCySumRow: false // Do not include CFA pile CY in Foundation section total
           })
@@ -1190,14 +1191,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           const sumRow = Array(template.columns.length).fill('')
           rows.push(sumRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'foundation_sum', 
-            section: 'foundation', 
-            firstDataRow: firstItemRow, 
-            lastDataRow: rows.length - 1, 
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: firstItemRow,
+            lastDataRow: rows.length - 1,
             subsectionName: subsection.name,
-            foundationCySumRow: true 
+            foundationCySumRow: true
           })
         } else if (subsection.name === 'Strip Footings' && stripFootingGroups.length > 0) {
           // Process each group for strip footings - no space between items
@@ -1216,14 +1217,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           const sumRow = Array(template.columns.length).fill('')
           rows.push(sumRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'foundation_sum', 
-            section: 'foundation', 
-            firstDataRow: firstItemRow, 
-            lastDataRow: rows.length - 1, 
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: firstItemRow,
+            lastDataRow: rows.length - 1,
             subsectionName: subsection.name,
-            foundationCySumRow: true 
+            foundationCySumRow: true
           })
         } else if (subsection.name === 'Isolated Footings' && isolatedFootingItems.length > 0) {
           const firstItemRow = rows.length + 1
@@ -1240,14 +1241,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           const sumRow = Array(template.columns.length).fill('')
           rows.push(sumRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'foundation_sum', 
-            section: 'foundation', 
-            firstDataRow: firstItemRow, 
-            lastDataRow: rows.length - 1, 
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: firstItemRow,
+            lastDataRow: rows.length - 1,
             subsectionName: subsection.name,
-            foundationCySumRow: true 
+            foundationCySumRow: true
           })
         } else if (subsection.name === 'Pilaster' && pilasterItems.length > 0) {
           const firstItemRow = rows.length + 1
@@ -1265,14 +1266,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           const sumRow = Array(template.columns.length).fill('')
           rows.push(sumRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'foundation_sum', 
-            section: 'foundation', 
-            firstDataRow: firstItemRow, 
-            lastDataRow: rows.length - 1, 
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: firstItemRow,
+            lastDataRow: rows.length - 1,
             subsectionName: subsection.name,
-            foundationCySumRow: true 
+            foundationCySumRow: true
           })
         } else if (subsection.name === 'Grade beams' && gradeBeamGroups.length > 0) {
           // All Grade beams items should be together under a single sum.
@@ -1289,14 +1290,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           const sumRow = Array(template.columns.length).fill('')
           rows.push(sumRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'foundation_sum', 
-            section: 'foundation', 
-            firstDataRow: firstItemRow, 
-            lastDataRow: rows.length - 1, 
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: firstItemRow,
+            lastDataRow: rows.length - 1,
             subsectionName: subsection.name,
-            foundationCySumRow: true 
+            foundationCySumRow: true
           })
         } else if (subsection.name === 'Tie beam' && tieBeamGroups.length > 0) {
           // Process each group for tie beams
@@ -1314,14 +1315,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: firstGroupRow, 
-              lastDataRow: rows.length - 1, 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: firstGroupRow,
+              lastDataRow: rows.length - 1,
               subsectionName: subsection.name,
-              foundationCySumRow: true 
+              foundationCySumRow: true
             })
             if (groupIndex < tieBeamGroups.length - 1) {
               rows.push(Array(template.columns.length).fill(''))
@@ -1343,14 +1344,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: firstGroupRow, 
-              lastDataRow: rows.length - 1, 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: firstGroupRow,
+              lastDataRow: rows.length - 1,
               subsectionName: subsection.name,
-              foundationCySumRow: true 
+              foundationCySumRow: true
             })
             if (groupIndex < thickenedSlabGroups.length - 1) {
               rows.push(Array(template.columns.length).fill(''))
@@ -1369,10 +1370,10 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           rows.push(itemRow)
           const buttressRow = rows.length
           formulas.push({ row: rows.length, itemType: 'buttress_takeoff', parsedData: buttressItem, section: 'foundation' })
-          
+
           // Add empty row
           rows.push(Array(template.columns.length).fill(''))
-          
+
           // Add "Final as per schedule count" row (manual entry)
           const finalRow = Array(template.columns.length).fill('')
           finalRow[1] = 'Final as per schedule count'
@@ -1398,14 +1399,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           const sumRow = Array(template.columns.length).fill('')
           rows.push(sumRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'foundation_sum', 
-            section: 'foundation', 
-            firstDataRow: firstItemRow, 
-            lastDataRow: rows.length - 1, 
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: firstItemRow,
+            lastDataRow: rows.length - 1,
             subsectionName: subsection.name,
-            foundationCySumRow: true 
+            foundationCySumRow: true
           })
         } else if (subsection.name === 'Corbel' && corbelGroups.length > 0) {
           // All Corbel items in a single group
@@ -1422,14 +1423,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           const sumRow = Array(template.columns.length).fill('')
           rows.push(sumRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'foundation_sum', 
-            section: 'foundation', 
-            firstDataRow: firstItemRow, 
-            lastDataRow: rows.length - 1, 
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: firstItemRow,
+            lastDataRow: rows.length - 1,
             subsectionName: subsection.name,
-            foundationCySumRow: true 
+            foundationCySumRow: true
           })
         } else if (subsection.name === 'Linear Wall' && linearWallGroups.length > 0) {
           // All Linear Wall items in a single group
@@ -1446,14 +1447,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           const sumRow = Array(template.columns.length).fill('')
           rows.push(sumRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'foundation_sum', 
-            section: 'foundation', 
-            firstDataRow: firstItemRow, 
-            lastDataRow: rows.length - 1, 
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: firstItemRow,
+            lastDataRow: rows.length - 1,
             subsectionName: subsection.name,
-            foundationCySumRow: true 
+            foundationCySumRow: true
           })
         } else if (subsection.name === 'Foundation Wall' && foundationWallGroups.length > 0) {
           // All Foundation Wall items in a single group
@@ -1470,14 +1471,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           const sumRow = Array(template.columns.length).fill('')
           rows.push(sumRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'foundation_sum', 
-            section: 'foundation', 
-            firstDataRow: firstItemRow, 
-            lastDataRow: rows.length - 1, 
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: firstItemRow,
+            lastDataRow: rows.length - 1,
             subsectionName: subsection.name,
-            foundationCySumRow: true 
+            foundationCySumRow: true
           })
         } else if (subsection.name === 'Retaining walls' && retainingWallGroups.length > 0) {
           // Process each group for retaining walls
@@ -1495,14 +1496,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: firstGroupRow, 
-              lastDataRow: rows.length - 1, 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: firstGroupRow,
+              lastDataRow: rows.length - 1,
               subsectionName: subsection.name,
-              foundationCySumRow: true 
+              foundationCySumRow: true
             })
             if (groupIndex < retainingWallGroups.length - 1) {
               rows.push(Array(template.columns.length).fill(''))
@@ -1524,14 +1525,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: firstGroupRow, 
-              lastDataRow: rows.length - 1, 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: firstGroupRow,
+              lastDataRow: rows.length - 1,
               subsectionName: subsection.name,
-              foundationCySumRow: true 
+              foundationCySumRow: true
             })
             if (groupIndex < barrierWallGroups.length - 1) {
               rows.push(Array(template.columns.length).fill(''))
@@ -1551,23 +1552,23 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           const sumRow = Array(template.columns.length).fill('')
           rows.push(sumRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'foundation_sum', 
-            section: 'foundation', 
-            firstDataRow: firstItemRow, 
-            lastDataRow: rows.length - 1, 
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: firstItemRow,
+            lastDataRow: rows.length - 1,
             subsectionName: subsection.name,
-            foundationCySumRow: true 
+            foundationCySumRow: true
           })
         } else if (subsection.name === 'Elevator Pit' && elevatorPitItems.length > 0) {
           const firstItemRow = rows.length + 1
-          
+
           // Group elevator pit items by sub-type for proper rendering
           const slabItems = []
           const wallItems = []
           const slopeItems = []
-          
+
           elevatorPitItems.forEach(item => {
             const subType = item.parsed?.itemSubType
             if (subType === 'slab') {
@@ -1579,21 +1580,21 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             }
             // Note: sump_pit items are not added from data, only the manual one with 2 EA
           })
-          
+
           // Add manual "Sump pit" item with value 2 EA
           const sumpPitRow = Array(template.columns.length).fill('')
           sumpPitRow[1] = 'Sump pit'
           sumpPitRow[2] = 2
           sumpPitRow[3] = 'EA'
           rows.push(sumpPitRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'elevator_pit', 
-            parsedData: { particulars: 'Sump pit', takeoff: 2, unit: 'EA', parsed: { type: 'elevator_pit', itemSubType: 'sump_pit' } }, 
+          formulas.push({
+            row: rows.length,
+            itemType: 'elevator_pit',
+            parsedData: { particulars: 'Sump pit', takeoff: 2, unit: 'EA', parsed: { type: 'elevator_pit', itemSubType: 'sump_pit' } },
             section: 'foundation',
-            foundationCySumRow: true 
+            foundationCySumRow: true
           })
-          
+
           // Add slab items
           const slabFirstRow = slabItems.length > 0 ? rows.length + 1 : null
           if (slabFirstRow) foundationSlabRows.elevatorPit = slabFirstRow
@@ -1606,27 +1607,27 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             rows.push(itemRow)
             formulas.push({ row: rows.length, itemType: 'elevator_pit', parsedData: item, section: 'foundation' })
           })
-          
+
           // Add sum row for slab items
           if (slabItems.length > 0) {
             const slabSumRow = Array(template.columns.length).fill('')
             rows.push(slabSumRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: slabFirstRow, 
-              lastDataRow: rows.length - 1, 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: slabFirstRow,
+              lastDataRow: rows.length - 1,
               subsectionName: subsection.name,
-              foundationCySumRow: true 
+              foundationCySumRow: true
             })
           }
-          
+
           // Add empty row between slab and wall
           if (wallItems.length > 0) {
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           // Group wall items by size (groupKey)
           const wallGroups = new Map()
           wallItems.forEach(item => {
@@ -1636,7 +1637,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             }
             wallGroups.get(groupKey).push(item)
           })
-          
+
           // Add wall items grouped by size
           Array.from(wallGroups.entries()).forEach(([groupKey, items], groupIndex) => {
             const wallGroupFirstRow = rows.length + 1
@@ -1653,26 +1654,26 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             // Add sum row for this wall group
             const wallSumRow = Array(template.columns.length).fill('')
             rows.push(wallSumRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: wallGroupFirstRow, 
-              lastDataRow: rows.length - 1, 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: wallGroupFirstRow,
+              lastDataRow: rows.length - 1,
               subsectionName: subsection.name,
-              foundationCySumRow: true 
+              foundationCySumRow: true
             })
             // Add empty row between wall groups
             if (groupIndex < wallGroups.size - 1 || slopeItems.length > 0) {
               rows.push(Array(template.columns.length).fill(''))
             }
           })
-          
+
           // Add empty row between wall and slope
           if (slopeItems.length > 0) {
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           // Group slope items by size (groupKey)
           const slopeGroups = new Map()
           slopeItems.forEach(item => {
@@ -1682,7 +1683,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             }
             slopeGroups.get(groupKey).push(item)
           })
-          
+
           // Add slope items grouped by size
           Array.from(slopeGroups.entries()).forEach(([groupKey, items], groupIndex) => {
             const slopeGroupFirstRow = rows.length + 1
@@ -1699,14 +1700,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             // Add sum row for this slope group
             const slopeSumRow = Array(template.columns.length).fill('')
             rows.push(slopeSumRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: slopeGroupFirstRow, 
-              lastDataRow: rows.length - 1, 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: slopeGroupFirstRow,
+              lastDataRow: rows.length - 1,
               subsectionName: subsection.name,
-              foundationCySumRow: true 
+              foundationCySumRow: true
             })
           })
         } else if (subsection.name === 'Detention tank' && detentionTankItems.length > 0) {
@@ -1714,7 +1715,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const slabItems = []
           const lidSlabItems = []
           const wallItems = []
-          
+
           detentionTankItems.forEach(item => {
             const subType = item.parsed?.itemSubType
             if (subType === 'slab') {
@@ -1725,7 +1726,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               wallItems.push(item)
             }
           })
-          
+
           // Add slab items
           if (slabItems.length > 0) {
             const slabFirstRow = rows.length + 1
@@ -1741,19 +1742,19 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
             const slabSumRow = Array(template.columns.length).fill('')
             rows.push(slabSumRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: slabFirstRow, 
-              lastDataRow: rows.length - 1, 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: slabFirstRow,
+              lastDataRow: rows.length - 1,
               subsectionName: subsection.name,
               excludeISum: true, // Exclude I sum for slab items
-              foundationCySumRow: true 
+              foundationCySumRow: true
             })
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           // Add lid slab items
           if (lidSlabItems.length > 0) {
             const lidSlabFirstRow = rows.length + 1
@@ -1768,19 +1769,19 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
             const lidSlabSumRow = Array(template.columns.length).fill('')
             rows.push(lidSlabSumRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: lidSlabFirstRow, 
-              lastDataRow: rows.length - 1, 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: lidSlabFirstRow,
+              lastDataRow: rows.length - 1,
               subsectionName: subsection.name,
               excludeISum: true, // Exclude I sum for lid slab items
-              foundationCySumRow: true 
+              foundationCySumRow: true
             })
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           // Group wall items by size
           if (wallItems.length > 0) {
             const wallGroups = new Map()
@@ -1791,7 +1792,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               }
               wallGroups.get(groupKey).push(item)
             })
-            
+
             Array.from(wallGroups.entries()).forEach(([groupKey, items], groupIndex) => {
               const wallGroupFirstRow = rows.length + 1
               items.forEach(item => {
@@ -1807,14 +1808,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               })
               const wallSumRow = Array(template.columns.length).fill('')
               rows.push(wallSumRow)
-              formulas.push({ 
-                row: rows.length, 
-                itemType: 'foundation_sum', 
-                section: 'foundation', 
-                firstDataRow: wallGroupFirstRow, 
-                lastDataRow: rows.length - 1, 
+              formulas.push({
+                row: rows.length,
+                itemType: 'foundation_sum',
+                section: 'foundation',
+                firstDataRow: wallGroupFirstRow,
+                lastDataRow: rows.length - 1,
                 subsectionName: subsection.name,
-                foundationCySumRow: true 
+                foundationCySumRow: true
               })
             })
           }
@@ -1822,7 +1823,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           // Group items by type
           const slabItems = []
           const wallItems = []
-          
+
           duplexSewageEjectorPitItems.forEach(item => {
             const subType = item.parsed?.itemSubType
             if (subType === 'slab') {
@@ -1831,7 +1832,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               wallItems.push(item)
             }
           })
-          
+
           // Add slab items
           if (slabItems.length > 0) {
             const slabFirstRow = rows.length + 1
@@ -1859,7 +1860,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           // Group wall items by size
           if (wallItems.length > 0) {
             const wallGroups = new Map()
@@ -1870,7 +1871,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               }
               wallGroups.get(groupKey).push(item)
             })
-            
+
             Array.from(wallGroups.entries()).forEach(([groupKey, items]) => {
               const wallGroupFirstRow = rows.length + 1
               items.forEach(item => {
@@ -1885,14 +1886,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               })
               const wallSumRow = Array(template.columns.length).fill('')
               rows.push(wallSumRow)
-              formulas.push({ 
-                row: rows.length, 
-                itemType: 'foundation_sum', 
-                section: 'foundation', 
-                firstDataRow: wallGroupFirstRow, 
-                lastDataRow: rows.length - 1, 
+              formulas.push({
+                row: rows.length,
+                itemType: 'foundation_sum',
+                section: 'foundation',
+                firstDataRow: wallGroupFirstRow,
+                lastDataRow: rows.length - 1,
                 subsectionName: subsection.name,
-                foundationCySumRow: true 
+                foundationCySumRow: true
               })
             })
           }
@@ -1900,7 +1901,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           // Group items by type
           const slabItems = []
           const wallItems = []
-          
+
           deepSewageEjectorPitItems.forEach(item => {
             const subType = item.parsed?.itemSubType
             if (subType === 'slab') {
@@ -1909,7 +1910,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               wallItems.push(item)
             }
           })
-          
+
           // Add slab items
           if (slabItems.length > 0) {
             const slabFirstRow = rows.length + 1
@@ -1925,19 +1926,19 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
             const slabSumRow = Array(template.columns.length).fill('')
             rows.push(slabSumRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: slabFirstRow, 
-              lastDataRow: rows.length - 1, 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: slabFirstRow,
+              lastDataRow: rows.length - 1,
               subsectionName: subsection.name,
               excludeISum: true, // Exclude I sum for slab items
-              foundationCySumRow: true 
+              foundationCySumRow: true
             })
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           // Group wall items by size
           if (wallItems.length > 0) {
             const wallGroups = new Map()
@@ -1948,7 +1949,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               }
               wallGroups.get(groupKey).push(item)
             })
-            
+
             Array.from(wallGroups.entries()).forEach(([groupKey, items]) => {
               const wallGroupFirstRow = rows.length + 1
               items.forEach(item => {
@@ -1963,14 +1964,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               })
               const wallSumRow = Array(template.columns.length).fill('')
               rows.push(wallSumRow)
-              formulas.push({ 
-                row: rows.length, 
-                itemType: 'foundation_sum', 
-                section: 'foundation', 
-                firstDataRow: wallGroupFirstRow, 
-                lastDataRow: rows.length - 1, 
+              formulas.push({
+                row: rows.length,
+                itemType: 'foundation_sum',
+                section: 'foundation',
+                firstDataRow: wallGroupFirstRow,
+                lastDataRow: rows.length - 1,
                 subsectionName: subsection.name,
-                foundationCySumRow: true 
+                foundationCySumRow: true
               })
             })
           }
@@ -1978,7 +1979,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           // Group items by type
           const slabItems = []
           const wallItems = []
-          
+
           greaseTrapItems.forEach(item => {
             const subType = item.parsed?.itemSubType
             if (subType === 'slab') {
@@ -1987,7 +1988,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               wallItems.push(item)
             }
           })
-          
+
           // Add slab items
           if (slabItems.length > 0) {
             const slabFirstRow = rows.length + 1
@@ -2003,19 +2004,19 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
             const slabSumRow = Array(template.columns.length).fill('')
             rows.push(slabSumRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: slabFirstRow, 
-              lastDataRow: rows.length - 1, 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: slabFirstRow,
+              lastDataRow: rows.length - 1,
               subsectionName: subsection.name,
               excludeISum: true, // Exclude I sum for slab items
-              foundationCySumRow: true 
+              foundationCySumRow: true
             })
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           // Group wall items by size
           if (wallItems.length > 0) {
             const wallGroups = new Map()
@@ -2026,7 +2027,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               }
               wallGroups.get(groupKey).push(item)
             })
-            
+
             Array.from(wallGroups.entries()).forEach(([groupKey, items]) => {
               const wallGroupFirstRow = rows.length + 1
               items.forEach(item => {
@@ -2041,14 +2042,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               })
               const wallSumRow = Array(template.columns.length).fill('')
               rows.push(wallSumRow)
-              formulas.push({ 
-                row: rows.length, 
-                itemType: 'foundation_sum', 
-                section: 'foundation', 
-                firstDataRow: wallGroupFirstRow, 
-                lastDataRow: rows.length - 1, 
+              formulas.push({
+                row: rows.length,
+                itemType: 'foundation_sum',
+                section: 'foundation',
+                firstDataRow: wallGroupFirstRow,
+                lastDataRow: rows.length - 1,
                 subsectionName: subsection.name,
-                foundationCySumRow: true 
+                foundationCySumRow: true
               })
             })
           }
@@ -2056,7 +2057,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           // Group items by type
           const slabItems = []
           const wallItems = []
-          
+
           houseTrapItems.forEach(item => {
             const subType = item.parsed?.itemSubType
             if (subType === 'slab') {
@@ -2065,7 +2066,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               wallItems.push(item)
             }
           })
-          
+
           // Add slab items
           if (slabItems.length > 0) {
             const slabFirstRow = rows.length + 1
@@ -2082,19 +2083,19 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
             const slabSumRow = Array(template.columns.length).fill('')
             rows.push(slabSumRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: slabFirstRow, 
-              lastDataRow: rows.length - 1, 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: slabFirstRow,
+              lastDataRow: rows.length - 1,
               subsectionName: subsection.name,
               excludeISum: true, // Exclude I sum for slab items
-              foundationCySumRow: true 
+              foundationCySumRow: true
             })
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           // Group wall items by size
           if (wallItems.length > 0) {
             const wallGroups = new Map()
@@ -2105,7 +2106,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               }
               wallGroups.get(groupKey).push(item)
             })
-            
+
             Array.from(wallGroups.entries()).forEach(([groupKey, items]) => {
               const wallGroupFirstRow = rows.length + 1
               items.forEach(item => {
@@ -2120,14 +2121,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               })
               const wallSumRow = Array(template.columns.length).fill('')
               rows.push(wallSumRow)
-              formulas.push({ 
-                row: rows.length, 
-                itemType: 'foundation_sum', 
-                section: 'foundation', 
-                firstDataRow: wallGroupFirstRow, 
-                lastDataRow: rows.length - 1, 
+              formulas.push({
+                row: rows.length,
+                itemType: 'foundation_sum',
+                section: 'foundation',
+                firstDataRow: wallGroupFirstRow,
+                lastDataRow: rows.length - 1,
                 subsectionName: subsection.name,
-                foundationCySumRow: true 
+                foundationCySumRow: true
               })
             })
           }
@@ -2135,7 +2136,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           // Group items by type and height
           const matItems = []
           const haunchItems = []
-          
+
           matSlabItems.forEach(item => {
             const subType = item.parsed?.itemSubType
             if (subType === 'mat') {
@@ -2144,7 +2145,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               haunchItems.push(item)
             }
           })
-          
+
           // Group mat items by height (groupKey)
           const matGroups = new Map()
           matItems.forEach(item => {
@@ -2154,7 +2155,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             }
             matGroups.get(groupKey).push(item)
           })
-          
+
           // Process each mat group with its associated haunch
           Array.from(matGroups.entries()).forEach(([groupKey, matGroupItems], groupIndex) => {
             // Add mat items for this group
@@ -2169,7 +2170,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               formulas.push({ row: rows.length, itemType: 'mat_slab', parsedData: item, section: 'foundation' })
             })
             const lastMatRow = rows.length
-            
+
             // Add haunch item for this group (if available)
             let lastDataRow = lastMatRow
             if (haunchItems.length > groupIndex) {
@@ -2184,39 +2185,39 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               formulas.push({ row: rows.length, itemType: 'mat_slab', parsedData: haunchItem, section: 'foundation' })
               lastDataRow = rows.length // Update to include haunch item
             }
-            
+
             // Add sum row for mat items (J only, no I, no L)
             const matSumRow = Array(template.columns.length).fill('')
             rows.push(matSumRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: matFirstRow, 
-              lastDataRow: lastMatRow, 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: matFirstRow,
+              lastDataRow: lastMatRow,
               subsectionName: subsection.name,
               excludeISum: true, // Exclude I sum for mat items
               excludeLSum: true, // Exclude L sum (will be in combined sum)
               matSumOnly: true // Only sum J for mat items
             })
-            
+
             // Add sum row for mat + haunch (L only, includes both mat and haunch)
             // This comes right after the mat sum row (no gap)
             const combinedSumRow = Array(template.columns.length).fill('')
             rows.push(combinedSumRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: matFirstRow, 
-              lastDataRow: lastDataRow, 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: matFirstRow,
+              lastDataRow: lastDataRow,
               subsectionName: subsection.name,
               excludeISum: true, // Exclude I sum
               excludeJSum: true, // Exclude J sum (only for mat items)
               cySumOnly: true, // Only sum L (CY) for mat + haunch combined
-              foundationCySumRow: true 
+              foundationCySumRow: true
             })
-            
+
             // Add empty row between groups
             if (groupIndex < matGroups.size - 1) {
               rows.push(Array(template.columns.length).fill(''))
@@ -2230,12 +2231,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           itemRow[3] = 'SQ FT' // Unit
           // H is blank (manual entry)
           rows.push(itemRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'mud_slab_foundation', 
-            parsedData: { particulars: 'Mud slab', takeoff: 0, unit: 'SQ FT', parsed: { type: 'mud_slab_foundation', itemSubType: 'mud_slab' } }, 
+          formulas.push({
+            row: rows.length,
+            itemType: 'mud_slab_foundation',
+            parsedData: { particulars: 'Mud slab', takeoff: 0, unit: 'SQ FT', parsed: { type: 'mud_slab_foundation', itemSubType: 'mud_slab' } },
             section: 'foundation',
-            foundationCySumRow: true 
+            foundationCySumRow: true
           })
         } else if (subsection.name === 'SOG' && sogItems.length >= 0) {
           // Group items by type
@@ -2244,7 +2245,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const geotextileItems = []
           const sogSlabItems = []
           const sogStepItems = []
-          
+
           sogItems.forEach(item => {
             const subType = item.parsed?.itemSubType
             if (subType === 'gravel') {
@@ -2259,7 +2260,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               sogStepItems.push(item)
             }
           })
-          
+
           // Gravel Group
           const gravelFirstRow = rows.length + 1
           // Add manual "Gravel" item
@@ -2269,13 +2270,13 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           gravelRow[3] = 'SQ FT'
           // H is blank (manual entry - they will fill it themselves)
           rows.push(gravelRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'sog', 
-            parsedData: { particulars: 'Gravel', takeoff: 0, unit: 'SQ FT', parsed: { type: 'sog', itemSubType: 'gravel' } }, 
-            section: 'foundation' 
+          formulas.push({
+            row: rows.length,
+            itemType: 'sog',
+            parsedData: { particulars: 'Gravel', takeoff: 0, unit: 'SQ FT', parsed: { type: 'sog', itemSubType: 'gravel' } },
+            section: 'foundation'
           })
-          
+
           // Add Gravel backfill items
           gravelBackfillItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
@@ -2286,22 +2287,22 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             rows.push(itemRow)
             formulas.push({ row: rows.length, itemType: 'sog', parsedData: item, section: 'foundation' })
           })
-          
+
           // Add sum row for Gravel group
           const gravelSumRow = Array(template.columns.length).fill('')
           rows.push(gravelSumRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'foundation_sum', 
-            section: 'foundation', 
-            firstDataRow: gravelFirstRow, 
-            lastDataRow: rows.length - 1, 
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: gravelFirstRow,
+            lastDataRow: rows.length - 1,
             subsectionName: subsection.name,
             excludeISum: true, // Exclude I sum
             foundationCySumRow: false // Do not include gravel group in Foundation CY total
           })
           rows.push(Array(template.columns.length).fill(''))
-          
+
           // Geotextile Filter Fabric Group
           const geotextileFirstRow = rows.length + 1
           // Add manual "Geotextile filter fabric" items (2 items)
@@ -2312,14 +2313,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             geotextileRow[3] = 'SQ FT'
             // H is blank
             rows.push(geotextileRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'sog', 
-              parsedData: { particulars: 'Geotextile filter fabric', takeoff: 0, unit: 'SQ FT', parsed: { type: 'sog', itemSubType: 'geotextile' } }, 
-              section: 'foundation' 
+            formulas.push({
+              row: rows.length,
+              itemType: 'sog',
+              parsedData: { particulars: 'Geotextile filter fabric', takeoff: 0, unit: 'SQ FT', parsed: { type: 'sog', itemSubType: 'geotextile' } },
+              section: 'foundation'
             })
           }
-          
+
           // Add existing Geotextile filter fabric items from data
           geotextileItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
@@ -2330,22 +2331,22 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             rows.push(itemRow)
             formulas.push({ row: rows.length, itemType: 'sog', parsedData: item, section: 'foundation' })
           })
-          
+
           // Add sum row for Geotextile group (J only, L is blank)
           const geotextileSumRow = Array(template.columns.length).fill('')
           rows.push(geotextileSumRow)
-          formulas.push({ 
-            row: rows.length, 
-            itemType: 'foundation_sum', 
-            section: 'foundation', 
-            firstDataRow: geotextileFirstRow, 
-            lastDataRow: rows.length - 1, 
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: geotextileFirstRow,
+            lastDataRow: rows.length - 1,
             subsectionName: subsection.name,
             excludeISum: true, // Exclude I sum
             excludeLSum: true // Exclude L sum (L is blank for geotextile)
           })
           rows.push(Array(template.columns.length).fill(''))
-          
+
           // Group SOG slab items by groupKey
           const sogSlabGroups = new Map()
           sogSlabItems.forEach(item => {
@@ -2355,7 +2356,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             }
             sogSlabGroups.get(groupKey).push(item)
           })
-          
+
           // Add SOG slab groups
           Array.from(sogSlabGroups.entries()).forEach(([groupKey, items], groupIndex) => {
             const slabGroupFirstRow = rows.length + 1
@@ -2370,22 +2371,22 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
             const slabSumRow = Array(template.columns.length).fill('')
             rows.push(slabSumRow)
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: slabGroupFirstRow, 
-              lastDataRow: rows.length - 1, 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: slabGroupFirstRow,
+              lastDataRow: rows.length - 1,
               subsectionName: subsection.name,
               excludeISum: true, // Exclude I sum
-              foundationCySumRow: true 
+              foundationCySumRow: true
             })
             // Add empty row between groups
             if (groupIndex < sogSlabGroups.size - 1 || sogStepItems.length > 0) {
               rows.push(Array(template.columns.length).fill(''))
             }
           })
-          
+
           // Group SOG step items by size
           if (sogStepItems.length > 0) {
             const sogStepGroups = new Map()
@@ -2396,7 +2397,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               }
               sogStepGroups.get(groupKey).push(item)
             })
-            
+
             Array.from(sogStepGroups.entries()).forEach(([groupKey, items]) => {
               const stepGroupFirstRow = rows.length + 1
               items.forEach(item => {
@@ -2411,14 +2412,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               })
               const stepSumRow = Array(template.columns.length).fill('')
               rows.push(stepSumRow)
-              formulas.push({ 
-                row: rows.length, 
-                itemType: 'foundation_sum', 
-                section: 'foundation', 
-                firstDataRow: stepGroupFirstRow, 
-                lastDataRow: rows.length - 1, 
+              formulas.push({
+                row: rows.length,
+                itemType: 'foundation_sum',
+                section: 'foundation',
+                firstDataRow: stepGroupFirstRow,
+                lastDataRow: rows.length - 1,
                 subsectionName: subsection.name,
-                foundationCySumRow: true 
+                foundationCySumRow: true
               })
             })
           }
@@ -2430,15 +2431,15 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             groupHeaderRow[1] = `Stair ${group.stairIdentifier}:`
             rows.push(groupHeaderRow)
             formulas.push({ row: rows.length, itemType: 'stairs_on_grade_group_header', section: 'foundation' })
-            
+
             const groupFirstRow = rows.length + 1
             let stairsOnGradeRow = null
             let stairsOnGradeItem = null
-            
+
             // Process items in order: Landings first, then Stairs on grade
             const landingsItems = group.items.filter(item => item.parsed?.itemSubType === 'landings')
             const stairsItems = group.items.filter(item => item.parsed?.itemSubType === 'stairs')
-            
+
             // Add Landings items first
             landingsItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
@@ -2449,12 +2450,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'stairs_on_grade', parsedData: item, section: 'foundation' })
             })
-            
+
             // Add extra row space after the landings row when both landings and stairs exist
             if (landingsItems.length > 0 && stairsItems.length > 0) {
               rows.push(Array(template.columns.length).fill(''))
             }
-            
+
             // Add Stairs on grade items
             stairsItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
@@ -2473,7 +2474,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               stairsOnGradeItem = item
               formulas.push({ row: rows.length, itemType: 'stairs_on_grade', parsedData: item, section: 'foundation' })
             })
-            
+
             // Generate Stair slab item if there's a Stairs on grade item
             if (stairsOnGradeItem && stairsOnGradeRow) {
               const stairSlabRow = Array(template.columns.length).fill('')
@@ -2488,24 +2489,24 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               }
               // H = 0.67 (will be set by formula)
               rows.push(stairSlabRow)
-              formulas.push({ 
-                row: rows.length, 
-                itemType: 'stairs_on_grade', 
-                parsedData: { 
-                  particulars: 'Stair slab', 
-                  takeoff: 0, 
-                  unit: 'FT', 
-                  parsed: { 
-                    type: 'stairs_on_grade', 
+              formulas.push({
+                row: rows.length,
+                itemType: 'stairs_on_grade',
+                parsedData: {
+                  particulars: 'Stair slab',
+                  takeoff: 0,
+                  unit: 'FT',
+                  parsed: {
+                    type: 'stairs_on_grade',
                     itemSubType: 'stair_slab',
                     stairsRow: stairsOnGradeRow,
                     hasWidthFromName: stairsOnGradeItem.parsed?.widthFromName !== undefined
-                  } 
-                }, 
-                section: 'foundation' 
+                  }
+                },
+                section: 'foundation'
               })
             }
-            
+
             // Add sum row for the group (I/J/M exclude landings; L sum includes landings + space row + stairs + stair slab)
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
@@ -2518,19 +2519,19 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const lSumCells = []
             for (let r = groupFirstRow; r <= lastDataRowForGroup; r++) lSumCells.push(`L${r}`)
             const lSumRange = lSumCells.join(',')
-            formulas.push({ 
-              row: rows.length, 
-              itemType: 'foundation_sum', 
-              section: 'foundation', 
-              firstDataRow: firstDataRowForSum, 
-              lastDataRow: lastDataRowForGroup, 
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: firstDataRowForSum,
+              lastDataRow: lastDataRowForGroup,
               subsectionName: subsection.name,
               foundationCySumRow: true,
               firstDataRowForL: groupFirstRow,
               lastDataRowForL: lastDataRowForGroup,
               lSumRange // explicit range string for L sum (includes landings)
             })
-            
+
             // Add empty row between groups
             if (groupIndex < stairsOnGradeGroups.length - 1) {
               rows.push(Array(template.columns.length).fill(''))
@@ -3232,27 +3233,27 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           rows.push(Array(template.columns.length).fill(''))
         } else if (subsection.name === 'Drop panel' && (superstructureItems.dropPanelBracket?.length > 0 || superstructureItems.dropPanelH?.length > 0)) {
           const firstRow = rows.length + 1
-          ;(superstructureItems.dropPanelBracket || []).forEach((item) => {
-            const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
-            itemRow[2] = item.takeoff
-            itemRow[3] = item.unit || 'EA'
-            if (item.parsed?.lengthValue != null) itemRow[5] = item.parsed.lengthValue
-            if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
-            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
-            rows.push(itemRow)
-            formulas.push({ row: rows.length, itemType: 'superstructure_drop_panel_bracket', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
-          })
-          ;(superstructureItems.dropPanelH || []).forEach((item) => {
-            const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
-            itemRow[2] = item.takeoff
-            itemRow[3] = item.unit || 'SQ FT'
-            if (item.parsed?.qty != null) itemRow[4] = item.parsed.qty
-            if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
-            rows.push(itemRow)
-            formulas.push({ row: rows.length, itemType: 'superstructure_drop_panel_h', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
-          })
+            ; (superstructureItems.dropPanelBracket || []).forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'EA'
+              if (item.parsed?.lengthValue != null) itemRow[5] = item.parsed.lengthValue
+              if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
+              if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'superstructure_drop_panel_bracket', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+            })
+            ; (superstructureItems.dropPanelH || []).forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'SQ FT'
+              if (item.parsed?.qty != null) itemRow[4] = item.parsed.qty
+              if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'superstructure_drop_panel_h', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
+            })
           const lastRow = rows.length
           const sumRow = Array(template.columns.length).fill('')
           rows.push(sumRow)
@@ -3353,6 +3354,54 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'superstructure_repair_scope', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
           })
           rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Ele') {
+          // Superstructure Ele subsection with Excavation, Backfill, Gravel
+          const createEleGroup = (subSubName, takeoffSource, lMultiplier = 1) => {
+            // Sub-subsection header
+            const headerRow = Array(template.columns.length).fill('')
+            headerRow[1] = `${subSubName}:`
+            rows.push(headerRow)
+
+            // Data row
+            const dataRowIndex = rows.length + 1
+            const dataRow = Array(template.columns.length).fill('')
+            dataRow[0] = 'Ele'
+            dataRow[1] = subSubName
+            dataRow[3] = 'FT'
+            rows.push(dataRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_ele_item',
+              section: 'superstructure',
+              subsectionName: subsection.name,
+              subSubsectionName: subSubName,
+              takeoffSource
+            })
+
+            // Sum row (for J and L)
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_ele_sum',
+              section: 'superstructure',
+              subsectionName: subsection.name,
+              subSubsectionName: subSubName,
+              firstDataRow: dataRowIndex,
+              lastDataRow: dataRowIndex,
+              lMultiplier
+            })
+
+            // Blank row between groups
+            rows.push(Array(template.columns.length).fill(''))
+          }
+
+          // Excavation - takeoff from C of Proposed underground electrical conduit item
+          createEleGroup('Excavation', 'drains_conduit', 1.25)
+          // Backfill - takeoff from C of Excavation item in Drains & Utilities
+          createEleGroup('Backfill', 'drains_excavation', 1)
+          // Gravel - takeoff from C of Proposed underground electrical conduit item
+          createEleGroup('Gravel', 'drains_conduit', 1)
         } else if (subsection.name === 'For Superstructure Extra line item use this') {
           const extraItems = [
             { name: 'In SQ FT', unit: 'SQ FT', h: 1, type: 'superstructure_extra_sqft' },
@@ -3378,17 +3427,17 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     } else if (section.section === 'B.P.P. Alternate #2 scope') {
       // B.P.P. Alternate #2 scope - organized by street name
       const streetNames = Object.keys(bppAlternateItemsByStreet)
-      
+
       if (streetNames.length > 0) {
         streetNames.forEach((streetName, streetIndex) => {
           const streetData = bppAlternateItemsByStreet[streetName]
-          
+
           // Street name header row
           const streetHeaderRow = Array(template.columns.length).fill('')
           streetHeaderRow[1] = `Street name: ${streetName}`
           rows.push(streetHeaderRow)
           formulas.push({ row: rows.length, itemType: 'bpp_street_header', section: 'bpp_alternate', streetName })
-          
+
           // Gravel rows (2 rows - 4" and 6" gravel, manual entry, col H empty)
           const gravel4Row = Array(template.columns.length).fill('')
           gravel4Row[1] = 'Gravel'
@@ -3396,16 +3445,16 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           // col H (height) is left empty for manual entry
           rows.push(gravel4Row)
           formulas.push({ row: rows.length, itemType: 'bpp_gravel', section: 'bpp_alternate', streetName, gravelType: '4inch' })
-          
+
           const gravel6Row = Array(template.columns.length).fill('')
           gravel6Row[1] = 'Gravel'
           gravel6Row[3] = 'SQ FT'
           // col H (height) is left empty for manual entry
           rows.push(gravel6Row)
           formulas.push({ row: rows.length, itemType: 'bpp_gravel', section: 'bpp_alternate', streetName, gravelType: '6inch' })
-          
+
           rows.push(Array(template.columns.length).fill(''))
-          
+
           // Concrete sidewalk items
           if (streetData['Concrete sidewalk'] && streetData['Concrete sidewalk'].length > 0) {
             const firstRow = rows.length + 1
@@ -3424,7 +3473,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Concrete sidewalk', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['J', 'L'] })
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           // Concrete driveway items
           if (streetData['Concrete driveway'] && streetData['Concrete driveway'].length > 0) {
             const firstRow = rows.length + 1
@@ -3443,7 +3492,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Concrete driveway', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['J', 'L'] })
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           // Concrete curb items
           if (streetData['Concrete curb'] && streetData['Concrete curb'].length > 0) {
             const firstRow = rows.length + 1
@@ -3463,7 +3512,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Concrete curb', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I', 'J', 'L'] })
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           // Concrete flush curb items
           if (streetData['Concrete flush curb'] && streetData['Concrete flush curb'].length > 0) {
             const firstRow = rows.length + 1
@@ -3483,7 +3532,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Concrete flush curb', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I', 'J', 'L'] })
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           // Expansion joint items
           if (streetData['Expansion joint'] && streetData['Expansion joint'].length > 0) {
             const firstRow = rows.length + 1
@@ -3501,7 +3550,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Expansion joint', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I'] })
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           // Conc road base row (manual entry, col H empty)
           const concRoadBaseRow = Array(template.columns.length).fill('')
           concRoadBaseRow[1] = 'Conc road base'
@@ -3509,7 +3558,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           // col H (height) is left empty for manual entry
           rows.push(concRoadBaseRow)
           formulas.push({ row: rows.length, itemType: 'bpp_conc_road_base', section: 'bpp_alternate', streetName })
-          
+
           // Full depth asphalt pavement items
           if (streetData['Full depth asphalt pavement'] && streetData['Full depth asphalt pavement'].length > 0) {
             const firstRow = rows.length + 1
@@ -3528,7 +3577,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'bpp_sum', section: 'bpp_alternate', subsectionName: 'Full depth asphalt pavement', firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['J', 'L'] })
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           // Add spacing between streets
           if (streetIndex < streetNames.length - 1) {
             rows.push(Array(template.columns.length).fill(''))
@@ -3546,16 +3595,19 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     } else if (section.section === 'Civil / Sitework') {
       // Civil / Sitework section
       section.subsections.forEach((subsection) => {
-        // Add subsection header
-        const subsectionRow = Array(template.columns.length).fill('')
-        subsectionRow[1] = subsection.name + ':'
-        rows.push(subsectionRow)
+        // Add subsection header for all subsections except Alternate,
+        // which has custom header/spacing handled in its own block below.
+        if (subsection.name !== 'Alternate') {
+          const subsectionRow = Array(template.columns.length).fill('')
+          subsectionRow[1] = subsection.name + ':'
+          rows.push(subsectionRow)
+        }
 
         if (subsection.name === 'Demo' && subsection.subSubsections) {
           // Demo subsection with sub-subsections
           subsection.subSubsections.forEach((subSubsection) => {
             const subSubName = subSubsection.name
-            
+
             // Add sub-subsection header
             const subSubsectionRow = Array(template.columns.length).fill('')
             subSubsectionRow[1] = subSubName + ':'
@@ -3900,7 +3952,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const excItems = civilOtherItems['Excavation']
           let hasItems = false
           const firstDataRow = rows.length + 1
-          
+
           // Transformer pad items
           if (excItems['transformer_pad'].length > 0) {
             hasItems = true
@@ -3914,7 +3966,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               formulas.push({ row: rows.length, itemType: 'civil_exc_transformer', parsedData: item, section: 'civil_sitework', subsectionName: 'Excavation' })
             })
           }
-          
+
           // Reinforced sidewalk items
           if (excItems['reinforced_sidewalk'].length > 0) {
             hasItems = true
@@ -3928,7 +3980,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               formulas.push({ row: rows.length, itemType: 'civil_exc_sidewalk', parsedData: item, section: 'civil_sitework', subsectionName: 'Excavation' })
             })
           }
-          
+
           // Bollard items
           if (excItems['bollard'].length > 0) {
             hasItems = true
@@ -3942,7 +3994,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               formulas.push({ row: rows.length, itemType: 'civil_exc_bollard', parsedData: item, section: 'civil_sitework', subsectionName: 'Excavation' })
             })
           }
-          
+
           // Sum row for all excavation items
           if (hasItems) {
             const lastDataRow = rows.length
@@ -3958,7 +4010,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const gravelItems = civilOtherItems['Gravel']
           let hasItems = false
           const firstDataRow = rows.length + 1
-          
+
           // Transformer pad items
           if (gravelItems['transformer_pad'].length > 0) {
             hasItems = true
@@ -3971,7 +4023,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               formulas.push({ row: rows.length, itemType: 'civil_gravel_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Gravel' })
             })
           }
-          
+
           // Reinforced sidewalk items
           if (gravelItems['reinforced_sidewalk'].length > 0) {
             hasItems = true
@@ -3983,7 +4035,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               formulas.push({ row: rows.length, itemType: 'civil_gravel_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Gravel' })
             })
           }
-          
+
           // Asphalt items (Full depth asphalt pavement - non-BPP)
           if (gravelItems['asphalt'].length > 0) {
             hasItems = true
@@ -3995,7 +4047,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               formulas.push({ row: rows.length, itemType: 'civil_gravel_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Gravel' })
             })
           }
-          
+
           // Sum row for all gravel items
           if (hasItems) {
             const lastDataRow = rows.length
@@ -4076,7 +4128,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           // Soil Erosion subsection
           const seItems = civilOtherItems['Soil Erosion']
           let hasItems = false
-          
+
           // Stabilized entrance items
           if (seItems['stabilized_entrance'].length > 0) {
             hasItems = true
@@ -4090,7 +4142,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               formulas.push({ row: rows.length, itemType: 'civil_soil_stabilized', parsedData: item, section: 'civil_sitework', subsectionName: 'Soil Erosion' })
             })
           }
-          
+
           // Silt fence items
           if (seItems['silt_fence'].length > 0) {
             hasItems = true
@@ -4104,7 +4156,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               formulas.push({ row: rows.length, itemType: 'civil_soil_silt_fence', parsedData: item, section: 'civil_sitework', subsectionName: 'Soil Erosion' })
             })
           }
-          
+
           // Inlet filter items
           if (seItems['inlet_filter'].length > 0) {
             hasItems = true
@@ -4117,7 +4169,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               formulas.push({ row: rows.length, itemType: 'civil_soil_inlet_filter', parsedData: item, section: 'civil_sitework', subsectionName: 'Soil Erosion' })
             })
           }
-          
+
           if (!hasItems) {
             rows.push(Array(template.columns.length).fill(''))
           } else {
@@ -4127,7 +4179,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           // Fence subsection
           const fenceItems = civilOtherItems['Fence']
           let hasItems = false
-          
+
           // Construction fence items
           if (fenceItems['construction_fence'].length > 0) {
             hasItems = true
@@ -4147,7 +4199,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'civil_fence_sum', section: 'civil_sitework', subsectionName: 'Fence', firstDataRow: firstRow, lastDataRow: rows.length - 1 })
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           // Proposed fence items
           if (fenceItems['proposed_fence'].length > 0) {
             hasItems = true
@@ -4167,7 +4219,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'civil_fence_sum', section: 'civil_sitework', subsectionName: 'Fence', firstDataRow: firstRow, lastDataRow: rows.length - 1 })
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           // Guiderail items
           if (fenceItems['guiderail'].length > 0) {
             hasItems = true
@@ -4187,12 +4239,201 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'civil_fence_sum', section: 'civil_sitework', subsectionName: 'Fence', firstDataRow: firstRow, lastDataRow: rows.length - 1 })
             rows.push(Array(template.columns.length).fill(''))
           }
-          
+
           if (!hasItems) {
             rows.push(Array(template.columns.length).fill(''))
           }
+        } else if (subsection.name === 'Concrete filled steel pipe bollard') {
+          // Bollard subsection
+          const bollardGroups = civilOtherItems['Concrete filled steel pipe bollard']
+
+          // Group 1: Items with Footing
+          if (bollardGroups['footing'] && bollardGroups['footing'].length > 0) {
+            const firstDataRow = rows.length + 1
+            bollardGroups['footing'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'EA'
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_bollard_footing_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Concrete filled steel pipe bollard' })
+            })
+
+            // Sum row for Footing Items
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'civil_bollard_footing_sum', section: 'civil_sitework', firstDataRow, lastDataRow: rows.length - 1 })
+            rows.push(Array(template.columns.length).fill(''))
+          }
+
+          // Group 2: Simple Items
+          if (bollardGroups['simple'] && bollardGroups['simple'].length > 0) {
+            const firstDataRow = rows.length + 1
+            bollardGroups['simple'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'EA'
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_bollard_simple_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Concrete filled steel pipe bollard' })
+            })
+
+            // Sum row for Simple Items
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'civil_bollard_simple_sum', section: 'civil_sitework', firstDataRow, lastDataRow: rows.length - 1 })
+            rows.push(Array(template.columns.length).fill(''))
+          }
+
+          if ((!bollardGroups['footing'] || !bollardGroups['footing'].length) && (!bollardGroups['simple'] || !bollardGroups['simple'].length)) {
+            rows.push(Array(template.columns.length).fill(''))
+          }
+        } else if (subsection.name === 'Site') {
+          const siteItems = civilOtherItems['Site']
+          const siteOrder = ['Hydrant', 'Wheel stop', 'Drain', 'Protection', 'Signages', 'Main line']
+
+          siteOrder.forEach(subName => {
+            const groupData = siteItems[subName]
+            // Render Group Header
+            const headerRow = Array(template.columns.length).fill('')
+            headerRow[1] = '  ' + subName + ':'
+            rows.push(headerRow)
+
+            if (Array.isArray(groupData)) {
+              if (groupData && groupData.length > 0) {
+                const firstDataRow = rows.length + 1
+                groupData.forEach(item => {
+                  const itemRow = Array(template.columns.length).fill('')
+                  itemRow[1] = item.particulars
+                  itemRow[2] = item.takeoff
+                  itemRow[3] = item.unit || 'EA'
+                  rows.push(itemRow)
+                  formulas.push({ row: rows.length, itemType: 'civil_site_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Site' })
+                })
+
+                // Sum Row
+                const sumRow = Array(template.columns.length).fill('')
+                rows.push(sumRow)
+                formulas.push({ row: rows.length, itemType: 'civil_site_sum', section: 'civil_sitework', firstDataRow, lastDataRow: rows.length - 1 })
+              }
+            } else {
+              // Nested group (Drain, Main line)
+              Object.keys(groupData).forEach(key => {
+                const subItems = groupData[key]
+                if (subItems && subItems.length > 0) {
+                  const firstDataRow = rows.length + 1
+                  subItems.forEach(item => {
+                    const itemRow = Array(template.columns.length).fill('')
+                    itemRow[1] = item.particulars
+                    itemRow[2] = item.takeoff
+                    itemRow[3] = item.unit || 'EA'
+                    rows.push(itemRow)
+                    formulas.push({ row: rows.length, itemType: 'civil_site_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Site' })
+                  })
+
+                  // Sum Row
+                  const sumRow = Array(template.columns.length).fill('')
+                  rows.push(sumRow)
+                  formulas.push({ row: rows.length, itemType: 'civil_site_sum', section: 'civil_sitework', firstDataRow, lastDataRow: rows.length - 1 })
+
+                  // Gap
+                  rows.push(Array(template.columns.length).fill(''))
+                }
+              })
+              // Remove last gap if added by nested loop
+              if (rows.length > 0 && rows[rows.length - 1].every(c => c === '')) {
+                rows.pop()
+              }
+            }
+            rows.push(Array(template.columns.length).fill(''))
+          })
+        } else if (subsection.name === 'Drains & Utilities') {
+          const items = civilOtherItems['Drains & Utilities']
+          if (items && items.length > 0) {
+            items.forEach(item => {
+              if (item.particulars.toLowerCase().includes('backwater valve')) {
+                rows.push(Array(template.columns.length).fill(''))
+              }
+
+              const itemRow = Array(template.columns.length).fill('')
+              if (item.particulars.toLowerCase().includes('backwater valve')) {
+                itemRow[0] = 'Concrete'
+              }
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'EA'
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_drains_utilities_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Drains & Utilities' })
+            })
+          }
+        } else if (subsection.name === 'Alternate') {
+          const items = civilOtherItems['Alternate']
+          if (items && items.length > 0) {
+            // Gap before Alternate
+            rows.push(Array(template.columns.length).fill(''))
+
+            // Render Alternate Header
+            const altHeaderRow = Array(template.columns.length).fill('')
+            altHeaderRow[1] = 'Alternate:'
+            rows.push(altHeaderRow)
+            formulas.push({ row: rows.length, itemType: 'civil_alternate_header', section: 'civil_sitework', subsectionName: 'Alternate' })
+
+            items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'EA'
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_alternate_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Alternate' })
+            })
+          }
+        } else if (subsection.name === 'Ele') {
+          // Civil/Sitework Ele subsection with Excavation, Backfill, Gravel
+          const createCivilEleGroup = (subSubName, takeoffSourceType) => {
+            // Sub-subsection header
+            const headerRow = Array(template.columns.length).fill('')
+            headerRow[1] = `  ${subSubName}:`
+            rows.push(headerRow)
+
+            // Data row
+            const dataRow = Array(template.columns.length).fill('')
+            dataRow[1] = subSubName
+            dataRow[3] = 'FT'
+            rows.push(dataRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'civil_ele_item',
+              section: 'civil_sitework',
+              subsectionName: subsection.name,
+              subSubsectionName: subSubName,
+              takeoffSourceType
+            })
+
+            // Sum row (for J and L)
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'civil_ele_sum',
+              section: 'civil_sitework',
+              subsectionName: subsection.name,
+              subSubsectionName: subSubName,
+              firstDataRow: rows.length - 1,
+              lastDataRow: rows.length - 1
+            })
+
+            // Blank row between groups
+            rows.push(Array(template.columns.length).fill(''))
+          }
+
+          // Excavation - takeoff from C of Proposed underground electrical conduit item from Drains & Utilities
+          createCivilEleGroup('Excavation', 'drains_conduit')
+          // Backfill - takeoff from C of Excavation item from this Ele section
+          createCivilEleGroup('Backfill', 'ele_excavation')
+          // Gravel - takeoff from C of Proposed underground electrical conduit item from Drains & Utilities
+          createCivilEleGroup('Gravel', 'drains_conduit')
         } else if (subsection.subSubsections && subsection.subSubsections.length > 0) {
-          // Other subsections with sub-subsections (Site, Ele, Gas, Water)
+          // Other subsections with sub-subsections (Gas, Water)
           subsection.subSubsections.forEach((subSubsection) => {
             const subSubsectionRow = Array(template.columns.length).fill('')
             subSubsectionRow[1] = '  ' + subSubsection.name + ':'

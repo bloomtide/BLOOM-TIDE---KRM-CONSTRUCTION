@@ -1549,6 +1549,201 @@ const ProposalDetail = () => {
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             return
           }
+          // Bollard items
+          // Bollard items
+          if (itemType === 'civil_bollard_footing_item') {
+            const parsed = parsedData || formulaInfo
+            const dims = parsed?.parsed?.bollardDimensions
+            // Use footing height if available, otherwise 4
+            const hVal = dims?.footingH || 4
+
+            // F, G = SQRT(3.14*1.5*1.5/4) -> 1.5 is 18" footing diameter
+            const sideFormula = `SQRT(3.14*1.5*1.5/4)`
+            spreadsheet.updateCell({ formula: `=${sideFormula}` }, `F${row}`)
+            spreadsheet.updateCell({ formula: `=${sideFormula}` }, `G${row}`)
+
+            // H = derived from name (mentioned in footing)
+            spreadsheet.updateCell({ value: hVal }, `H${row}`)
+
+            // J = G*F*C
+            spreadsheet.updateCell({ formula: `=G${row}*F${row}*C${row}` }, `J${row}`)
+
+            // L = J*H/27
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+
+            // M = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            return
+          }
+
+          if (itemType === 'civil_bollard_footing_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            // Sum J, L, M
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+
+            spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+
+          if (itemType === 'civil_bollard_simple_item') {
+            // M = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            return
+          }
+
+          if (itemType === 'civil_bollard_simple_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            // Sum M
+            spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+
+          // Site items (Hydrant, Wheel stop, Drain, Protection, Signages, Main line)
+          if (itemType === 'civil_site_item') {
+            // M = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            return
+          }
+
+          if (itemType === 'civil_site_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            // Sum M
+            spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+
+          // Drains & Utilities and Alternate items
+          if (itemType === 'civil_drains_utilities_item' || itemType === 'civil_alternate_item') {
+            const unit = parsedData?.unit || 'EA'
+            // Particulars in red
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+
+            if (unit === 'FT' || unit === 'LF') {
+              // I = C
+              spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            } else {
+              // M = C
+              spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            }
+            return
+          }
+
+          // Alternate Header
+          if (itemType === 'civil_alternate_header') {
+            spreadsheet.cellFormat({ backgroundColor: '#E2EFDA' }, `B${row}`)
+            return
+          }
+
+          // Ele subsection items (Excavation, Backfill, Gravel)
+          if (itemType === 'civil_ele_item') {
+            const { subSubsectionName, takeoffSourceType } = formulaInfo
+
+            // Find the source row for takeoff
+            let sourceRow = null
+
+            if (takeoffSourceType === 'drains_conduit') {
+              // Find "Proposed underground electrical conduit" in Drains & Utilities
+              for (let i = 0; i < calculationData.length; i++) {
+                const rowData = calculationData[i]
+                const particulars = rowData[1] ? String(rowData[1]).toLowerCase() : ''
+                if (particulars.includes('proposed underground electrical conduit')) {
+                  sourceRow = i + 1
+                  break
+                }
+              }
+            } else if (takeoffSourceType === 'ele_excavation') {
+              // Find Excavation item in Ele subsection (the data row, not the header)
+              for (let i = 0; i < calculationData.length; i++) {
+                const rowData = calculationData[i]
+                const particulars = rowData[1] ? String(rowData[1]).toLowerCase() : ''
+                // Look for the Excavation data row (not the header which has "  Excavation:")
+                if (particulars === 'excavation' && i > 0) {
+                  // Make sure this is in the Ele section by checking previous rows
+                  let inEleSection = false
+                  for (let j = i - 1; j >= 0; j--) {
+                    const prevRow = calculationData[j]
+                    if (prevRow[1] && String(prevRow[1]).trim() === 'Ele:') {
+                      inEleSection = true
+                      break
+                    }
+                    // Stop if we hit another subsection header
+                    if (prevRow[1] && String(prevRow[1]).endsWith(':') && !String(prevRow[1]).startsWith('  ')) {
+                      break
+                    }
+                  }
+                  if (inEleSection) {
+                    sourceRow = i + 1
+                    break
+                  }
+                }
+              }
+            }
+
+            // Apply formulas
+            if (sourceRow) {
+              // C = reference to source row's C column (black text)
+              spreadsheet.updateCell({ formula: `=C${sourceRow}` }, `C${row}`)
+              spreadsheet.cellFormat({ color: '#000000' }, `C${row}`)
+            }
+
+            // Item name in column B should be red
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+
+            // I = empty (no formula)
+
+            // Check if this is Gravel item
+            const isGravel = subSubsectionName === 'Gravel'
+
+            if (isGravel) {
+              // Gravel: J = C*G (black text)
+              spreadsheet.updateCell({ formula: `=C${row}*G${row}` }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#000000' }, `J${row}`)
+
+              // Gravel: L = J*H/27 (black text, yellow background)
+              spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#000000', backgroundColor: '#FFF2CC' }, `L${row}`)
+            } else {
+              // Excavation & Backfill: J = H*C (black text)
+              spreadsheet.updateCell({ formula: `=H${row}*C${row}` }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#000000' }, `J${row}`)
+
+              // Excavation & Backfill: L = J*G/27 (black text)
+              spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#000000' }, `L${row}`)
+            }
+
+            return
+          }
+
+          if (itemType === 'civil_ele_sum') {
+            const { firstDataRow, lastDataRow, subSubsectionName } = formulaInfo
+
+            // Check if this is Gravel sum
+            const isGravel = subSubsectionName === 'Gravel'
+
+            // Sum J (SQ FT) - red text
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+
+            // Sum L (CY) - red text, yellow background for Gravel
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            if (isGravel) {
+              spreadsheet.cellFormat({ color: '#FF0000', backgroundColor: '#FFF2CC' }, `L${row}`)
+            } else {
+              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            }
+
+            return
+          }
         }
 
         // Apply generic formulas if we got them from generators
