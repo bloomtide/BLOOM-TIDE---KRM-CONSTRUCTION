@@ -275,14 +275,14 @@ const ProposalDetail = () => {
   // Build spreadsheet model with raw data only (formulas and styles applied after loading)
   const buildSpreadsheetModel = () => {
     const calculationsRows = []
-    
+
     // Build rows for Calculations sheet - raw data only
     calculationData.forEach((row, rowIndex) => {
       const cells = []
-      
+
       row.forEach((cellValue, colIndex) => {
         const cell = {}
-        
+
         if (cellValue !== '' && cellValue !== null && cellValue !== undefined) {
           // For Particulars column (B), prevent date conversion
           if (colIndex === 1 && typeof cellValue === 'string') {
@@ -296,10 +296,10 @@ const ProposalDetail = () => {
             cell.value = cellValue
           }
         }
-        
+
         cells.push(cell)
       })
-      
+
       calculationsRows.push({ cells })
     })
 
@@ -618,7 +618,7 @@ const ProposalDetail = () => {
         } else if (section === 'soe') {
           // SOE section - use generateSoeFormulas for items
           const soeItemTypes = ['soldier_pile_item', 'soe_generic_item', 'backpacking_item', 'supporting_angle', 'parging', 'heel_block', 'underpinning', 'shims', 'rock_anchor', 'rock_bolt', 'anchor', 'tie_back', 'concrete_soil_retention_pier', 'guide_wall', 'dowel_bar', 'rock_pin', 'shotcrete', 'permission_grouting', 'button', 'rock_stabilization', 'form_board']
-          
+
           if (soeItemTypes.includes(itemType)) {
             const soeFormulas = generateSoeFormulas(itemType, row, parsedData || formulaInfo)
             if (soeFormulas.takeoff) spreadsheet.updateCell({ formula: `=${soeFormulas.takeoff}` }, `C${row}`)
@@ -666,7 +666,7 @@ const ProposalDetail = () => {
               spreadsheet.updateCell({ formula: `=${soeFormulas.qtyFinal}` }, `M${row}`)
             }
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            
+
             if (itemType === 'backpacking_item') {
               spreadsheet.cellFormat({ color: '#000000' }, `C${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
@@ -713,7 +713,7 @@ const ProposalDetail = () => {
           // For brevity, using generateFoundationFormulas for items
           if (itemType === 'foundation_sum') {
             const { firstDataRow, lastDataRow, subsectionName, isDualDiameter, excludeISum, excludeJSum, cySumOnly, lSumRange } = formulaInfo
-            
+
             if (!excludeISum) {
               const ftSumSubsections = ['Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile', 'Grade beams', 'Tie beam', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Drilled foundation pile', 'Strip Footings', 'Stem wall', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Grease trap', 'House trap', 'SOG', 'Stairs on grade Stairs', 'Electric conduit']
               if (ftSumSubsections.includes(subsectionName)) {
@@ -1497,6 +1497,196 @@ const ProposalDetail = () => {
             }
             return
           }
+        } else if (section === 'civil_sitework') {
+          // Civil / Sitework formulas
+          if (itemType === 'civil_demo_asphalt') {
+            // Demo asphalt: J = C, L = J * H / 27
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            return
+          }
+          if (itemType === 'civil_demo_curb') {
+            // Demo curb: I = C, J = I * H, L = J * G / 27
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            return
+          }
+          if (itemType === 'civil_demo_fence') {
+            // Demo fence: I = C, J = I * H
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            return
+          }
+          if (itemType === 'civil_demo_wall') {
+            // Demo wall: I = C, J = I * H, L = J * G / 27
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            return
+          }
+          if (itemType === 'civil_demo_pipe' || itemType === 'civil_demo_rail') {
+            // Demo pipe/rail: I = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            return
+          }
+          if (itemType === 'civil_demo_ea') {
+            // Demo EA items (sign, manhole, fire hydrant, utility pole, valve, inlet): M = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            return
+          }
+          if (itemType === 'civil_demo_sum') {
+            const { firstDataRow, lastDataRow, sumColumns } = formulaInfo
+            if (sumColumns && sumColumns.includes('I')) {
+              spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            }
+            if (sumColumns && sumColumns.includes('J')) {
+              spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            }
+            if (sumColumns && sumColumns.includes('L')) {
+              spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            }
+            if (sumColumns && sumColumns.includes('M')) {
+              spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            }
+            return
+          }
+          // Excavation items
+          // Height is manual input (empty), Col I empty, Col J = C for SQ FT or G*F*C for EA
+          if (itemType === 'civil_exc_transformer' || itemType === 'civil_exc_sidewalk') {
+            // SQ FT items: J = C, L = J*H/27
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            return
+          }
+          if (itemType === 'civil_exc_bollard') {
+            // EA items: F = SQRT(3.14*1.5*1.5/4), G = SQRT(3.14*1.5*1.5/4), H = empty, J = G*F*C, L = J*H/27
+            spreadsheet.updateCell({ formula: `=SQRT(3.14*1.5*1.5/4)` }, `F${row}`)
+            spreadsheet.updateCell({ formula: `=SQRT(3.14*1.5*1.5/4)` }, `G${row}`)
+            spreadsheet.updateCell({ formula: `=G${row}*F${row}*C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            return
+          }
+          if (itemType === 'civil_exc_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})*1.25` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          // Gravel items
+          if (itemType === 'civil_gravel_item') {
+            // I empty, J = C (red), L = J*H/27 (red with yellow background)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', backgroundColor: '#FFF2CC' }, `L${row}`)
+            return
+          }
+          if (itemType === 'civil_gravel_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', backgroundColor: '#FFF2CC' }, `L${row}`)
+            return
+          }
+          // Concrete Pavement items
+          if (itemType === 'civil_concrete_pavement') {
+            // I empty, J = C, L = J*H/27
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            return
+          }
+          if (itemType === 'civil_concrete_pavement_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          // Asphalt items
+          if (itemType === 'civil_asphalt') {
+            // Height formula, I empty, J = C, L = J*H/27
+            const parsed = parsedData || formulaInfo
+            const heightFormula = parsed?.parsed?.heightFormula
+            if (heightFormula) {
+              spreadsheet.updateCell({ formula: `=${heightFormula}` }, `H${row}`)
+            }
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            return
+          }
+          if (itemType === 'civil_asphalt_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          // Pads items
+          if (itemType === 'civil_pads') {
+            // I empty, J = C, L = J*H/27, M = E (qty)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=E${row}` }, `M${row}`)
+            return
+          }
+          if (itemType === 'civil_pads_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+          // Soil Erosion items - all values in col I, J, L, M should be red
+          if (itemType === 'civil_soil_stabilized') {
+            // I empty, J = C (red), L = J*H/27 (red)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+          if (itemType === 'civil_soil_silt_fence') {
+            // I = C (red), J = I*H (red)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            return
+          }
+          if (itemType === 'civil_soil_inlet_filter') {
+            // M = C (red)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+          // Fence items
+          if (itemType === 'civil_fence') {
+            // I = C, J = I*H
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            return
+          }
+          if (itemType === 'civil_fence_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            return
+          }
         }
 
         // Apply generic formulas if we got them from generators
@@ -1536,7 +1726,7 @@ const ProposalDetail = () => {
       // Format section and subsection headers
       calculationData.forEach((row, rowIndex) => {
         const rowNum = rowIndex + 1
-        
+
         if (row[0] && !row[1]) {
           const sectionName = String(row[0])
           let backgroundColor = '#F4B084'
@@ -1549,7 +1739,7 @@ const ProposalDetail = () => {
             spreadsheet.cellFormat({ fontWeight: 'normal', backgroundColor, fontSize: '11pt' }, `C${rowNum}:D${rowNum}`)
           }
         }
-        
+
         if (!row[0] && row[1]) {
           const bContent = String(row[1])
           if (bContent.endsWith(':') || bContent.startsWith('  ')) {
@@ -1594,7 +1784,7 @@ const ProposalDetail = () => {
     try {
       // Access sheets from the spreadsheet model
       const sheets = spreadsheet.sheets
-      
+
       if (!sheets || !Array.isArray(sheets)) {
         return images
       }
@@ -1603,7 +1793,7 @@ const ProposalDetail = () => {
         try {
           // Try both 'image' and 'images' property names
           const sheetImages = sheet.image || sheet.images || []
-          
+
           if (sheetImages && Array.isArray(sheetImages) && sheetImages.length > 0) {
             sheetImages.forEach((image, idx) => {
               if (image && image.src) {
@@ -1701,12 +1891,12 @@ const ProposalDetail = () => {
       lastSaveTimeRef.current = now
       setHasUnsavedChanges(false)
       retryCountRef.current = 0
-      
+
       return true
     } catch (error) {
       console.error('Error saving spreadsheet:', error)
       setSaveError(error.message || 'Failed to save')
-      
+
       // Retry logic for failed saves
       if (retryCountRef.current < MAX_RETRY_COUNT) {
         retryCountRef.current++
@@ -1799,16 +1989,16 @@ const ProposalDetail = () => {
     const handleKeyDown = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault()
-        
+
         // Clear pending timeouts and save immediately
         if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
         if (maxWaitTimeoutRef.current) clearTimeout(maxWaitTimeoutRef.current)
         maxWaitTimeoutRef.current = null
-        
+
         if (hasUnsavedChanges) {
           saveSpreadsheet(true)
         }
-        
+
         toast('✌🏻 You are good to go: your changes are being autosaved', {
           duration: 3000,
           position: 'bottom-right',
@@ -1838,6 +2028,7 @@ const ProposalDetail = () => {
     ]
     // Note: We DO save on 'gotoSheet' - when user switches away from Proposal Sheet,
     // we need to capture any pending edits (cell may have been saved but we want to persist)
+    // Save on any action that's not in the no-save list
     if (args.action && !noSaveActions.includes(args.action)) {
       markDirtyAndScheduleSave()
     }
@@ -1861,7 +2052,7 @@ const ProposalDetail = () => {
   // Fallback: Periodically check for image changes
   // This catches image insertions that might not trigger actionComplete
   const lastImageCountRef = useRef(0)
-  
+
   useEffect(() => {
     if (!spreadsheetRef.current || !hasLoadedFromJson.current) return
 
@@ -1869,7 +2060,7 @@ const ProposalDetail = () => {
       try {
         const images = extractImages()
         const currentCount = images.length
-        
+
         if (currentCount !== lastImageCountRef.current) {
           lastImageCountRef.current = currentCount
           markDirtyAndScheduleSave()
@@ -1903,10 +2094,10 @@ const ProposalDetail = () => {
       // Clear pending timeouts
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
       if (maxWaitTimeoutRef.current) clearTimeout(maxWaitTimeoutRef.current)
-      
+
       // Show saving indicator
       toast.loading('Saving changes...', { id: 'nav-save' })
-      
+
       try {
         await saveSpreadsheet(true)
         toast.success('Changes saved!', { id: 'nav-save', duration: 1500 })
@@ -1914,7 +2105,7 @@ const ProposalDetail = () => {
         toast.error('Failed to save, navigating anyway...', { id: 'nav-save', duration: 1500 })
       }
     }
-    
+
     navigate('/proposals')
   }, [hasUnsavedChanges, saveSpreadsheet, navigate])
 
