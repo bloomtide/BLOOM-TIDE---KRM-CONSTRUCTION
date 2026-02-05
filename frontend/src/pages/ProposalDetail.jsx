@@ -2408,6 +2408,42 @@ const ProposalDetail = () => {
     markDirtyAndScheduleSave()
   }, [markDirtyAndScheduleSave])
 
+  // Handle beforeSave event for Save As functionality
+  // This configures the save to return blob data instead of posting to server
+  const handleBeforeSave = useCallback((args) => {
+    // Enable blob data return for client-side download
+    args.needBlobData = true
+    // Prevent server post, we'll handle download client-side
+    args.isFullPost = false
+  }, [])
+
+  // Handle saveComplete event - download the Excel file
+  const handleSaveComplete = useCallback((args) => {
+    if (args.blobData) {
+      // Create a download link for the blob
+      const blob = args.blobData
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      
+      // Use proposal name for filename, or fallback to default
+      const proposalName = proposal?.name || 'spreadsheet'
+      // Sanitize filename - remove special characters
+      const sanitizedName = proposalName.replace(/[^a-zA-Z0-9-_\s]/g, '').trim()
+      link.download = `${sanitizedName}.xlsx`
+      
+      // Trigger download
+      document.body.appendChild(link)
+      link.click()
+      
+      // Cleanup
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+      
+      toast.success('File downloaded successfully')
+    }
+  }, [proposal?.name])
+
   // Fallback: Periodically check for image changes
   // This catches image insertions that might not trigger actionComplete
   const lastImageCountRef = useRef(0)
@@ -2595,6 +2631,9 @@ const ProposalDetail = () => {
             actionComplete={handleActionComplete}
             // File menu events - trigger save after file menu operations
             fileMenuItemSelect={() => setTimeout(() => markDirtyAndScheduleSave(), 1000)}
+            // Save As functionality - enables client-side Excel download
+            beforeSave={handleBeforeSave}
+            saveComplete={handleSaveComplete}
             // Created event
             created={() => {
               // Fallback: when spreadsheet is ready and we have generated data but proposal wasn't built yet (timing)
