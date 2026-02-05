@@ -4468,8 +4468,266 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           createCivilEleGroup('Backfill', 'ele_excavation')
           // Gravel - takeoff from C of Proposed underground electrical conduit item from Drains & Utilities
           createCivilEleGroup('Gravel', 'drains_conduit')
+        } else if (subsection.name === 'Gas') {
+          // Civil/Sitework Gas subsection with Excavation, Backfill, Gravel
+
+          // Excavation sub-subsection
+          const excavationHeaderRow = Array(template.columns.length).fill('')
+          excavationHeaderRow[1] = '  Excavation:'
+          rows.push(excavationHeaderRow)
+
+          const excavationDataRow = Array(template.columns.length).fill('')
+          excavationDataRow[1] = 'Proposed Underground gas service lateral'
+          excavationDataRow[3] = 'FT'
+          rows.push(excavationDataRow)
+          formulas.push({
+            row: rows.length,
+            itemType: 'civil_gas_water_item',
+            section: 'civil_sitework',
+            subsectionName: 'Gas',
+            subSubsectionName: 'Excavation',
+            takeoffSourceType: 'drains_gas_lateral',
+            isGravel: false
+          })
+
+          const excavationSumRow = Array(template.columns.length).fill('')
+          rows.push(excavationSumRow)
+          formulas.push({
+            row: rows.length,
+            itemType: 'civil_gas_water_sum',
+            section: 'civil_sitework',
+            subsectionName: 'Gas',
+            subSubsectionName: 'Excavation',
+            firstDataRow: rows.length - 1,
+            lastDataRow: rows.length - 1,
+            isGravel: false
+          })
+          rows.push(Array(template.columns.length).fill(''))
+
+          // Backfill sub-subsection
+          const backfillHeaderRow = Array(template.columns.length).fill('')
+          backfillHeaderRow[1] = '  Backfill:'
+          rows.push(backfillHeaderRow)
+
+          const backfillDataRow = Array(template.columns.length).fill('')
+          backfillDataRow[1] = 'Proposed Underground gas service lateral'
+          backfillDataRow[3] = 'FT'
+          rows.push(backfillDataRow)
+          formulas.push({
+            row: rows.length,
+            itemType: 'civil_gas_water_item',
+            section: 'civil_sitework',
+            subsectionName: 'Gas',
+            subSubsectionName: 'Backfill',
+            takeoffSourceType: 'gas_excavation',
+            isGravel: false
+          })
+
+          const backfillSumRow = Array(template.columns.length).fill('')
+          rows.push(backfillSumRow)
+          formulas.push({
+            row: rows.length,
+            itemType: 'civil_gas_water_sum',
+            section: 'civil_sitework',
+            subsectionName: 'Gas',
+            subSubsectionName: 'Backfill',
+            firstDataRow: rows.length - 1,
+            lastDataRow: rows.length - 1,
+            isGravel: false
+          })
+          rows.push(Array(template.columns.length).fill(''))
+
+          // Gravel sub-subsection
+          const gravelHeaderRow = Array(template.columns.length).fill('')
+          gravelHeaderRow[1] = '  Gravel:'
+          rows.push(gravelHeaderRow)
+
+          const gravelFirstDataRow = rows.length + 1
+
+          // Gravel item 1
+          const gravelDataRow1 = Array(template.columns.length).fill('')
+          gravelDataRow1[1] = 'Proposed Underground gas service lateral'
+          gravelDataRow1[3] = 'FT'
+          rows.push(gravelDataRow1)
+          formulas.push({
+            row: rows.length,
+            itemType: 'civil_gas_water_item',
+            section: 'civil_sitework',
+            subsectionName: 'Gas',
+            subSubsectionName: 'Gravel',
+            takeoffSourceType: 'drains_gas_lateral',
+            isGravel: true
+          })
+
+          // Gravel item 2
+          const gravelDataRow2 = Array(template.columns.length).fill('')
+          gravelDataRow2[1] = 'Proposed Underground water main'
+          gravelDataRow2[3] = 'FT'
+          rows.push(gravelDataRow2)
+          formulas.push({
+            row: rows.length,
+            itemType: 'civil_gas_water_item',
+            section: 'civil_sitework',
+            subsectionName: 'Gas',
+            subSubsectionName: 'Gravel',
+            takeoffSourceType: 'drains_water_main',
+            isGravel: true
+          })
+
+          const gravelSumRow = Array(template.columns.length).fill('')
+          rows.push(gravelSumRow)
+          formulas.push({
+            row: rows.length,
+            itemType: 'civil_gas_water_sum',
+            section: 'civil_sitework',
+            subsectionName: 'Gas',
+            subSubsectionName: 'Gravel',
+            firstDataRow: gravelFirstDataRow,
+            lastDataRow: rows.length - 1,
+            isGravel: true
+          })
+          rows.push(Array(template.columns.length).fill(''))
+
+        } else if (subsection.name === 'Water') {
+          // Civil/Sitework Water subsection with Excavation, Backfill, Gravel
+
+          // Excavation sub-subsection
+          const excavationHeaderRow = Array(template.columns.length).fill('')
+          excavationHeaderRow[1] = '  Excavation:'
+          rows.push(excavationHeaderRow)
+
+          const excavationFirstDataRow = rows.length + 1
+
+          // Excavation item 1
+          const excavationDataRow1 = Array(template.columns.length).fill('')
+          excavationDataRow1[1] = 'Proposed Underground 8" water service lateral'
+          excavationDataRow1[3] = 'FT'
+          rows.push(excavationDataRow1)
+          formulas.push({
+            row: rows.length,
+            itemType: 'civil_gas_water_item',
+            section: 'civil_sitework',
+            subsectionName: 'Water',
+            subSubsectionName: 'Excavation',
+            takeoffSourceType: 'drains_sanitary_sewer',
+            isGravel: false
+          })
+
+          // Excavation item 2
+          const excavationDataRow2 = Array(template.columns.length).fill('')
+          excavationDataRow2[1] = 'Proposed Underground water main'
+          excavationDataRow2[3] = 'FT'
+          rows.push(excavationDataRow2)
+          formulas.push({
+            row: rows.length,
+            itemType: 'civil_gas_water_item',
+            section: 'civil_sitework',
+            subsectionName: 'Water',
+            subSubsectionName: 'Excavation',
+            takeoffSourceType: 'drains_water_main',
+            isGravel: false
+          })
+
+          const excavationSumRow = Array(template.columns.length).fill('')
+          rows.push(excavationSumRow)
+          formulas.push({
+            row: rows.length,
+            itemType: 'civil_gas_water_sum',
+            section: 'civil_sitework',
+            subsectionName: 'Water',
+            subSubsectionName: 'Excavation',
+            firstDataRow: excavationFirstDataRow,
+            lastDataRow: rows.length - 1,
+            isGravel: false
+          })
+          rows.push(Array(template.columns.length).fill(''))
+
+          // Backfill sub-subsection
+          const backfillHeaderRow = Array(template.columns.length).fill('')
+          backfillHeaderRow[1] = '  Backfill:'
+          rows.push(backfillHeaderRow)
+
+          const backfillDataRow = Array(template.columns.length).fill('')
+          backfillDataRow[1] = 'Proposed Underground 8" water service lateral'
+          backfillDataRow[3] = 'FT'
+          rows.push(backfillDataRow)
+          formulas.push({
+            row: rows.length,
+            itemType: 'civil_gas_water_item',
+            section: 'civil_sitework',
+            subsectionName: 'Water',
+            subSubsectionName: 'Backfill',
+            takeoffSourceType: 'water_excavation_item1',
+            isGravel: false
+          })
+
+          const backfillSumRow = Array(template.columns.length).fill('')
+          rows.push(backfillSumRow)
+          formulas.push({
+            row: rows.length,
+            itemType: 'civil_gas_water_sum',
+            section: 'civil_sitework',
+            subsectionName: 'Water',
+            subSubsectionName: 'Backfill',
+            firstDataRow: rows.length - 1,
+            lastDataRow: rows.length - 1,
+            isGravel: false
+          })
+          rows.push(Array(template.columns.length).fill(''))
+
+          // Gravel sub-subsection
+          const gravelHeaderRow = Array(template.columns.length).fill('')
+          gravelHeaderRow[1] = '  Gravel:'
+          rows.push(gravelHeaderRow)
+
+          const gravelFirstDataRow = rows.length + 1
+
+          // Gravel item 1
+          const gravelDataRow1 = Array(template.columns.length).fill('')
+          gravelDataRow1[1] = 'Proposed Underground 8" water service lateral'
+          gravelDataRow1[3] = 'FT'
+          rows.push(gravelDataRow1)
+          formulas.push({
+            row: rows.length,
+            itemType: 'civil_gas_water_item',
+            section: 'civil_sitework',
+            subsectionName: 'Water',
+            subSubsectionName: 'Gravel',
+            takeoffSourceType: 'drains_gas_lateral',
+            isGravel: true
+          })
+
+          // Gravel item 2
+          const gravelDataRow2 = Array(template.columns.length).fill('')
+          gravelDataRow2[1] = 'Proposed Underground water main'
+          gravelDataRow2[3] = 'FT'
+          rows.push(gravelDataRow2)
+          formulas.push({
+            row: rows.length,
+            itemType: 'civil_gas_water_item',
+            section: 'civil_sitework',
+            subsectionName: 'Water',
+            subSubsectionName: 'Gravel',
+            takeoffSourceType: 'drains_water_main',
+            isGravel: true
+          })
+
+          const gravelSumRow = Array(template.columns.length).fill('')
+          rows.push(gravelSumRow)
+          formulas.push({
+            row: rows.length,
+            itemType: 'civil_gas_water_sum',
+            section: 'civil_sitework',
+            subsectionName: 'Water',
+            subSubsectionName: 'Gravel',
+            firstDataRow: gravelFirstDataRow,
+            lastDataRow: rows.length - 1,
+            isGravel: true
+          })
+          rows.push(Array(template.columns.length).fill(''))
+
         } else if (subsection.subSubsections && subsection.subSubsections.length > 0) {
-          // Other subsections with sub-subsections (Gas, Water)
+          // Other subsections with sub-subsections
           subsection.subSubsections.forEach((subSubsection) => {
             const subSubsectionRow = Array(template.columns.length).fill('')
             subSubsectionRow[1] = '  ' + subSubsection.name + ':'
