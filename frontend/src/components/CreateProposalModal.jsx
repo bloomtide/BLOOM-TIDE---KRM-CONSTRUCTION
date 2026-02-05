@@ -78,7 +78,7 @@ const CreateProposalModal = ({ isOpen, onClose, onSuccess }) => {
                 const workbook = XLSX.read(data, { type: 'array' })
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
                 const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' })
-                
+
                 const headers = jsonData[0] || []
                 const rows = jsonData.slice(1)
 
@@ -114,9 +114,9 @@ const CreateProposalModal = ({ isOpen, onClose, onSuccess }) => {
             formDataToSend.append('excelFile', file)
 
             const response = await proposalAPI.create(formDataToSend)
-            
+
             toast.success('Proposal created successfully!')
-            
+
             // Reset form
             setFormData({
                 proposalName: '',
@@ -127,9 +127,9 @@ const CreateProposalModal = ({ isOpen, onClose, onSuccess }) => {
             setFile(null)
             setStep(1)
             setPreviewData(null)
-            
+
             onClose()
-            
+
             if (onSuccess) {
                 onSuccess()
             }
@@ -161,8 +161,8 @@ const CreateProposalModal = ({ isOpen, onClose, onSuccess }) => {
             isOpen={isOpen}
             onClose={handleClose}
             title={step === 1 ? "New Proposal" : "Preview Data"}
-            subtitle={step === 1 
-                ? "Upload your Excel sheet to generate and review the proposal data." 
+            subtitle={step === 1
+                ? "Upload your Excel sheet to generate and review the proposal data."
                 : `${previewData?.fileName} • ${previewData?.rows?.length || 0} rows`
             }
             maxWidth="max-w-5xl"
@@ -172,23 +172,23 @@ const CreateProposalModal = ({ isOpen, onClose, onSuccess }) => {
                 <form onSubmit={handleNextStep}>
                     {/* File Upload Area */}
                     <div
-                        className={`border-2 border-dashed rounded-lg p-12 mb-8 text-center transition-colors ${dragActive
+                        className={`border-2 border-dashed rounded-lg p-12 mb-8 text-center transition-colors cursor-pointer ${dragActive
                             ? 'border-blue-500 bg-blue-50'
-                            : 'border-gray-300 bg-gray-50'
+                            : 'border-gray-300 bg-gray-50 hover:border-blue-400 hover:bg-blue-50'
                             }`}
                         onDragEnter={handleDrag}
                         onDragLeave={handleDrag}
                         onDragOver={handleDrag}
                         onDrop={handleDrop}
                     >
-                        <div className="flex flex-col items-center">
+                        <label htmlFor="file-upload" className="flex flex-col items-center cursor-pointer">
                             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-4">
                                 <FiUploadCloud className="text-blue-600" size={28} />
                             </div>
                             <p className="text-sm text-gray-600 mb-1">
-                                <label htmlFor="file-upload" className="text-blue-600 hover:text-blue-700 cursor-pointer font-medium">
+                                <span className="text-blue-600 hover:text-blue-700 font-medium">
                                     Click to Upload
-                                </label>
+                                </span>
                                 {' '}or drag and drop
                             </p>
                             <p className="text-xs text-gray-500">.xlsx (Max. size: 20 MB)</p>
@@ -197,14 +197,14 @@ const CreateProposalModal = ({ isOpen, onClose, onSuccess }) => {
                                     Selected: {file.name}
                                 </p>
                             )}
-                            <input
-                                id="file-upload"
-                                type="file"
-                                className="hidden"
-                                accept=".xlsx,.xls"
-                                onChange={handleFileChange}
-                            />
-                        </div>
+                        </label>
+                        <input
+                            id="file-upload"
+                            type="file"
+                            className="hidden"
+                            accept=".xlsx,.xls"
+                            onChange={handleFileChange}
+                        />
                     </div>
 
                     {/* Form Fields - Two Columns */}
@@ -326,7 +326,7 @@ const CreateProposalModal = ({ isOpen, onClose, onSuccess }) => {
                                         </td>
                                     </tr>
                                 ) : (
-                                    previewData?.rows?.slice(0, 50).map((row, rowIndex) => (
+                                    previewData?.rows?.map((row, rowIndex) => (
                                         <tr key={rowIndex} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-4 py-2.5 text-sm text-gray-500 font-medium border-r border-gray-200">
                                                 {rowIndex + 1}
@@ -334,16 +334,15 @@ const CreateProposalModal = ({ isOpen, onClose, onSuccess }) => {
                                             {previewData?.headers?.map((_, colIndex) => {
                                                 const cellValue = row[colIndex]
                                                 const isNumber = !isNaN(cellValue) && cellValue !== '' && cellValue !== null
-                                                
+
                                                 return (
                                                     <td
                                                         key={colIndex}
-                                                        className={`px-4 py-2.5 text-sm ${
-                                                            isNumber ? 'text-right font-mono text-gray-900' : 'text-left text-gray-700'
-                                                        }`}
+                                                        className={`px-4 py-2.5 text-sm ${isNumber ? 'text-right font-mono text-gray-900' : 'text-left text-gray-700'
+                                                            }`}
                                                     >
-                                                        {cellValue !== null && cellValue !== undefined && cellValue !== '' 
-                                                            ? String(cellValue) 
+                                                        {cellValue !== null && cellValue !== undefined && cellValue !== ''
+                                                            ? String(cellValue)
                                                             : <span className="text-gray-300">-</span>
                                                         }
                                                     </td>
@@ -356,11 +355,7 @@ const CreateProposalModal = ({ isOpen, onClose, onSuccess }) => {
                         </table>
                     </div>
 
-                    {previewData?.rows?.length > 50 && (
-                        <p className="text-sm text-gray-500 mb-4">
-                            Showing first 50 rows of {previewData.rows.length} total rows
-                        </p>
-                    )}
+
 
                     {/* Action Buttons */}
                     <div className="flex justify-between gap-3">
