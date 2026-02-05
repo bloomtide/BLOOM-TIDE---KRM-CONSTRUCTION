@@ -39,19 +39,19 @@
  */
 export const isCivilSiteworkItem = (digitizerItem, estimate) => {
   if (!digitizerItem || typeof digitizerItem !== 'string') return false
-  
+
   // Check estimate column
   if (estimate && String(estimate).trim() === 'Civil / Sitework') return true
-  
+
   const itemLower = digitizerItem.toLowerCase()
-  
+
   // Demo items - exclude (Add/Alt) items for utility pole
   if (itemLower.includes('(add/alt)') && itemLower.includes('utility pole')) return false
-  
+
   // Demo items
   if (itemLower.includes('remove existing') || itemLower.includes('protect existing') || itemLower.includes('relocate existing')) return true
   if (itemLower.startsWith('remove ') && (itemLower.includes('wall') || itemLower.includes('rail'))) return true
-  
+
   return false
 }
 
@@ -110,8 +110,8 @@ export const getDemoSubSubsection = (digitizerItem) => {
   }
 
   // Demo utility pole - exclude (Add/Alt) items
-  if ((itemLower.includes('utility pole') || (itemLower.includes('pole') && !itemLower.includes('hydrant'))) && 
-      !itemLower.includes('(add/alt)') && !itemLower.startsWith('(add/alt)')) {
+  if ((itemLower.includes('utility pole') || (itemLower.includes('pole') && !itemLower.includes('hydrant'))) &&
+    !itemLower.includes('(add/alt)') && !itemLower.startsWith('(add/alt)')) {
     return 'Demo utility pole'
   }
 
@@ -136,7 +136,7 @@ export const getDemoSubSubsection = (digitizerItem) => {
 export const getSignType = (digitizerItem) => {
   if (!digitizerItem || typeof digitizerItem !== 'string') return 'other'
   const itemLower = digitizerItem.toLowerCase()
-  
+
   if (itemLower.includes('row of sign')) {
     return 'row_of_signs'
   }
@@ -151,7 +151,7 @@ export const getSignType = (digitizerItem) => {
 export const getInletType = (digitizerItem) => {
   if (!digitizerItem || typeof digitizerItem !== 'string') return 'other'
   const itemLower = digitizerItem.toLowerCase()
-  
+
   if (itemLower.includes('protect')) {
     return 'protect'
   }
@@ -169,7 +169,7 @@ export const getInletType = (digitizerItem) => {
 export const getFenceType = (digitizerItem) => {
   if (!digitizerItem || typeof digitizerItem !== 'string') return 'other'
   const itemLower = digitizerItem.toLowerCase()
-  
+
   if (itemLower.includes('chain link') || itemLower.includes('vinyl')) {
     return 'chain_link_vinyl'
   }
@@ -187,7 +187,7 @@ export const getFenceType = (digitizerItem) => {
 export const getPipeType = (digitizerItem) => {
   if (!digitizerItem || typeof digitizerItem !== 'string') return 'other'
   const itemLower = digitizerItem.toLowerCase()
-  
+
   if (itemLower.includes('remove') && itemLower.includes('pipe')) {
     return 'remove_pipe'
   }
@@ -320,9 +320,9 @@ export const processCivilDemoItems = (rawDataRows, headers) => {
       itemUnit = itemUnit || 'FT'
     } else if (subSubsection === 'Demo pipe' || subSubsection === 'Demo rail') {
       itemUnit = itemUnit || 'FT'
-    } else if (subSubsection === 'Demo sign' || subSubsection === 'Demo manhole' || 
-               subSubsection === 'Demo fire hydrant' || subSubsection === 'Demo utility pole' || 
-               subSubsection === 'Demo valve' || subSubsection === 'Demo inlet') {
+    } else if (subSubsection === 'Demo sign' || subSubsection === 'Demo manhole' ||
+      subSubsection === 'Demo fire hydrant' || subSubsection === 'Demo utility pole' ||
+      subSubsection === 'Demo valve' || subSubsection === 'Demo inlet') {
       // EA items - formula goes in column M
       itemUnit = itemUnit || 'EA'
     }
@@ -369,22 +369,22 @@ export const getCivilSubsection = (digitizerItem) => {
   const itemLower = digitizerItem.toLowerCase()
 
   // Skip Demo items (handled separately)
-  if (itemLower.includes('remove existing') || itemLower.includes('protect existing') || 
-      itemLower.includes('relocate existing') || itemLower.startsWith('remove ')) {
+  if (itemLower.includes('remove existing') || itemLower.includes('protect existing') ||
+    itemLower.includes('relocate existing') || itemLower.startsWith('remove ')) {
     return null
   }
 
   // Fence subsection
-  if (itemLower.includes('construction fence') || 
-      (itemLower.includes('proposed fence') && itemLower.includes('height=')) ||
-      itemLower.includes('proposed guiderail')) {
+  if (itemLower.includes('construction fence') ||
+    (itemLower.includes('proposed fence') && itemLower.includes('height=')) ||
+    itemLower.includes('proposed guiderail')) {
     return 'Fence'
   }
 
   // Soil Erosion subsection
-  if (itemLower.includes('stabilized construction entrance') || 
-      itemLower.includes('silt fence') ||
-      itemLower.includes('inlet filter')) {
+  if (itemLower.includes('stabilized construction entrance') ||
+    itemLower.includes('silt fence') ||
+    itemLower.includes('inlet filter')) {
     return 'Soil Erosion'
   }
 
@@ -408,11 +408,11 @@ export const getCivilSubsection = (digitizerItem) => {
 
   // Excavation subsection - items that need excavation calculations
   if (itemLower.includes('proposed') && (
-      itemLower.includes('bollard') ||
-      itemLower.includes('transformer concrete pad') ||
-      itemLower.includes('reinforced concrete sidewalk') ||
-      itemLower.includes('full depth asphalt pavement')
-    )) {
+    itemLower.includes('bollard') ||
+    itemLower.includes('transformer concrete pad') ||
+    itemLower.includes('reinforced concrete sidewalk') ||
+    itemLower.includes('full depth asphalt pavement')
+  )) {
     return 'Excavation'
   }
 
@@ -466,7 +466,7 @@ export const parseThicknessFromName = (particulars) => {
 export const parseAsphaltThicknesses = (particulars) => {
   const surfaceMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick\s+)?surface/i)
   const baseMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick\s+)?base/i)
-  
+
   if (surfaceMatch && baseMatch) {
     return {
       surface: parseFloat(surfaceMatch[1]),
@@ -486,7 +486,7 @@ export const parseBollardDimensions = (particulars) => {
   const bollardMatch = particulars.match(/\((\d+(?:\.\d+)?)\s*"\s*[∅Ø],\s*H\s*=\s*(\d+)'\s*-?\s*(\d+)"\)/i)
   // Match footing diameter and height
   const footingMatch = particulars.match(/footing\s*\((\d+(?:\.\d+)?)\s*"\s*[∅Ø],\s*H\s*=\s*(\d+)'\s*-?\s*(\d+)"\)/i)
-  
+
   if (bollardMatch && footingMatch) {
     return {
       bollardDia: parseFloat(bollardMatch[1]),
@@ -519,7 +519,7 @@ export const parseSiltFenceHeight = (particulars) => {
 export const getCivilFenceType = (digitizerItem) => {
   if (!digitizerItem || typeof digitizerItem !== 'string') return 'other'
   const itemLower = digitizerItem.toLowerCase()
-  
+
   if (itemLower.includes('construction fence')) {
     return 'construction_fence'
   }
@@ -563,7 +563,28 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
       'construction_fence': [],
       'proposed_fence': [],
       'guiderail': []
-    }
+    },
+    'Concrete filled steel pipe bollard': {
+      'footing': [],
+      'simple': []
+    },
+    'Site': {
+      'Hydrant': [],
+      'Wheel stop': [],
+      'Drain': {
+        'Area': [],
+        'Floor': []
+      },
+      'Protection': [],
+      'Signages': [],
+      'Main line': {
+        'Gas': [],
+        'Sanitary': [],
+        'Water': []
+      }
+    },
+    'Drains & Utilities': [],
+    'Alternate': []
   }
 
   // Find column indices
@@ -594,10 +615,16 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
     const itemLower = digitizerItem.toLowerCase()
 
     // Skip Demo items
-    if (itemLower.includes('remove existing') || itemLower.includes('protect existing') || 
-        itemLower.includes('relocate existing') || itemLower.startsWith('remove ')) {
-      return
+    if (itemLower.includes('remove existing') || itemLower.includes('protect existing') ||
+      itemLower.includes('relocate existing') || itemLower.startsWith('remove ')) {
+      // Allow (Add/Alt) items to pass through
+      if (!itemLower.includes('(add/alt)')) {
+        return
+      }
     }
+
+
+
 
     // Check if item belongs to Civil/Sitework by estimate column
     if (estimate && String(estimate).trim() !== 'Civil / Sitework') {
@@ -608,9 +635,9 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
     }
 
     // Process Fence items
-    if (itemLower.includes('construction fence') || 
-        (itemLower.includes('proposed fence') && itemLower.includes('height=')) ||
-        itemLower.includes('proposed guiderail')) {
+    if (itemLower.includes('construction fence') ||
+      (itemLower.includes('proposed fence') && itemLower.includes('height=')) ||
+      itemLower.includes('proposed guiderail')) {
       const height = parseHeightFromName(digitizerItem)
       const fenceType = getCivilFenceType(digitizerItem)
       const item = {
@@ -646,11 +673,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
       })
       return
     }
-    if (itemLower.includes('inlet filter')) {
-      // Exclude "Proposed Inlet filter protection" - it will be in upcoming subsections
-      if (itemLower.includes('protection')) {
-        return
-      }
+    if (itemLower.includes('inlet filter') && !itemLower.includes('protection')) {
       items['Soil Erosion']['inlet_filter'].push({
         particulars: digitizerItem,
         takeoff,
@@ -668,7 +691,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
         particulars: digitizerItem,
         takeoff,
         unit: unit || 'SQ FT',
-        parsed: { 
+        parsed: {
           heightValue: thickness ? thickness / 12 : 0.5,
           qty: qty
         }
@@ -678,7 +701,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
         particulars: digitizerItem,
         takeoff,
         unit: unit || 'SQ FT',
-        parsed: { 
+        parsed: {
           qty: qty
         }
       })
@@ -686,7 +709,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
         particulars: digitizerItem,
         takeoff,
         unit: unit || 'SQ FT',
-        parsed: { 
+        parsed: {
           qty: qty
         }
       })
@@ -696,20 +719,20 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
     // Process Asphalt items - exclude BPP items (they're handled in BPP section)
     if (itemLower.includes('full depth asphalt pavement') && itemLower.includes('surface course')) {
       // Skip BPP items - they contain street names like "West Street" or "Maple Avenue"
-      if (itemLower.includes('west street') || itemLower.includes('maple avenue') || 
-          itemLower.includes('- bpp') || itemLower.includes('bpp ')) {
+      if (itemLower.includes('west street') || itemLower.includes('maple avenue') ||
+        itemLower.includes('- bpp') || itemLower.includes('bpp ')) {
         return
       }
-      
+
       const thicknesses = parseAsphaltThicknesses(digitizerItem)
       const totalHeight = thicknesses ? (thicknesses.surface + thicknesses.base) / 12 : 4.5 / 12
       const heightFormula = thicknesses ? `(${thicknesses.surface}+${thicknesses.base})/12` : '4.5/12'
-      
+
       items['Asphalt'].push({
         particulars: digitizerItem,
         takeoff,
         unit: unit || 'SQ FT',
-        parsed: { 
+        parsed: {
           heightValue: totalHeight,
           heightFormula: heightFormula
         }
@@ -727,12 +750,12 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
     // Process Concrete Pavement items (Proposed Reinforced concrete sidewalk - also goes to Excavation and Gravel)
     if (itemLower.includes('proposed reinforced concrete sidewalk')) {
       const thickness = parseThicknessFromName(digitizerItem)
-      
+
       items['Concrete Pavement'].push({
         particulars: digitizerItem,
         takeoff,
         unit: unit || 'SQ FT',
-        parsed: { 
+        parsed: {
           heightValue: thickness ? thickness / 12 : 0.5
         }
       })
@@ -753,25 +776,162 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
       return
     }
 
-    // Process Bollard items (Excavation only)
-    // Exclude: "6" Ø Concrete bollards (Height=...)" simple format and "Proposed No sign u-channel bollard"
+    // Process Concrete filled steel pipe bollard items
     if (itemLower.includes('bollard')) {
-      // Skip "6" Ø Concrete bollards (Height=..." simple format (no footing)
-      if (itemLower.match(/\d+"\s*[∅ø]\s*concrete bollard/i) && !itemLower.includes('footing')) {
-        return
-      }
-      // Skip u-channel bollard
-      if (itemLower.includes('u-channel bollard')) {
-        return
-      }
       const bollardDims = parseBollardDimensions(digitizerItem)
-      items['Excavation']['bollard'].push({
+
+      // Categorize: Footing vs Simple
+      // If it mentions "footing", treat as footing item (Group 1)
+      if (itemLower.includes('footing') || (bollardDims && bollardDims.footingDia)) {
+        // Add to Excavation subsection (for excavation calcs) - keep existing logic
+        items['Excavation']['bollard'].push({
+          particulars: digitizerItem,
+          takeoff,
+          unit: unit || 'EA',
+          parsed: {
+            bollardDimensions: bollardDims
+          }
+        })
+
+        // Add to Bollard subsection - Footing Group
+        items['Concrete filled steel pipe bollard']['footing'].push({
+          particulars: digitizerItem,
+          takeoff,
+          unit: unit || 'EA',
+          parsed: {
+            bollardDimensions: bollardDims,
+            qty: qtyVal
+          }
+        })
+      } else {
+        // Simple items (Group 2)
+        // Parse height from name for simple items if needed (though requirement says Col M=C, straightforward)
+        const simpleHeight = parseHeightFromName(digitizerItem)
+
+        // Add to Bollard subsection - Simple Group
+        items['Concrete filled steel pipe bollard']['simple'].push({
+          particulars: digitizerItem,
+          takeoff,
+          unit: unit || 'EA',
+          parsed: {
+            heightValue: simpleHeight
+          }
+        })
+      }
+      return
+    }
+
+    // Process Site items
+    // Hydrant
+    if (itemLower.includes('fire hydrant')) {
+      items['Site']['Hydrant'].push({
         particulars: digitizerItem,
         takeoff,
         unit: unit || 'EA',
-        parsed: { 
-          bollardDimensions: bollardDims
-        }
+        parsed: {}
+      })
+      return
+    }
+    // Wheel stop
+    if (itemLower.includes('wheel stop')) {
+      items['Site']['Wheel stop'].push({
+        particulars: digitizerItem,
+        takeoff,
+        unit: unit || 'EA',
+        parsed: {}
+      })
+      return
+    }
+    // Drain
+    if (itemLower.includes('area drain')) {
+      items['Site']['Drain']['Area'].push({
+        particulars: digitizerItem,
+        takeoff,
+        unit: unit || 'EA',
+        parsed: {}
+      })
+      return
+    }
+    if (itemLower.includes('floor drain')) {
+      items['Site']['Drain']['Floor'].push({
+        particulars: digitizerItem,
+        takeoff,
+        unit: unit || 'EA',
+        parsed: {}
+      })
+      return
+    }
+
+    // Protection
+    if (itemLower.includes('inlet filter protection')) {
+      items['Site']['Protection'].push({
+        particulars: digitizerItem,
+        takeoff,
+        unit: unit || 'EA',
+        parsed: {}
+      })
+      return
+    }
+    // Signages
+    if (itemLower.includes('signages')) {
+      items['Site']['Signages'].push({
+        particulars: digitizerItem,
+        takeoff,
+        unit: unit || 'EA',
+        parsed: {}
+      })
+      return
+    }
+    // Main line
+    if (itemLower.includes('connection to existing') && (itemLower.includes('gas') || itemLower.includes('sanitary') || itemLower.includes('water'))) {
+      const item = {
+        particulars: digitizerItem,
+        takeoff,
+        unit: unit || 'EA',
+        parsed: {}
+      }
+
+      if (itemLower.includes('gas')) {
+        items['Site']['Main line']['Gas'].push(item)
+      } else if (itemLower.includes('sanitary')) {
+        items['Site']['Main line']['Sanitary'].push(item)
+      } else if (itemLower.includes('water')) {
+        items['Site']['Main line']['Water'].push(item)
+      }
+      return
+    }
+
+    // Drains & Utilities
+    const drainsUtilitiesKeywords = [
+      'storm sewer piping',
+      'fire service lateral',
+      'water service lateral',
+      'gas service lateral',
+      'sanitary sewer service',
+      'underground water main',
+      'electrical conduit',
+      'underslab drainage',
+      'connection to existing utility pole',
+      'sanitary invert',
+      'backwater valve'
+    ]
+    if (drainsUtilitiesKeywords.some(k => itemLower.includes(k))) {
+      items['Drains & Utilities'].push({
+        particulars: digitizerItem,
+        takeoff,
+        unit: unit || 'EA', // Unit will be handled in sheet gen (FT->Col I, EA->Col M)
+        parsed: {}
+      })
+      return
+    }
+
+    // Alternate
+    if (itemLower.includes('(add/alt)')) {
+      items['Alternate'].push({
+        particulars: digitizerItem,
+        takeoff,
+        unit: unit || 'EA',
+        parsed: {}
       })
       return
     }
