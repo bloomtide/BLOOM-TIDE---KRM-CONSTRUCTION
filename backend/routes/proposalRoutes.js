@@ -6,6 +6,7 @@ import {
     updateProposal,
     deleteProposal,
     deleteProposals,
+    duplicateProposal,
 } from '../controllers/proposalController.js';
 import { protect } from '../middleware/auth.js';
 import upload from '../middleware/upload.js';
@@ -21,6 +22,7 @@ router.route('/')
     .post(upload.single('excelFile'), createProposal);
 
 router.post('/bulk-delete', deleteProposals);
+router.post('/:id/duplicate', duplicateProposal);
 
 router.route('/:id')
     .get(getProposalById)
