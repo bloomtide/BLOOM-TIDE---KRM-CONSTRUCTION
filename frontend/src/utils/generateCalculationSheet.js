@@ -4621,7 +4621,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             section: 'civil_sitework',
             subsectionName: 'Water',
             subSubsectionName: 'Backfill',
-            takeoffSourceType: 'water_excavation_item1',
+            takeoffSourceType: 'water_backfill_5_rows_above',
             isGravel: false
           })
 
@@ -4657,7 +4657,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             section: 'civil_sitework',
             subsectionName: 'Water',
             subSubsectionName: 'Gravel',
-            takeoffSourceType: 'drains_gas_lateral',
+            takeoffSourceType: 'drains_sanitary_sewer',
             isGravel: true
           })
 
