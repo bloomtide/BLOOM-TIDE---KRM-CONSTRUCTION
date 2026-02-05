@@ -1744,6 +1744,158 @@ const ProposalDetail = () => {
 
             return
           }
+
+          // Gas and Water subsection items (Excavation, Backfill, Gravel)
+          if (itemType === 'civil_gas_water_item') {
+            const { subsectionName, subSubsectionName, takeoffSourceType, isGravel } = formulaInfo
+
+            // Find the source row for takeoff
+            let sourceRow = null
+
+            if (takeoffSourceType === 'drains_gas_lateral') {
+              // Find "Proposed Underground gas service lateral" in Drains & Utilities
+              for (let i = 0; i < calculationData.length; i++) {
+                const rowData = calculationData[i]
+                const particulars = rowData[1] ? String(rowData[1]).toLowerCase() : ''
+                if (particulars.includes('proposed') && particulars.includes('gas service lateral')) {
+                  sourceRow = i + 1
+                  break
+                }
+              }
+            } else if (takeoffSourceType === 'drains_water_main') {
+              // Find "Proposed Underground water main" in Drains & Utilities
+              for (let i = 0; i < calculationData.length; i++) {
+                const rowData = calculationData[i]
+                const particulars = rowData[1] ? String(rowData[1]).toLowerCase() : ''
+                if (particulars.includes('proposed') && particulars.includes('water main')) {
+                  sourceRow = i + 1
+                  break
+                }
+              }
+            } else if (takeoffSourceType === 'drains_sanitary_sewer') {
+              // Find "Proposed Underground 8" PVC sanitary sewer service" in Drains & Utilities
+              for (let i = 0; i < calculationData.length; i++) {
+                const rowData = calculationData[i]
+                const particulars = rowData[1] ? String(rowData[1]).toLowerCase() : ''
+                if (particulars.includes('proposed') && particulars.includes('sanitary sewer')) {
+                  sourceRow = i + 1
+                  break
+                }
+              }
+            } else if (takeoffSourceType === 'gas_excavation') {
+              // Find Excavation item in Gas subsection
+              for (let i = 0; i < calculationData.length; i++) {
+                const rowData = calculationData[i]
+                const particulars = rowData[1] ? String(rowData[1]).toLowerCase() : ''
+                if (particulars.includes('proposed') && particulars.includes('gas service lateral') && i > 0) {
+                  // Make sure this is in the Gas Excavation section
+                  let inGasExcavation = false
+                  for (let j = i - 1; j >= 0; j--) {
+                    const prevRow = calculationData[j]
+                    if (prevRow[1] && String(prevRow[1]).trim() === '  Excavation:') {
+                      // Check if this is under Gas subsection
+                      for (let k = j - 1; k >= 0; k--) {
+                        const subsecRow = calculationData[k]
+                        if (subsecRow[1] && String(subsecRow[1]).trim() === 'Gas:') {
+                          inGasExcavation = true
+                          break
+                        }
+                        if (subsecRow[1] && String(subsecRow[1]).endsWith(':') && !String(subsecRow[1]).startsWith('  ')) {
+                          break
+                        }
+                      }
+                      break
+                    }
+                  }
+                  if (inGasExcavation) {
+                    sourceRow = i + 1
+                    break
+                  }
+                }
+              }
+            } else if (takeoffSourceType === 'water_excavation_item1') {
+              // Find first Excavation item in Water subsection
+              for (let i = 0; i < calculationData.length; i++) {
+                const rowData = calculationData[i]
+                const particulars = rowData[1] ? String(rowData[1]).toLowerCase() : ''
+                if (particulars.includes('proposed') && particulars.includes('water service lateral') && i > 0) {
+                  // Make sure this is in the Water Excavation section
+                  let inWaterExcavation = false
+                  for (let j = i - 1; j >= 0; j--) {
+                    const prevRow = calculationData[j]
+                    if (prevRow[1] && String(prevRow[1]).trim() === '  Excavation:') {
+                      // Check if this is under Water subsection
+                      for (let k = j - 1; k >= 0; k--) {
+                        const subsecRow = calculationData[k]
+                        if (subsecRow[1] && String(subsecRow[1]).trim() === 'Water:') {
+                          inWaterExcavation = true
+                          break
+                        }
+                        if (subsecRow[1] && String(subsecRow[1]).endsWith(':') && !String(subsecRow[1]).startsWith('  ')) {
+                          break
+                        }
+                      }
+                      break
+                    }
+                  }
+                  if (inWaterExcavation) {
+                    sourceRow = i + 1
+                    break
+                  }
+                }
+              }
+            }
+
+            // Apply formulas
+            if (sourceRow) {
+              // C = reference to source row's C column (black text)
+              spreadsheet.updateCell({ formula: `=C${sourceRow}` }, `C${row}`)
+              spreadsheet.cellFormat({ color: '#000000' }, `C${row}`)
+            }
+
+            // Item name in column B should be red
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+
+            // I = empty (no formula)
+
+            if (isGravel) {
+              // Gravel items: J = C*G (black text)
+              spreadsheet.updateCell({ formula: `=C${row}*G${row}` }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#000000' }, `J${row}`)
+
+              // Gravel items: L = J*H/27 (black text, yellow background)
+              spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#000000', backgroundColor: '#FFF2CC' }, `L${row}`)
+            } else {
+              // Excavation & Backfill: J = H*C (black text)
+              spreadsheet.updateCell({ formula: `=H${row}*C${row}` }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#000000' }, `J${row}`)
+
+              // Excavation & Backfill: L = J*G/27 (black text)
+              spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#000000' }, `L${row}`)
+            }
+
+            return
+          }
+
+          if (itemType === 'civil_gas_water_sum') {
+            const { firstDataRow, lastDataRow, isGravel } = formulaInfo
+
+            // Sum J (SQ FT) - red text
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+
+            // Sum L (CY) - red text, yellow background for Gravel
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            if (isGravel) {
+              spreadsheet.cellFormat({ color: '#FF0000', backgroundColor: '#FFF2CC' }, `L${row}`)
+            } else {
+              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            }
+
+            return
+          }
         }
 
         // Apply generic formulas if we got them from generators
