@@ -2377,6 +2377,7 @@ const ProposalDetail = () => {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar
+          hasUnsavedChanges={hasUnsavedChanges}
           leftContent={
             <div className="flex items-center gap-4">
               <button

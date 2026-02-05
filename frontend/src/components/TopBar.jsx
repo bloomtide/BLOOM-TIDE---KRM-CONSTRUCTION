@@ -3,7 +3,7 @@ import { FiBell, FiLogOut, FiUser } from 'react-icons/fi'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 
-const TopBar = ({ leftContent, actionButtons }) => {
+const TopBar = ({ leftContent, actionButtons, hasUnsavedChanges = false }) => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -38,6 +38,14 @@ const TopBar = ({ leftContent, actionButtons }) => {
     }, [showProfileMenu]);
 
     const handleLogout = async () => {
+        // Show confirmation if there are unsaved changes
+        if (hasUnsavedChanges) {
+            const confirmLogout = window.confirm('Changes that you made may not be saved.');
+            if (!confirmLogout) {
+                return;
+            }
+        }
+
         await logout();
         navigate('/');
     };
@@ -47,12 +55,12 @@ const TopBar = ({ leftContent, actionButtons }) => {
             <div className={`flex items-center ${leftContent ? 'justify-between' : 'justify-end'}`}>
                 {/* Left Section: Custom content (e.g., proposal info) */}
                 {leftContent && <div className="flex-1">{leftContent}</div>}
-                
+
                 {/* Right Section: Action Buttons and User */}
                 <div className="flex items-center gap-3">
                     {/* Custom Action Buttons (e.g., Preview, Settings) */}
                     {actionButtons}
-                    
+
                     {/* User Profile */}
                     <div className="relative" ref={profileMenuRef}>
                         <button
