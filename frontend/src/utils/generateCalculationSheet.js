@@ -4350,7 +4350,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 // Sum Row
                 const sumRow = Array(template.columns.length).fill('')
                 rows.push(sumRow)
-                formulas.push({ row: rows.length, itemType: 'civil_site_sum', section: 'civil_sitework', firstDataRow, lastDataRow: rows.length - 1 })
+                formulas.push({ row: rows.length, itemType: 'civil_site_sum', section: 'civil_sitework', siteGroupKey: subName, firstDataRow, lastDataRow: rows.length - 1 })
               }
             } else {
               // Nested group (Drain, Main line)
@@ -4370,7 +4370,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                   // Sum Row
                   const sumRow = Array(template.columns.length).fill('')
                   rows.push(sumRow)
-                  formulas.push({ row: rows.length, itemType: 'civil_site_sum', section: 'civil_sitework', firstDataRow, lastDataRow: rows.length - 1 })
+                  formulas.push({ row: rows.length, itemType: 'civil_site_sum', section: 'civil_sitework', siteGroupKey: key, firstDataRow, lastDataRow: rows.length - 1 })
 
                   // Gap
                   rows.push(Array(template.columns.length).fill(''))
