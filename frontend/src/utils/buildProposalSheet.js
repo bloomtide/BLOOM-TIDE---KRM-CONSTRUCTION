@@ -215,8 +215,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     // Pre-fill $/1000 formula in column H for all data rows (13-1000)
     // This ensures the formula is always present and calculates automatically when other cells are filled
     // IFERROR returns blank if there's an error (like #NAME?)
+    // IF returns blank if the result is 0 (no data in the row)
     for (let row = 13; row <= 1000; row++) {
-      const dollarFormula = `=IFERROR(ROUNDUP(MAX(C${row}*I${row},D${row}*J${row},E${row}*K${row},F${row}*L${row},G${row}*M${row},N${row})/1000,1),"")`
+      const dollarFormula = `=IFERROR(IF(ROUNDUP(MAX(C${row}*I${row},D${row}*J${row},E${row}*K${row},F${row}*L${row},G${row}*M${row},N${row})/1000,1)=0,"",ROUNDUP(MAX(C${row}*I${row},D${row}*J${row},E${row}*K${row},F${row}*L${row},G${row}*M${row},N${row})/1000,1)),"")`
       spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${row}`)
     }
     
@@ -1423,7 +1424,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       )
 
       // Add $/1000 formula in column H for row 24
-      const dollarFormula24 = `=ROUNDUP(MAX(C24*I24,D24*J24,E24*K24,F24*L24,G24*M24,N24)/1000,1),"")`
+      const dollarFormula24 = `=IFERROR(IF(ROUNDUP(MAX(C24*I24,D24*J24,E24*K24,F24*L24,G24*M24,N24)/1000,1)=0,"",ROUNDUP(MAX(C24*I24,D24*J24,E24*K24,F24*L24,G24*M24,N24)/1000,1)),"")`
       
       // Read formulas and evaluate them in real-time with longer timeout
       setTimeout(() => {
@@ -1629,7 +1630,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       )
 
       // Add $/1000 formula in column H for row 25
-      const dollarFormula25 = `=ROUNDUP(MAX(C25*I25,D25*J25,E25*K25,F25*L25,G25*M25,N25)/1000,1),"")`
+      const dollarFormula25 = `=IFERROR(IF(ROUNDUP(MAX(C25*I25,D25*J25,E25*K25,F25*L25,G25*M25,N25)/1000,1)=0,"",ROUNDUP(MAX(C25*I25,D25*J25,E25*K25,F25*L25,G25*M25,N25)/1000,1)),"")`
       
       // Read formulas and evaluate them in real-time with longer timeout
       setTimeout(() => {
@@ -1944,7 +1945,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       )
       
       // Add $/1000 formula in column H for row 34
-      const dollarFormula34 = `=ROUNDUP(MAX(C34*I34,D34*J34,E34*K34,F34*L34,G34*M34,N34)/1000,1),"")`
+      const dollarFormula34 = `=IFERROR(IF(ROUNDUP(MAX(C34*I34,D34*J34,E34*K34,F34*L34,G34*M34,N34)/1000,1)=0,"",ROUNDUP(MAX(C34*I34,D34*J34,E34*K34,F34*L34,G34*M34,N34)/1000,1)),"")`
       spreadsheet.updateCell({ formula: dollarFormula34 }, `${pfx}H34`)
       spreadsheet.cellFormat(
         { 
@@ -1966,7 +1967,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       })
 
       // Add $/1000 formula in column H for row 35
-      const dollarFormula35 = `=ROUNDUP(MAX(C35*I35,D35*J35,E35*K35,F35*L35,G35*M35,N35)/1000,1),"")`
+      const dollarFormula35 = `=IFERROR(IF(ROUNDUP(MAX(C35*I35,D35*J35,E35*K35,F35*L35,G35*M35,N35)/1000,1)=0,"",ROUNDUP(MAX(C35*I35,D35*J35,E35*K35,F35*L35,G35*M35,N35)/1000,1)),"")`
       spreadsheet.updateCell({ formula: dollarFormula35 }, `${pfx}H35`)
       spreadsheet.cellFormat(
         { 
@@ -11791,11 +11792,730 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       // Add empty row after BASE BID TOTAL
       currentRow++
 
+      // Add Alternate #1: Sitework scope header
+      let siteworkScopeStartRow = null
+      {
+        spreadsheet.merge(`${pfx}B${currentRow}:G${currentRow}`)
+        spreadsheet.updateCell({ value: 'Add Alternate #1: Sitework scope: as per C-4' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#BDD6EE', border: '1px solid #000000' },
+          `${pfx}B${currentRow}:G${currentRow}`
+        )
+        currentRow++
+        siteworkScopeStartRow = currentRow // Track start row for total calculation
+      }
+
+      // Sitework scope content
+      // Add "Site demo / Removals:" subsection header
+      spreadsheet.updateCell({ value: 'Site demo / Removals:' }, `${pfx}B${currentRow}`)
+      spreadsheet.cellFormat(
+        { 
+          fontWeight: 'bold', 
+          color: '#000000', 
+          textAlign: 'left',
+          backgroundColor: '#FEF2CB',
+          textDecoration: 'underline',
+          border: '1px solid #000000'
+        },
+        `${pfx}B${currentRow}`
+      )
+      currentRow++
+      
+      // Add "Demolition:" subsection header
+      spreadsheet.updateCell({ value: 'Demolition:' }, `${pfx}B${currentRow}`)
+      spreadsheet.cellFormat(
+        { 
+          fontWeight: 'bold', 
+          color: '#000000', 
+          textAlign: 'left',
+          backgroundColor: '#D0CECE',
+          textDecoration: 'underline',
+          border: '1px solid #000000'
+        },
+        `${pfx}B${currentRow}`
+      )
+      currentRow++
+      
+      // Track the start row for demo items (for total calculation)
+      const demoStartRow = currentRow
+      
+      // Process Civil/Sitework demolition items from calculation data
+      const civilDemoItems = {
+        'Demo asphalt': { items: [], proposalText: 'Allow to saw-cut/demo/remove/dispose existing full depth asphalt pavement (full depth: ##") as per C-3' },
+        'Demo curb': { items: [], proposalText: 'Allow to saw-cut/demo/remove/dispose existing asphalt curb as per C-3' },
+        'Demo fence': { items: [], proposalText: null }, // Multiple types
+        'Demo wall': { items: [], proposalText: 'Allow to remove (##" wide) retaining wall (H=##", typ.) as per C-3' },
+        'Demo pipe': { items: [], proposalText: null }, // Multiple types
+        'Demo rail': { items: [], proposalText: 'Allow to remove guiderail as per C-3' },
+        'Demo sign': { items: [], proposalText: null }, // Multiple types
+        'Demo manhole': { items: [], proposalText: 'Allow to protect existing stormwater manhole as per C-3' },
+        'Demo fire hydrant': { items: [], proposalText: 'Allow to relocated existing fire hydrant as per C-3' },
+        'Demo utility pole': { items: [], proposalText: 'Allow to protect utility pole as per C-3' },
+        'Demo valve': { items: [], proposalText: 'Allow to protect existing water valve as per C-3' },
+        'Demo inlet': { items: [], proposalText: 'Allow to remove existing stormwater inlet as per C-3' }
+      }
+      
+      // Parse calculation data for civil demo items - track sum rows for each type
+      const demoSumRows = {}
+      
+      if (calculationData && calculationData.length > 0) {
+        let currentDemoSubsection = null
+        let lastItemRowInSubsection = 0
+        
+        calculationData.forEach((row, index) => {
+          const colB = row[1]
+          const rowNum = index + 2 // 1-based Excel row number
+          
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            
+            // Check for Demo subsection headers
+            const demoHeaders = {
+              'demo asphalt:': 'Demo asphalt',
+              'demo curb:': 'Demo curb',
+              'demo fence:': 'Demo fence',
+              'demo wall:': 'Demo wall',
+              'demo pipe:': 'Demo pipe',
+              'demo rail:': 'Demo rail',
+              'demo sign:': 'Demo sign',
+              'demo manhole:': 'Demo manhole',
+              'demo fire hydrant:': 'Demo fire hydrant',
+              'demo utility pole:': 'Demo utility pole',
+              'demo valve:': 'Demo valve',
+              'demo inlet:': 'Demo inlet'
+            }
+            
+            if (demoHeaders[bText]) {
+              // Save sum row for previous subsection (sum row is the last item row itself)
+              if (currentDemoSubsection && lastItemRowInSubsection > 0) {
+                demoSumRows[currentDemoSubsection] = lastItemRowInSubsection
+              }
+              currentDemoSubsection = demoHeaders[bText]
+              lastItemRowInSubsection = 0
+              return
+            }
+            
+            // Check if this is a new section header (ends with : but not demo)
+            if (bText.endsWith(':') && !bText.startsWith('demo') && !bText.startsWith('remove') && !bText.startsWith('protect')) {
+              // Save sum row for previous subsection
+              if (currentDemoSubsection && lastItemRowInSubsection > 0) {
+                demoSumRows[currentDemoSubsection] = lastItemRowInSubsection
+              }
+              currentDemoSubsection = null
+              lastItemRowInSubsection = 0
+              return
+            }
+            
+            // If in a demo subsection, collect items
+            if (currentDemoSubsection && civilDemoItems[currentDemoSubsection]) {
+              const takeoff = parseFloat(row[2]) || 0
+              // Check if this row has data (not empty, not just a sum row)
+              if (bText && !bText.endsWith(':') && (takeoff > 0 || bText.includes('remove') || bText.includes('protect') || bText.includes('relocate'))) {
+                civilDemoItems[currentDemoSubsection].items.push({
+                  rowIndex: rowNum,
+                  particulars: colB.trim(),
+                  takeoff: takeoff,
+                  rawRowNumber: rowNum
+                })
+                lastItemRowInSubsection = rowNum
+              }
+            }
+          }
+        })
+        
+        // Save sum row for last subsection
+        if (currentDemoSubsection && lastItemRowInSubsection > 0) {
+          demoSumRows[currentDemoSubsection] = lastItemRowInSubsection
+        }
+      }
+      
+      // Display civil demo items in proposal sheet
+      const demoOrder = ['Demo asphalt', 'Demo curb', 'Demo fence', 'Demo wall', 'Demo pipe', 'Demo rail', 'Demo sign', 'Demo inlet', 'Demo fire hydrant', 'Demo manhole', 'Demo utility pole', 'Demo valve']
+      
+      demoOrder.forEach(demoType => {
+        const demoData = civilDemoItems[demoType]
+        if (demoData && demoData.items.length > 0) {
+          // Get sum row for this demo type from tracked rows
+          const sumRowIndex = demoSumRows[demoType] || 0
+          
+          // Generate proposal text based on demo type
+          let proposalText = demoData.proposalText
+          const calcSheetName = 'Calculations Sheet'
+          
+          if (demoType === 'Demo asphalt') {
+            // Extract thickness from particulars if available
+            const firstItem = demoData.items[0]
+            if (firstItem && firstItem.particulars) {
+              const thicknessMatch = firstItem.particulars.match(/(\d+)[""]?\s*(thick)?/i)
+              if (thicknessMatch) {
+                proposalText = `Allow to saw-cut/demo/remove/dispose existing full depth asphalt pavement (full depth: ${thicknessMatch[1]}") as per C-3`
+              }
+            }
+            
+            // Display Demo asphalt with SF and CY
+            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            
+            if (sumRowIndex > 0) {
+              // SF in column D
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${sumRowIndex}` }, `${pfx}D${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}D${currentRow}`)
+              // CY in column F
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!L${sumRowIndex}` }, `${pfx}F${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}F${currentRow}`)
+            }
+            currentRow++
+            return
+          } else if (demoType === 'Demo curb') {
+            proposalText = 'Allow to saw-cut/demo/remove/dispose existing asphalt curb as per C-3'
+            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            
+            if (sumRowIndex > 0) {
+              // LF in column C
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}C${currentRow}`)
+              // SF in column D
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${sumRowIndex}` }, `${pfx}D${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}D${currentRow}`)
+              // CY in column F
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!L${sumRowIndex}` }, `${pfx}F${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}F${currentRow}`)
+            }
+            currentRow++
+            return
+          } else if (demoType === 'Demo fence') {
+            // Check for chain-link/vinyl vs wood fence - each has separate sum row
+            const chainLinkItems = demoData.items.filter(item => item.particulars.toLowerCase().includes('chain') || item.particulars.toLowerCase().includes('vinyl'))
+            const woodItems = demoData.items.filter(item => item.particulars.toLowerCase().includes('wood'))
+            
+            if (chainLinkItems.length > 0) {
+              // Find sum row for chain-link fence (after last chain-link item)
+              const chainLinkLastRow = Math.max(...chainLinkItems.map(i => i.rawRowNumber))
+              const chainLinkSumRow = chainLinkLastRow
+              
+              proposalText = `Allow to remove existing (H=6'-0", typ) chain-link fence/ vinyl fence as per C-3`
+              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+              spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+              
+              // Add LF and SF from calculation sheet
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${chainLinkSumRow}` }, `${pfx}C${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}C${currentRow}`)
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${chainLinkSumRow}` }, `${pfx}D${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}D${currentRow}`)
+              currentRow++
+            }
+            
+            if (woodItems.length > 0) {
+              // Find sum row for wood fence (after last wood item)
+              const woodLastRow = Math.max(...woodItems.map(i => i.rawRowNumber))
+              const woodSumRow = woodLastRow
+              
+              proposalText = `Allow to remove existing (H=6'-0", typ) wood-link fence as per C-3`
+              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+              spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+              
+              // Add LF and SF from calculation sheet
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${woodSumRow}` }, `${pfx}C${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}C${currentRow}`)
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${woodSumRow}` }, `${pfx}D${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}D${currentRow}`)
+              currentRow++
+            }
+            return // Skip default handling
+          } else if (demoType === 'Demo wall') {
+            // Extract wall dimensions from particulars if available
+            const firstItem = demoData.items[0]
+            let width = '18"'
+            let height = '3\'-6"'
+            if (firstItem && firstItem.particulars) {
+              const widthMatch = firstItem.particulars.match(/(\d+)[""]?\s*wide/i)
+              const heightMatch = firstItem.particulars.match(/H=([^,\)]+)/i)
+              if (widthMatch) width = widthMatch[1] + '"'
+              if (heightMatch) height = heightMatch[1]
+            }
+            
+            proposalText = `Allow to remove (${width} wide) retaining wall (H=${height}, typ.) as per C-3`
+            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            
+            if (sumRowIndex > 0) {
+              // LF in column C
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}C${currentRow}`)
+              // SF in column D
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${sumRowIndex}` }, `${pfx}D${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}D${currentRow}`)
+              // CY in column F
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!L${sumRowIndex}` }, `${pfx}F${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}F${currentRow}`)
+            }
+            currentRow++
+            return
+          } else if (demoType === 'Demo pipe') {
+            // Check for remove vs protect - each has separate sum row
+            const removeItems = demoData.items.filter(item => item.particulars.toLowerCase().includes('remove'))
+            const protectItems = demoData.items.filter(item => item.particulars.toLowerCase().includes('protect'))
+            
+            if (removeItems.length > 0) {
+              // Find sum row for remove pipe
+              const removeLastRow = Math.max(...removeItems.map(i => i.rawRowNumber))
+              const removeSumRow = removeLastRow
+              
+              // Extract pipe size
+              const removeItem = removeItems[0]
+              const sizeMatch = removeItem?.particulars.match(/(\d+)[""]?\s*(thick|pipe)?/i)
+              const size = sizeMatch ? sizeMatch[1] : '##'
+              proposalText = `Allow to remove existing HDPE pipe (${size}" thick) as per C-3`
+              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+              spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+              
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${removeSumRow}` }, `${pfx}C${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}C${currentRow}`)
+              currentRow++
+            }
+            
+            // Add guiderail line (from Demo rail) here if it exists
+            const railData = civilDemoItems['Demo rail']
+            if (railData && railData.items.length > 0) {
+              const railSumRow = demoSumRows['Demo rail'] || 0
+              proposalText = `Allow to remove guiderail as per C-3`
+              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+              spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+              
+              if (railSumRow > 0) {
+                spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${railSumRow}` }, `${pfx}C${currentRow}`)
+                spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}C${currentRow}`)
+              }
+              currentRow++
+            }
+            
+            if (protectItems.length > 0) {
+              // Find sum row for protect pipe
+              const protectLastRow = Math.max(...protectItems.map(i => i.rawRowNumber))
+              const protectSumRow = protectLastRow
+              
+              const protectItem = protectItems[0]
+              const sizeMatch = protectItem?.particulars.match(/(\d+)[""]?\s*(thick|rcp)?/i)
+              const size = sizeMatch ? sizeMatch[1] : '##'
+              proposalText = `Allow to protect existing RCP stormwater main (${size}" thick) as per C-3`
+              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+              spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+              
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${protectSumRow}` }, `${pfx}C${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}C${currentRow}`)
+              currentRow++
+            }
+            return // Skip default handling
+          } else if (demoType === 'Demo rail') {
+            // Skip - handled with Demo pipe
+            return
+          } else if (demoType === 'Demo sign') {
+            // Check for single sign vs row of signs - each has separate sum row
+            const singleItems = demoData.items.filter(item => !item.particulars.toLowerCase().includes('row'))
+            const rowItems = demoData.items.filter(item => item.particulars.toLowerCase().includes('row'))
+            
+            if (singleItems.length > 0) {
+              // Find sum row for single sign (sum is on the last item row itself)
+              const singleLastRow = Math.max(...singleItems.map(i => i.rawRowNumber))
+              const singleSumRow = singleLastRow
+              
+              proposalText = `Allow to remove existing sign as per C-3`
+              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+              spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+              
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${singleSumRow}` }, `${pfx}G${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
+              currentRow++
+            }
+            
+            if (rowItems.length > 0) {
+              // Find sum row for row of signs (sum is on the last item row itself)
+              const rowLastRow = Math.max(...rowItems.map(i => i.rawRowNumber))
+              const rowSumRow = rowLastRow
+              
+              proposalText = `Allow to remove existing row of signs as per C-3`
+              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+              spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+              
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${rowSumRow}` }, `${pfx}G${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
+              currentRow++
+            }
+            return // Skip default handling
+          } else if (demoType === 'Demo inlet') {
+            proposalText = 'Allow to remove existing stormwater inlet as per C-3'
+            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            
+            if (sumRowIndex > 0) {
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
+            }
+            currentRow++
+            return
+          } else if (demoType === 'Demo fire hydrant') {
+            proposalText = 'Allow to relocate existing fire hydrant as per C-3'
+            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            
+            if (sumRowIndex > 0) {
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
+            }
+            currentRow++
+            return
+          } else if (demoType === 'Demo manhole') {
+            proposalText = 'Allow to protect existing stormwater manhole as per C-3'
+            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            
+            if (sumRowIndex > 0) {
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
+            }
+            currentRow++
+            return
+          } else if (demoType === 'Demo utility pole') {
+            proposalText = 'Allow to protect utility pole as per C-3'
+            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            
+            if (sumRowIndex > 0) {
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
+            }
+            currentRow++
+            return
+          } else if (demoType === 'Demo valve') {
+            proposalText = 'Allow to protect existing water valve as per C-3'
+            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            
+            if (sumRowIndex > 0) {
+              spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
+            }
+            currentRow++
+            return
+          }
+          
+          // Default handling for other demo types
+          if (proposalText) {
+            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            currentRow++
+          }
+        }
+      })
+      
+      // Add Site Demo / Removals Total row
+      const demoEndRow = currentRow - 1
+      if (demoEndRow >= demoStartRow) {
+        spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
+        spreadsheet.updateCell({ value: 'Site Demo / Removals Total:' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000' },
+          `${pfx}B${currentRow}:E${currentRow}`
+        )
+        spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
+        spreadsheet.updateCell({ formula: `=SUM(H${demoStartRow}:H${demoEndRow})*1000` }, `${pfx}F${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000', format: '$#,##0.00' },
+          `${pfx}F${currentRow}:G${currentRow}`
+        )
+        currentRow++
+      }
+      
+      // Empty row above Erosion control
+      currentRow++
+      
+      // Erosion control subsection
+      const erosionHeaderRow = currentRow
+      const erosionCalcSheetName = 'Calculations Sheet'
+      const erosionItems = { stabilized_entrance: [], silt_fence: [], inlet_filter: [] }
+      if (calculationData && calculationData.length > 0) {
+        let inSoilErosion = false
+        calculationData.forEach((row, index) => {
+          const colB = row[1]
+          const rowNum = index + 1 // 1-based Excel row (calculationData[0] = row 1)
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText === 'soil erosion:') {
+              inSoilErosion = true
+              return
+            }
+            if (inSoilErosion && bText.endsWith(':') && !bText.includes('stabilized') && !bText.includes('silt') && !bText.includes('inlet')) {
+              inSoilErosion = false
+              return
+            }
+            if (inSoilErosion) {
+              if (bText.includes('stabilized construction entrance')) {
+                const thicknessMatch = colB.match(/(\d+(?:\.\d+)?)\s*["']\s*thick/i)
+                erosionItems.stabilized_entrance.push({ rowNum, thickness: thicknessMatch ? parseInt(thicknessMatch[1], 10) : 6 })
+              } else if (bText.includes('silt fence')) {
+                const heightMatch = colB.match(/height\s*=\s*(\d+)'\s*-?\s*(\d+)"/i)
+                erosionItems.silt_fence.push({ rowNum, heightStr: heightMatch ? `${heightMatch[1]}'-${heightMatch[2]}"` : `2'-6"` })
+              } else if (bText.includes('inlet filter') && !bText.includes('protection')) {
+                const qtyMatch = colB.match(/\((\d+)\s*(?:no\.?|ea)\)/i)
+                erosionItems.inlet_filter.push({ rowNum, qty: qtyMatch ? parseInt(qtyMatch[1], 10) : 1 })
+              }
+            }
+          }
+        })
+      }
+      
+      const hasErosionItems = erosionItems.stabilized_entrance.length > 0 || erosionItems.silt_fence.length > 0 || erosionItems.inlet_filter.length > 0
+      if (hasErosionItems) {
+        spreadsheet.updateCell({ value: 'Erosion control:' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', textDecoration: 'underline', border: '1px solid #000000' },
+          `${pfx}B${currentRow}`
+        )
+        currentRow++
+        
+        erosionItems.stabilized_entrance.forEach(({ rowNum, thickness = 6 }) => {
+          spreadsheet.updateCell({ value: `F&I new (${thickness}" thick) temporary stabilized construction entrance w/geotextile fabric as per C-8 & details on C-12` }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${erosionCalcSheetName}'!J${rowNum}` }, `${pfx}D${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${erosionCalcSheetName}'!L${rowNum}` }, `${pfx}F${currentRow}`)
+          spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+          currentRow++
+        })
+        
+        erosionItems.silt_fence.forEach(({ rowNum, heightStr = "2'-6\"" }) => {
+          spreadsheet.updateCell({ value: `F&I new silt fence (H=${heightStr}) as per C-8 & details on C-13` }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${erosionCalcSheetName}'!I${rowNum}` }, `${pfx}C${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${erosionCalcSheetName}'!J${rowNum}` }, `${pfx}D${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${erosionCalcSheetName}'!L${rowNum}` }, `${pfx}F${currentRow}`)
+          spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+          currentRow++
+        })
+        
+        erosionItems.inlet_filter.forEach(({ rowNum, qty = 1 }) => {
+          spreadsheet.updateCell({ value: `F&I new (${qty})no inlet filter as per C-8 & details on C-13` }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${erosionCalcSheetName}'!M${rowNum}` }, `${pfx}G${currentRow}`)
+          spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+          currentRow++
+        })
+        
+        const erosionEndRow = currentRow - 1
+        const erosionDataStartRow = erosionHeaderRow + 1
+        spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
+        spreadsheet.updateCell({ value: 'Erosion & Sediment Control Total:' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000' },
+          `${pfx}B${currentRow}:E${currentRow}`
+        )
+        spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
+        spreadsheet.updateCell({ formula: `=SUM(H${erosionDataStartRow}:H${erosionEndRow})*1000` }, `${pfx}F${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000', format: '$#,##0.00' },
+          `${pfx}F${currentRow}:G${currentRow}`
+        )
+        currentRow++
+      }
+      
+      // Excavation, backfill & grading scope
+      currentRow++
+      const excGradingHeaderRow = currentRow
+      const excGradingCalcSheet = 'Calculations Sheet'
+      const civilExcSum = (formulaData || []).find(f => f.itemType === 'civil_exc_sum' && f.section === 'civil_sitework')
+      const civilGravelSum = (formulaData || []).find(f => f.itemType === 'civil_gravel_sum' && f.section === 'civil_sitework')
+      const gravelItems = { transformer_pad: [], reinforced_sidewalk: [], asphalt: [] }
+      if (calculationData && calculationData.length > 0) {
+        let inExcavation = false
+        let inGravel = false
+        calculationData.forEach((row, index) => {
+          const colB = row[1]
+          const rowNum = index + 1
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText === 'excavation:') {
+              inExcavation = true
+              inGravel = false
+              return
+            }
+            if (bText === 'gravel:') {
+              inExcavation = false
+              inGravel = true
+              return
+            }
+            if (bText.endsWith(':') && !bText.includes('transformer') && !bText.includes('sidewalk') && !bText.includes('asphalt') && !bText.includes('gravel')) {
+              if (inGravel) inGravel = false
+              if (inExcavation) inExcavation = false
+              return
+            }
+            if (inGravel) {
+              if (bText.includes('transformer') && bText.includes('pad')) {
+                gravelItems.transformer_pad.push({ rowNum })
+              } else if (bText.includes('reinforced') && bText.includes('sidewalk')) {
+                gravelItems.reinforced_sidewalk.push({ rowNum })
+              } else if (bText.includes('full depth asphalt') || bText.includes('asphalt pavement')) {
+                gravelItems.asphalt.push({ rowNum })
+              }
+            }
+          }
+        })
+      }
+      
+      const hasExcOrGravel = civilExcSum || civilGravelSum || gravelItems.transformer_pad.length > 0 || gravelItems.reinforced_sidewalk.length > 0 || gravelItems.asphalt.length > 0
+      if (hasExcOrGravel) {
+        spreadsheet.updateCell({ value: 'Excavation, backfill & grading scope:' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', textDecoration: 'underline', border: '1px solid #000000' },
+          `${pfx}B${currentRow}`
+        )
+        currentRow++
+        
+        if (civilExcSum) {
+          spreadsheet.updateCell({ value: 'Excavation:' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat(
+            { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#D0CECE', textDecoration: 'underline', border: '1px solid #000000' },
+            `${pfx}B${currentRow}`
+          )
+          currentRow++
+          
+          const excSumRow = civilExcSum.row
+          spreadsheet.updateCell({ value: 'Allow to perform soil excavation, trucking & disposal as per C-4' }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${excGradingCalcSheet}'!J${excSumRow}` }, `${pfx}D${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${excGradingCalcSheet}'!L${excSumRow}` }, `${pfx}F${currentRow}`)
+          spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+          currentRow++
+        }
+        
+        if (gravelItems.transformer_pad.length > 0 || gravelItems.reinforced_sidewalk.length > 0 || gravelItems.asphalt.length > 0) {
+          spreadsheet.updateCell({ value: 'Compacted gravel:' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat(
+            { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#D0CECE', textDecoration: 'underline', border: '1px solid #000000' },
+            `${pfx}B${currentRow}`
+          )
+          currentRow++
+          
+          gravelItems.transformer_pad.forEach(({ rowNum }) => {
+            spreadsheet.updateCell({ value: `F&I new (4" thick) gravel/crushed stone @ transformer concrete pad as per A-100.00` }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.updateCell({ formula: `='${excGradingCalcSheet}'!J${rowNum}` }, `${pfx}D${currentRow}`)
+            spreadsheet.updateCell({ formula: `='${excGradingCalcSheet}'!L${rowNum}` }, `${pfx}F${currentRow}`)
+            spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+            currentRow++
+          })
+          
+          const gravel6Rows = [...gravelItems.reinforced_sidewalk, ...gravelItems.asphalt]
+          if (gravel6Rows.length > 0) {
+            const sumFormulaJ = gravel6Rows.length === 1
+              ? `='${excGradingCalcSheet}'!J${gravel6Rows[0].rowNum}`
+              : `=SUM(${gravel6Rows.map(r => `'${excGradingCalcSheet}'!J${r.rowNum}`).join(',')})`
+            const sumFormulaL = gravel6Rows.length === 1
+              ? `='${excGradingCalcSheet}'!L${gravel6Rows[0].rowNum}`
+              : `=SUM(${gravel6Rows.map(r => `'${excGradingCalcSheet}'!L${r.rowNum}`).join(',')})`
+            spreadsheet.updateCell({ value: `F&I new (6" thick) gravel/crushed stone @ utility trench & asphalt pavement as per C-6 & details on C-12` }, `${pfx}B${currentRow}`)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.updateCell({ formula: sumFormulaJ }, `${pfx}D${currentRow}`)
+            spreadsheet.updateCell({ formula: sumFormulaL }, `${pfx}F${currentRow}`)
+            spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+            currentRow++
+          }
+        }
+        
+        const excGradingEndRow = currentRow - 1
+        const excGradingDataStartRow = excGradingHeaderRow + 1
+        spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
+        spreadsheet.updateCell({ value: 'Excavation, Backfill & Grading Total:' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000' },
+          `${pfx}B${currentRow}:E${currentRow}`
+        )
+        spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
+        spreadsheet.updateCell({ formula: `=SUM(H${excGradingDataStartRow}:H${excGradingEndRow})*1000` }, `${pfx}F${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000', format: '$#,##0.00' },
+          `${pfx}F${currentRow}:G${currentRow}`
+        )
+        currentRow++
+      }
+      
+      // Dewatering section
+      currentRow++
+      spreadsheet.updateCell({ value: 'Dewatering:' }, `${pfx}B${currentRow}`)
+      spreadsheet.cellFormat(
+        { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', textDecoration: 'underline', border: '1px solid #000000' },
+        `${pfx}B${currentRow}`
+      )
+      currentRow++
+      spreadsheet.updateCell({ value: 'Dewatering allowance - Budget $200k' }, `${pfx}B${currentRow}`)
+      spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+      spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+      spreadsheet.updateCell({ value: 200 }, `${pfx}H${currentRow}`)
+      currentRow++
+      spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
+      spreadsheet.updateCell({ value: 'Dewatering Total:' }, `${pfx}B${currentRow}`)
+      spreadsheet.cellFormat(
+        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000' },
+        `${pfx}B${currentRow}:E${currentRow}`
+      )
+      spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
+      spreadsheet.updateCell({ value: 200000 }, `${pfx}F${currentRow}`)
+      spreadsheet.cellFormat(
+        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', border: '1px solid #000000', format: '$#,##0.00' },
+        `${pfx}F${currentRow}:G${currentRow}`
+      )
+      currentRow++
+      
+      // Empty row below Dewatering
+      currentRow++
+      
+      // Add Alternate #1: Sitework Total row
+      const siteworkScopeEndRow = currentRow - 1
+      if (siteworkScopeEndRow >= siteworkScopeStartRow) {
+        spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
+        spreadsheet.updateCell({ value: 'Add Alternate #1: Sitework Total:' }, `${pfx}D${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD6EE', border: '1px solid #000000' },
+          `${pfx}D${currentRow}:E${currentRow}`
+        )
+        spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
+        spreadsheet.updateCell({ formula: `=SUM(H${siteworkScopeStartRow}:H${siteworkScopeEndRow})*1000` }, `${pfx}F${currentRow}`)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD6EE', border: '1px solid #000000' },
+          `${pfx}F${currentRow}:G${currentRow}`
+        )
+        currentRow++
+      }
+
+      // Add empty row before Alternate #2
+      currentRow++
+
       // Alternate #2 : B.P.P. scope header
       let bppScopeStartRow = null
       {
         spreadsheet.merge(`${pfx}B${currentRow}:G${currentRow}`)
-        spreadsheet.updateCell({ value: 'Alternate #2 : B.P.P. scope: as per C-4' }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 'Add Alternate #2 : B.P.P. scope: as per C-4' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
           { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#BDD6EE', border: '1px solid #000000' },
           `${pfx}B${currentRow}:G${currentRow}`
