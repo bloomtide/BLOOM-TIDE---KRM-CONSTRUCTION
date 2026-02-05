@@ -778,7 +778,9 @@ const Spreadsheet = () => {
 
             // Sum for LBS (K)
             const lbsSubsections = [
+              'Primary secant piles',
               'Secondary secant piles',
+              'Tangent piles',
               'Sheet pile',
               'Waler',
               'Raker',
@@ -11859,6 +11861,7 @@ const Spreadsheet = () => {
           actionComplete={handleActionComplete}
           allowOpen={true}
           allowSave={true}
+          enableClipboard={true}
           openUrl="https://services.syncfusion.com/react/production/api/spreadsheet/open"
           saveUrl="https://services.syncfusion.com/react/production/api/spreadsheet/save"
           height="100%"

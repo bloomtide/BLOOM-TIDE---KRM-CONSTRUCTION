@@ -287,12 +287,25 @@ export const parseSoeItem = (itemName) => {
     } else if (itemLower.includes('primary secant')) {
         result.type = 'primary_secant'
         result.calculatedHeight = roundToMultipleOf5(result.heightRaw)
+        // Extract diameter for concrete weight (e.g. 24" Ø or 24Ø)
+        const secantDiameterMatch = itemName.match(/([0-9.]+)["\s]*Ø/i)
+        if (secantDiameterMatch) {
+            result.diameter = parseFloat(secantDiameterMatch[1])
+            // Concrete weight per LF: π * (d/12)² / 4 * 150 pcf ≈ 0.818 * d² lbs/LF
+            result.weight = result.weight || (Math.PI * Math.pow(result.diameter / 12, 2) / 4 * 150)
+        }
     } else if (itemLower.includes('secondary secant')) {
         result.type = 'secondary_secant'
         result.calculatedHeight = roundToMultipleOf5(result.heightRaw)
     } else if (itemLower.includes('tangent pile')) {
         result.type = 'tangent'
         result.calculatedHeight = roundToMultipleOf5(result.heightRaw)
+        // Extract diameter for concrete weight (e.g. 24" Ø or 24Ø)
+        const tangentDiameterMatch = itemName.match(/([0-9.]+)["\s]*Ø/i)
+        if (tangentDiameterMatch) {
+            result.diameter = parseFloat(tangentDiameterMatch[1])
+            result.weight = result.weight || (Math.PI * Math.pow(result.diameter / 12, 2) / 4 * 150)
+        }
     } else if (itemLower.includes('sheet pile')) {
         result.type = 'sheet_pile'
         result.calculatedHeight = roundToMultipleOf5(result.heightRaw)
