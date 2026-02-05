@@ -244,6 +244,45 @@ export const deleteProposal = async (req, res) => {
         });
     }
 };
+
+// @desc    Duplicate proposal
+// @route   POST /api/proposals/:id/duplicate
+// @access  Private
+export const duplicateProposal = async (req, res) => {
+    try {
+        const proposal = await Proposal.findById(req.params.id);
+
+        if (!proposal) {
+            return res.status(404).json({
+                success: false,
+                message: 'Proposal not found',
+            });
+        }
+
+        const duplicated = await Proposal.create({
+            name: `${proposal.name} (Copy)`,
+            client: proposal.client,
+            project: proposal.project,
+            template: proposal.template,
+            rawExcelData: proposal.rawExcelData,
+            spreadsheetJson: proposal.spreadsheetJson,
+            images: proposal.images,
+            createdBy: req.user._id,
+        });
+
+        res.status(201).json({
+            success: true,
+            proposal: duplicated,
+        });
+    } catch (error) {
+        console.error('Error duplicating proposal:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || 'Error duplicating proposal',
+        });
+    }
+};
+
 // @desc    Delete multiple proposals (bulk delete)
 // @route   POST /api/proposals/bulk-delete
 // @access  Private
