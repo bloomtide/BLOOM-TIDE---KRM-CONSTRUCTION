@@ -86,71 +86,71 @@ const ProposalDetail = () => {
 
     proposalBuiltRef.current = false
     const { headers, rows } = proposal.rawExcelData
-      const rawData = [headers, ...rows]
-      rawDataRef.current = rawData
+    const rawData = [headers, ...rows]
+    rawDataRef.current = rawData
 
-      const template = proposal.template || 'capstone'
-      const result = generateCalculationSheet(template, rawData)
-      setCalculationData(result.rows)
-      setFormulaData(result.formulas)
-      setRockExcavationTotals(result.rockExcavationTotals || { totalSQFT: 0, totalCY: 0 })
-      setLineDrillTotalFT(result.lineDrillTotalFT || 0)
+    const template = proposal.template || 'capstone'
+    const result = generateCalculationSheet(template, rawData)
+    setCalculationData(result.rows)
+    setFormulaData(result.formulas)
+    setRockExcavationTotals(result.rockExcavationTotals || { totalSQFT: 0, totalCY: 0 })
+    setLineDrillTotalFT(result.lineDrillTotalFT || 0)
 
-      // Store window globals for proposal sheet (used by buildProposalSheet)
-      window.soldierPileGroups = result.soldierPileGroups || []
-      window.soeSubsectionItems = new Map()
-      window.primarySecantItems = result.primarySecantItems || []
-      window.secondarySecantItems = result.secondarySecantItems || []
-      window.tangentPileItems = result.tangentPileItems || []
-      window.pargingItems = result.pargingItems || []
-      window.guideWallItems = result.guideWallItems || []
-      window.dowelBarItems = result.dowelBarItems || []
-      window.rockPinItems = result.rockPinItems || []
-      window.rockStabilizationItems = result.rockStabilizationItems || []
-      window.buttonItems = result.buttonItems || []
-      window.drilledFoundationPileGroups = result.drilledFoundationPileGroups || []
-      window.helicalFoundationPileGroups = result.helicalFoundationPileGroups || []
-      window.drivenFoundationPileItems = result.drivenFoundationPileItems || []
-      window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileItems || []
-      window.cfaPileItems = result.cfaPileItems || []
-      window.foundationSubsectionItems = new Map()
-      window.shotcreteItems = result.shotcreteItems || []
-      window.permissionGroutingItems = result.permissionGroutingItems || []
-      window.mudSlabItems = result.mudSlabItems || []
+    // Store window globals for proposal sheet (used by buildProposalSheet)
+    window.soldierPileGroups = result.soldierPileGroups || []
+    window.soeSubsectionItems = new Map()
+    window.primarySecantItems = result.primarySecantItems || []
+    window.secondarySecantItems = result.secondarySecantItems || []
+    window.tangentPileItems = result.tangentPileItems || []
+    window.pargingItems = result.pargingItems || []
+    window.guideWallItems = result.guideWallItems || []
+    window.dowelBarItems = result.dowelBarItems || []
+    window.rockPinItems = result.rockPinItems || []
+    window.rockStabilizationItems = result.rockStabilizationItems || []
+    window.buttonItems = result.buttonItems || []
+    window.drilledFoundationPileGroups = result.drilledFoundationPileGroups || []
+    window.helicalFoundationPileGroups = result.helicalFoundationPileGroups || []
+    window.drivenFoundationPileItems = result.drivenFoundationPileItems || []
+    window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileItems || []
+    window.cfaPileItems = result.cfaPileItems || []
+    window.foundationSubsectionItems = new Map()
+    window.shotcreteItems = result.shotcreteItems || []
+    window.permissionGroutingItems = result.permissionGroutingItems || []
+    window.mudSlabItems = result.mudSlabItems || []
 
-      // Check which waterproofing items are present
-      if (rawData && rawData.length > 1) {
-        const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
-        const estimateIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'estimate')
-        const itemsToCheck = {
-          'foundation walls': /^FW\s*\(/i, 'retaining wall': /^RW\s*\(/i, 'vehicle barrier wall': /vehicle\s+barrier\s+wall\s*\(/i,
-          'concrete liner wall': /concrete\s+liner\s+wall\s*\(/i, 'stem wall': /stem\s+wall\s*\(/i, 'grease trap pit wall': /grease\s+trap\s+pit\s+wall/i,
-          'house trap pit wall': /house\s+trap\s+pit\s+wall/i, 'detention tank wall': /detention\s+tank\s+wall/i,
-          'elevator pit walls': /elev(?:ator)?\s+pit\s+wall/i, 'duplex sewage ejector pit wall': /duplex\s+sewage\s+ejector\s+pit\s+wall/i
-        }
-        const negativeSideItemsToCheck = {
-          'detention tank wall': /detention\s+tank\s+wall/i, 'elevator pit walls': /elev(?:ator)?\s+pit\s+wall/i,
-          'detention tank slab': /detention\s+tank\s+slab(?!\s+lid)/i, 'duplex sewage ejector pit wall': /duplex\s+sewage\s+ejector\s+pit\s+wall/i,
-          'duplex sewage ejector pit slab': /duplex\s+sewage\s+ejector\s+pit\s+slab/i, 'elevator pit slab': /elev(?:ator)?\s+pit\s+slab/i
-        }
-        const presentItems = []
-        const presentNegativeSideItems = []
-        const dataRows = rawData.slice(1)
-        dataRows.forEach(row => {
-          const digitizerItem = row[digitizerIdx]
-          if (!digitizerItem) return
-          if (estimateIdx >= 0 && row[estimateIdx] && String(row[estimateIdx]).trim() !== 'Waterproofing') return
-          const itemText = String(digitizerItem).trim()
-          Object.entries(itemsToCheck).forEach(([itemName, pattern]) => {
-            if (pattern.test(itemText) && !presentItems.includes(itemName)) presentItems.push(itemName)
-          })
-          Object.entries(negativeSideItemsToCheck).forEach(([itemName, pattern]) => {
-            if (pattern.test(itemText) && !presentNegativeSideItems.includes(itemName)) presentNegativeSideItems.push(itemName)
-          })
-        })
-        window.waterproofingPresentItems = presentItems
-        window.waterproofingNegativeSideItems = presentNegativeSideItems
+    // Check which waterproofing items are present
+    if (rawData && rawData.length > 1) {
+      const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
+      const estimateIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'estimate')
+      const itemsToCheck = {
+        'foundation walls': /^FW\s*\(/i, 'retaining wall': /^RW\s*\(/i, 'vehicle barrier wall': /vehicle\s+barrier\s+wall\s*\(/i,
+        'concrete liner wall': /concrete\s+liner\s+wall\s*\(/i, 'stem wall': /stem\s+wall\s*\(/i, 'grease trap pit wall': /grease\s+trap\s+pit\s+wall/i,
+        'house trap pit wall': /house\s+trap\s+pit\s+wall/i, 'detention tank wall': /detention\s+tank\s+wall/i,
+        'elevator pit walls': /elev(?:ator)?\s+pit\s+wall/i, 'duplex sewage ejector pit wall': /duplex\s+sewage\s+ejector\s+pit\s+wall/i
       }
+      const negativeSideItemsToCheck = {
+        'detention tank wall': /detention\s+tank\s+wall/i, 'elevator pit walls': /elev(?:ator)?\s+pit\s+wall/i,
+        'detention tank slab': /detention\s+tank\s+slab(?!\s+lid)/i, 'duplex sewage ejector pit wall': /duplex\s+sewage\s+ejector\s+pit\s+wall/i,
+        'duplex sewage ejector pit slab': /duplex\s+sewage\s+ejector\s+pit\s+slab/i, 'elevator pit slab': /elev(?:ator)?\s+pit\s+slab/i
+      }
+      const presentItems = []
+      const presentNegativeSideItems = []
+      const dataRows = rawData.slice(1)
+      dataRows.forEach(row => {
+        const digitizerItem = row[digitizerIdx]
+        if (!digitizerItem) return
+        if (estimateIdx >= 0 && row[estimateIdx] && String(row[estimateIdx]).trim() !== 'Waterproofing') return
+        const itemText = String(digitizerItem).trim()
+        Object.entries(itemsToCheck).forEach(([itemName, pattern]) => {
+          if (pattern.test(itemText) && !presentItems.includes(itemName)) presentItems.push(itemName)
+        })
+        Object.entries(negativeSideItemsToCheck).forEach(([itemName, pattern]) => {
+          if (pattern.test(itemText) && !presentNegativeSideItems.includes(itemName)) presentNegativeSideItems.push(itemName)
+        })
+      })
+      window.waterproofingPresentItems = presentItems
+      window.waterproofingNegativeSideItems = presentNegativeSideItems
+    }
 
     // Store for buildProposalSheet when loading from JSON (state may not have updated yet)
     generatedDataRef.current = {
@@ -168,28 +168,54 @@ const ProposalDetail = () => {
     // If we have saved JSON and haven't loaded it yet, load it
     if (proposal.spreadsheetJson && !hasLoadedFromJson.current) {
       setIsSpreadsheetLoading(true)
-      ;(async () => {
-        try {
-          // Handle both old format (just Workbook) and new format (full jsonObject with Workbook property)
-          const jsonData = proposal.spreadsheetJson.Workbook 
-            ? proposal.spreadsheetJson  // New format: full jsonObject
-            : { Workbook: proposal.spreadsheetJson }  // Old format: just Workbook, wrap it
-          spreadsheetRef.current.openFromJson({ file: jsonData })
-          hasLoadedFromJson.current = true
-          setLastSaved(new Date(proposal.updatedAt))
+        ; (async () => {
+          try {
+            // Handle both old format (just Workbook) and new format (full jsonObject with Workbook property)
+            const jsonData = proposal.spreadsheetJson.Workbook
+              ? proposal.spreadsheetJson  // New format: full jsonObject
+              : { Workbook: proposal.spreadsheetJson }  // Old format: just Workbook, wrap it
+            spreadsheetRef.current.openFromJson({ file: jsonData })
+            hasLoadedFromJson.current = true
+            setLastSaved(new Date(proposal.updatedAt))
 
-          // Restore images after loading the spreadsheet JSON
-          if (proposal.images && proposal.images.length > 0) {
-            restoreImages(proposal.images)
+            // Restore images after loading the spreadsheet JSON
+            if (proposal.images && proposal.images.length > 0) {
+              restoreImages(proposal.images)
+            }
+
+            // Reset: rebuild Proposal Sheet from raw data (regenerates formulas/quantities from calculation data)
+            if (proposal.rawExcelData && generatedDataRef.current) {
+              const gen = generatedDataRef.current
+              try {
+                await new Promise(resolve => setTimeout(resolve, 100))
+                buildProposalSheet(spreadsheetRef.current, {
+                  calculationData: gen.rows,
+                  formulaData: gen.formulas,
+                  rockExcavationTotals: gen.rockExcavationTotals,
+                  lineDrillTotalFT: gen.lineDrillTotalFT,
+                  rawData: rawDataRef.current,
+                  createdAt: proposal.createdAt,
+                  project: proposal.project,
+                  client: proposal.client
+                })
+                proposalBuiltRef.current = true
+                markDirtyAndScheduleSave()
+                await new Promise(resolve => setTimeout(resolve, 300))
+                if (saveTimeoutRef.current) {
+                  clearTimeout(saveTimeoutRef.current)
+                  saveTimeoutRef.current = null
+                }
+                saveSpreadsheet(false)
+              } catch (e) {
+                console.error('Error building proposal sheet after load:', e)
+              }
+            }
+          } catch (error) {
+            toast.error('Error loading saved spreadsheet')
+          } finally {
+            setIsSpreadsheetLoading(false)
           }
-
-          // Use saved state - do NOT rebuild Proposal Sheet (preserves user edits, updates DB only on changes)
-        } catch (error) {
-          toast.error('Error loading saved spreadsheet')
-        } finally {
-          setIsSpreadsheetLoading(false)
-        }
-      })()
+        })()
     }
     // Otherwise, apply generated data if we have it
     else if (calculationData.length > 0 && !hasLoadedFromJson.current) {
@@ -224,7 +250,10 @@ const ProposalDetail = () => {
           formulaData,
           rockExcavationTotals,
           lineDrillTotalFT,
-          rawData: rawDataRef.current
+          rawData: rawDataRef.current,
+          createdAt: proposal.createdAt,
+          project: proposal.project,
+          client: proposal.client
         })
         proposalBuiltRef.current = true
       } catch (e) {
