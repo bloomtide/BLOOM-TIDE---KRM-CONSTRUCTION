@@ -257,9 +257,10 @@ export const generateCivilDemoFormulas = (itemType, rowNum, parsedData) => {
  * Processes all Civil / Sitework Demo items from raw data
  * @param {Array} rawDataRows - Array of rows from raw Excel data (excluding header)
  * @param {Array} headers - Column headers from raw data
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  * @returns {object} - Object with sub-subsection names as keys and arrays of items as values
  */
-export const processCivilDemoItems = (rawDataRows, headers) => {
+export const processCivilDemoItems = (rawDataRows, headers, tracker = null) => {
   const demoItems = {
     'Demo asphalt': [],
     'Demo curb': [],
@@ -286,7 +287,7 @@ export const processCivilDemoItems = (rawDataRows, headers) => {
   }
 
   // Process each row
-  rawDataRows.forEach((row) => {
+  rawDataRows.forEach((row, rowIndex) => {
     const digitizerItem = row[digitizerIdx]
     const total = row[totalIdx]
     const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
@@ -353,6 +354,11 @@ export const processCivilDemoItems = (rawDataRows, headers) => {
       console.warn(`Unexpected structure for ${subSubsection}`)
     } else if (demoItems[subSubsection]) {
       demoItems[subSubsection].push(item)
+    }
+
+    // Mark this row as used
+    if (tracker) {
+      tracker.markUsed(rowIndex)
     }
   })
 
@@ -536,9 +542,10 @@ export const getCivilFenceType = (digitizerItem) => {
  * Processes Civil / Sitework non-Demo items (Excavation, Gravel, Concrete Pavement, Asphalt, Pads, Soil Erosion, Fence)
  * @param {Array} rawDataRows - Array of rows from raw Excel data (excluding header)
  * @param {Array} headers - Column headers from raw data
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  * @returns {object}
  */
-export const processCivilOtherItems = (rawDataRows, headers) => {
+export const processCivilOtherItems = (rawDataRows, headers, tracker = null) => {
   const items = {
     'Excavation': {
       'transformer_pad': [],
@@ -602,7 +609,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
   }
 
   // Process each row
-  rawDataRows.forEach((row) => {
+  rawDataRows.forEach((row, rowIndex) => {
     const digitizerItem = row[digitizerIdx]
     if (!digitizerItem || typeof digitizerItem !== 'string') return
 
@@ -649,6 +656,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
       if (fenceType !== 'other') {
         items['Fence'][fenceType].push(item)
       }
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
 
@@ -661,6 +669,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
         unit: unit || 'SQ FT',
         parsed: { heightValue: thickness ? thickness / 12 : 0.5 }
       })
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
     if (itemLower.includes('silt fence')) {
@@ -671,6 +680,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
         unit: unit || 'FT',
         parsed: { heightValue: height || 2.5 }
       })
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
     if (itemLower.includes('inlet filter') && !itemLower.includes('protection')) {
@@ -680,6 +690,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
         unit: unit || 'EA',
         parsed: {}
       })
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
 
@@ -713,6 +724,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
           qty: qty
         }
       })
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
 
@@ -744,6 +756,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
         unit: unit || 'SQ FT',
         parsed: {}
       })
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
 
@@ -773,6 +786,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
         unit: unit || 'SQ FT',
         parsed: {}
       })
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
 
@@ -818,6 +832,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
           }
         })
       }
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
 
@@ -830,6 +845,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
         unit: unit || 'EA',
         parsed: {}
       })
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
     // Wheel stop
@@ -840,6 +856,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
         unit: unit || 'EA',
         parsed: {}
       })
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
     // Drain
@@ -850,6 +867,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
         unit: unit || 'EA',
         parsed: {}
       })
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
     if (itemLower.includes('floor drain')) {
@@ -859,6 +877,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
         unit: unit || 'EA',
         parsed: {}
       })
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
 
@@ -870,6 +889,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
         unit: unit || 'EA',
         parsed: {}
       })
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
     // Signages
@@ -880,6 +900,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
         unit: unit || 'EA',
         parsed: {}
       })
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
     // Main line
@@ -898,6 +919,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
       } else if (itemLower.includes('water')) {
         items['Site']['Main line']['Water'].push(item)
       }
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
 
@@ -922,6 +944,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
         unit: unit || 'EA', // Unit will be handled in sheet gen (FT->Col I, EA->Col M)
         parsed: {}
       })
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
 
@@ -933,6 +956,7 @@ export const processCivilOtherItems = (rawDataRows, headers) => {
         unit: unit || 'EA',
         parsed: {}
       })
+      if (tracker) tracker.markUsed(rowIndex)
       return
     }
   })

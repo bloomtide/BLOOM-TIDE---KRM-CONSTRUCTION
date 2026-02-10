@@ -362,9 +362,10 @@ export const getSuperstructureItemType = (particulars) => {
  * Processes Superstructure items from raw data.
  * @param {Array} rawDataRows - Rows from raw Excel (excluding header)
  * @param {Array} headers - Column headers
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  * @returns {{ cipSlab8: Array, ... toppingSlab: Array, thermalBreak: Array, raisedSlab: Object, builtUpSlab: Object }}
  */
-export const processSuperstructureItems = (rawDataRows, headers) => {
+export const processSuperstructureItems = (rawDataRows, headers, tracker = null) => {
   const cipSlab8 = []
   const cipRoofSlab8 = []
   const balconySlab = []
@@ -406,7 +407,7 @@ export const processSuperstructureItems = (rawDataRows, headers) => {
     return { cipSlab8, cipRoofSlab8, balconySlab, terraceSlab, patchSlab, slabSteps, lwConcreteFill, slabOnMetalDeck: [], toppingSlab, thermalBreak, raisedSlab, builtUpSlab, builtUpStair, builtupRamps, concreteHanger, shearWalls, parapetWalls, columnsTakeoff, concretePost, concreteEncasement, dropPanelBracket, dropPanelH, beams, curbs, concretePad, nonShrinkGrout, repairScope }
   }
 
-  rawDataRows.forEach((row) => {
+  rawDataRows.forEach((row, rowIndex) => {
     const particulars = row[digitizerIdx]
     const total = row[totalIdx]
     const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
@@ -419,6 +420,11 @@ export const processSuperstructureItems = (rawDataRows, headers) => {
 
     const itemType = getSuperstructureItemType(particulars)
     if (!itemType) return
+
+    // Mark this row as used
+    if (tracker) {
+      tracker.markUsed(rowIndex)
+    }
 
     if (itemType.groupKey && itemType.groupKey.startsWith('somd_')) {
       const key = itemType.groupKey

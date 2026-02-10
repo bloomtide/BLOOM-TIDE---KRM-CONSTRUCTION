@@ -6,9 +6,10 @@ import { isExteriorSideItem, parseExteriorSideHeight, isExteriorSidePitItem, par
  * Formulas: I (FT) = C (Takeoff), H = parsed height, J (SQ FT) = H * I
  * @param {Array} rawDataRows - Rows from raw Excel (excluding header)
  * @param {Array} headers - Column headers
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  * @returns {Array} - Items with { particulars, takeoff, unit, parsed: { heightFromBracketPlus2 } }
  */
-export const processExteriorSideItems = (rawDataRows, headers) => {
+export const processExteriorSideItems = (rawDataRows, headers, tracker = null) => {
   const items = []
   const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
   const totalIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'total')
@@ -17,7 +18,7 @@ export const processExteriorSideItems = (rawDataRows, headers) => {
 
   if (digitizerIdx === -1 || totalIdx === -1) return items
 
-  rawDataRows.forEach((row) => {
+  rawDataRows.forEach((row, rowIndex) => {
     const particulars = row[digitizerIdx]
     const total = row[totalIdx]
     const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
@@ -39,6 +40,11 @@ export const processExteriorSideItems = (rawDataRows, headers) => {
         heightFromBracketPlus2: heightFromBracketPlus2 != null ? heightFromBracketPlus2 : ''
       }
     })
+
+    // Mark this row as used
+    if (tracker) {
+      tracker.markUsed(rowIndex)
+    }
   })
 
   return items
@@ -48,9 +54,10 @@ export const processExteriorSideItems = (rawDataRows, headers) => {
  * Processes Waterproofing - Exterior side pit/wall items (height = 2nd value from bracket + Foundation slab H).
  * @param {Array} rawDataRows - Rows from raw Excel (excluding header)
  * @param {Array} headers - Column headers
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  * @returns {Array} - Items with { particulars, takeoff, unit, parsed: { secondValueFeet, firstValueFeet, heightRefKey } }
  */
-export const processExteriorSidePitItems = (rawDataRows, headers) => {
+export const processExteriorSidePitItems = (rawDataRows, headers, tracker = null) => {
   const items = []
   const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
   const totalIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'total')
@@ -59,7 +66,7 @@ export const processExteriorSidePitItems = (rawDataRows, headers) => {
 
   if (digitizerIdx === -1 || totalIdx === -1) return items
 
-  rawDataRows.forEach((row) => {
+  rawDataRows.forEach((row, rowIndex) => {
     const particulars = row[digitizerIdx]
     const total = row[totalIdx]
     const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
@@ -83,6 +90,11 @@ export const processExteriorSidePitItems = (rawDataRows, headers) => {
         heightRefKey
       }
     })
+
+    // Mark this row as used
+    if (tracker) {
+      tracker.markUsed(rowIndex)
+    }
   })
 
   return items
@@ -92,9 +104,10 @@ export const processExteriorSidePitItems = (rawDataRows, headers) => {
  * Processes Waterproofing - Negative side wall items (height = 2nd value from bracket only; no G; L = J*G/27 only for Elev. pit wall and Detention tank wall).
  * @param {Array} rawDataRows - Rows from raw Excel (excluding header)
  * @param {Array} headers - Column headers
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  * @returns {Array} - Items with { particulars, takeoff, unit, parsed: { secondValueFeet, heightRefKey } }
  */
-export const processNegativeSideWallItems = (rawDataRows, headers) => {
+export const processNegativeSideWallItems = (rawDataRows, headers, tracker = null) => {
   const items = []
   const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
   const totalIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'total')
@@ -103,7 +116,7 @@ export const processNegativeSideWallItems = (rawDataRows, headers) => {
 
   if (digitizerIdx === -1 || totalIdx === -1) return items
 
-  rawDataRows.forEach((row) => {
+  rawDataRows.forEach((row, rowIndex) => {
     const particulars = row[digitizerIdx]
     const total = row[totalIdx]
     const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
@@ -123,6 +136,11 @@ export const processNegativeSideWallItems = (rawDataRows, headers) => {
       unit: unit || 'FT',
       parsed: { secondValueFeet, heightRefKey }
     })
+
+    // Mark this row as used
+    if (tracker) {
+      tracker.markUsed(rowIndex)
+    }
   })
 
   return items
@@ -132,9 +150,10 @@ export const processNegativeSideWallItems = (rawDataRows, headers) => {
  * Processes Waterproofing - Negative side slab items (Unit SQ FT, J = C).
  * @param {Array} rawDataRows - Rows from raw Excel (excluding header)
  * @param {Array} headers - Column headers
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  * @returns {Array} - Items with { particulars, takeoff, unit }
  */
-export const processNegativeSideSlabItems = (rawDataRows, headers) => {
+export const processNegativeSideSlabItems = (rawDataRows, headers, tracker = null) => {
   const items = []
   const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
   const totalIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'total')
@@ -143,7 +162,7 @@ export const processNegativeSideSlabItems = (rawDataRows, headers) => {
 
   if (digitizerIdx === -1 || totalIdx === -1) return items
 
-  rawDataRows.forEach((row) => {
+  rawDataRows.forEach((row, rowIndex) => {
     const particulars = row[digitizerIdx]
     const total = row[totalIdx]
     const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
@@ -161,6 +180,11 @@ export const processNegativeSideSlabItems = (rawDataRows, headers) => {
       takeoff,
       unit: unit || 'SQ FT'
     })
+
+    // Mark this row as used
+    if (tracker) {
+      tracker.markUsed(rowIndex)
+    }
   })
 
   return items

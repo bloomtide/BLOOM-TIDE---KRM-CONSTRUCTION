@@ -64,8 +64,9 @@ import {
 
 /**
  * Generic process function for Foundation items
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  */
-const processGenericFoundationItems = (rawDataRows, headers, identifierFn, parserFn) => {
+const processGenericFoundationItems = (rawDataRows, headers, identifierFn, parserFn, tracker = null) => {
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
     const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
     const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
@@ -88,6 +89,11 @@ const processGenericFoundationItems = (rawDataRows, headers, identifierFn, parse
                 parsed: parsed,
                 rawRowNumber: rowIndex + 2
             })
+
+            // Mark this row as used
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
         }
     })
     return items
@@ -95,8 +101,9 @@ const processGenericFoundationItems = (rawDataRows, headers, identifierFn, parse
 
 /**
  * Processes drilled foundation pile items and groups them
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  */
-export const processDrilledFoundationPileItems = (rawDataRows, headers) => {
+export const processDrilledFoundationPileItems = (rawDataRows, headers, tracker = null) => {
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
     const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
     const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
@@ -116,7 +123,7 @@ export const processDrilledFoundationPileItems = (rawDataRows, headers) => {
         const digitizerItem = row[digitizerIdx]
         const digitizerText = digitizerItem ? String(digitizerItem).trim() : ''
         const isRowEmpty = !digitizerItem || digitizerText === ''
-        
+
         // Also check if this might be a sum row (has formula indicators or is just totals)
         // Sum rows typically have empty digitizer item but might have values in other columns
         const takeoffValue = row[totalIdx]
@@ -140,21 +147,26 @@ export const processDrilledFoundationPileItems = (rawDataRows, headers) => {
             const hasInflu = influValue && String(influValue).toLowerCase().includes('influ')
             const parsed = parseDrilledFoundationPile(digitizerItem)
 
+            // Mark this row as used
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
+
             // If no current group, start a new one (new group starts when we encounter a drilled pile after an empty row)
             if (!currentGroup) {
                 currentGroup = {
                     groupKey: parsed.groupKey || 'OTHER',
                     items: [{
-                particulars: digitizerItem,
+                        particulars: digitizerItem,
                         takeoff: 0,
-                unit: unit,
-                parsed: parsed,
+                        unit: unit,
+                        parsed: parsed,
                         rawRowNumber: rowIndex + 2,
                         hasInflu: hasInflu
                     }],
                     parsed: parsed,
                     hasInflu: hasInflu
-        }
+                }
             } else {
                 // Add to current group - sum the takeoff
                 // This item belongs to the same group (no empty row between them)
@@ -185,9 +197,9 @@ export const processDrilledFoundationPileItems = (rawDataRows, headers) => {
 /**
  * Processes helical foundation pile items and groups them by diameter x thickness
  */
-export const processHelicalFoundationPileItems = (rawDataRows, headers) => {
-    const items = processGenericFoundationItems(rawDataRows, headers, isHelicalFoundationPile, parseHelicalFoundationPile)
-    
+export const processHelicalFoundationPileItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericFoundationItems(rawDataRows, headers, isHelicalFoundationPile, parseHelicalFoundationPile, tracker)
+
     // Group by groupKey (diameter x thickness)
     const groupMap = new Map()
     items.forEach(item => {
@@ -208,37 +220,37 @@ export const processHelicalFoundationPileItems = (rawDataRows, headers) => {
 /**
  * Processes driven foundation pile items
  */
-export const processDrivenFoundationPileItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isDrivenFoundationPile, parseDrivenFoundationPile)
+export const processDrivenFoundationPileItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isDrivenFoundationPile, parseDrivenFoundationPile, tracker)
 }
 
 /**
  * Processes stelcor drilled displacement pile items
  */
-export const processStelcorDrilledDisplacementPileItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isStelcorDrilledDisplacementPile, parseStelcorDrilledDisplacementPile)
+export const processStelcorDrilledDisplacementPileItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isStelcorDrilledDisplacementPile, parseStelcorDrilledDisplacementPile, tracker)
 }
 
 /**
  * Processes CFA pile items
  */
-export const processCFAPileItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isCFAPile, parseCFAPile)
+export const processCFAPileItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isCFAPile, parseCFAPile, tracker)
 }
 
 /**
  * Processes pile cap items
  */
-export const processPileCapItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isPileCap, parsePileCap)
+export const processPileCapItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isPileCap, parsePileCap, tracker)
 }
 
 /**
  * Processes strip footing items and groups them by size
  */
-export const processStripFootingItems = (rawDataRows, headers) => {
-    const items = processGenericFoundationItems(rawDataRows, headers, isStripFooting, parseStripFooting)
-    
+export const processStripFootingItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericFoundationItems(rawDataRows, headers, isStripFooting, parseStripFooting, tracker)
+
     // Group by groupKey (length x width)
     const groupMap = new Map()
     items.forEach(item => {
@@ -259,15 +271,15 @@ export const processStripFootingItems = (rawDataRows, headers) => {
 /**
  * Processes isolated footing items
  */
-export const processIsolatedFootingItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isIsolatedFooting, parseIsolatedFooting)
+export const processIsolatedFootingItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isIsolatedFooting, parseIsolatedFooting, tracker)
 }
 
 /**
  * Processes pilaster items
  */
-export const processPilasterItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isPilaster, parsePilaster)
+export const processPilasterItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isPilaster, parsePilaster, tracker)
 }
 
 /**
@@ -275,16 +287,16 @@ export const processPilasterItems = (rawDataRows, headers) => {
  * For Grade beams subsection we want ALL items together under a single group/sum,
  * so we simply return the flat list (no grouping by size here).
  */
-export const processGradeBeamItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isGradeBeam, parseGradeBeam)
+export const processGradeBeamItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isGradeBeam, parseGradeBeam, tracker)
 }
 
 /**
  * Processes tie beam items and groups them by size
  */
-export const processTieBeamItems = (rawDataRows, headers) => {
-    const items = processGenericFoundationItems(rawDataRows, headers, isTieBeam, parseTieBeam)
-    
+export const processTieBeamItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericFoundationItems(rawDataRows, headers, isTieBeam, parseTieBeam, tracker)
+
     // Group by groupKey (width x height in inches)
     const groupMap = new Map()
     items.forEach(item => {
@@ -305,9 +317,9 @@ export const processTieBeamItems = (rawDataRows, headers) => {
 /**
  * Processes thickened slab items and groups them by size
  */
-export const processThickenedSlabItems = (rawDataRows, headers) => {
-    const items = processGenericFoundationItems(rawDataRows, headers, isThickenedSlab, parseThickenedSlab)
-    
+export const processThickenedSlabItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericFoundationItems(rawDataRows, headers, isThickenedSlab, parseThickenedSlab, tracker)
+
     // Group by groupKey (width x height)
     const groupMap = new Map()
     items.forEach(item => {
@@ -328,7 +340,7 @@ export const processThickenedSlabItems = (rawDataRows, headers) => {
 /**
  * Processes buttress items
  */
-export const processButtressItems = (rawDataRows, headers) => {
+export const processButtressItems = (rawDataRows, headers, tracker = null) => {
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
     const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
     const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
@@ -348,6 +360,10 @@ export const processButtressItems = (rawDataRows, headers) => {
                 unit: unit,
                 rawRowNumber: rowIndex + 2
             }
+            // Mark this row as used
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
         }
     })
 
@@ -357,40 +373,40 @@ export const processButtressItems = (rawDataRows, headers) => {
 /**
  * Processes pier items
  */
-export const processPierItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isPier, parsePier)
+export const processPierItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isPier, parsePier, tracker)
 }
 
 /**
  * Processes corbel items and groups them by size
  */
-export const processCorbelItems = (rawDataRows, headers) => {
+export const processCorbelItems = (rawDataRows, headers, tracker = null) => {
     // For Corbel subsection, keep all items in a single group (no size grouping)
-    return processGenericFoundationItems(rawDataRows, headers, isCorbel, parseCorbel)
+    return processGenericFoundationItems(rawDataRows, headers, isCorbel, parseCorbel, tracker)
 }
 
 /**
  * Processes linear wall items and groups them by size
  */
-export const processLinearWallItems = (rawDataRows, headers) => {
+export const processLinearWallItems = (rawDataRows, headers, tracker = null) => {
     // For Linear Wall subsection, keep all items in a single group
-    return processGenericFoundationItems(rawDataRows, headers, isLinearWall, parseLinearWall)
+    return processGenericFoundationItems(rawDataRows, headers, isLinearWall, parseLinearWall, tracker)
 }
 
 /**
  * Processes foundation wall items and groups them by size
  */
-export const processFoundationWallItems = (rawDataRows, headers) => {
+export const processFoundationWallItems = (rawDataRows, headers, tracker = null) => {
     // For Foundation Wall subsection, keep all items together (no grouping by size)
-    return processGenericFoundationItems(rawDataRows, headers, isFoundationWall, parseFoundationWall)
+    return processGenericFoundationItems(rawDataRows, headers, isFoundationWall, parseFoundationWall, tracker)
 }
 
 /**
  * Processes retaining wall items and groups them by size
  */
-export const processRetainingWallItems = (rawDataRows, headers) => {
-    const items = processGenericFoundationItems(rawDataRows, headers, isRetainingWall, parseRetainingWall)
-    
+export const processRetainingWallItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericFoundationItems(rawDataRows, headers, isRetainingWall, parseRetainingWall, tracker)
+
     // Group by groupKey (width x height)
     const groupMap = new Map()
     items.forEach(item => {
@@ -411,9 +427,9 @@ export const processRetainingWallItems = (rawDataRows, headers) => {
 /**
  * Processes barrier wall items and groups them by size
  */
-export const processBarrierWallItems = (rawDataRows, headers) => {
-    const items = processGenericFoundationItems(rawDataRows, headers, isBarrierWall, parseBarrierWall)
-    
+export const processBarrierWallItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericFoundationItems(rawDataRows, headers, isBarrierWall, parseBarrierWall, tracker)
+
     // Group by groupKey (width x height)
     const groupMap = new Map()
     items.forEach(item => {
@@ -434,71 +450,71 @@ export const processBarrierWallItems = (rawDataRows, headers) => {
 /**
  * Processes stem wall items
  */
-export const processStemWallItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isStemWall, parseStemWall)
+export const processStemWallItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isStemWall, parseStemWall, tracker)
 }
 
 /**
  * Processes elevator pit items
  */
-export const processElevatorPitItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isElevatorPit, parseElevatorPit)
+export const processElevatorPitItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isElevatorPit, parseElevatorPit, tracker)
 }
 
 /**
  * Processes detention tank items
  */
-export const processDetentionTankItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isDetentionTank, parseDetentionTank)
+export const processDetentionTankItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isDetentionTank, parseDetentionTank, tracker)
 }
 
 /**
  * Processes duplex sewage ejector pit items
  */
-export const processDuplexSewageEjectorPitItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isDuplexSewageEjectorPit, parseDuplexSewageEjectorPit)
+export const processDuplexSewageEjectorPitItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isDuplexSewageEjectorPit, parseDuplexSewageEjectorPit, tracker)
 }
 
 /**
  * Processes deep sewage ejector pit items
  */
-export const processDeepSewageEjectorPitItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isDeepSewageEjectorPit, parseDeepSewageEjectorPit)
+export const processDeepSewageEjectorPitItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isDeepSewageEjectorPit, parseDeepSewageEjectorPit, tracker)
 }
 
 /**
  * Processes grease trap items
  */
-export const processGreaseTrapItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isGreaseTrap, parseGreaseTrap)
+export const processGreaseTrapItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isGreaseTrap, parseGreaseTrap, tracker)
 }
 
 /**
  * Processes house trap items
  */
-export const processHouseTrapItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isHouseTrap, parseHouseTrap)
+export const processHouseTrapItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isHouseTrap, parseHouseTrap, tracker)
 }
 
 /**
  * Processes mat slab items
  */
-export const processMatSlabItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isMatSlab, parseMatSlab)
+export const processMatSlabItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isMatSlab, parseMatSlab, tracker)
 }
 
 /**
  * Processes mud slab items (Foundation section)
  */
-export const processMudSlabFoundationItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isMudSlabFoundation, parseMudSlabFoundation)
+export const processMudSlabFoundationItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isMudSlabFoundation, parseMudSlabFoundation, tracker)
 }
 
 /**
  * Processes SOG items
  */
-export const processSOGItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isSOG, parseSOG)
+export const processSOGItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isSOG, parseSOG, tracker)
 }
 
 /**
@@ -506,7 +522,7 @@ export const processSOGItems = (rawDataRows, headers) => {
  * Prioritize attaching one landing to each stairs group when available.
  * Landings are never in separate groups; they are always included with a stairs group.
  */
-export const processStairsOnGradeItems = (rawDataRows, headers) => {
+export const processStairsOnGradeItems = (rawDataRows, headers, tracker = null) => {
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
     const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
     const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
@@ -534,6 +550,10 @@ export const processStairsOnGradeItems = (rawDataRows, headers) => {
                 stairsList.push(item)
             } else if (parsed.itemSubType === 'landings') {
                 landingsList.push(item)
+            }
+            // Mark this row as used
+            if (tracker) {
+                tracker.markUsed(rowIndex)
             }
         }
     })
@@ -566,8 +586,8 @@ export const processStairsOnGradeItems = (rawDataRows, headers) => {
 /**
  * Processes electric conduit items (Foundation section)
  */
-export const processElectricConduitItems = (rawDataRows, headers) => {
-    return processGenericFoundationItems(rawDataRows, headers, isElectricConduit, parseElectricConduit)
+export const processElectricConduitItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isElectricConduit, parseElectricConduit, tracker)
 }
 
 /**

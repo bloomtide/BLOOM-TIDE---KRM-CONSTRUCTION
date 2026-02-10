@@ -1,11 +1,31 @@
 import React from 'react'
 import Modal from './Modal'
-import { FiX } from 'react-icons/fi'
+import { FiX, FiDownload } from 'react-icons/fi'
+import * as XLSX from 'xlsx'
 
 const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData }) => {
     if (!rawExcelData) return null
 
     const { fileName, sheetName, headers, rows } = rawExcelData
+
+    const handleDownload = () => {
+        // Create workbook and worksheet
+        const wb = XLSX.utils.book_new()
+
+        // Combine headers and rows
+        const wsData = [
+            headers || [],
+            ...(rows || [])
+        ]
+
+        const ws = XLSX.utils.aoa_to_sheet(wsData)
+
+        // Add worksheet to workbook
+        XLSX.utils.book_append_sheet(wb, ws, sheetName || 'Raw Data')
+
+        // Generate Excel file
+        XLSX.writeFile(wb, fileName || 'raw_data.xlsx')
+    }
 
     return (
         <Modal
@@ -13,6 +33,16 @@ const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData }) => {
             onClose={onClose}
             title="Raw Excel Data Preview"
             subtitle={`${fileName}${sheetName ? ` • ${sheetName}` : ''} • ${rows?.length || 0} rows`}
+            headerActions={
+                <button
+                    onClick={handleDownload}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors"
+                    title="Download as Excel"
+                >
+                    <FiDownload size={16} />
+                    <span className="hidden sm:inline">Download</span>
+                </button>
+            }
             maxWidth="max-w-6xl"
         >
             <div className="max-h-[600px] overflow-auto">
@@ -48,16 +78,15 @@ const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData }) => {
                                     {headers?.map((_, colIndex) => {
                                         const cellValue = row[colIndex]
                                         const isNumber = !isNaN(cellValue) && cellValue !== '' && cellValue !== null
-                                        
+
                                         return (
                                             <td
                                                 key={colIndex}
-                                                className={`px-4 py-3 text-sm ${
-                                                    isNumber ? 'text-right font-mono text-gray-900' : 'text-left text-gray-700'
-                                                }`}
+                                                className={`px-4 py-3 text-sm ${isNumber ? 'text-right font-mono text-gray-900' : 'text-left text-gray-700'
+                                                    }`}
                                             >
-                                                {cellValue !== null && cellValue !== undefined && cellValue !== '' 
-                                                    ? String(cellValue) 
+                                                {cellValue !== null && cellValue !== undefined && cellValue !== ''
+                                                    ? String(cellValue)
                                                     : <span className="text-gray-300">-</span>
                                                 }
                                             </td>

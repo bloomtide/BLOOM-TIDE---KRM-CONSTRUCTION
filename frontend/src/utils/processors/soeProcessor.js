@@ -42,8 +42,9 @@ import { SHEET_PILE_WEIGHTS } from '../constants/sheetPileWeight'
 
 /**
  * Processes soldier pile items and groups them appropriately
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  */
-export const processSoldierPileItems = (rawDataRows, headers) => {
+export const processSoldierPileItems = (rawDataRows, headers, tracker = null) => {
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
     const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
     const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
@@ -68,6 +69,11 @@ export const processSoldierPileItems = (rawDataRows, headers) => {
                 weight: weight,
                 rawRowNumber: rowIndex + 2
             })
+
+            // Mark this row as used
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
         }
     })
 
@@ -139,8 +145,9 @@ export const processSoldierPileItems = (rawDataRows, headers) => {
 
 /**
  * Generic process function for simple SOE items
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  */
-const processGenericSoeItems = (rawDataRows, headers, identifierFn) => {
+const processGenericSoeItems = (rawDataRows, headers, identifierFn, tracker = null) => {
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
     const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
     const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
@@ -183,27 +190,32 @@ const processGenericSoeItems = (rawDataRows, headers, identifierFn) => {
                 weight: parsed.weight,
                 rawRowNumber: rowIndex + 2
             })
+
+            // Mark this row as used
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
         }
     })
     return items
 }
 
-export const processPrimarySecantItems = (rawDataRows, headers) => {
-    const items = processGenericSoeItems(rawDataRows, headers, isPrimarySecantPile)
-    
+export const processPrimarySecantItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericSoeItems(rawDataRows, headers, isPrimarySecantPile, tracker)
+
     // Generate proposal text line that can be made
     if (items.length > 0) {
         const firstItem = items[0]
         const totalQty = items.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0)
         const totalTakeoff = items.reduce((sum, item) => sum + (item.takeoff || 0), 0)
-        
+
         // Extract diameter from particulars
         let diameter = null
         const diameterMatch = firstItem.particulars?.match(/([0-9.]+)["\s]*Ø/i)
         if (diameterMatch) {
             diameter = parseFloat(diameterMatch[1])
         }
-        
+
         // Calculate average height
         let totalHeight = 0
         let heightCount = 0
@@ -215,7 +227,7 @@ export const processPrimarySecantItems = (rawDataRows, headers) => {
             }
         })
         const avgHeight = heightCount > 0 ? totalHeight / heightCount : 0
-        
+
         // Extract embedment
         let totalEmbedment = 0
         let embedmentCount = 0
@@ -235,52 +247,52 @@ export const processPrimarySecantItems = (rawDataRows, headers) => {
             }
         })
         const avgEmbedment = embedmentCount > 0 ? totalEmbedment / embedmentCount : 0
-        
+
         // Format proposal text line
         const roundToMultipleOf5 = (value) => Math.ceil(value / 5) * 5
         const avgHeightRounded = roundToMultipleOf5(avgHeight)
         const avgEmbedmentRounded = roundToMultipleOf5(avgEmbedment)
-        
+
         const heightFeet = Math.floor(avgHeightRounded)
         const heightInches = Math.round((avgHeightRounded - heightFeet) * 12)
         const heightText = heightInches === 0 ? `${heightFeet}'-0"` : `${heightFeet}'-${heightInches}"`
-        
+
         const embedmentFeet = Math.floor(avgEmbedmentRounded)
         const embedmentInches = Math.round((avgEmbedmentRounded - embedmentFeet) * 12)
         const embedmentText = embedmentInches === 0 ? `${embedmentFeet}'-0"` : `${embedmentFeet}'-${embedmentInches}"`
-        
-        const proposalLine = diameter 
+
+        const proposalLine = diameter
             ? `F&I new (${Math.round(totalQty || totalTakeoff)})no [${diameter}" Ø] primary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per SOE-#.## & details on SOE-#.##`
             : `F&I new (${Math.round(totalQty || totalTakeoff)})no [#" Ø] primary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per SOE-#.## & details on SOE-#.##`
     }
-    
+
     return items
 }
-export const processSecondarySecantItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isSecondarySecantPile)
-export const processTangentPileItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isTangentPile)
-export const processSheetPileItems = (rawDataRows, headers) => {
-    const items = processGenericSoeItems(rawDataRows, headers, isSheetPile)
-    
+export const processSecondarySecantItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isSecondarySecantPile, tracker)
+export const processTangentPileItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isTangentPile, tracker)
+export const processSheetPileItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericSoeItems(rawDataRows, headers, isSheetPile, tracker)
+
     if (items.length > 0) {
     }
-    
+
     return items
 }
-export const processTimberLaggingItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isTimberLagging)
-export const processTimberSheetingItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isTimberSheeting)
-export const processWalerItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isWaler)
-export const processRakerItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isRaker)
-export const processUpperRakerItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isUpperRaker)
-export const processLowerRakerItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isLowerRaker)
-export const processStandOffItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isStandOff)
-export const processKickerItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isKicker)
-export const processChannelItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isChannel)
-export const processRollChockItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isRollChock)
-export const processStudBeamItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isStudBeam)
-export const processInnerCornerBraceItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isInnerCornerBrace)
-export const processKneeBraceItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isKneeBrace)
-export const processSupportingAngleItems = (rawDataRows, headers) => {
-    const items = processGenericSoeItems(rawDataRows, headers, isSupportingAngle)
+export const processTimberLaggingItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isTimberLagging, tracker)
+export const processTimberSheetingItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isTimberSheeting, tracker)
+export const processWalerItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isWaler, tracker)
+export const processRakerItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isRaker, tracker)
+export const processUpperRakerItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isUpperRaker, tracker)
+export const processLowerRakerItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isLowerRaker, tracker)
+export const processStandOffItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isStandOff, tracker)
+export const processKickerItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isKicker, tracker)
+export const processChannelItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isChannel, tracker)
+export const processRollChockItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isRollChock, tracker)
+export const processStudBeamItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isStudBeam, tracker)
+export const processInnerCornerBraceItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isInnerCornerBrace, tracker)
+export const processKneeBraceItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isKneeBrace, tracker)
+export const processSupportingAngleItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericSoeItems(rawDataRows, headers, isSupportingAngle, tracker)
     // Group by groupKey (what's after @)
     const groups = new Map()
     items.forEach(item => {
@@ -290,22 +302,22 @@ export const processSupportingAngleItems = (rawDataRows, headers) => {
     })
     return Array.from(groups.entries()).map(([name, items]) => ({ name, items }))
 }
-export const processPargingItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isParging)
-export const processHeelBlockItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isHeelBlock)
-export const processUnderpinningItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isUnderpinning)
-export const processRockAnchorItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isRockAnchor)
-export const processRockBoltItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isRockBolt)
-export const processAnchorItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isAnchor)
-export const processTieBackItems = (rawDataRows, headers) => processGenericSoeItems(rawDataRows, headers, isTieBack)
-export const processConcreteSoilRetentionPierItems = (rawDataRows, headers) => {
-    const items = processGenericSoeItems(rawDataRows, headers, isConcreteSoilRetentionPier)
-    
-    
+export const processPargingItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isParging, tracker)
+export const processHeelBlockItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isHeelBlock, tracker)
+export const processUnderpinningItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isUnderpinning, tracker)
+export const processRockAnchorItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isRockAnchor, tracker)
+export const processRockBoltItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isRockBolt, tracker)
+export const processAnchorItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isAnchor, tracker)
+export const processTieBackItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isTieBack, tracker)
+export const processConcreteSoilRetentionPierItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericSoeItems(rawDataRows, headers, isConcreteSoilRetentionPier, tracker)
+
+
     return items
 }
-export const processGuideWallItems = (rawDataRows, headers) => {
-    const items = processGenericSoeItems(rawDataRows, headers, isGuideWall)
-    
+export const processGuideWallItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericSoeItems(rawDataRows, headers, isGuideWall, tracker)
+
     // Generate proposal text template
     if (items.length > 0) {
         // Extract widths from items (e.g., "4'-6½" & 5'-3½"")
@@ -326,7 +338,7 @@ export const processGuideWallItems = (rawDataRows, headers) => {
             }
         })
         const widthText = Array.from(widths).join(' & ')
-        
+
         // Get SOE page references
         let soePageMain = 'SOE-100.00'
         let soePageDetails = 'SOE-300.00'
@@ -353,27 +365,27 @@ export const processGuideWallItems = (rawDataRows, headers) => {
                 }
             }
         }
-        
+
         // Format: F&I new (4'-6½" & 5'-3½" wide) guide wall (H=3'-0") as per SOE-100.00 & details on SOE-300.00
-        const proposalText = widthText 
+        const proposalText = widthText
             ? `F&I new (${widthText} wide) guide wall (H=${height || '3\'-0"'}) as per ${soePageMain} & details on ${soePageDetails}`
             : `F&I new guide wall (H=${height || '3\'-0"'}) as per ${soePageMain} & details on ${soePageDetails}`
     }
-    
+
     return items
 }
 
-export const processDowelBarItems = (rawDataRows, headers) => {
-    const items = processGenericSoeItems(rawDataRows, headers, isDowelBar)
-    
+export const processDowelBarItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericSoeItems(rawDataRows, headers, isDowelBar, tracker)
+
     // Generate proposal text template
     if (items.length > 0) {
-        
+
         // Calculate totals
         const totalQty = items.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0)
         const totalTakeoff = items.reduce((sum, item) => sum + (item.takeoff || 0), 0)
         const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
-        
+
         // Extract bar size (e.g., #9)
         let barSize = ''
         let rockSocket = ''
@@ -390,7 +402,7 @@ export const processDowelBarItems = (rawDataRows, headers) => {
                 rockSocket = rsMatch[1]
             }
         })
-        
+
         // Calculate average height
         let totalHeight = 0
         let heightCount = 0
@@ -405,7 +417,7 @@ export const processDowelBarItems = (rawDataRows, headers) => {
         const heightFeet = Math.floor(avgHeight)
         const heightInches = Math.round((avgHeight - heightFeet) * 12)
         const heightText = heightInches === 0 ? `${heightFeet}'-0"` : `${heightFeet}'-${heightInches}"`
-        
+
         // Get SOE page references
         let soePageMain = 'SOESK-01'
         let soePageDetails = 'SOESK-02'
@@ -432,25 +444,25 @@ export const processDowelBarItems = (rawDataRows, headers) => {
                 }
             }
         }
-        
+
         // Format: F&I new (48)no 4-#9 steel dowels bar (Havg=6'-3", 4'-0" rock socket) as per SOESK-01 & details on SOESK-02
         const proposalText = `F&I new (${totalQtyValue})no 4-${barSize || '#9'} steel dowels bar (Havg=${heightText}, ${rockSocket || '4\'-0"'} rock socket) as per ${soePageMain} & details on ${soePageDetails}`
     }
-    
+
     return items
 }
 
-export const processRockPinItems = (rawDataRows, headers) => {
-    const items = processGenericSoeItems(rawDataRows, headers, isRockPin)
-    
+export const processRockPinItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericSoeItems(rawDataRows, headers, isRockPin, tracker)
+
     // Generate proposal text template
     if (items.length > 0) {
-        
+
         // Calculate totals
         const totalQty = items.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0)
         const totalTakeoff = items.reduce((sum, item) => sum + (item.takeoff || 0), 0)
         const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
-        
+
         // Extract rock socket
         let rockSocket = ''
         items.forEach(item => {
@@ -461,7 +473,7 @@ export const processRockPinItems = (rawDataRows, headers) => {
                 rockSocket = rsMatch[1]
             }
         })
-        
+
         // Calculate average height
         let totalHeight = 0
         let heightCount = 0
@@ -476,7 +488,7 @@ export const processRockPinItems = (rawDataRows, headers) => {
         const heightFeet = Math.floor(avgHeight)
         const heightInches = Math.round((avgHeight - heightFeet) * 12)
         const heightText = heightInches === 0 ? `${heightFeet}'-0"` : `${heightFeet}'-${heightInches}"`
-        
+
         // Get SOE page references
         let soePageMain = 'SOESK-01'
         let soePageDetails = 'SOESK-02'
@@ -503,20 +515,20 @@ export const processRockPinItems = (rawDataRows, headers) => {
                 }
             }
         }
-        
+
         // Format: F&I new (24)no rock pins (Havg=6'-3", 4'-0" rock socket) as per SOESK-01 & details on SOESK-02
         const proposalText = `F&I new (${totalQtyValue})no rock pins (Havg=${heightText}, ${rockSocket || '4\'-0"'} rock socket) as per ${soePageMain} & details on ${soePageDetails}`
     }
-    
+
     return items
 }
 
-export const processShotcreteItems = (rawDataRows, headers) => {
-    const items = processGenericSoeItems(rawDataRows, headers, isShotcrete)
-    
+export const processShotcreteItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericSoeItems(rawDataRows, headers, isShotcrete, tracker)
+
     // Generate proposal text template
     if (items.length > 0) {
-        
+
         // Extract thickness and wire mesh
         let thickness = ''
         let wireMesh = ''
@@ -533,7 +545,7 @@ export const processShotcreteItems = (rawDataRows, headers) => {
                 wireMesh = meshMatch[1]
             }
         })
-        
+
         // Calculate average height
         let totalHeight = 0
         let heightCount = 0
@@ -548,7 +560,7 @@ export const processShotcreteItems = (rawDataRows, headers) => {
         const heightFeet = Math.floor(avgHeight)
         const heightInches = Math.round((avgHeight - heightFeet) * 12)
         const heightText = heightInches === 0 ? `${heightFeet}'-0"` : `${heightFeet}'-${heightInches}"`
-        
+
         // Get SOE page references
         let soePageMain = 'SOESK-01'
         let soePageDetails = 'SOESK-02'
@@ -575,20 +587,20 @@ export const processShotcreteItems = (rawDataRows, headers) => {
                 }
             }
         }
-        
+
         // Format: F&I new (6" thick) shotcrete w/ 6x6 wire mesh (Havg=23'-0") as per SOESK-01 & details on SOESK-02
         const proposalText = `F&I new (${thickness || '6"'} thick) shotcrete w/ ${wireMesh || '6x6'} wire mesh (Havg=${heightText}) as per ${soePageMain} & details on ${soePageDetails}`
     }
-    
+
     return items
 }
 
-export const processPermissionGroutingItems = (rawDataRows, headers) => {
-    const items = processGenericSoeItems(rawDataRows, headers, isPermissionGrouting)
-    
+export const processPermissionGroutingItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericSoeItems(rawDataRows, headers, isPermissionGrouting, tracker)
+
     // Generate proposal text template
     if (items.length > 0) {
-        
+
         // Calculate average height
         let totalHeight = 0
         let heightCount = 0
@@ -603,7 +615,7 @@ export const processPermissionGroutingItems = (rawDataRows, headers) => {
         const heightFeet = Math.floor(avgHeight)
         const heightInches = Math.round((avgHeight - heightFeet) * 12)
         const heightText = heightInches === 0 ? `${heightFeet}'-0"` : `${heightFeet}'-${heightInches}"`
-        
+
         // Get SOE page references
         let soePageMain = 'SOESK-01'
         let soePageDetails = 'SOESK-02'
@@ -630,30 +642,30 @@ export const processPermissionGroutingItems = (rawDataRows, headers) => {
                 }
             }
         }
-        
+
         // Format: F&I new permission grouting (Havg=16'-0") as per SOESK-01 & details on SOESK-02
         const proposalText = `F&I new permission grouting (Havg=${heightText}) as per ${soePageMain} & details on ${soePageDetails}`
     }
-    
+
     return items
 }
-export const processButtonItems = (rawDataRows, headers) => {
-    const items = processGenericSoeItems(rawDataRows, headers, isButton)
-    
+export const processButtonItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericSoeItems(rawDataRows, headers, isButton, tracker)
+
     // Generate proposal text template
     if (items.length > 0) {
-        
+
         // Calculate totals for proposal text
         const totalQty = items.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0)
         const totalTakeoff = items.reduce((sum, item) => sum + (item.takeoff || 0), 0)
         const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
-        
+
         // Extract width from items (for format: 3'-0"x3'-0" wide)
         let widthText = ''
         if (items.length > 0) {
             const firstItem = items[0]
             const particulars = firstItem.particulars || ''
-            
+
             // Extract dimensions from bracket format: Concrete button (3'-0"x3'-0"x1'-0")
             const bracketMatch = particulars.match(/\(([^)]+)\)/)
             if (bracketMatch) {
@@ -680,7 +692,7 @@ export const processButtonItems = (rawDataRows, headers) => {
                 }
             }
         }
-        
+
         // Calculate average height from parsed height values
         let totalHeight = 0
         let heightCount = 0
@@ -693,12 +705,12 @@ export const processButtonItems = (rawDataRows, headers) => {
             }
         })
         const avgHeight = heightCount > 0 ? totalHeight / heightCount : 0
-        
+
         // Format average height (use actual average, format as feet and inches)
         const heightFeet = Math.floor(avgHeight)
         const heightInches = Math.round((avgHeight - heightFeet) * 12)
         const heightText = heightInches === 0 ? `${heightFeet}'-0"` : `${heightFeet}'-${heightInches}"`
-        
+
         // Get SOE page reference from raw data (could be SOESK-01 or SOE-XXX.XX)
         let soePageMain = 'SOE-101.00' // Default
         const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
@@ -723,22 +735,22 @@ export const processButtonItems = (rawDataRows, headers) => {
                 }
             }
         }
-        
+
         // Generate proposal text template
         // Format: F&I new (12)no (3'-0"x3'-0" wide) concrete buttons (Havg=3'-3") as per SOESK-01
-        const proposalText = widthText 
+        const proposalText = widthText
             ? `F&I new (${totalQtyValue})no (${widthText} wide) concrete buttons (Havg=${heightText}) as per ${soePageMain}`
             : `F&I new (${totalQtyValue})no concrete buttons (Havg=${heightText}) as per ${soePageMain}`
     }
-    
+
     return items
 }
-export const processRockStabilizationItems = (rawDataRows, headers) => {
-    const items = processGenericSoeItems(rawDataRows, headers, isRockStabilization)
-    
+export const processRockStabilizationItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericSoeItems(rawDataRows, headers, isRockStabilization, tracker)
+
     // Generate proposal text template
     if (items.length > 0) {
-        
+
         // Get SOE page references
         let soePageMain = 'SOE-100.00'
         let soePageDetails = 'SOE-300.00'
@@ -765,24 +777,24 @@ export const processRockStabilizationItems = (rawDataRows, headers) => {
                 }
             }
         }
-        
+
         // Format: F&I new rock stabilization as per SOE-100.00 & details on SOE-300.00
         const proposalText = `F&I new rock stabilization as per ${soePageMain} & details on ${soePageDetails}`
     }
-    
+
     return items
 }
-export const processFormBoardItems = (rawDataRows, headers) => {
-    const items = processGenericSoeItems(rawDataRows, headers, isFormBoard)
-    
+export const processFormBoardItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericSoeItems(rawDataRows, headers, isFormBoard, tracker)
+
     // Generate proposal text template
     if (items.length > 0) {
-        
+
         // Calculate totals for proposal text
         const totalQty = items.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0)
         const totalTakeoff = items.reduce((sum, item) => sum + (item.takeoff || 0), 0)
         const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
-        
+
         // Extract thickness from items (e.g., "1" form board" -> "1"")
         let thickness = '1"' // Default thickness
         if (items.length > 0) {
@@ -794,7 +806,7 @@ export const processFormBoardItems = (rawDataRows, headers) => {
                 thickness = `${thicknessMatch[1]}"`
             }
         }
-        
+
         // Get SOE page reference from raw data
         let soePageMain = 'SOE-300.00' // Default for form board
         const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
@@ -818,11 +830,11 @@ export const processFormBoardItems = (rawDataRows, headers) => {
                 }
             }
         }
-        
+
         // Generate proposal text template
         const proposalText = `F&I new (${thickness} thick) form board w/ filter fabric between tunnel and retention pier as per ${soePageMain}`
     }
-    
+
     return items
 }
 
@@ -1093,7 +1105,7 @@ export const generateSoeFormulas = (itemType, rowNum, itemData) => {
  */
 export const formatDrilledSoldierPileProposalText = (drilledGroups) => {
     if (!drilledGroups || drilledGroups.length === 0) return null
-    
+
     // Get all drilled items from all groups
     const allDrilledItems = []
     drilledGroups.forEach(group => {
@@ -1101,20 +1113,20 @@ export const formatDrilledSoldierPileProposalText = (drilledGroups) => {
             allDrilledItems.push(...group.items)
         }
     })
-    
+
     if (allDrilledItems.length === 0) return null
-    
+
     // Get diameter and thickness from first item (should be same for all in a group)
     const firstItem = allDrilledItems[0]
     const parsed = firstItem.parsed
     const diameter = parsed.diameter
     const thickness = parsed.thickness
-    
+
     // Calculate average height
     let totalHeight = 0
     let heightCount = 0
     let embedment = null
-    
+
     allDrilledItems.forEach(item => {
         if (item.parsed && item.parsed.heightRaw) {
             totalHeight += item.parsed.heightRaw
@@ -1125,18 +1137,18 @@ export const formatDrilledSoldierPileProposalText = (drilledGroups) => {
             embedment = item.parsed.embedment
         }
     })
-    
+
     if (heightCount === 0) return null
-    
+
     const avgHeight = totalHeight / heightCount
     // Round average height to nearest foot
     const avgHeightRounded = Math.round(avgHeight)
-    
+
     // Format embedment (embedment is already in feet from parseDimension)
     let embedmentText = ''
     if (embedment) {
-    const embedmentFeet = Math.floor(embedment)
-    const embedmentInches = Math.round((embedment - embedmentFeet) * 12)
+        const embedmentFeet = Math.floor(embedment)
+        const embedmentInches = Math.round((embedment - embedmentFeet) * 12)
         if (embedmentInches === 0) {
             embedmentText = `${embedmentFeet}'-0"`
         } else {
@@ -1145,7 +1157,7 @@ export const formatDrilledSoldierPileProposalText = (drilledGroups) => {
     } else {
         embedmentText = "0'-0\""
     }
-    
+
     // Format height (heightRaw is already in feet from parseDimension)
     const heightFeet = Math.floor(avgHeightRounded)
     const heightInches = Math.round((avgHeightRounded - heightFeet) * 12)
@@ -1155,13 +1167,13 @@ export const formatDrilledSoldierPileProposalText = (drilledGroups) => {
     } else {
         heightText = `${heightFeet}'-${heightInches}"`
     }
-    
+
     // Count total number of items (sum of all takeoff values)
     const totalCount = Math.round(allDrilledItems.reduce((sum, item) => sum + (item.takeoff || 0), 0))
-    
+
     // Format the text: F&I new (##)no [9.625" Øx0.545" thick] drilled soldier piles (H=30'-0", 15'-0" embedment) as per SOE-101.00
     const proposalText = `F&I new (${totalCount})no [${diameter}" Øx${thickness}" thick] drilled soldier piles (H=${heightText}, ${embedmentText} embedment) as per SOE-101.00`
-    
+
     return proposalText
 }
 
