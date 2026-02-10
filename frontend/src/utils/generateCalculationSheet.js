@@ -3399,6 +3399,211 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'superstructure_repair_scope', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
           })
           rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'CIP Stairs') {
+          // CIP Stairs - formulas in columns I-M; raw values in C/F/G/H
+          const stairGroups = [
+            {
+              name: 'Stair A, B & D:',
+              hasLandings: true,
+              landingTakeoff: 21,
+              landingHeight: 0.67,
+              stairTakeoff: 262,
+              stairF: '11/12',
+              stairG: 3,
+              stairHeight: '7/12',
+              slabHeight: 0.5,
+              slabG: 3,
+              slabCMultiplier: 1.3
+            },
+            {
+              name: 'Stair E & F:',
+              hasLandings: false,
+              stairTakeoff: '=18+18',
+              stairF: '11/12',
+              stairG: 4,
+              stairHeight: '7/12',
+              slabHeight: 0.5,
+              slabG: 4,
+              slabCMultiplier: 1.3
+            },
+            {
+              name: 'Misc. stair:',
+              hasLandings: false,
+              stairTakeoff: 16,
+              stairF: '11/12',
+              stairG: 3,
+              stairHeight: '7/12',
+              slabHeight: 0.5,
+              slabG: 3,
+              slabCMultiplier: 1.3
+            },
+            {
+              name: 'Ext. stair:',
+              hasLandings: true,
+              landingTakeoff: 20.1,
+              landingHeight: 0.67,
+              stairTakeoff: 16,
+              stairF: '11/12',
+              stairG: 3,
+              stairHeight: '7/12',
+              slabHeight: 0.5,
+              slabG: 3,
+              slabCMultiplier: 1.3
+            }
+          ]
+
+          stairGroups.forEach((group) => {
+            // Group Header (underlined, no other data in this row)
+            const headerRow = Array(template.columns.length).fill('')
+            headerRow[1] = group.name
+            rows.push(headerRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_cip_stairs_header',
+              section: 'superstructure',
+              subsectionName: subsection.name
+            })
+
+            // Landings (if present)
+            if (group.hasLandings) {
+              const landingRow = Array(template.columns.length).fill('')
+              landingRow[1] = 'Landings'
+              rows.push(landingRow)
+              formulas.push({
+                row: rows.length,
+                itemType: 'superstructure_manual_cip_stairs_landing',
+                section: 'superstructure',
+                subsectionName: subsection.name,
+                takeoff: group.landingTakeoff,
+                height: group.landingHeight
+              })
+
+              // Gap row after landings
+              rows.push(Array(template.columns.length).fill(''))
+            }
+
+            // Stairs
+            const stairRow = Array(template.columns.length).fill('')
+            stairRow[1] = 'Stairs'
+            rows.push(stairRow)
+            const stairRowNum = rows.length
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_cip_stairs_stair',
+              section: 'superstructure',
+              subsectionName: subsection.name,
+              takeoff: group.stairTakeoff,
+              stairF: group.stairF,
+              stairG: group.stairG,
+              height: group.stairHeight
+            })
+
+            // Stair slab
+            const slabRow = Array(template.columns.length).fill('')
+            slabRow[1] = 'Stair slab'
+            rows.push(slabRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_cip_stairs_slab',
+              section: 'superstructure',
+              subsectionName: subsection.name,
+              height: group.slabHeight,
+              slabG: group.slabG,
+              stairsRowNum: stairRowNum,
+              slabCMultiplier: group.slabCMultiplier,
+              hasLandings: group.hasLandings
+            })
+
+            // Sum row - sums only Stairs and Stair slab (not Landings)
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_cip_stairs_sum',
+              section: 'superstructure',
+              subsectionName: subsection.name,
+              firstDataRow: stairRowNum,
+              lastDataRow: stairRowNum + 1
+            })
+
+            // Blank row
+            rows.push(Array(template.columns.length).fill(''))
+          })
+
+        } else if (subsection.name === 'Stairs \u2013 Infilled tads') {
+          // Stairs - Infilled tads - similar to CIP Stairs, C-H empty
+          // Two identical "Stair E:" groups
+
+          const addStairE = () => {
+            // Header (underlined, no other data)
+            const headerRow = Array(template.columns.length).fill('')
+            headerRow[1] = 'Stair E:'
+            rows.push(headerRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_infilled_header',
+              section: 'superstructure',
+              subsectionName: subsection.name
+            })
+
+            // Landings row 1
+            const landing1Row = Array(template.columns.length).fill('')
+            landing1Row[1] = 'Landings'
+            rows.push(landing1Row)
+            const landing1RowNum = rows.length
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_infilled_landing_1',
+              section: 'superstructure',
+              subsectionName: subsection.name
+            })
+
+            // Landings row 2 (no name, C and H set via formulas)
+            const landing2Row = Array(template.columns.length).fill('')
+            rows.push(landing2Row)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_infilled_landing_2',
+              section: 'superstructure',
+              subsectionName: subsection.name,
+              landing1RowNum: landing1RowNum
+            })
+
+            // Sum for Landings
+            const landingSumRow = Array(template.columns.length).fill('')
+            rows.push(landingSumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_infilled_landing_sum',
+              section: 'superstructure',
+              subsectionName: subsection.name,
+              landing1RowNum: landing1RowNum,
+              firstDataRow: landing1RowNum,
+              lastDataRow: landing1RowNum + 1
+            })
+
+            // Blank row
+            rows.push(Array(template.columns.length).fill(''))
+
+            // Stairs
+            const stairsRow = Array(template.columns.length).fill('')
+            stairsRow[1] = 'Stairs'
+            rows.push(stairsRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_infilled_stair',
+              section: 'superstructure',
+              subsectionName: subsection.name
+            })
+
+            // Blank row
+            rows.push(Array(template.columns.length).fill(''))
+          }
+
+          // Add two identical Stair E groups
+          addStairE()
+          addStairE()
+
         } else if (subsection.name === 'Ele') {
           // Superstructure Ele subsection with Excavation, Backfill, Gravel
           const createEleGroup = (subSubName, takeoffSource, lMultiplier = 1) => {

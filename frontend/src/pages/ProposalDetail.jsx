@@ -2079,6 +2079,132 @@ const ProposalDetail = () => {
           }
         }
 
+        // Manual Superstructure Items (CIP Stairs and Stairs - Infilled tads)
+
+        if (section === 'superstructure') {
+          // CIP Stairs - Header (underlined, no other data)
+          if (itemType === 'superstructure_manual_cip_stairs_header') {
+            spreadsheet.cellFormat({ textDecoration: 'underline' }, `B${row}`)
+            return
+          }
+
+          // CIP Stairs - Landings: I=empty, J=C, K=empty, L=J*H/27
+          if (itemType === 'superstructure_manual_cip_stairs_landing') {
+            // J = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            // L = J*H/27
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+
+          // CIP Stairs - Stairs: J=C*G*F, K=empty, L=J*H/27, M=C
+          if (itemType === 'superstructure_manual_cip_stairs_stair') {
+            // J = C*G*F
+            spreadsheet.updateCell({ formula: `=C${row}*G${row}*F${row}` }, `J${row}`)
+            // L = J*H/27
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            // M = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            return
+          }
+
+          // CIP Stairs - Stair Slab: I=C, J=I*H/27, K=empty, L=J*G/27, M=empty
+          if (itemType === 'superstructure_manual_cip_stairs_slab') {
+            const { stairsRowNum, slabCMultiplier } = formulaInfo
+            // C = reference to stairs row C (with optional multiplier)
+            if (slabCMultiplier && slabCMultiplier !== 1) {
+              spreadsheet.updateCell({ formula: `=C${stairsRowNum}*${slabCMultiplier}` }, `C${row}`)
+            } else {
+              spreadsheet.updateCell({ formula: `=C${stairsRowNum}` }, `C${row}`)
+            }
+            // I = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            // J = I*H
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            // L = J*G/27
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            return
+          }
+
+          // CIP Stairs - Sum: SUM of I, J, L, M (excludes Landings row)
+          if (itemType === 'superstructure_manual_cip_stairs_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            // Sum I
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            // Sum J
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            // Sum L
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            // Sum M
+            spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+
+          // Stairs - Infilled tads - Header (underlined, no other data)
+          if (itemType === 'superstructure_manual_infilled_header') {
+            spreadsheet.cellFormat({ textDecoration: 'underline' }, `B${row}`)
+            return
+          }
+
+          // Stairs - Infilled tads - Landing 1: J=C, L=(J*H)/27
+          if (itemType === 'superstructure_manual_infilled_landing_1') {
+            // J = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            // L = (J*H)/27
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            // H = blue background
+            spreadsheet.cellFormat({ backgroundColor: '#D9E1F2' }, `H${row}`)
+            return
+          }
+
+          // Stairs - Infilled tads - Landing 2: C=C{landing1}, H=1.5/12 (blue bg), J=C, L=(J*H)/27/2
+          if (itemType === 'superstructure_manual_infilled_landing_2') {
+            const { landing1RowNum } = formulaInfo
+            // C = reference to Landing 1 C
+            spreadsheet.updateCell({ formula: `=C${landing1RowNum}` }, `C${row}`)
+            // H = blue background (no formula)
+            spreadsheet.updateCell({ formula: `` }, `H${row}`)
+            spreadsheet.cellFormat({ backgroundColor: '#D9E1F2' }, `H${row}`)
+            // J = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            // L = (J*H)/27/2
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27/2` }, `L${row}`)
+            return
+          }
+
+          // Stairs - Infilled tads - Landing Sum: J=J{landing1}, L=SUM (all RED)
+          if (itemType === 'superstructure_manual_infilled_landing_sum') {
+            const { landing1RowNum, firstDataRow, lastDataRow } = formulaInfo
+            // J = J{landing1Row}
+            spreadsheet.updateCell({ formula: `=J${landing1RowNum}` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            // L = SUM(L range)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+
+          // Stairs - Infilled tads - Stairs: J=C*G*F, L=J*H/27, M=C (All RED)
+          if (itemType === 'superstructure_manual_infilled_stair') {
+            // J = C*G*F
+            spreadsheet.updateCell({ formula: `=C${row}*G${row}*F${row}` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            // L = J*H/27
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            // M = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+        }
+
         // Apply generic formulas if we got them from generators
         if (formulas) {
           if (formulas.qty) spreadsheet.updateCell({ formula: `=${formulas.qty}` }, `E${row}`)

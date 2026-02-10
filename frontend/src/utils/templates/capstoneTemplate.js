@@ -26,17 +26,14 @@ export const capstoneTemplate = {
         { name: 'Demo slab on grade', items: [] },
         { name: 'Demo strip footing', items: [] },
         { name: 'Demo foundation wall', items: [] },
-        { name: 'Demo isolated footing', items: [] },
-        { name: 'For demo Extra line item use this', items: [] }
+        { name: 'Demo isolated footing', items: [] }
       ]
     },
     {
       section: 'Excavation',
       subsections: [
         { name: 'Excavation', items: [] },
-        { name: 'For soil excavation Extra line item use this', items: [] },
         { name: 'Backfill', items: [] },
-        { name: 'For Backfill Extra line item use this', items: [] },
         { name: 'Mud slab', items: [] }
       ]
     },
@@ -44,7 +41,6 @@ export const capstoneTemplate = {
       section: 'Rock Excavation',
       subsections: [
         { name: 'Excavation', items: [] },
-        { name: 'For rock excavation Extra line item use this', items: [] },
         { name: 'Line drill', items: [] }
       ]
     },
@@ -122,8 +118,7 @@ export const capstoneTemplate = {
         { name: 'Mud Slab', items: [] },
         { name: 'SOG', items: [] },
         { name: 'Stairs on grade Stairs', items: [] },
-        { name: 'Electric conduit', items: [] },
-        { name: 'For foundation Extra line item use this', items: [] }
+        { name: 'Electric conduit', items: [] }
       ]
     },
     {
@@ -131,8 +126,7 @@ export const capstoneTemplate = {
       subsections: [
         { name: 'Exterior side', items: [] },
         { name: 'Negative side', items: [] },
-        { name: 'Horizontal', items: [] },
-        { name: 'For foundation Extra line item use this', items: [] }
+        { name: 'Horizontal', items: [] }
       ]
     },
     {
@@ -168,9 +162,7 @@ export const capstoneTemplate = {
         { name: 'Curbs', items: [] },
         { name: 'Concrete pad', items: [] },
         { name: 'Non-shrink grout', items: [] },
-        { name: 'Repair scope', items: [] },
-        { name: 'Ele', items: [] },
-        { name: 'For Superstructure Extra line item use this', items: [] }
+        { name: 'Repair scope', items: [] }
       ]
     },
     {
