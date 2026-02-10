@@ -78,6 +78,7 @@ import { processExteriorSideItems, processExteriorSidePitItems, processNegativeS
 import { processSuperstructureItems } from './processors/superstructureProcessor'
 import { processBPPAlternateItems } from './processors/bppAlternateProcessor'
 import { processCivilDemoItems, processCivilOtherItems } from './processors/civilSiteworkProcessor'
+import UsedRowTracker from './usedRowTracker'
 
 /**
  * Generates the Calculations Sheet structure based on the selected template
@@ -220,103 +221,111 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   const foundationSlabRows = {} // Populated when building Foundation section; used by Waterproofing Exterior side pit items
   let rockExcavationTotals = { totalSQFT: 0, totalCY: 0 } // Initialize rock excavation totals
   let lineDrillTotalFT = 0 // Initialize line drill total FT
+  let unusedRawDataRows = [] // Store unused raw data rows for tracking
   if (rawData && rawData.length > 1) {
     const headers = rawData[0]
     const dataRows = rawData.slice(1)
-    demolitionItemsBySubsection = processDemolitionItems(dataRows, headers)
-    excavationItems = processExcavationItems(dataRows, headers)
-    backfillItems = processBackfillItems(dataRows, headers)
-    mudSlabItems = processMudSlabItems(dataRows, headers)
-    rockExcavationItems = processRockExcavationItems(dataRows, headers)
+
+    // Create tracker to track used row indices across all processors
+    const tracker = new UsedRowTracker()
+
+    demolitionItemsBySubsection = processDemolitionItems(dataRows, headers, tracker)
+    excavationItems = processExcavationItems(dataRows, headers, tracker)
+    backfillItems = processBackfillItems(dataRows, headers, tracker)
+    mudSlabItems = processMudSlabItems(dataRows, headers, tracker)
+    rockExcavationItems = processRockExcavationItems(dataRows, headers, tracker)
     // Calculate rock excavation totals
     if (rockExcavationItems.length > 0) {
       rockExcavationTotals = calculateRockExcavationTotals(rockExcavationItems)
     }
-    lineDrillItems = processLineDrillItems(dataRows, headers)
+    lineDrillItems = processLineDrillItems(dataRows, headers, tracker)
     // Calculate line drill total FT
     if (lineDrillItems.length > 0) {
       lineDrillTotalFT = calculateLineDrillTotalFT(lineDrillItems)
     }
-    soldierPileGroups = processSoldierPileItems(dataRows, headers)
-    primarySecantItems = processPrimarySecantItems(dataRows, headers)
-    secondarySecantItems = processSecondarySecantItems(dataRows, headers)
-    tangentPileItems = processTangentPileItems(dataRows, headers)
-    sheetPileItems = processSheetPileItems(dataRows, headers)
-    timberLaggingItems = processTimberLaggingItems(dataRows, headers)
-    timberSheetingItems = processTimberSheetingItems(dataRows, headers)
-    walerItems = processWalerItems(dataRows, headers)
-    rakerItems = processRakerItems(dataRows, headers)
-    upperRakerItems = processUpperRakerItems(dataRows, headers)
-    lowerRakerItems = processLowerRakerItems(dataRows, headers)
-    standOffItems = processStandOffItems(dataRows, headers)
-    kickerItems = processKickerItems(dataRows, headers)
-    channelItems = processChannelItems(dataRows, headers)
-    rollChockItems = processRollChockItems(dataRows, headers)
-    studBeamItems = processStudBeamItems(dataRows, headers)
-    innerCornerBraceItems = processInnerCornerBraceItems(dataRows, headers)
-    kneeBraceItems = processKneeBraceItems(dataRows, headers)
-    supportingAngleGroups = processSupportingAngleItems(dataRows, headers)
-    pargingItems = processPargingItems(dataRows, headers)
-    heelBlockItems = processHeelBlockItems(dataRows, headers)
-    underpinningItems = processUnderpinningItems(dataRows, headers)
-    rockAnchorItems = processRockAnchorItems(dataRows, headers)
-    rockBoltItems = processRockBoltItems(dataRows, headers)
-    anchorItems = processAnchorItems(dataRows, headers)
-    tieBackItems = processTieBackItems(dataRows, headers)
-    concreteSoilRetentionPierItems = processConcreteSoilRetentionPierItems(dataRows, headers)
-    guideWallItems = processGuideWallItems(dataRows, headers)
-    dowelBarItems = processDowelBarItems(dataRows, headers)
-    rockPinItems = processRockPinItems(dataRows, headers)
-    shotcreteItems = processShotcreteItems(dataRows, headers)
-    permissionGroutingItems = processPermissionGroutingItems(dataRows, headers)
-    buttonItems = processButtonItems(dataRows, headers)
-    rockStabilizationItems = processRockStabilizationItems(dataRows, headers)
-    formBoardItems = processFormBoardItems(dataRows, headers)
+    soldierPileGroups = processSoldierPileItems(dataRows, headers, tracker)
+    primarySecantItems = processPrimarySecantItems(dataRows, headers, tracker)
+    secondarySecantItems = processSecondarySecantItems(dataRows, headers, tracker)
+    tangentPileItems = processTangentPileItems(dataRows, headers, tracker)
+    sheetPileItems = processSheetPileItems(dataRows, headers, tracker)
+    timberLaggingItems = processTimberLaggingItems(dataRows, headers, tracker)
+    timberSheetingItems = processTimberSheetingItems(dataRows, headers, tracker)
+    walerItems = processWalerItems(dataRows, headers, tracker)
+    rakerItems = processRakerItems(dataRows, headers, tracker)
+    upperRakerItems = processUpperRakerItems(dataRows, headers, tracker)
+    lowerRakerItems = processLowerRakerItems(dataRows, headers, tracker)
+    standOffItems = processStandOffItems(dataRows, headers, tracker)
+    kickerItems = processKickerItems(dataRows, headers, tracker)
+    channelItems = processChannelItems(dataRows, headers, tracker)
+    rollChockItems = processRollChockItems(dataRows, headers, tracker)
+    studBeamItems = processStudBeamItems(dataRows, headers, tracker)
+    innerCornerBraceItems = processInnerCornerBraceItems(dataRows, headers, tracker)
+    kneeBraceItems = processKneeBraceItems(dataRows, headers, tracker)
+    supportingAngleGroups = processSupportingAngleItems(dataRows, headers, tracker)
+    pargingItems = processPargingItems(dataRows, headers, tracker)
+    heelBlockItems = processHeelBlockItems(dataRows, headers, tracker)
+    underpinningItems = processUnderpinningItems(dataRows, headers, tracker)
+    rockAnchorItems = processRockAnchorItems(dataRows, headers, tracker)
+    rockBoltItems = processRockBoltItems(dataRows, headers, tracker)
+    anchorItems = processAnchorItems(dataRows, headers, tracker)
+    tieBackItems = processTieBackItems(dataRows, headers, tracker)
+    concreteSoilRetentionPierItems = processConcreteSoilRetentionPierItems(dataRows, headers, tracker)
+    guideWallItems = processGuideWallItems(dataRows, headers, tracker)
+    dowelBarItems = processDowelBarItems(dataRows, headers, tracker)
+    rockPinItems = processRockPinItems(dataRows, headers, tracker)
+    shotcreteItems = processShotcreteItems(dataRows, headers, tracker)
+    permissionGroutingItems = processPermissionGroutingItems(dataRows, headers, tracker)
+    buttonItems = processButtonItems(dataRows, headers, tracker)
+    rockStabilizationItems = processRockStabilizationItems(dataRows, headers, tracker)
+    formBoardItems = processFormBoardItems(dataRows, headers, tracker)
 
     hasBackpacking = timberLaggingItems.some(item =>
       item.particulars.toLowerCase().includes('w/backpacking')
     )
 
     // Process Foundation items
-    drilledFoundationPileGroups = processDrilledFoundationPileItems(dataRows, headers)
-    helicalFoundationPileGroups = processHelicalFoundationPileItems(dataRows, headers)
-    drivenFoundationPileItems = processDrivenFoundationPileItems(dataRows, headers)
-    stelcorDrilledDisplacementPileItems = processStelcorDrilledDisplacementPileItems(dataRows, headers)
-    cfaPileItems = processCFAPileItems(dataRows, headers)
-    pileCapItems = processPileCapItems(dataRows, headers)
-    stripFootingGroups = processStripFootingItems(dataRows, headers)
-    isolatedFootingItems = processIsolatedFootingItems(dataRows, headers)
-    pilasterItems = processPilasterItems(dataRows, headers)
-    gradeBeamGroups = processGradeBeamItems(dataRows, headers)
-    tieBeamGroups = processTieBeamItems(dataRows, headers)
-    thickenedSlabGroups = processThickenedSlabItems(dataRows, headers)
-    buttressItem = processButtressItems(dataRows, headers)
-    pierItems = processPierItems(dataRows, headers)
-    corbelGroups = processCorbelItems(dataRows, headers)
-    linearWallGroups = processLinearWallItems(dataRows, headers)
-    foundationWallGroups = processFoundationWallItems(dataRows, headers)
-    retainingWallGroups = processRetainingWallItems(dataRows, headers)
-    barrierWallGroups = processBarrierWallItems(dataRows, headers)
-    stemWallItems = processStemWallItems(dataRows, headers)
-    elevatorPitItems = processElevatorPitItems(dataRows, headers)
-    detentionTankItems = processDetentionTankItems(dataRows, headers)
-    duplexSewageEjectorPitItems = processDuplexSewageEjectorPitItems(dataRows, headers)
-    deepSewageEjectorPitItems = processDeepSewageEjectorPitItems(dataRows, headers)
-    greaseTrapItems = processGreaseTrapItems(dataRows, headers)
-    houseTrapItems = processHouseTrapItems(dataRows, headers)
-    matSlabItems = processMatSlabItems(dataRows, headers)
-    mudSlabFoundationItems = processMudSlabFoundationItems(dataRows, headers)
-    sogItems = processSOGItems(dataRows, headers)
-    stairsOnGradeGroups = processStairsOnGradeItems(dataRows, headers)
-    electricConduitItems = processElectricConduitItems(dataRows, headers)
-    exteriorSideItems = processExteriorSideItems(dataRows, headers)
-    exteriorSidePitItems = processExteriorSidePitItems(dataRows, headers)
-    negativeSideWallItems = processNegativeSideWallItems(dataRows, headers)
-    negativeSideSlabItems = processNegativeSideSlabItems(dataRows, headers)
-    superstructureItems = processSuperstructureItems(dataRows, headers)
-    bppAlternateItemsByStreet = processBPPAlternateItems(dataRows, headers)
-    civilDemoItems = processCivilDemoItems(dataRows, headers)
-    civilOtherItems = processCivilOtherItems(dataRows, headers)
+    drilledFoundationPileGroups = processDrilledFoundationPileItems(dataRows, headers, tracker)
+    helicalFoundationPileGroups = processHelicalFoundationPileItems(dataRows, headers, tracker)
+    drivenFoundationPileItems = processDrivenFoundationPileItems(dataRows, headers, tracker)
+    stelcorDrilledDisplacementPileItems = processStelcorDrilledDisplacementPileItems(dataRows, headers, tracker)
+    cfaPileItems = processCFAPileItems(dataRows, headers, tracker)
+    pileCapItems = processPileCapItems(dataRows, headers, tracker)
+    stripFootingGroups = processStripFootingItems(dataRows, headers, tracker)
+    isolatedFootingItems = processIsolatedFootingItems(dataRows, headers, tracker)
+    pilasterItems = processPilasterItems(dataRows, headers, tracker)
+    gradeBeamGroups = processGradeBeamItems(dataRows, headers, tracker)
+    tieBeamGroups = processTieBeamItems(dataRows, headers, tracker)
+    thickenedSlabGroups = processThickenedSlabItems(dataRows, headers, tracker)
+    buttressItem = processButtressItems(dataRows, headers, tracker)
+    pierItems = processPierItems(dataRows, headers, tracker)
+    corbelGroups = processCorbelItems(dataRows, headers, tracker)
+    linearWallGroups = processLinearWallItems(dataRows, headers, tracker)
+    foundationWallGroups = processFoundationWallItems(dataRows, headers, tracker)
+    retainingWallGroups = processRetainingWallItems(dataRows, headers, tracker)
+    barrierWallGroups = processBarrierWallItems(dataRows, headers, tracker)
+    stemWallItems = processStemWallItems(dataRows, headers, tracker)
+    elevatorPitItems = processElevatorPitItems(dataRows, headers, tracker)
+    detentionTankItems = processDetentionTankItems(dataRows, headers, tracker)
+    duplexSewageEjectorPitItems = processDuplexSewageEjectorPitItems(dataRows, headers, tracker)
+    deepSewageEjectorPitItems = processDeepSewageEjectorPitItems(dataRows, headers, tracker)
+    greaseTrapItems = processGreaseTrapItems(dataRows, headers, tracker)
+    houseTrapItems = processHouseTrapItems(dataRows, headers, tracker)
+    matSlabItems = processMatSlabItems(dataRows, headers, tracker)
+    mudSlabFoundationItems = processMudSlabFoundationItems(dataRows, headers, tracker)
+    sogItems = processSOGItems(dataRows, headers, tracker)
+    stairsOnGradeGroups = processStairsOnGradeItems(dataRows, headers, tracker)
+    electricConduitItems = processElectricConduitItems(dataRows, headers, tracker)
+    exteriorSideItems = processExteriorSideItems(dataRows, headers, tracker)
+    exteriorSidePitItems = processExteriorSidePitItems(dataRows, headers, tracker)
+    negativeSideWallItems = processNegativeSideWallItems(dataRows, headers, tracker)
+    negativeSideSlabItems = processNegativeSideSlabItems(dataRows, headers, tracker)
+    superstructureItems = processSuperstructureItems(dataRows, headers, tracker)
+    bppAlternateItemsByStreet = processBPPAlternateItems(dataRows, headers, tracker)
+    civilDemoItems = processCivilDemoItems(dataRows, headers, tracker)
+    civilOtherItems = processCivilOtherItems(dataRows, headers, tracker)
+
+    // Get unused rows
+    unusedRawDataRows = tracker.getUnusedRows(dataRows, headers)
     const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
     const totalIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'total')
     if (digitizerIdx >= 0 && totalIdx >= 0) {
@@ -389,36 +398,36 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           rows.push(subsectionRow)
 
           if (subsection.name === 'For demo Extra line item use this') {
-          // Customized demo templates for extra line items
+            // Customized demo templates for extra line items
             const extraItems = [
-            {
-              name: 'Demo SOG 4\" thick',
-              unit: 'SQ FT',
-              h: 1,
-              type: 'demo_extra_sqft'
-            },
-            {
-              name: 'Demo SF (2\'-0\"x1\'-0\")',
-              unit: 'SQ FT',
-              g: 1,
-              h: 1,
-              type: 'demo_extra_ft'
-            },
-            {
-              name: 'Demo FW (1\'-0\"x3\'-0\")',
-              unit: 'SQ FT',
-              g: 1,
-              h: 1,
-              type: 'demo_extra_ft'
-            },
-            {
-              name: 'Demo isolated footing (2\'-0\"x3\'-0\"x1\'-6\")',
-              unit: 'EA',
-              f: 1,
-              g: 1,
-              h: 1,
-              type: 'demo_extra_ea'
-            }
+              {
+                name: 'Demo SOG 4\" thick',
+                unit: 'SQ FT',
+                h: 1,
+                type: 'demo_extra_sqft'
+              },
+              {
+                name: 'Demo SF (2\'-0\"x1\'-0\")',
+                unit: 'SQ FT',
+                g: 1,
+                h: 1,
+                type: 'demo_extra_ft'
+              },
+              {
+                name: 'Demo FW (1\'-0\"x3\'-0\")',
+                unit: 'SQ FT',
+                g: 1,
+                h: 1,
+                type: 'demo_extra_ft'
+              },
+              {
+                name: 'Demo isolated footing (2\'-0\"x3\'-0\"x1\'-6\")',
+                unit: 'EA',
+                f: 1,
+                g: 1,
+                h: 1,
+                type: 'demo_extra_ea'
+              }
             ]
 
             extraItems.forEach(item => {
@@ -3402,6 +3411,211 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'superstructure_repair_scope', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
           })
           rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'CIP Stairs') {
+          // CIP Stairs - formulas in columns I-M; raw values in C/F/G/H
+          const stairGroups = [
+            {
+              name: 'Stair A, B & D:',
+              hasLandings: true,
+              landingTakeoff: 21,
+              landingHeight: 0.67,
+              stairTakeoff: 262,
+              stairF: '11/12',
+              stairG: 3,
+              stairHeight: '7/12',
+              slabHeight: 0.5,
+              slabG: 3,
+              slabCMultiplier: 1.3
+            },
+            {
+              name: 'Stair E & F:',
+              hasLandings: false,
+              stairTakeoff: '=18+18',
+              stairF: '11/12',
+              stairG: 4,
+              stairHeight: '7/12',
+              slabHeight: 0.5,
+              slabG: 4,
+              slabCMultiplier: 1.3
+            },
+            {
+              name: 'Misc. stair:',
+              hasLandings: false,
+              stairTakeoff: 16,
+              stairF: '11/12',
+              stairG: 3,
+              stairHeight: '7/12',
+              slabHeight: 0.5,
+              slabG: 3,
+              slabCMultiplier: 1.3
+            },
+            {
+              name: 'Ext. stair:',
+              hasLandings: true,
+              landingTakeoff: 20.1,
+              landingHeight: 0.67,
+              stairTakeoff: 16,
+              stairF: '11/12',
+              stairG: 3,
+              stairHeight: '7/12',
+              slabHeight: 0.5,
+              slabG: 3,
+              slabCMultiplier: 1.3
+            }
+          ]
+
+          stairGroups.forEach((group) => {
+            // Group Header (underlined, no other data in this row)
+            const headerRow = Array(template.columns.length).fill('')
+            headerRow[1] = group.name
+            rows.push(headerRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_cip_stairs_header',
+              section: 'superstructure',
+              subsectionName: subsection.name
+            })
+
+            // Landings (if present)
+            if (group.hasLandings) {
+              const landingRow = Array(template.columns.length).fill('')
+              landingRow[1] = 'Landings'
+              rows.push(landingRow)
+              formulas.push({
+                row: rows.length,
+                itemType: 'superstructure_manual_cip_stairs_landing',
+                section: 'superstructure',
+                subsectionName: subsection.name,
+                takeoff: group.landingTakeoff,
+                height: group.landingHeight
+              })
+
+              // Gap row after landings
+              rows.push(Array(template.columns.length).fill(''))
+            }
+
+            // Stairs
+            const stairRow = Array(template.columns.length).fill('')
+            stairRow[1] = 'Stairs'
+            rows.push(stairRow)
+            const stairRowNum = rows.length
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_cip_stairs_stair',
+              section: 'superstructure',
+              subsectionName: subsection.name,
+              takeoff: group.stairTakeoff,
+              stairF: group.stairF,
+              stairG: group.stairG,
+              height: group.stairHeight
+            })
+
+            // Stair slab
+            const slabRow = Array(template.columns.length).fill('')
+            slabRow[1] = 'Stair slab'
+            rows.push(slabRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_cip_stairs_slab',
+              section: 'superstructure',
+              subsectionName: subsection.name,
+              height: group.slabHeight,
+              slabG: group.slabG,
+              stairsRowNum: stairRowNum,
+              slabCMultiplier: group.slabCMultiplier,
+              hasLandings: group.hasLandings
+            })
+
+            // Sum row - sums only Stairs and Stair slab (not Landings)
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_cip_stairs_sum',
+              section: 'superstructure',
+              subsectionName: subsection.name,
+              firstDataRow: stairRowNum,
+              lastDataRow: stairRowNum + 1
+            })
+
+            // Blank row
+            rows.push(Array(template.columns.length).fill(''))
+          })
+
+        } else if (subsection.name === 'Stairs \u2013 Infilled tads') {
+          // Stairs - Infilled tads - similar to CIP Stairs, C-H empty
+          // Two identical "Stair E:" groups
+
+          const addStairE = () => {
+            // Header (underlined, no other data)
+            const headerRow = Array(template.columns.length).fill('')
+            headerRow[1] = 'Stair E:'
+            rows.push(headerRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_infilled_header',
+              section: 'superstructure',
+              subsectionName: subsection.name
+            })
+
+            // Landings row 1
+            const landing1Row = Array(template.columns.length).fill('')
+            landing1Row[1] = 'Landings'
+            rows.push(landing1Row)
+            const landing1RowNum = rows.length
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_infilled_landing_1',
+              section: 'superstructure',
+              subsectionName: subsection.name
+            })
+
+            // Landings row 2 (no name, C and H set via formulas)
+            const landing2Row = Array(template.columns.length).fill('')
+            rows.push(landing2Row)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_infilled_landing_2',
+              section: 'superstructure',
+              subsectionName: subsection.name,
+              landing1RowNum: landing1RowNum
+            })
+
+            // Sum for Landings
+            const landingSumRow = Array(template.columns.length).fill('')
+            rows.push(landingSumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_infilled_landing_sum',
+              section: 'superstructure',
+              subsectionName: subsection.name,
+              landing1RowNum: landing1RowNum,
+              firstDataRow: landing1RowNum,
+              lastDataRow: landing1RowNum + 1
+            })
+
+            // Blank row
+            rows.push(Array(template.columns.length).fill(''))
+
+            // Stairs
+            const stairsRow = Array(template.columns.length).fill('')
+            stairsRow[1] = 'Stairs'
+            rows.push(stairsRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_manual_infilled_stair',
+              section: 'superstructure',
+              subsectionName: subsection.name
+            })
+
+            // Blank row
+            rows.push(Array(template.columns.length).fill(''))
+          }
+
+          // Add two identical Stair E groups
+          addStairE()
+          addStairE()
+
         } else if (subsection.name === 'Ele') {
           // Superstructure Ele subsection with Excavation, Backfill, Gravel
           const createEleGroup = (subSubName, takeoffSource, lMultiplier = 1) => {
@@ -4778,12 +4992,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     }
   })
 
-  return { 
-    rows, 
-    formulas, 
-    rockExcavationTotals, 
-    lineDrillTotalFT, 
-    soldierPileGroups, 
+  return {
+    rows,
+    formulas,
+    rockExcavationTotals,
+    lineDrillTotalFT,
+    soldierPileGroups,
     primarySecantItems,
     secondarySecantItems,
     tangentPileItems,
@@ -4800,7 +5014,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     helicalFoundationPileGroups,
     drivenFoundationPileItems,
     stelcorDrilledDisplacementPileItems,
-    cfaPileItems
+    cfaPileItems,
+    unusedRawDataRows // Return unused data rows
   }
 }
 

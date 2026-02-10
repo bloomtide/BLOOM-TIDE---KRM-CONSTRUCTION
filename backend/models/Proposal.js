@@ -38,6 +38,18 @@ const proposalSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.Mixed, // Syncfusion saveAsJson() output
             default: null,
         },
+        // Store unused raw data rows (rows not processed by any processor)
+        unusedRawDataRows: [{
+            rowIndex: {
+                type: Number,
+                required: true,
+            },
+            rowData: [mongoose.Schema.Types.Mixed], // Array of cell values for this row
+            isUsed: {
+                type: Boolean,
+                default: false, // Client can mark as used after manual processing
+            },
+        }],
         // Store images separately since Syncfusion saveAsJson() doesn't include them
         images: [{
             sheetIndex: {

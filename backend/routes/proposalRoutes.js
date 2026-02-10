@@ -7,6 +7,8 @@ import {
     deleteProposal,
     deleteProposals,
     duplicateProposal,
+    updateUnusedRowStatus,
+    updateUnusedRowStatusBulk,
 } from '../controllers/proposalController.js';
 import { protect } from '../middleware/auth.js';
 import upload from '../middleware/upload.js';
@@ -23,6 +25,8 @@ router.route('/')
 
 router.post('/bulk-delete', deleteProposals);
 router.post('/:id/duplicate', duplicateProposal);
+router.patch('/:id/unused-rows/bulk', updateUnusedRowStatusBulk);
+router.patch('/:id/unused-rows/:rowIndex', updateUnusedRowStatus);
 
 router.route('/:id')
     .get(getProposalById)

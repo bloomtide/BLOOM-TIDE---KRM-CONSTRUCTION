@@ -98,9 +98,10 @@ export const generateDemolitionFormulas = (type, rowNum, parsedData) => {
  * Processes all demolition items from raw data, grouped by subsection
  * @param {Array} rawDataRows - Array of rows from raw Excel data (excluding header)
  * @param {Array} headers - Column headers from raw data
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  * @returns {object} - Object with subsection names as keys and arrays of items as values
  */
-export const processDemolitionItems = (rawDataRows, headers) => {
+export const processDemolitionItems = (rawDataRows, headers, tracker = null) => {
   const demolitionItemsBySubsection = {
     'Demo slab on grade': [],
     'Demo strip footing': [],
@@ -135,6 +136,11 @@ export const processDemolitionItems = (rawDataRows, headers) => {
           rawRow: row,
           rawRowNumber: rowIndex + 2 // +2 because: +1 for header row, +1 for 1-based indexing
         })
+
+        // Mark this row as used
+        if (tracker) {
+          tracker.markUsed(rowIndex)
+        }
       }
     }
   })

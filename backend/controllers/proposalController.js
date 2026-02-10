@@ -165,7 +165,7 @@ export const getProposalById = async (req, res) => {
 // @access  Private
 export const updateProposal = async (req, res) => {
     try {
-        const { name, client, project, spreadsheetJson, images } = req.body;
+        const { name, client, project, spreadsheetJson, images, unusedRawDataRows } = req.body;
 
         // Build update object - only include fields that were sent
         const update = {};
@@ -174,6 +174,7 @@ export const updateProposal = async (req, res) => {
         if (project !== undefined) update.project = project;
         if (spreadsheetJson !== undefined) update.spreadsheetJson = spreadsheetJson;
         if (images !== undefined) update.images = images;
+        if (unusedRawDataRows !== undefined) update.unusedRawDataRows = unusedRawDataRows;
 
         if (Object.keys(update).length === 0) {
             const proposal = await Proposal.findById(req.params.id);
@@ -212,6 +213,116 @@ export const updateProposal = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error updating proposal',
+        });
+    }
+};
+
+// @desc    Update unused row status (toggle isUsed checkbox)
+// @route   PATCH /api/proposals/:id/unused-rows/:rowIndex
+// @access  Private
+export const updateUnusedRowStatus = async (req, res) => {
+    try {
+        const { id, rowIndex } = req.params;
+        const { isUsed } = req.body;
+
+        if (typeof isUsed !== 'boolean') {
+            return res.status(400).json({
+                success: false,
+                message: 'isUsed must be a boolean value',
+            });
+        }
+
+        const rowIndexNum = parseInt(rowIndex, 10);
+        if (isNaN(rowIndexNum)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid row index',
+            });
+        }
+
+        // Find the proposal and update the specific row's isUsed status
+        const proposal = await Proposal.findOneAndUpdate(
+            { _id: id, 'unusedRawDataRows.rowIndex': rowIndexNum },
+            { $set: { 'unusedRawDataRows.$.isUsed': isUsed } },
+            { new: true }
+        );
+
+        if (!proposal) {
+            return res.status(404).json({
+                success: false,
+                message: 'Proposal or row not found',
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Row status updated successfully',
+            unusedRawDataRows: proposal.unusedRawDataRows,
+        });
+    } catch (error) {
+        console.error('Error updating unused row status:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating row status',
+        });
+    }
+};
+
+// @desc    Bulk update unused row statuses
+// @route   PATCH /api/proposals/:id/unused-rows/bulk
+// @access  Private
+export const updateUnusedRowStatusBulk = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { updates } = req.body; // updates is array of { rowIndex, isUsed }
+
+        if (!Array.isArray(updates)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Updates must be an array',
+            });
+        }
+
+        const proposal = await Proposal.findById(id);
+        if (!proposal) {
+            return res.status(404).json({
+                success: false,
+                message: 'Proposal not found',
+            });
+        }
+
+        // Apply all updates
+        // We can do this efficiently by iterating and updating the map/array
+        // Since unusedRawDataRows is an array of objects, we can update in memory then save
+        let updatedCount = 0;
+
+        updates.forEach(update => {
+            const { rowIndex, isUsed } = update;
+            if (rowIndex !== undefined && typeof isUsed === 'boolean') {
+                const rowIndexNum = parseInt(rowIndex, 10);
+                const row = proposal.unusedRawDataRows.find(r => r.rowIndex === rowIndexNum);
+                if (row) {
+                    row.isUsed = isUsed;
+                    updatedCount++;
+                }
+            }
+        });
+
+        if (updatedCount > 0) {
+            await proposal.save();
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `${updatedCount} rows updated successfully`,
+            unusedRawDataRows: proposal.unusedRawDataRows,
+        });
+
+    } catch (error) {
+        console.error('Error bulk updating unused row status:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error bulk updating row status',
         });
     }
 };

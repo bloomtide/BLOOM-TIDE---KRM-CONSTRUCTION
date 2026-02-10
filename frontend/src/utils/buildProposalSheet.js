@@ -1,81 +1,9 @@
 import { convertToFeet } from './parsers/dimensionParser'
-import proposalMapped from './proposal_mapped.json'
 
 export function buildProposalSheet(spreadsheet, { calculationData, formulaData, rockExcavationTotals, lineDrillTotalFT, rawData, createdAt, project, client }) {
   // Full Proposal template (match screenshot layout).
   const proposalSheetIndex = 1
   const pfx = 'Proposal Sheet!'
-
-  // Header labels from proposal_mapped.json (DESCRIPTION entry); fallback to key name if missing
-  const descriptionEntry = Array.isArray(proposalMapped) ? proposalMapped.find(e => e.description === 'DESCRIPTION') : null
-  const headerLabels = descriptionEntry?.values || {}
-  const label = (key) => (headerLabels[key] != null && headerLabels[key] !== '') ? String(headerLabels[key]) : key
-  const L = { LF: label('LF'), SF: label('SF'), LBS: label('LBS'), CY: label('CY'), QTY: label('QTY'), LS: label('LS') }
-
-  // Extract "whatever is after () and before as per" for rate matching (e.g. "no W12x58 walers" from "F&I new (11)no W12x58 walers as per SOE-101.00")
-  const getDescriptionKeyAfterParenBeforeAsPer = (descriptionText) => {
-    if (!descriptionText || typeof descriptionText !== 'string') return null
-    const closeParen = descriptionText.indexOf(')')
-    if (closeParen < 0) return null
-    const asPer = descriptionText.toLowerCase().indexOf(' as per ', closeParen)
-    if (asPer < 0) return null
-    const key = descriptionText.slice(closeParen + 1, asPer).trim()
-    return key || null
-  }
-
-  // Line rates from proposal_mapped.json only; also tries key "after () and before as per" for bracing-type lines
-  const getRatesForDescription = (descriptionText) => {
-    if (!descriptionText || typeof descriptionText !== 'string') return null
-    const trimmed = descriptionText.trim()
-    if (!trimmed) return null
-
-    if (!Array.isArray(proposalMapped)) return null
-    const candidates = proposalMapped.filter(e => e.description !== 'DESCRIPTION' && e.values && typeof e.values === 'object')
-    const withRates = candidates.filter(e => {
-      const v = e.values
-      return Object.keys(v).some(k => typeof v[k] === 'number')
-    })
-    const tryMatch = (key) => {
-      if (!key) return null
-      const exact = candidates.find(e => e.description.trim() === key)
-      if (exact && exact.values) return exact.values
-      const rowContains = withRates.filter(e => key.indexOf(e.description.trim()) >= 0)
-      if (rowContains.length > 0) {
-        // Prefer the match that appears earliest in the key (e.g. "Styrofoam" over "slab topping" in "Styrofoam @ under built-up slab topping")
-        const best = rowContains.reduce((best, e) => {
-          const desc = e.description.trim()
-          const pos = key.indexOf(desc)
-          if (pos < 0) return best
-          if (!best) return e
-          const bestPos = key.indexOf(best.description.trim())
-          return pos <= bestPos ? e : best
-        }, null)
-        if (best && best.values) return best.values
-      }
-      const entryContains = withRates.filter(e => e.description.trim().indexOf(key) >= 0)
-      if (entryContains.length > 0) return entryContains.reduce((best, e) => (e.description.length < (best?.description?.length || 1e9) ? e : best), entryContains[0]).values
-      return null
-    }
-    const fullMatch = tryMatch(trimmed)
-    if (fullMatch) return fullMatch
-    const afterParenKey = getDescriptionKeyAfterParenBeforeAsPer(descriptionText)
-    return tryMatch(afterParenKey) || null
-  }
-
-  // Fill columns I–N (unit rates $/LF, $/SF, etc.) from proposal_mapped.json for a proposal row
-  const fillRatesForProposalRow = (row, descriptionText) => {
-    const values = getRatesForDescription(descriptionText)
-    if (!values) return
-    const colMap = { LF: 'I', SF: 'J', LBS: 'K', CY: 'L', QTY: 'M', LS: 'N' }
-    Object.entries(colMap).forEach(([key, col]) => {
-      const num = values[key]
-      if (num != null && typeof num === 'number' && !Number.isNaN(num)) {
-        try {
-          spreadsheet.updateCell({ value: num }, `${pfx}${col}${row}`)
-        } catch (e) { /* ignore */ }
-      }
-    })
-  }
 
   // Clear everything (values + formats) on Proposal sheet so it never retains other sheet data.
   try {
@@ -87,51 +15,39 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   // Column widths to mirror screenshot
   const colWidths = {
     A: 40,  // margin
-    B: 955, // main left block
-    C: 146, // LF
-    D: 146, // SF
-    E: 146, // LBS
-    F: 146, // CY
-    G: 146, // QTY
-    H: 107, // $/1000 spacer - widened
-    I: 87,  // LF
-    J: 87,  // SF
-    K: 87,  // LBS
-    L: 87,  // CY
-    M: 87,  // QTY
-    N: 87   // LS
+    B: 700, // main left block (wider per request)
+    C: 75,  // LF
+    D: 75,  // SF
+    E: 85,  // LBS
+    F: 85,  // CY
+    G: 85,  // QTY
+    H: 70,  // $/1000 spacer
+    I: 65,  // LF
+    J: 65,  // SF
+    K: 75,  // LBS
+    L: 75,  // CY
+    M: 75,  // QTY
+    N: 75   // LS
   }
   Object.entries(colWidths).forEach(([col, width]) => {
-    // Try both 0 and 1 indices to match the active sheet
-    try { spreadsheet.setColWidth(width, col.charCodeAt(0) - 65, 0) } catch (e) { }
-    try { spreadsheet.setColWidth(width, col.charCodeAt(0) - 65, 1) } catch (e) { }
-    // Also try referencing by sheet name logic if possible, but indices are standard
+    spreadsheet.setColWidth(width, col.charCodeAt(0) - 65, proposalSheetIndex)
   })
-
-  // Set height for 1st row (index 0) to 24
-  try { spreadsheet.setRowHeight(24, 0, 0) } catch (e) { }
-  try { spreadsheet.setRowHeight(24, 0, 1) } catch (e) { }
 
   // Track all section total rows for BASE BID TOTAL formula
   const baseBidTotalRows = []
-  // Track rows that should remain bold (totals) to override the unbold rule
-  const totalRows = []
 
   // Helper function to calculate row height based on text content in column B
   const calculateRowHeight = (text) => {
     if (!text || typeof text !== 'string') {
-      return 30 // Default minimal height
+      return 22 // Default height for empty cells
     }
 
-    // Column B width is 955 pixels
-    const columnWidth = 955
-    const fontSize = 18 // Updated to 18pt
-    // Approximate line height for 18pt font. 30px is very tight for 18pt (24px).
-    // Try tightly packed to meet request.
-    const lineHeight = 26
-    const padding = 4
-    // Average char width for 18pt Calibri Bold is approx 11-12px
-    const charWidth = 11
+    // Column B width is approximately 500 pixels (based on colWidths)
+    const columnWidth = 500
+    const fontSize = 11 // Default font size
+    const lineHeight = 14 // More accurate line height in pixels
+    const padding = 8 // Top and bottom padding
+    const charWidth = 6.5 // More accurate character width in pixels (for font size 11)
 
     // Calculate how many characters fit per line (accounting for padding)
     const availableWidth = columnWidth - 20 // Account for cell padding
@@ -142,37 +58,37 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     const estimatedLines = Math.max(1, Math.ceil(textLength / charsPerLine))
 
     // Calculate height: (lines * lineHeight) + padding
-    const calculatedHeight = Math.max(30, Math.ceil(estimatedLines * lineHeight + padding))
+    const calculatedHeight = Math.max(22, Math.ceil(estimatedLines * lineHeight + padding))
 
-    // Increase cap significantly as 18pt text takes space
-    return Math.min(calculatedHeight, 400)
+    // Cap at reasonable maximum (60px for most cases, 80px for very long text)
+    // This prevents excessively tall rows
+    return Math.min(calculatedHeight, 80)
   }
 
 
   // Styles
-  const headerGray = { backgroundColor: '#D9D9D9', fontWeight: 'bold', fontFamily: 'Calibri', fontSize: '10pt', textAlign: 'center', verticalAlign: 'middle' }
-  const boxGray = { backgroundColor: '#D9D9D9', fontWeight: 'bold', fontFamily: 'Calibri', fontSize: '18pt', verticalAlign: 'middle' }
+  const headerGray = { backgroundColor: '#D9D9D9', fontWeight: 'bold', textAlign: 'center', verticalAlign: 'middle' }
+  const boxGray = { backgroundColor: '#D9D9D9', fontWeight: 'bold', verticalAlign: 'middle' }
   const thick = { border: '2px solid #000000' }
-  const thickTop = { borderTop: '2px solid #000000' }
-  const thickBottom = { borderBottom: '2px solid #000000' }
-  const thickLeft = { borderLeft: '2px solid #000000' }
-  const thickRight = { borderRight: '2px solid #000000' }
   const thin = { border: '1px solid #000000' }
 
-    // Top header row (row 1) - labels from proposal_mapped.json DESCRIPTION entry
+    // Top header row (row 1)
     ;[
-      ['C1', L.LF], ['D1', L.SF], ['E1', L.LBS], ['F1', L.CY], ['G1', L.QTY],
+      ['C1', 'LF'], ['D1', 'SF'], ['E1', 'LBS'], ['F1', 'CY'], ['G1', 'QTY'],
       ['H1', '$/1000'],
-      ['I1', L.LF], ['J1', L.SF], ['K1', L.LBS], ['L1', L.CY], ['M1', L.QTY], ['N1', L.LS]
+      ['I1', 'LF'], ['J1', 'SF'], ['K1', 'LBS'], ['L1', 'CY'], ['M1', 'QTY'], ['N1', 'LS']
     ].forEach(([cell, value]) => spreadsheet.updateCell({ value }, `${pfx}${cell}`))
   spreadsheet.cellFormat(headerGray, `${pfx}C1:N1`)
-  spreadsheet.cellFormat(thick, `${pfx}C1:N1`)
+  spreadsheet.cellFormat(thick, `${pfx}B1:N1`)
   // Make $/1000 cell background white
   spreadsheet.cellFormat({ backgroundColor: 'white' }, `${pfx}H1`)
 
   // Main outer frame around top content block (PERIMETER ONLY).
   // Avoid applying a border to the full range, since that creates thick internal grid lines.
-  // Border is now applied dynamically at the end to wrap the entire content.
+  spreadsheet.cellFormat(thick, `${pfx}B3:G3`)     // top edge
+  spreadsheet.cellFormat(thick, `${pfx}B11:G11`)   // bottom edge
+  spreadsheet.cellFormat(thick, `${pfx}B3:B11`)    // left edge
+  spreadsheet.cellFormat(thick, `${pfx}G3:G11`)    // right edge
 
   // Per request: rows 3 to 8, columns B to E should look like "no border configured"
   // (i.e., rely on default grid lines), and text should be normal weight in black.
@@ -181,7 +97,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   } catch (e) {
     // ignore (different versions may have different clear type strings)
   }
-  spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', fontFamily: 'Calibri (Body)' }, `${pfx}B3:E8`)
+  spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000' }, `${pfx}B3:E8`)
 
   // Left address block
   spreadsheet.updateCell({ value: '37-24 24th Street, Suite 132, Long Island City, NY 11101' }, `${pfx}B4`)
@@ -197,17 +113,19 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     // ignore
   }
   // Reapply formatting without borders
-  spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', fontFamily: 'Calibri (Body)' }, `${pfx}B4:E8`)
+  spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000' }, `${pfx}B4:E8`)
   spreadsheet.cellFormat({ fontWeight: 'bold' }, `${pfx}B4:B5`)
   spreadsheet.cellFormat({ color: '#0B76C3', textDecoration: 'underline' }, `${pfx}B6`)
 
-  // Logo (image) near center top-left; uses public path
+  // Logo (image) near center top-left; uses production URL for server-side save compatibility
   try {
-    const imgSrc = encodeURI('/images/templateimage.png')
+    // Use production URL so Syncfusion server-side save can fetch the image via HTTP
+    // The save server runs on production and cannot reach localhost
+    const imgSrc = 'https://krmestimators.com/images/templateimage.png'
     // Start around mid of column B and extend roughly to column E
     // (B width is large; left offset pushes the image start into the middle of B)
     spreadsheet.insertImage(
-      [{ src: imgSrc, width: 529, height: 182, left: 790, top: 70 }],
+      [{ src: imgSrc, width: 460, height: 110, left: 450, top: 50 }],
       `${pfx}B4`
     )
   } catch (e) {
@@ -215,11 +133,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   }
 
   // Date/Project/Client block
-  const proposalDate = createdAt ? new Date(createdAt).toLocaleDateString() : "Today's date"
-
-  spreadsheet.updateCell({ value: `Date: ${proposalDate}` }, `${pfx}B9`)
-  spreadsheet.updateCell({ value: `Project: ${project || '###'}` }, `${pfx}B10`)
-  spreadsheet.updateCell({ value: `Client: ${client || '###'}` }, `${pfx}B11`)
+  spreadsheet.updateCell({ value: "Date: Today's date" }, `${pfx}B9`)
+  spreadsheet.updateCell({ value: 'Project: ###' }, `${pfx}B10`)
+  spreadsheet.updateCell({ value: 'Client: ###' }, `${pfx}B11`)
   spreadsheet.cellFormat({ fontWeight: 'bold' }, `${pfx}B9:B11`)
   spreadsheet.cellFormat(thin, `${pfx}B9:G11`)
 
@@ -228,67 +144,67 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
   // Row 3: Estimate #25-1150
   spreadsheet.merge(`${pfx}F3:G3`)
-  spreadsheet.updateCell({ value: 'Estimate #2' }, `${pfx}F3`)
+  spreadsheet.updateCell({ value: 'Estimate #25-1150' }, `${pfx}F3`)
   spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontSize: '11pt', fontWeight: 'bold', borderTop: '1px solid #000000', borderLeft: '1px solid #000000', borderRight: '1px solid #000000' }, `${pfx}F3`)
   spreadsheet.cellFormat({ backgroundColor: 'white', fontSize: '11pt', fontWeight: 'bold', borderTop: '1px solid #000000', borderRight: '1px solid #000000' }, `${pfx}G3`)
-  spreadsheet.cellFormat({ backgroundColor: 'white', fontSize: '11pt', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H3`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontSize: '11pt', fontWeight: 'normal' }, `${pfx}H3`)
 
   // Row 4: Empty row
   spreadsheet.merge(`${pfx}F4:G4`)
   spreadsheet.cellFormat({ backgroundColor: 'white', borderLeft: '1px solid #000000' }, `${pfx}F4`)
   spreadsheet.cellFormat({ backgroundColor: 'white', borderRight: '1px solid #000000' }, `${pfx}G4`)
-  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H4`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal' }, `${pfx}H4`)
 
   // Row 5: Drawings Dated:
   spreadsheet.merge(`${pfx}F5:G5`)
   spreadsheet.updateCell({ value: 'Drawings Dated:' }, `${pfx}F5`)
-  // Top border, Left/Right borders, No bottom border
-  spreadsheet.cellFormat({ textAlign: 'center', backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '2px solid #000000', borderTop: '2px solid #000000', borderRight: '2px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F5:G5`)
-  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H5`)
+  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '1px solid #000000', borderTop: '1px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F5`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'bold', borderRight: '1px solid #000000', borderTop: '1px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}G5`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal' }, `${pfx}H5`)
 
   // Row 6: SOE:
   spreadsheet.merge(`${pfx}F6:G6`)
   spreadsheet.updateCell({ value: 'SOE:' }, `${pfx}F6`)
-  // Side borders only
-  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '2px solid #000000', borderRight: '2px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F6:G6`)
-  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H6`)
+  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '1px solid #000000', borderTop: '1px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F6`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'bold', borderRight: '1px solid #000000', borderTop: '1px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}G6`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal' }, `${pfx}H6`)
 
   // Row 7: Structural:
   spreadsheet.merge(`${pfx}F7:G7`)
   spreadsheet.updateCell({ value: 'Structural:' }, `${pfx}F7`)
-  // Side borders only
-  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '2px solid #000000', borderRight: '2px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F7:G7`)
-  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H7`)
+  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '1px solid #000000', borderTop: '1px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F7`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'bold', borderRight: '1px solid #000000', borderTop: '1px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}G7`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal' }, `${pfx}H7`)
 
   // Row 8: Architectural:
   spreadsheet.merge(`${pfx}F8:G8`)
   spreadsheet.updateCell({ value: 'Architectural:' }, `${pfx}F8`)
-  // Side borders only
-  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '2px solid #000000', borderRight: '2px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F8:G8`)
-  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H8`)
+  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '1px solid #000000', borderTop: '1px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F8`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'bold', borderRight: '1px solid #000000', borderTop: '1px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}G8`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal' }, `${pfx}H8`)
 
   // Row 9: Plumbing:
   spreadsheet.merge(`${pfx}F9:G9`)
   spreadsheet.updateCell({ value: 'Plumbing:' }, `${pfx}F9`)
-  // Side borders only
-  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '2px solid #000000', borderRight: '2px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F9:G9`)
-  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H9`)
+  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '1px solid #000000', borderTop: '1px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F9`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'bold', borderRight: '1px solid #000000', borderTop: '1px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}G9`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal' }, `${pfx}H9`)
 
   // Row 10: Mechanical
   spreadsheet.merge(`${pfx}F10:G10`)
   spreadsheet.updateCell({ value: 'Mechanical' }, `${pfx}F10`)
-  // Bottom border, Side borders
-  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '2px solid #000000', borderBottom: '2px solid #000000', borderRight: '2px solid #000000' }, `${pfx}F10:G10`)
-  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H10`)
+  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderBottom: '1px solid #000000', borderLeft: '1px solid #000000' }, `${pfx}F10`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'bold', borderBottom: '1px solid #000000', borderRight: '1px solid #000000' }, `${pfx}G10`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal' }, `${pfx}H10`)
 
-  // Bottom header row (row 12) - labels from proposal_mapped.json DESCRIPTION entry
+  // Bottom header row (row 12)
   spreadsheet.updateCell({ value: 'DESCRIPTION' }, `${pfx}B12`)
     ;[
-      ['C12', L.LF], ['D12', L.SF], ['E12', L.LBS], ['F12', L.CY], ['G12', L.QTY],
+      ['C12', 'LF'], ['D12', 'SF'], ['E12', 'LBS'], ['F12', 'CY'], ['G12', 'QTY'],
       ['H12', '$/1000'],
-      ['I12', L.LF], ['J12', L.SF], ['K12', L.LBS], ['L12', L.CY], ['M12', L.QTY]
+      ['I12', 'LF'], ['J12', 'SF'], ['K12', 'LBS'], ['L12', 'CY'], ['M12', 'QTY']
     ].forEach(([cell, value]) => spreadsheet.updateCell({ value }, `${pfx}${cell}`))
-  spreadsheet.updateCell({ value: L.LS }, `${pfx}N12`)
+  spreadsheet.updateCell({ value: 'LS' }, `${pfx}N12`)
 
   spreadsheet.cellFormat(headerGray, `${pfx}B12:N12`)
   spreadsheet.cellFormat(thick, `${pfx}B12:N12`)
@@ -311,8 +227,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   try {
     spreadsheet.cellFormat(
       {
-        fontWeight: 'normal',
-        fontFamily: 'Calibri (Body)',
+        fontWeight: 'bold',
         textAlign: 'right',
         backgroundColor: 'white',
         format: '$#,##0.0'
@@ -436,10 +351,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     let rockExcavationTotalCY = 0 // Track total CY for rock excavation section
     let rockExcavationRunningCYSum = 0 // Track running sum of calculated CY values for rock excavation
     let foundRockExcavationEmptyParticulars = false // Track if we've found the first empty Particulars row for rock excavation
-    let rockExcavationEmptyRowIndex = null // Store the row index where empty Particulars row was found for rock excavation (sum row, 1-based)
-    let rockExcavationLine1RowIndex = null // First data row in rock excavation subsection (1-based)
-    let rockExcavationLine2RowIndex = null // Second data row in rock excavation subsection (1-based)
-    let rockExcavationDataRowCount = 0 // Count data rows in rock excavation subsection
+    let rockExcavationEmptyRowIndex = null // Store the row index where empty Particulars row was found for rock excavation
     let inSOESection = false // Track if we're in the SOE section
     let inDrilledSoldierPileSubsection = false // Track if we're in the "Drilled soldier pile" subsection
     let drilledSoldierPileItems = [] // Collect drilled soldier pile items
@@ -554,9 +466,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         rockExcavationRunningSum = 0
         rockExcavationRunningCYSum = 0
         foundRockExcavationEmptyParticulars = false
-        rockExcavationLine1RowIndex = null
-        rockExcavationLine2RowIndex = null
-        rockExcavationDataRowCount = 0
         drilledSoldierPileItems = []
         hpSoldierPileItems = []
         return
@@ -694,7 +603,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           rockExcavationRunningSum = 0 // Reset running sum
           rockExcavationRunningCYSum = 0 // Reset CY running sum
           foundRockExcavationEmptyParticulars = false // Reset flag
-          rockExcavationDataRowCount = 0 // Reset data row counter for LF/SF/CY references
         } else if (inRockExcavationSubsection && inRockExcavationSection) {
           // We've moved to a different subsection, so the rock excavation subsection has ended
           inRockExcavationSubsection = false
@@ -1187,10 +1095,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             foundRockExcavationEmptyParticulars = true
           }
         } else {
-          // Particulars is filled - data row; track row index for proposal references (LF, SF, CY)
-          rockExcavationDataRowCount++
-          if (rockExcavationDataRowCount === 1) rockExcavationLine1RowIndex = rowIndex + 1
-          else if (rockExcavationDataRowCount === 2) rockExcavationLine2RowIndex = rowIndex + 1
+          // Particulars is filled - calculate and add to running sum
           if (calculatedSQFT > 0) {
             rockExcavationRunningSum += calculatedSQFT
           }
@@ -1289,460 +1194,180 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       }
     }
 
-    // Initialize dynamic row counter
-    let currentRow = 14
-
-    // -------------------------------------------------------------------------
-    // DEMOLITION SECTION
-    // -------------------------------------------------------------------------
-
-    // Check if we have any demolition items
+    // Render specific demolition lines into rows B15–B18 (row 14 is Demolition scope heading)
     const orderedSubsections = [
       'Demo slab on grade',
       'Demo strip footing',
       'Demo foundation wall',
       'Demo isolated footing'
     ]
-
-    // Check if any of these subsections have data
-    let hasDemolitionItems = false
-    orderedSubsections.forEach(name => {
-      if ((rowsBySubsection.get(name) || []).length > 0) {
-        hasDemolitionItems = true
-      }
-    })
-
-    if (hasDemolitionItems) {
-      // Demolition Scope Heading
-      spreadsheet.updateCell({ value: 'Demolition scope:' }, `${pfx}B${currentRow}`)
-      spreadsheet.cellFormat({
-        backgroundColor: '#BDD7EE',
-        textAlign: 'center',
-        verticalAlign: 'middle',
-        textDecoration: 'underline',
-        fontWeight: 'normal'
-      }, `${pfx}B${currentRow}`)
-      spreadsheet.cellFormat({ backgroundColor: 'white' }, `${pfx}C${currentRow}:G${currentRow}`)
-      currentRow++
-
-      // Render specific demolition lines
-      const demolitionStartRow = currentRow
-
-      const demolitionGroupsFromCalc = Object.fromEntries(
-        orderedSubsections.map(name => [
-          name,
-          {
-            firstItemText: linesBySubsection.get(name) ?? null,
-            rowCount: (rowsBySubsection.get(name) || []).length,
-            sumRow: sumRowsBySubsection.has(name) ? 'yes' : 'no'
-          }
-        ])
-      )
-
-      orderedSubsections.forEach((name, index) => {
-        const rowCount = (rowsBySubsection.get(name) || []).length
-        const originalText = linesBySubsection.get(name)
-        const templateText = buildDemolitionTemplate(name, originalText)
-        const cellRef = `${pfx}B${currentRow}`
-
-        spreadsheet.updateCell({ value: templateText }, cellRef)
-        spreadsheet.cellFormat(
-          {
-            fontWeight: 'bold',
-            color: '#000000',
-            textAlign: 'left',
-            verticalAlign: 'top'
-          },
-          cellRef
-        )
-        fillRatesForProposalRow(currentRow, templateText)
-
-        // Calculate and display individual SF for this subsection in column D
-        const subsectionRows = rowsBySubsection.get(name) || []
-        const subsectionSF = calculateSF(subsectionRows)
-        const formattedSF = parseFloat(subsectionSF.toFixed(2))
-
-        spreadsheet.updateCell({ value: formattedSF }, `${pfx}D${currentRow}`)
-        spreadsheet.cellFormat(
-          {
-            fontWeight: 'bold',
-            color: '#000000',
-            textAlign: 'right',
-            format: '#,##0.00'
-          },
-          `${pfx}D${currentRow}`
-        )
-
-        // Calculate and display individual CY for this subsection in column F
-        const subsectionCY = calculateCY(subsectionRows)
-        const formattedCY = parseFloat(subsectionCY.toFixed(2))
-
-        spreadsheet.updateCell({ value: formattedCY }, `${pfx}F${currentRow}`)
-        spreadsheet.cellFormat(
-          {
-            fontWeight: 'bold',
-            color: '#000000',
-            textAlign: 'right',
-            format: '#,##0.00'
-          },
-          `${pfx}F${currentRow}`
-        )
-
-        // Get QTY from sum row for this subsection in column G
-        const subsectionQTY = getQTYFromSumRow(name)
-        if (subsectionQTY !== null) {
-          const formattedQTY = parseFloat(subsectionQTY.toFixed(2))
-          spreadsheet.updateCell({ value: formattedQTY }, `${pfx}G${currentRow}`)
-          spreadsheet.cellFormat(
-            {
-              fontWeight: 'bold',
-              color: '#000000',
-              textAlign: 'right',
-              format: '#,##0.00'
-            },
-            `${pfx}G${currentRow}`
-          )
+    const demolitionGroupsFromCalc = Object.fromEntries(
+      orderedSubsections.map(name => [
+        name,
+        {
+          firstItemText: linesBySubsection.get(name) ?? null,
+          rowCount: (rowsBySubsection.get(name) || []).length,
+          sumRow: sumRowsBySubsection.has(name) ? 'yes' : 'no'
         }
+      ])
+    )
 
-        // Add $/1000 formula in column H
-        const dollarFormula = `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")`
-        spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
-        spreadsheet.cellFormat(
-          {
-            fontWeight: 'bold',
-            color: '#000000',
-            textAlign: 'right',
-            format: '$#,##0.00'
-          },
-          `${pfx}H${currentRow}`
-        )
+    orderedSubsections.forEach((name, index) => {
+      const rowIndex = 15 + index // 15,16,17,18 (row 14 is Demolition scope heading)
+      const originalText = linesBySubsection.get(name)
+      const templateText = buildDemolitionTemplate(name, originalText)
+      const cellRef = `${pfx}B${rowIndex}`
 
-        // Background color columns I-N
-        const columns = ['I', 'J', 'K', 'L', 'M', 'N']
-        columns.forEach(col => {
-          spreadsheet.cellFormat(
-            { backgroundColor: '#E2EFDA' },
-            `${pfx}${col}${currentRow}`
-          )
-        })
-
-        currentRow++
-      })
-
-      const demolitionEndRow = currentRow - 1
-
-      // Add note below all demolition items
-      spreadsheet.updateCell({ value: 'Note: Site/building demolition by others.' }, `${pfx}B${currentRow}`)
+      spreadsheet.updateCell({ value: templateText }, cellRef)
       spreadsheet.cellFormat(
         {
           fontWeight: 'bold',
           color: '#000000',
           textAlign: 'left',
-          backgroundColor: 'white'
+          verticalAlign: 'top'
         },
-        `${pfx}B${currentRow}`
-      )
-      currentRow++
-
-      // Add Demolition Total row
-      spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
-      spreadsheet.updateCell({ value: 'Demolition Total:' }, `${pfx}D${currentRow}`)
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'left',
-          backgroundColor: '#BDD7EE',
-          border: '1px solid #000000'
-        },
-        `${pfx}D${currentRow}:E${currentRow}`
+        cellRef
       )
 
-      spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
-      // Sum H from start to end of demolition items
-      const totalFormula = `=SUM(H${demolitionStartRow}:H${demolitionEndRow})*1000`
-      spreadsheet.updateCell({ formula: totalFormula }, `${pfx}F${currentRow}`)
+      // Calculate and display individual SF for this subsection in column D
+      const subsectionRows = rowsBySubsection.get(name) || []
+      const subsectionSF = calculateSF(subsectionRows)
+      const formattedSF = parseFloat(subsectionSF.toFixed(2))
+
+      spreadsheet.updateCell({ value: formattedSF }, `${pfx}D${rowIndex}`)
       spreadsheet.cellFormat(
         {
           fontWeight: 'bold',
           color: '#000000',
           textAlign: 'right',
-          backgroundColor: '#BDD7EE',
-          border: '1px solid #000000',
-          format: '$#,##0.00'
+          format: '#,##0.00'
         },
-        `${pfx}F${currentRow}:G${currentRow}`
+        `${pfx}D${rowIndex}`
       )
 
-      // Apply background color to entire row
+      // Calculate and display individual CY for this subsection in column F
+      // CY = sum of (SF * height / 27) for all rows in subsection
+      const subsectionCY = calculateCY(subsectionRows)
+      const formattedCY = parseFloat(subsectionCY.toFixed(2))
+
+      spreadsheet.updateCell({ value: formattedCY }, `${pfx}F${rowIndex}`)
       spreadsheet.cellFormat(
         {
-          backgroundColor: '#BDD7EE'
+          fontWeight: 'bold',
+          color: '#000000',
+          textAlign: 'right',
+          format: '#,##0.00'
         },
-        `${pfx}B${currentRow}:G${currentRow}`
+        `${pfx}F${rowIndex}`
       )
-      baseBidTotalRows.push(currentRow) // Demolition Total
-      totalRows.push(currentRow)
 
-      currentRow++
+      // Get QTY from sum row for this subsection in column G (only if sum row has QTY)
+      const subsectionQTY = getQTYFromSumRow(name)
+      if (subsectionQTY !== null) {
+        const formattedQTY = parseFloat(subsectionQTY.toFixed(2))
+        spreadsheet.updateCell({ value: formattedQTY }, `${pfx}G${rowIndex}`)
+        spreadsheet.cellFormat(
+          {
+            fontWeight: 'bold',
+            color: '#000000',
+            textAlign: 'right',
+            format: '#,##0.00'
+          },
+          `${pfx}G${rowIndex}`
+        )
+      }
 
-      // Empty row - ensure it's white (not blue)
-      spreadsheet.cellFormat({ backgroundColor: 'white' }, `${pfx}B${currentRow}:G${currentRow}`)
-      currentRow++
+      // Add $/1000 formula in column H: =ROUNDUP(MAX(C*I,D*J,E*K,F*L,G*M,N)/1000,1)
+      const dollarFormula = `=IFERROR(ROUNDUP(MAX(C${rowIndex}*I${rowIndex},D${rowIndex}*J${rowIndex},E${rowIndex}*K${rowIndex},F${rowIndex}*L${rowIndex},G${rowIndex}*M${rowIndex},N${rowIndex})/1000,1),"")`
+      spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${rowIndex}`)
+      spreadsheet.cellFormat(
+        {
+          fontWeight: 'bold',
+          color: '#000000',
+          textAlign: 'right',
+          format: '$#,##0.00'
+        },
+        `${pfx}H${rowIndex}`
+      )
+    })
+
+    // Apply background color #E2EFDA to columns I-N for demolition item rows (15-18)
+    for (let row = 15; row <= 18; row++) {
+      const columns = ['I', 'J', 'K', 'L', 'M', 'N'] // LF, SF, LBS, CY, QTY, LS
+      columns.forEach(col => {
+        spreadsheet.cellFormat(
+          { backgroundColor: '#E2EFDA' },
+          `${pfx}${col}${row}`
+        )
+      })
     }
 
-    // -------------------------------------------------------------------------
-    // EXCAVATION SECTION
-    // -------------------------------------------------------------------------
+    // Add note below all demolition items (row 19)
+    spreadsheet.updateCell({ value: 'Note: Site/building demolition by others.' }, `${pfx}B19`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'left',
+        backgroundColor: 'white'
+      },
+      `${pfx}B19`
+    )
 
-    // Excavation scope heading
-    spreadsheet.updateCell({ value: 'Excavation scope:' }, `${pfx}B${currentRow}`)
+    // Add Demolition Total row (row 20)
+    spreadsheet.merge(`${pfx}D20:E20`)
+    spreadsheet.updateCell({ value: 'Demolition Total:' }, `${pfx}D20`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'left',
+        backgroundColor: '#BDD7EE',
+        border: '1px solid #000000'
+      },
+      `${pfx}D20:E20`
+    )
+
+    spreadsheet.merge(`${pfx}F20:G20`)
+    const totalFormula = `=SUM(H15:H18)*1000`
+    spreadsheet.updateCell({ formula: totalFormula }, `${pfx}F20`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'right',
+        backgroundColor: '#BDD7EE',
+        border: '1px solid #000000',
+        format: '$#,##0.00'
+      },
+      `${pfx}F20:G20`
+    )
+
+    // Apply background color to entire row B20:G20
+    spreadsheet.cellFormat(
+      {
+        backgroundColor: '#BDD7EE'
+      },
+      `${pfx}B20:G20`
+    )
+    baseBidTotalRows.push(20) // Demolition Total
+
+    // Row 21: Empty row - ensure it's white (not blue)
+    spreadsheet.cellFormat({ backgroundColor: 'white' }, `${pfx}B21:G21`)
+
+    // Row 22: Excavation scope heading
+    spreadsheet.updateCell({ value: 'Excavation scope:' }, `${pfx}B22`)
     spreadsheet.cellFormat({
       backgroundColor: '#BDD7EE',
       textAlign: 'center',
       verticalAlign: 'middle',
       textDecoration: 'underline',
       fontWeight: 'normal'
-    }, `${pfx}B${currentRow}`)
-    spreadsheet.cellFormat({ backgroundColor: 'white' }, `${pfx}C${currentRow}:G${currentRow}`)
-    const excavationScopeStartRow = currentRow // Track for green background loop
-    currentRow++
+    }, `${pfx}B22`)
+    spreadsheet.cellFormat({ backgroundColor: 'white' }, `${pfx}C22:G22`)
 
-    // Only show "Soil excavation scope:" subheading and separate Soil/Rock totals when rock has values
-    const hasRockExcavation = rockExcavationTotals && (
-      (parseFloat(rockExcavationTotals.totalSQFT) || 0) > 0 ||
-      (parseFloat(rockExcavationTotals.totalCY) || 0) > 0 ||
-      (parseFloat(lineDrillTotalFT) || 0) > 0
-    )
-    if (hasRockExcavation) {
-      currentRow++ // Extra line after Excavation scope
-      // Soil excavation scope heading
-      spreadsheet.updateCell({ value: 'Soil excavation scope:' }, `${pfx}B${currentRow}`)
-      spreadsheet.cellFormat({
-        backgroundColor: '#FFF2CC',
-        textAlign: 'center',
-        verticalAlign: 'middle',
-        textDecoration: 'underline',
-        fontWeight: 'bold',
-        border: '1px solid #000000'
-      }, `${pfx}B${currentRow}`)
-      currentRow++
-    }
-
-    // First soil excavation line
-    const soilExcavationText = 'Allow to perform soil excavation, trucking & disposal (Havg=16\'-9") as per SOE-101.00, P-301.01 & details on SOE-201.01 to SOE-204.00'
-    spreadsheet.updateCell({ value: soilExcavationText }, `${pfx}B${currentRow}`)
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'left',
-        verticalAlign: 'top',
-        wrapText: true
-      },
-      `${pfx}B${currentRow}`
-    )
-    spreadsheet.setRowHeight(currentRow, 30) // Set row height for wrapped text
-    fillRatesForProposalRow(currentRow, soilExcavationText)
-    const soilExcavationRow1 = currentRow
-
-    // Add SF value from excavation total to column D
-    if (excavationEmptyRowIndex) {
-      spreadsheet.updateCell({ formula: `='Calculations Sheet'!J${excavationEmptyRowIndex}` }, `${pfx}D${currentRow}`)
-    } else {
-      const formattedExcavationSF = parseFloat(excavationTotalSQFT.toFixed(2))
-      spreadsheet.updateCell({ value: formattedExcavationSF }, `${pfx}D${currentRow}`)
-    }
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'right',
-        format: '#,##0.00'
-      },
-      `${pfx}D${currentRow}`
-    )
-
-    // Add CY value from excavation total to column F
-    if (excavationEmptyRowIndex) {
-      spreadsheet.updateCell({ formula: `='Calculations Sheet'!L${excavationEmptyRowIndex}` }, `${pfx}F${currentRow}`)
-    } else {
-      const formattedExcavationCY = parseFloat(excavationTotalCY.toFixed(2))
-      spreadsheet.updateCell({ value: formattedExcavationCY }, `${pfx}F${currentRow}`)
-    }
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'right',
-        format: '#,##0.00'
-      },
-      `${pfx}F${currentRow}`
-    )
-
-    // Formula for row 1
-    const dollarFormulaSoil1 = `=IFERROR(IF(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)=0,"",ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)),"")`
-
-    // Evaluation Logic (simplified for brevity, main logic logic remains in helpers if any)
-
-    spreadsheet.updateCell({ formula: dollarFormulaSoil1 }, `${pfx}H${currentRow}`)
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'right',
-        format: '$#,##0.00'
-      },
-      `${pfx}H${currentRow}`
-    )
-    currentRow++
-
-    // Row 2: Second soil excavation line (new clean soil)
-    const soilExcavationRow2 = currentRow
-    const backfillSoilText = 'Allow to import new clean soil to backfill and compact as per SOE-101.00, P-301.01 & details on SOE-201.01 to SOE-204.00'
-    spreadsheet.updateCell({ value: backfillSoilText }, `${pfx}B${currentRow}`)
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'left',
-        backgroundColor: 'white',
-        verticalAlign: 'top'
-      },
-      `${pfx}B${currentRow}`
-    )
-    fillRatesForProposalRow(currentRow, backfillSoilText)
-
-    // Add SF value
-    if (backfillEmptyRowIndex) {
-      spreadsheet.updateCell({ formula: `='Calculations Sheet'!J${backfillEmptyRowIndex}` }, `${pfx}D${currentRow}`)
-    } else {
-      const formattedBackfillSF = parseFloat(backfillTotalSQFT.toFixed(2))
-      spreadsheet.updateCell({ value: formattedBackfillSF }, `${pfx}D${currentRow}`)
-    }
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'right',
-        format: '#,##0.00'
-      },
-      `${pfx}D${currentRow}`
-    )
-
-    // Add CY value
-    if (backfillEmptyRowIndex) {
-      spreadsheet.updateCell({ formula: `='Calculations Sheet'!L${backfillEmptyRowIndex}` }, `${pfx}F${currentRow}`)
-    } else {
-      const formattedBackfillCY = parseFloat(backfillTotalCY.toFixed(2))
-      spreadsheet.updateCell({ value: formattedBackfillCY }, `${pfx}F${currentRow}`)
-    }
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'right',
-        format: '#,##0.00'
-      },
-      `${pfx}F${currentRow}`
-    )
-
-    // Formula for row 2
-    const dollarFormulaSoil2 = `=IFERROR(IF(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)=0,"",ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)),"")`
-    spreadsheet.updateCell({ formula: dollarFormulaSoil2 }, `${pfx}H${currentRow}`)
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'right',
-        format: '$#,##0.00'
-      },
-      `${pfx}H${currentRow}`
-    )
-    currentRow++
-
-    // Notes
-    const notes = [
-      'Note: Backfill SOE voids by others',
-      'Note: NJ Res Soil included, contaminated, mixed, hazardous, petroleum impacted not incl.',
-      'Note: Bedrock not included, see add alt unit rate if required'
-    ]
-    notes.forEach(note => {
-      spreadsheet.updateCell({ value: note }, `${pfx}B${currentRow}`)
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'left',
-          backgroundColor: 'white'
-        },
-        `${pfx}B${currentRow}`
-      )
-      currentRow++
-    })
-
-    // Soil Excavation Total (only when rock section is shown)
-    let soilExcavationTotalRow = null
-    if (hasRockExcavation) {
-      spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
-      spreadsheet.updateCell({ value: 'Soil Excavation Total:' }, `${pfx}D${currentRow}`)
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'left',
-          backgroundColor: '#FFF2CC',
-          border: '1px solid #000000'
-        },
-        `${pfx}D${currentRow}:E${currentRow}`
-      )
-
-      spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
-      spreadsheet.updateCell({ formula: `=SUM(H${soilExcavationRow1}:H${currentRow - 1})*1000` }, `${pfx}F${currentRow}`)
-
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'right',
-          backgroundColor: '#FFF2CC',
-          border: '1px solid #000000',
-          format: '$#,##0.00'
-        },
-        `${pfx}F${currentRow}:G${currentRow}`
-      )
-      spreadsheet.cellFormat({ backgroundColor: '#FFF2CC' }, `${pfx}B${currentRow}:G${currentRow}`)
-      baseBidTotalRows.push(currentRow) // Soil Excavation Total
-      totalRows.push(currentRow)
-
-      soilExcavationTotalRow = currentRow
-      currentRow++ // Empty row
-      currentRow++ // Extra line after Soil Excavation Total
-
-      // Apply green background to columns I-N for Soil Excavation (Scope to Total)
-      for (let row = excavationScopeStartRow; row < currentRow; row++) {
-        const columns = ['I', 'J', 'K', 'L', 'M', 'N']
-        columns.forEach(col => {
-          spreadsheet.cellFormat({ backgroundColor: '#E2EFDA' }, `${pfx}${col}${row}`)
-        })
-      }
-    } else {
-      // No rock: apply green background from Excavation scope through soil/notes
-      for (let row = excavationScopeStartRow; row < currentRow; row++) {
-        const columns = ['I', 'J', 'K', 'L', 'M', 'N']
-        columns.forEach(col => {
-          spreadsheet.cellFormat({ backgroundColor: '#E2EFDA' }, `${pfx}${col}${row}`)
-        })
-      }
-    }
-
-    // -------------------------------------------------------------------------
-    // ROCK EXCAVATION SECTION (only when rock has values)
-    // -------------------------------------------------------------------------
-    let rockExcavationTotalRow = null
-    if (hasRockExcavation) {
-    // Rock excavation scope heading
-    spreadsheet.updateCell({ value: 'Rock excavation scope:' }, `${pfx}B${currentRow}`)
+    // Row 23: Soil excavation scope heading
+    spreadsheet.updateCell({ value: 'Soil excavation scope:' }, `${pfx}B23`)
     spreadsheet.cellFormat({
       backgroundColor: '#FFF2CC',
       textAlign: 'center',
@@ -1750,55 +1375,217 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       textDecoration: 'underline',
       fontWeight: 'bold',
       border: '1px solid #000000'
-    }, `${pfx}B${currentRow}`)
-    // Green background for scope row
-    const columns33 = ['I', 'J', 'K', 'L', 'M', 'N']
-    columns33.forEach(col => spreadsheet.cellFormat({ backgroundColor: '#E2EFDA' }, `${pfx}${col}${currentRow}`))
-    currentRow++
+    }, `${pfx}B23`)
 
-    // Resolve rock excavation line descriptions from calculation sheet (like other sections)
-    let rockExcavationTextFromCalc = null
-    let lineDrillingTextFromCalc = null
-    if (calculationData && Array.isArray(calculationData)) {
-      let inRockSection = false
-      let inRockExcavationSubsection = false
-      let dataRowCount = 0
-      for (let i = 0; i < calculationData.length; i++) {
-        const row = calculationData[i]
-        const colA = row && row[0] != null ? String(row[0]).trim() : ''
-        const colB = row && row[1] != null ? String(row[1]).trim() : ''
-        if (colA.toLowerCase() === 'rock excavation') {
-          inRockSection = true
-          inRockExcavationSubsection = false
-          dataRowCount = 0
-          continue
-        }
-        if (colA && colA.toLowerCase() === 'soe') {
-          if (inRockSection) break
-        }
-        if (!inRockSection) continue
-        if (colB && colB.toLowerCase() === 'rock excavation:') {
-          inRockExcavationSubsection = true
-          dataRowCount = 0
-          continue
-        }
-        if (inRockExcavationSubsection && colB && !colB.endsWith(':')) {
-          dataRowCount++
-          if (dataRowCount === 1) rockExcavationTextFromCalc = colB
-          else if (dataRowCount === 2) {
-            lineDrillingTextFromCalc = colB
-            break
+    // Row 24: First soil excavation line
+    const soilExcavationText = 'Allow to perform soil excavation, trucking & disposal (Havg=16\'-9") as per SOE-101.00, P-301.01 & details on SOE-201.01 to SOE-204.00'
+    spreadsheet.updateCell({ value: soilExcavationText }, `${pfx}B24`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'left',
+        backgroundColor: 'white',
+        verticalAlign: 'top'
+      },
+      `${pfx}B24`
+    )
+
+    // Add SF value from excavation total to column D (using formula to reference calculation sheet)
+    if (excavationEmptyRowIndex) {
+      spreadsheet.updateCell({ formula: `='Calculations Sheet'!J${excavationEmptyRowIndex}` }, `${pfx}D24`)
+    } else {
+      const formattedExcavationSF = parseFloat(excavationTotalSQFT.toFixed(2))
+      spreadsheet.updateCell({ value: formattedExcavationSF }, `${pfx}D24`)
+    }
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'right',
+        format: '#,##0.00'
+      },
+      `${pfx}D24`
+    )
+
+    // Add CY value from excavation total to column F (using formula to reference calculation sheet)
+    if (excavationEmptyRowIndex) {
+      spreadsheet.updateCell({ formula: `='Calculations Sheet'!L${excavationEmptyRowIndex}` }, `${pfx}F24`)
+    } else {
+      const formattedExcavationCY = parseFloat(excavationTotalCY.toFixed(2))
+      spreadsheet.updateCell({ value: formattedExcavationCY }, `${pfx}F24`)
+    }
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'right',
+        format: '#,##0.00'
+      },
+      `${pfx}F24`
+    )
+
+    // Add $/1000 formula in column H for row 24
+    const dollarFormula24 = `=IFERROR(IF(ROUNDUP(MAX(C24*I24,D24*J24,E24*K24,F24*L24,G24*M24,N24)/1000,1)=0,"",ROUNDUP(MAX(C24*I24,D24*J24,E24*K24,F24*L24,G24*M24,N24)/1000,1)),"")`
+
+    // Read formulas and evaluate them in real-time with longer timeout
+    setTimeout(() => {
+      try {
+        // Try multiple ways to access the workbook
+        let wb = null
+        try {
+          wb = spreadsheet.getWorkbook()
+        } catch (e) {
+          try {
+            wb = spreadsheet.workbook
+          } catch (e2) {
+            wb = workbook // Fallback to workbook variable
           }
         }
+
+        // If still null, try accessing through spreadsheet's sheets
+        if (!wb && spreadsheet.sheets) {
+          wb = { sheets: spreadsheet.sheets }
+        }
+
+        if (wb && wb.sheets) {
+          const propSheetIndex = proposalSheetIndex
+          const row24 = 23 // 0-based index for row 24
+
+          // Helper function to get cell formula or value from workbook
+          const getCellInfo = (row, col, colLetter) => {
+            try {
+              // Try to get the cell from the sheet
+              const sheet = wb.sheets[propSheetIndex]
+              if (sheet && sheet.rows && sheet.rows[row] && sheet.rows[row].cells) {
+                const cell = sheet.rows[row].cells[col]
+                if (cell) {
+                  if (cell.formula) {
+                    return { type: 'formula', value: cell.formula, displayValue: (cell.value !== undefined && cell.value !== null) ? cell.value : 0 }
+                  }
+                  return { type: 'value', value: (cell.value !== undefined && cell.value !== null) ? cell.value : 0 }
+                }
+              }
+              // Fallback: try to get value directly if method exists
+              if (typeof wb.getValueRowCol === 'function') {
+                const value = wb.getValueRowCol(propSheetIndex, row, col)
+                return { type: 'value', value: value || 0 }
+              }
+              // If no value found, return 0
+              return { type: 'value', value: 0 }
+            } catch (e) {
+              return { type: 'value', value: 0 }
+            }
+          }
+
+          // Helper function to evaluate a cell reference (e.g., 'Calculations Sheet'!J75 or J75)
+          const evaluateCellRef = (ref) => {
+            try {
+              let sheetIdx = propSheetIndex
+              let cellRef = ref.trim()
+
+              // Remove quotes from sheet name if present
+              if (ref.includes('!')) {
+                const parts = ref.split('!')
+                let sheetName = parts[0].trim()
+                // Remove single quotes if present
+                sheetName = sheetName.replace(/^'|'$/g, '')
+                cellRef = parts[1].trim()
+
+                const sheet = wb.sheets.find(s => s.name === sheetName)
+                if (sheet) {
+                  sheetIdx = wb.sheets.indexOf(sheet)
+                }
+              }
+
+              const col = cellRef.charCodeAt(0) - 65 // A=0, B=1, etc.
+              const row = parseInt(cellRef.substring(1)) - 1 // Convert to 0-based
+
+              // Try to read value from sheet structure
+              let value = 0
+              try {
+                const sheet = wb.sheets[sheetIdx]
+                if (sheet && sheet.rows && sheet.rows[row] && sheet.rows[row].cells) {
+                  const cell = sheet.rows[row].cells[col]
+                  if (cell) {
+                    // If cell has a formula, try to get the evaluated value
+                    if (cell.formula) {
+                      value = (cell.value !== undefined && cell.value !== null) ? cell.value : 0
+                    } else {
+                      value = (cell.value !== undefined && cell.value !== null) ? cell.value : 0
+                    }
+                  }
+                }
+
+                // Fallback: try getValueRowCol if available
+                if (value === 0 && typeof wb.getValueRowCol === 'function') {
+                  value = wb.getValueRowCol(sheetIdx, row, col) || 0
+                }
+              } catch (e2) {
+                // Ignore errors
+              }
+
+              return value || 0
+            } catch (e) {
+              return 0
+            }
+          }
+
+          // Get cell info for each cell (row 24 = first soil excavation line)
+          const cells = {
+            c24: getCellInfo(row24, 2, 'C'),
+            i24: getCellInfo(row24, 8, 'I'),
+            d24: getCellInfo(row24, 3, 'D'),
+            j24: getCellInfo(row24, 9, 'J'),
+            e24: getCellInfo(row24, 4, 'E'),
+            k24: getCellInfo(row24, 10, 'K'),
+            f24: getCellInfo(row24, 5, 'F'),
+            l24: getCellInfo(row24, 11, 'L'),
+            g24: getCellInfo(row24, 6, 'G'),
+            m24: getCellInfo(row24, 12, 'M'),
+            n24: getCellInfo(row24, 13, 'N')
+          }
+
+          // Evaluate each cell
+          const values = {}
+          Object.keys(cells).forEach(key => {
+            const cell = cells[key]
+            if (cell.type === 'formula') {
+              // Extract cell references from formula and evaluate
+              const formula = cell.value.replace(/^=/, '')
+
+              // Match formulas like 'Calculations Sheet'!J92 or J92
+              // The full match (refMatch[0]) includes the sheet reference if present
+              const refMatch = formula.match(/(?:'[^']+'!)?[A-Z]+\d+/)
+              if (refMatch) {
+                const fullRef = refMatch[0]
+                values[key] = evaluateCellRef(fullRef)
+              } else {
+                values[key] = cell.displayValue || 0
+              }
+            } else {
+              values[key] = cell.value
+            }
+          })
+        }
+      } catch (e) {
+        // Silently handle
       }
-    }
-    const rockExcavationText = rockExcavationTextFromCalc || 'Allow to perform rock excavation, trucking & disposal for building (Havg=2\'-9") as per SOE-100.00 & details on SOE-A-202.00'
-    const lineDrillingText = lineDrillingTextFromCalc || 'Allow to perform line drilling as per SOE-100.00'
+    }, 2000) // Increased timeout to 2 seconds
 
-    // First rock excavation line
-    const rockRow1 = currentRow
-    spreadsheet.updateCell({ value: rockExcavationText }, `${pfx}B${currentRow}`)
-    spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+    spreadsheet.updateCell({ formula: dollarFormula24 }, `${pfx}H24`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'right',
+        format: '$#,##0.00'
+      },
+      `${pfx}H24`
+    )
+
+    // Row 25: Second soil excavation line
+    spreadsheet.updateCell({ value: 'Allow to import new clean soil to backfill and compact as per SOE-101.00, P-301.01 & details on SOE-201.01 to SOE-204.00' }, `${pfx}B25`)
     spreadsheet.cellFormat(
       {
         fontWeight: 'bold',
@@ -1807,70 +1594,204 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         backgroundColor: 'white',
         verticalAlign: 'top'
       },
-      `${pfx}B${currentRow}`
+      `${pfx}B25`
     )
-    fillRatesForProposalRow(currentRow, rockExcavationText)
-    // SF (D) and CY (F) from calculation sheet – first data row in rock excavation subsection (like other scopes)
-    if (rockExcavationLine1RowIndex) {
-      spreadsheet.updateCell({ formula: `='Calculations Sheet'!J${rockExcavationLine1RowIndex}` }, `${pfx}D${currentRow}`)
-      spreadsheet.updateCell({ formula: `='Calculations Sheet'!L${rockExcavationLine1RowIndex}` }, `${pfx}F${currentRow}`)
-    } else if (rockExcavationEmptyRowIndex) {
-      spreadsheet.updateCell({ formula: `='Calculations Sheet'!J${rockExcavationEmptyRowIndex}` }, `${pfx}D${currentRow}`)
-      spreadsheet.updateCell({ formula: `='Calculations Sheet'!L${rockExcavationEmptyRowIndex}` }, `${pfx}F${currentRow}`)
+
+    // Add SF value from backfill total to column D (using formula to reference calculation sheet)
+    if (backfillEmptyRowIndex) {
+      spreadsheet.updateCell({ formula: `='Calculations Sheet'!J${backfillEmptyRowIndex}` }, `${pfx}D25`)
     } else {
-      const formattedRockExcavationSF = parseFloat(rockExcavationTotals.totalSQFT.toFixed(2))
-      const formattedRockExcavationCY = parseFloat(rockExcavationTotals.totalCY.toFixed(2))
-      spreadsheet.updateCell({ value: formattedRockExcavationSF }, `${pfx}D${currentRow}`)
-      spreadsheet.updateCell({ value: formattedRockExcavationCY }, `${pfx}F${currentRow}`)
+      const formattedBackfillSF = parseFloat(backfillTotalSQFT.toFixed(2))
+      spreadsheet.updateCell({ value: formattedBackfillSF }, `${pfx}D25`)
     }
-    spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'right', format: '#,##0.00' }, `${pfx}D${currentRow}`)
-    spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'right', format: '#,##0.00' }, `${pfx}F${currentRow}`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'right',
+        format: '#,##0.00'
+      },
+      `${pfx}D25`
+    )
 
-    // Dollar Formula
-    const dollarFormulaRock1 = `=IFERROR(IF(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)=0,"",ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)),"")`
-    spreadsheet.updateCell({ formula: dollarFormulaRock1 }, `${pfx}H${currentRow}`)
-    spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'right', format: '$#,##0.00' }, `${pfx}H${currentRow}`)
-    columns33.forEach(col => spreadsheet.cellFormat({ backgroundColor: '#E2EFDA' }, `${pfx}${col}${currentRow}`))
-    currentRow++
+    // Add CY value from backfill total to column F (using formula to reference calculation sheet)
+    if (backfillEmptyRowIndex) {
+      spreadsheet.updateCell({ formula: `='Calculations Sheet'!L${backfillEmptyRowIndex}` }, `${pfx}F25`)
+    } else {
+      const formattedBackfillCY = parseFloat(backfillTotalCY.toFixed(2))
+      spreadsheet.updateCell({ value: formattedBackfillCY }, `${pfx}F25`)
+    }
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'right',
+        format: '#,##0.00'
+      },
+      `${pfx}F25`
+    )
 
-    // Second rock excavation line
-    const rockRow2 = currentRow
-    spreadsheet.updateCell({ value: lineDrillingText }, `${pfx}B${currentRow}`)
-    spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+    // Add $/1000 formula in column H for row 25
+    const dollarFormula25 = `=IFERROR(IF(ROUNDUP(MAX(C25*I25,D25*J25,E25*K25,F25*L25,G25*M25,N25)/1000,1)=0,"",ROUNDUP(MAX(C25*I25,D25*J25,E25*K25,F25*L25,G25*M25,N25)/1000,1)),"")`
+
+    // Read formulas and evaluate them in real-time with longer timeout
+    setTimeout(() => {
+      try {
+        // Try multiple ways to access the workbook
+        let wb = null
+        try {
+          wb = spreadsheet.getWorkbook()
+        } catch (e) {
+          try {
+            wb = spreadsheet.workbook
+          } catch (e2) {
+            wb = workbook // Fallback to workbook variable
+          }
+        }
+
+        // If still null, try accessing through spreadsheet's sheets
+        if (!wb && spreadsheet.sheets) {
+          wb = { sheets: spreadsheet.sheets }
+        }
+
+        if (wb && wb.sheets) {
+          const propSheetIndex = proposalSheetIndex
+          const row25 = 24 // 0-based index for row 25
+
+          // Helper function to get cell formula or value from workbook
+          const getCellInfo = (row, col, colLetter) => {
+            try {
+              // Try to get the cell from the sheet
+              const sheet = wb.sheets[propSheetIndex]
+              if (sheet && sheet.rows && sheet.rows[row] && sheet.rows[row].cells) {
+                const cell = sheet.rows[row].cells[col]
+                if (cell) {
+                  if (cell.formula) {
+                    return { type: 'formula', value: cell.formula, displayValue: (cell.value !== undefined && cell.value !== null) ? cell.value : 0 }
+                  }
+                  return { type: 'value', value: (cell.value !== undefined && cell.value !== null) ? cell.value : 0 }
+                }
+              }
+              // Fallback: try to get value directly if method exists
+              if (typeof wb.getValueRowCol === 'function') {
+                const value = wb.getValueRowCol(propSheetIndex, row, col)
+                return { type: 'value', value: value || 0 }
+              }
+              // If no value found, return 0
+              return { type: 'value', value: 0 }
+            } catch (e) {
+              return { type: 'value', value: 0 }
+            }
+          }
+
+          // Helper function to evaluate a cell reference (e.g., 'Calculations Sheet'!J75 or J75)
+          const evaluateCellRef = (ref) => {
+            try {
+              let sheetIdx = propSheetIndex
+              let cellRef = ref.trim()
+
+              // Remove quotes from sheet name if present
+              if (ref.includes('!')) {
+                const parts = ref.split('!')
+                let sheetName = parts[0].trim()
+                // Remove single quotes if present
+                sheetName = sheetName.replace(/^'|'$/g, '')
+                cellRef = parts[1].trim()
+
+                const sheet = wb.sheets.find(s => s.name === sheetName)
+                if (sheet) {
+                  sheetIdx = wb.sheets.indexOf(sheet)
+                }
+              }
+
+              const col = cellRef.charCodeAt(0) - 65 // A=0, B=1, etc.
+              const row = parseInt(cellRef.substring(1)) - 1 // Convert to 0-based
+
+              // Try to read value from sheet structure
+              let value = 0
+              try {
+                const sheet = wb.sheets[sheetIdx]
+                if (sheet && sheet.rows && sheet.rows[row] && sheet.rows[row].cells) {
+                  const cell = sheet.rows[row].cells[col]
+                  if (cell) {
+                    // If cell has a formula, try to get the evaluated value
+                    if (cell.formula) {
+                      value = cell.value || 0
+                    } else {
+                      value = cell.value || 0
+                    }
+                  }
+                }
+
+                // Fallback: try getValueRowCol if available
+                if (value === 0 && typeof wb.getValueRowCol === 'function') {
+                  value = wb.getValueRowCol(sheetIdx, row, col) || 0
+                }
+              } catch (e2) {
+                // Ignore errors
+              }
+
+              return value || 0
+            } catch (e) {
+              return 0
+            }
+          }
+        }
+      } catch (e) {
+        // Ignore errors
+      }
+    }, 2000) // Increased timeout to 2 seconds
+
+    spreadsheet.updateCell({ formula: dollarFormula25 }, `${pfx}H25`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'right',
+        format: '$#,##0.00'
+      },
+      `${pfx}H25`
+    )
+
+    // Row 26: Note 1
+    spreadsheet.updateCell({ value: 'Note: Backfill SOE voids by others' }, `${pfx}B26`)
     spreadsheet.cellFormat(
       {
         fontWeight: 'bold',
         color: '#000000',
         textAlign: 'left',
-        backgroundColor: 'white',
-        verticalAlign: 'top'
+        backgroundColor: 'white'
       },
-      `${pfx}B${currentRow}`
+      `${pfx}B26`
     )
-    fillRatesForProposalRow(currentRow, lineDrillingText)
-    // LF (C) and CY (F) from calculation sheet - second data row in rock excavation subsection
-    if (rockExcavationLine2RowIndex) {
-      spreadsheet.updateCell({ formula: `='Calculations Sheet'!I${rockExcavationLine2RowIndex}` }, `${pfx}C${currentRow}`)
-      spreadsheet.updateCell({ formula: `='Calculations Sheet'!L${rockExcavationLine2RowIndex}` }, `${pfx}F${currentRow}`)
-    } else {
-      const formattedLineDrillFT = parseFloat((lineDrillTotalFT * 2).toFixed(2))
-      const formattedRockExcavationCY35 = parseFloat(rockExcavationTotals.totalCY.toFixed(2))
-      spreadsheet.updateCell({ value: formattedLineDrillFT }, `${pfx}C${currentRow}`)
-      spreadsheet.updateCell({ value: formattedRockExcavationCY35 }, `${pfx}F${currentRow}`)
-    }
-    spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'right', format: '#,##0.00' }, `${pfx}C${currentRow}`)
-    spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'right', format: '#,##0.00' }, `${pfx}F${currentRow}`)
 
-    // Dollar Formula
-    const dollarFormulaRock2 = `=IFERROR(IF(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)=0,"",ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)),"")`
-    spreadsheet.updateCell({ formula: dollarFormulaRock2 }, `${pfx}H${currentRow}`)
-    spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'right', format: '$#,##0.00' }, `${pfx}H${currentRow}`)
-    columns33.forEach(col => spreadsheet.cellFormat({ backgroundColor: '#E2EFDA' }, `${pfx}${col}${currentRow}`))
-    currentRow++
+    // Row 27: Note 2
+    spreadsheet.updateCell({ value: 'Note: NJ Res Soil included, contaminated, mixed, hazardous, petroleum impacted not incl.' }, `${pfx}B27`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'left',
+        backgroundColor: 'white'
+      },
+      `${pfx}B27`
+    )
 
-    // Rock Excavation Total
-    spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
-    spreadsheet.updateCell({ value: 'Rock excavation Total:' }, `${pfx}D${currentRow}`)
+    // Row 28: Note 3
+    spreadsheet.updateCell({ value: 'Note: Bedrock not included, see add alt unit rate if required' }, `${pfx}B28`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'left',
+        backgroundColor: 'white'
+      },
+      `${pfx}B28`
+    )
+
+    // Row 29: Soil Excavation Total
+    spreadsheet.merge(`${pfx}D29:E29`)
+    spreadsheet.updateCell({ value: 'Soil Excavation Total:' }, `${pfx}D29`)
     spreadsheet.cellFormat(
       {
         fontWeight: 'bold',
@@ -1879,98 +1800,317 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         backgroundColor: '#FFF2CC',
         border: '1px solid #000000'
       },
-      `${pfx}D${currentRow}:E${currentRow}`
+      `${pfx}D29:E29`
     )
 
-    spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
-    const rockTotalFormula = `=SUM(H${rockRow1}:H${rockRow2})*1000`
-    spreadsheet.updateCell({ formula: rockTotalFormula }, `${pfx}F${currentRow}`)
+    spreadsheet.merge(`${pfx}F29:G29`)
+    const soilExcavationTotalFormula = `=SUM(H24:H27)*1000`
+    spreadsheet.updateCell({ formula: soilExcavationTotalFormula }, `${pfx}F29`)
     spreadsheet.cellFormat(
       {
         fontWeight: 'bold',
         color: '#000000',
         textAlign: 'right',
         backgroundColor: '#FFF2CC',
-        border: '1px solid #000000',
-        format: '$#,##0.00'
-      },
-      `${pfx}F${currentRow}:G${currentRow}`
-    )
-    spreadsheet.cellFormat({ backgroundColor: '#FFF2CC', border: '1px solid #000000' }, `${pfx}B${currentRow}:C${currentRow}`)
-    baseBidTotalRows.push(currentRow) // Rock Excavation Total
-    totalRows.push(currentRow)
-
-    rockExcavationTotalRow = currentRow
-    currentRow++ // Empty row
-    currentRow++ // Extra line after Rock Excavation Total
-    }
-
-    // Excavation Total (Sum of Soil + Rock when both; otherwise soil only)
-    spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
-    spreadsheet.updateCell({ value: 'Excavation Total:' }, `${pfx}D${currentRow}`)
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'left',
-        backgroundColor: '#BDD7EE',
         border: '1px solid #000000'
       },
-      `${pfx}D${currentRow}:E${currentRow}`
+      `${pfx}F29:G29`
     )
-
-    spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
-    const excavationFullTotalFormula = hasRockExcavation
-      ? `=SUM(F${soilExcavationTotalRow},F${rockExcavationTotalRow})`
-      : `=SUM(H${soilExcavationRow1}:H${currentRow - 1})*1000`
-    spreadsheet.updateCell({ formula: excavationFullTotalFormula }, `${pfx}F${currentRow}`)
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'right',
-        backgroundColor: '#BDD7EE',
-        border: '1px solid #000000',
-        format: '$#,##0.00'
-      },
-      `${pfx}F${currentRow}:G${currentRow}`
-    )
-    spreadsheet.cellFormat({ backgroundColor: '#BDD7EE', border: '1px solid #000000' }, `${pfx}B${currentRow}:C${currentRow}`)
-    if (!hasRockExcavation) {
-      baseBidTotalRows.push(currentRow) // Excavation Total (only row for excavation when no rock)
-      totalRows.push(currentRow)
-    }
-
-    currentRow++ // Extra line after Excavation Total
-
-    // Apply currency formatting to H and number format to others for all data rows 
-    // (Demolition start to now)
+    // Apply number format with comma separator
     try {
-      spreadsheet.numberFormat('$#,##0.00', `${pfx}H16:H${currentRow}`) // Note: H16 is hardcoded? 
-      // We should format H(demolitionStartRow) ...
-      // But formatting logic handles columns I-N dynamically per section.
-      // H column formatting was global/ranged.
-      // Let's assume the previous `formatColumns.forEach` handles I-N.
-      // We need to ensure H is formatted.
-      // Actually, individual cells set their format to '$#,##0.00' in my code above.
-      // So global range format is redundancy/cleanup.
-    } catch (e) { }
+      spreadsheet.numberFormat('$#,##0.00', `${pfx}F29:G29`)
+    } catch (e) {
+      spreadsheet.cellFormat({ format: '$#,##0.00' }, `${pfx}F29`)
+    }
 
-    currentRow++ // One row gap after Excavation Total
+    // Apply background color to entire row B29:G29
+    spreadsheet.cellFormat(
+      {
+        backgroundColor: '#FFF2CC'
+      },
+      `${pfx}B29:G29`
+    )
+    baseBidTotalRows.push(29) // Soil Excavation Total
 
-    // -------------------------------------------------------------------------
-    // SOE SECTION - only show if calculation sheet has SOE data
-    // -------------------------------------------------------------------------
-    const soeSubsectionItemsForCheck = window.soeSubsectionItems || new Map()
-    const hasSOESubsectionData = [...soeSubsectionItemsForCheck.values()].some(groups => Array.isArray(groups) && groups.some(g => Array.isArray(g) && g.length > 0))
-    const hasSOEScopeData = (formulaData || []).some(f => f.section === 'soe') ||
-      hasSOESubsectionData ||
-      ((window.drilledSoldierPileGroups || []).length > 0) ||
-      ((window.soldierPileGroups || []).length > 0)
+    // Row 32: Empty row (skip)
+    // (No content needed - empty row)
 
-    if (hasSOEScopeData) {
-    // SOE Scope
-    spreadsheet.updateCell({ value: 'SOE scope:' }, `${pfx}B${currentRow}`)
+    // Apply green background color #E2EFDA to columns I-N for all rows between demolition and rock excavation (rows 22-32)
+    for (let row = 22; row <= 32; row++) {
+      const columns = ['I', 'J', 'K', 'L', 'M', 'N'] // LF, SF, LBS, CY, QTY, LS
+      columns.forEach(col => {
+        spreadsheet.cellFormat(
+          { backgroundColor: '#E2EFDA' },
+          `${pfx}${col}${row}`
+        )
+      })
+    }
+
+    // Row 33: Rock excavation scope
+    spreadsheet.updateCell({ value: 'Rock excavation scope:' }, `${pfx}B33`)
+    spreadsheet.cellFormat({
+      backgroundColor: '#FFF2CC',
+      textAlign: 'center',
+      verticalAlign: 'middle',
+      textDecoration: 'underline',
+      fontWeight: 'bold',
+      border: '1px solid #000000'
+    }, `${pfx}B33`)
+
+    // Apply green background color #E2EFDA to columns I-N for row 33
+    const columns33 = ['I', 'J', 'K', 'L', 'M', 'N'] // LF, SF, LBS, CY, QTY, LS
+    columns33.forEach(col => {
+      spreadsheet.cellFormat(
+        { backgroundColor: '#E2EFDA' },
+        `${pfx}${col}33`
+      )
+    })
+
+    // Row 34: First rock excavation line
+    spreadsheet.updateCell({ value: 'Allow to perform rock excavation, trucking & disposal for building (Havg=2\'-9") as per SOE-100.00 & details on SOE-A-202.00' }, `${pfx}B34`)
+    spreadsheet.wrap(`${pfx}B34`, true)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'left',
+        backgroundColor: 'white',
+        verticalAlign: 'top'
+      },
+      `${pfx}B34`
+    )
+
+    // Add SF value from rock excavation total to column D (using processor totals)
+    const formattedRockExcavationSF = parseFloat(rockExcavationTotals.totalSQFT.toFixed(2))
+    spreadsheet.updateCell({ value: formattedRockExcavationSF }, `${pfx}D34`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'right',
+        format: '#,##0.00'
+      },
+      `${pfx}D34`
+    )
+
+    // Add CY value from rock excavation total to column F (using processor totals)
+    const formattedRockExcavationCY = parseFloat(rockExcavationTotals.totalCY.toFixed(2))
+    spreadsheet.updateCell({ value: formattedRockExcavationCY }, `${pfx}F34`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'right',
+        format: '#,##0.00'
+      },
+      `${pfx}F34`
+    )
+
+    // Row 35: Second rock excavation line
+    spreadsheet.updateCell({ value: 'Allow to perform line drilling as per SOE-100.00' }, `${pfx}B35`)
+    spreadsheet.wrap(`${pfx}B35`, true)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'left',
+        backgroundColor: 'white',
+        verticalAlign: 'top'
+      },
+      `${pfx}B35`
+    )
+
+    // Add CY value from rock excavation total to column F (using processor totals)
+    const formattedRockExcavationCY35 = parseFloat(rockExcavationTotals.totalCY.toFixed(2))
+    spreadsheet.updateCell({ value: formattedRockExcavationCY35 }, `${pfx}F35`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'right',
+        format: '#,##0.00'
+      },
+      `${pfx}F35`
+    )
+
+    // Use line drill total FT for row 35 (column C - first LF column), multiplied by 2
+    const formattedLineDrillFT = parseFloat((lineDrillTotalFT * 2).toFixed(2))
+    spreadsheet.updateCell({ value: formattedLineDrillFT }, `${pfx}C35`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'right',
+        format: '#,##0.00'
+      },
+      `${pfx}C35`
+    )
+
+    // Add $/1000 formula in column H for row 34
+    const dollarFormula34 = `=IFERROR(IF(ROUNDUP(MAX(C34*I34,D34*J34,E34*K34,F34*L34,G34*M34,N34)/1000,1)=0,"",ROUNDUP(MAX(C34*I34,D34*J34,E34*K34,F34*L34,G34*M34,N34)/1000,1)),"")`
+    spreadsheet.updateCell({ formula: dollarFormula34 }, `${pfx}H34`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'right',
+        format: '$#,##0.00'
+      },
+      `${pfx}H34`
+    )
+
+    // Apply green background color #E2EFDA to columns I-N (LF, SF, LBS, CY, QTY, LS) for row 34
+    const columns34 = ['I', 'J', 'K', 'L', 'M', 'N'] // LF, SF, LBS, CY, QTY, LS
+    columns34.forEach(col => {
+      spreadsheet.cellFormat(
+        { backgroundColor: '#E2EFDA' },
+        `${pfx}${col}34`
+      )
+    })
+
+    // Add $/1000 formula in column H for row 35
+    const dollarFormula35 = `=IFERROR(IF(ROUNDUP(MAX(C35*I35,D35*J35,E35*K35,F35*L35,G35*M35,N35)/1000,1)=0,"",ROUNDUP(MAX(C35*I35,D35*J35,E35*K35,F35*L35,G35*M35,N35)/1000,1)),"")`
+    spreadsheet.updateCell({ formula: dollarFormula35 }, `${pfx}H35`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'right',
+        format: '$#,##0.00'
+      },
+      `${pfx}H35`
+    )
+
+    // Apply green background color #E2EFDA to columns I-N (LF, SF, LBS, CY, QTY, LS) for row 35
+    const columns = ['I', 'J', 'K', 'L', 'M', 'N'] // LF, SF, LBS, CY, QTY, LS
+    columns.forEach(col => {
+      spreadsheet.cellFormat(
+        { backgroundColor: '#E2EFDA' },
+        `${pfx}${col}35`
+      )
+    })
+
+    // Row 36: Rock excavation Total
+    spreadsheet.merge(`${pfx}D36:E36`)
+    spreadsheet.updateCell({ value: 'Rock excavation Total:' }, `${pfx}D36`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'left',
+        backgroundColor: '#FFF2CC',
+        border: '1px solid #000000'
+      },
+      `${pfx}D36:E36`
+    )
+
+    spreadsheet.merge(`${pfx}F36:G36`)
+    const rockExcavationTotalFormula = `=SUM(H32:H34)*1000`
+    spreadsheet.updateCell({ formula: rockExcavationTotalFormula }, `${pfx}F36`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'right',
+        backgroundColor: '#FFF2CC',
+        border: '1px solid #000000'
+      },
+      `${pfx}F36:G36`
+    )
+    // Apply number format with comma separator
+    try {
+      spreadsheet.numberFormat('$#,##0.00', `${pfx}F36:G36`)
+    } catch (e) {
+      // Fallback to cellFormat if numberFormat doesn't work
+      spreadsheet.cellFormat({ format: '$#,##0.00' }, `${pfx}F36`)
+    }
+
+    // Apply background color to columns B and C as well
+    spreadsheet.cellFormat(
+      {
+        backgroundColor: '#FFF2CC',
+        border: '1px solid #000000'
+      },
+      `${pfx}B36:C36`
+    )
+    baseBidTotalRows.push(36) // Rock excavation Total
+
+    // Row 37: Empty row
+
+    // Row 38: Excavation Total
+    spreadsheet.merge(`${pfx}D38:E38`)
+    spreadsheet.updateCell({ value: 'Excavation Total:' }, `${pfx}D38`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'left',
+        backgroundColor: '#BDD7EE',
+        border: '1px solid #000000'
+      },
+      `${pfx}D38:E38`
+    )
+
+    spreadsheet.merge(`${pfx}F38:G38`)
+    // Sum F29 (Soil Excavation Total) and F36 (Rock excavation Total)
+    const excavationTotalFormula = `=SUM(F29,F36)`
+    spreadsheet.updateCell({ formula: excavationTotalFormula }, `${pfx}F38`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'right',
+        backgroundColor: '#BDD7EE',
+        border: '1px solid #000000'
+      },
+      `${pfx}F38:G38`
+    )
+    // Apply number format with comma separator
+    try {
+      spreadsheet.numberFormat('$#,##0.00', `${pfx}F38:G38`)
+    } catch (e) {
+      // Fallback to cellFormat if numberFormat doesn't work
+      spreadsheet.cellFormat({ format: '$#,##0.00' }, `${pfx}F38`)
+    }
+
+    // Apply background color to columns B and C as well
+    spreadsheet.cellFormat(
+      {
+        backgroundColor: '#BDD7EE',
+        border: '1px solid #000000'
+      },
+      `${pfx}B38:C38`
+    )
+
+    // Apply number format with comma separators to column H ($/1000) and all columns after it (I, J, K, L, M, N)
+    // Format entire column ranges for data rows (16-38)
+    try {
+      // Column H ($/1000) - currency format with comma
+      spreadsheet.numberFormat('$#,##0.00', `${pfx}H16:H38`)
+    } catch (e) {
+      // Ignore errors
+    }
+
+    // Columns I, J, K, L, M, N - apply comma separator format
+    const formatColumns = ['I', 'J', 'K', 'L', 'M', 'N']
+    formatColumns.forEach(col => {
+      try {
+        // Use currency format for columns that show dollar values (I, J, L)
+        // and number format with comma for others
+        if (col === 'I' || col === 'J' || col === 'L') {
+          spreadsheet.numberFormat('$#,##0.00', `${pfx}${col}16:${col}38`)
+        } else {
+          spreadsheet.numberFormat('#,##0.00', `${pfx}${col}16:${col}38`)
+        }
+      } catch (e) {
+        // Ignore formatting errors
+      }
+    })
+
+    // Row 39: Empty row
+
+    // Row 40: SOE scope
+    spreadsheet.updateCell({ value: 'SOE scope:' }, `${pfx}B40`)
     spreadsheet.cellFormat(
       {
         fontWeight: 'bold',
@@ -1979,11 +2119,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         backgroundColor: '#BDD7EE',
         border: '1px solid #000000'
       },
-      `${pfx}B${currentRow}`
+      `${pfx}B40`
     )
-    currentRow++
 
-    // SOE Headings
+    // Add SOE subsection headings (rows 41-64)
+    // We'll add content after each heading, so headings will be at:
+    // Row 41: Soldier drilled piles:
+    // Row 42: Soldier driven piles: (will be shifted down if drilled piles are added)
+    // etc.
     const soeHeadings = [
       'Soldier drilled piles:',
       'Soldier driven piles:',
@@ -2014,10 +2157,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       'Misc.:'
     ]
 
+    // Store heading row numbers for later reference
     const headingRows = {}
     soeHeadings.forEach((heading, index) => {
-      // Write headings sequentially
-      const rowNum = currentRow
+      const rowNum = 41 + index
       headingRows[heading] = rowNum
       spreadsheet.updateCell({ value: heading }, `${pfx}B${rowNum}`)
       spreadsheet.cellFormat(
@@ -2031,48 +2174,139 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         },
         `${pfx}B${rowNum}`
       )
-      currentRow++
     })
 
+    // Track row shifts for dynamic content insertion
+    // This will help us place content correctly after headings
     let rowShift = 0
 
-    // Helper function... (retained)
+    // Helper function to extract SOE page number from raw data
     const getSOEPageFromRawData = (diameter, thickness) => {
-      // ... (retained implementation or fallback)
-      if (!rawData || !Array.isArray(rawData) || rawData.length < 2) return 'SOE-101.00'
-      // ... (simplified for space)
-      return 'SOE-101.00'
+      if (!rawData || !Array.isArray(rawData) || rawData.length < 2) {
+        return 'SOE-101.00' // Default fallback
+      }
+
+      const headers = rawData[0]
+      const dataRows = rawData.slice(1)
+
+      // Find the "digitizer item" and "page" column indices
+      const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+      const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+
+      if (digitizerIdx === -1 || pageIdx === -1) {
+        return 'SOE-101.00' // Default fallback
+      }
+
+      // Create pattern to match diameter and thickness (e.g., "9.625Ø x0.545")
+      const pattern = new RegExp(`${diameter}\\s*Ø\\s*x\\s*${thickness}`, 'i')
+
+      // Search through raw data rows to find matching item
+      for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+        const row = dataRows[rowIndex]
+        const digitizerItem = row[digitizerIdx]
+        if (digitizerItem && pattern.test(String(digitizerItem))) {
+          // Extract SOE page number from the page column
+          const pageValue = row[pageIdx]
+          if (pageValue) {
+            const pageStr = String(pageValue).trim()
+            // Extract SOE reference (e.g., "SOE-101.00")
+            const soeMatch = pageStr.match(/SOE-[\d.]+/i)
+            if (soeMatch) {
+              return soeMatch[0]
+            }
+          }
+        }
+      }
+
+      return 'SOE-101.00' // Default fallback if not found
     }
 
-    // Add drilled soldier pile proposal text
+    // Add drilled soldier pile proposal text from collected groups
     const collectedGroups = window.drilledSoldierPileGroups || []
 
-    // ... (helper parseDimension) ...
+    // Helper function to parse dimension string (e.g., "27'-10"" -> 27.833)
     const parseDimension = (dimStr) => {
       if (!dimStr) return 0
       const match = dimStr.match(/(\d+)(?:'-?)?(\d+)?/)
       if (!match) return 0
-      return (parseInt(match[1]) || 0) + ((parseInt(match[2]) || 0) / 12)
+      const feet = parseInt(match[1]) || 0
+      const inches = parseInt(match[2]) || 0
+      return feet + (inches / 12)
     }
 
-    // Logic to separate HP/Drilled
-    const drilledGroups = []
-    const hpGroupsFromDrilled = []
-    collectedGroups.forEach((group) => {
-      const hasHPItems = group.some(item => /HP\d+x\d+/i.test(item.particulars || ''))
-      if (hasHPItems) hpGroupsFromDrilled.push(group)
-      else drilledGroups.push(group)
+    // Calculate totals using formulas from soeProcessor.js
+    // FT = H * C (Height * Takeoff) - formula from soeProcessor.js line 255
+    // LBS = I * Weight (FT * Weight) - formula from soeProcessor.js line 256
+    // Weight for drilled: (Diameter - Thickness) * Thickness * 10.69 - from calculatePileWeight
+    collectedGroups.forEach((group, idx) => {
+      let groupFT = 0
+      let groupLBS = 0
+      let groupWeight = null
+
+      group.forEach(item => {
+        const particulars = item.particulars || ''
+        const takeoff = item.takeoff || 0
+        const height = item.height || 0 // Height from column H (already calculated/rounded)
+
+        // Calculate FT for this item: FT = H * C (formula from soeProcessor.js line 255)
+        const itemFT = height * takeoff
+        groupFT += itemFT
+
+        // Calculate weight for drilled soldier piles
+        if (!groupWeight) {
+          const drilledMatch = particulars.match(/([0-9.]+)Ø\s*x\s*([0-9.]+)/i)
+          if (drilledMatch) {
+            const diameter = parseFloat(drilledMatch[1])
+            const thickness = parseFloat(drilledMatch[2])
+            // Weight formula from calculatePileWeight (soeParser.js line 113-114)
+            groupWeight = (diameter - thickness) * thickness * 10.69
+          }
+        }
+
+        // Calculate LBS for this item: LBS = I * Weight (formula from soeProcessor.js line 256)
+        if (groupWeight) {
+          const itemLBS = itemFT * groupWeight
+          groupLBS += itemLBS
+        }
+      })
+
+      // Show only the sum totals with formula range
+      const firstRowNumber = Math.min(...group.map(item => item.rawRowNumber || 0))
+      const lastRowNumber = Math.max(...group.map(item => item.rawRowNumber || 0))
+
     })
 
+    // Separate HP items from drilled soldier pile items
+    const drilledGroups = []
+    const hpGroupsFromDrilled = []
+
+    collectedGroups.forEach((group) => {
+      const hasHPItems = group.some(item => {
+        const particulars = item.particulars || ''
+        return /HP\d+x\d+/i.test(particulars)
+      })
+
+      if (hasHPItems) {
+        // This group contains HP items - move to HP groups
+        hpGroupsFromDrilled.push(group)
+      } else {
+        // This is a drilled soldier pile group
+        drilledGroups.push(group)
+      }
+    })
+
+
+    // Add HP groups from drilled soldier pile section to HP groups
     if (hpGroupsFromDrilled.length > 0) {
-      if (!window.hpSoldierPileGroups) window.hpSoldierPileGroups = []
+      if (!window.hpSoldierPileGroups) {
+        window.hpSoldierPileGroups = []
+      }
       window.hpSoldierPileGroups.push(...hpGroupsFromDrilled)
     }
 
-    // Initialize currentRow for Drilled items
     // Initialize currentRow for both drilled and HP groups
-    // Start drilled soldier piles right after "Soldier drilled piles:" heading
-    currentRow = headingRows['Soldier drilled piles:'] + 1
+    // Start drilled soldier piles right after "Soldier drilled piles:" heading (row 41)
+    let currentRow = 42
 
     if (drilledGroups.length > 0) {
       // Process each group separately
@@ -2232,7 +2466,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               },
               `${pfx}B${currentRow}`
             )
-            fillRatesForProposalRow(currentRow, proposalText)
 
             // Calculate and set row height based on content
             const dynamicHeight = calculateRowHeight(proposalText)
@@ -2518,7 +2751,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               },
               `${pfx}B${currentRow}`
             )
-            fillRatesForProposalRow(currentRow, proposalText)
 
             // Add FT (LF) to column C - reference to calculation sheet sum row
             spreadsheet.updateCell({ formula: `=${ftCellRef}` }, `${pfx}C${currentRow}`)
@@ -2913,7 +3145,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           },
           `${pfx}B${currentRow}`
         )
-        fillRatesForProposalRow(currentRow, proposalText)
 
         // Add FT (LF) to column C - reference to calculation sheet sum row
         if (sumRowIndex > 0) {
@@ -3236,7 +3467,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           },
           `${pfx}B${currentRow}`
         )
-        fillRatesForProposalRow(currentRow, proposalText)
 
         // Add FT (LF) to column C - reference to calculation sheet sum row
         if (sumRowIndex > 0) {
@@ -3560,7 +3790,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           },
           `${pfx}B${currentRow}`
         )
-        fillRatesForProposalRow(currentRow, proposalText)
 
         // Add FT (LF) to column C - reference to calculation sheet sum row
         if (sumRowIndex > 0) {
@@ -4776,7 +5005,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 },
                 `${pfx}B${currentRow}`
               )
-              fillRatesForProposalRow(currentRow, proposalText)
 
               // Calculate and set row height based on content
               const dynamicHeight = calculateRowHeight(proposalText)
@@ -4947,7 +5175,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               },
               `${pfx}B${currentRow}`
             )
-            fillRatesForProposalRow(currentRow, proposalText)
 
             // Calculate and set row height based on content
             const dynamicHeight = calculateRowHeight(proposalText)
@@ -5184,7 +5411,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               },
               `${pfx}B${currentRow}`
             )
-            fillRatesForProposalRow(currentRow, proposalText)
 
             // Add FT (LF) to column C
             if (sumRowIndex > 0) {
@@ -5425,7 +5651,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               },
               `${pfx}B${currentRow}`
             )
-            fillRatesForProposalRow(currentRow, proposalText)
 
             // Add FT (LF) to column C
             if (sumRowIndex > 0) {
@@ -5660,7 +5885,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               },
               `${pfx}B${currentRow}`
             )
-            fillRatesForProposalRow(currentRow, proposalText)
 
             // Add FT (LF) to column C
             if (sumRowIndex > 0) {
@@ -7586,13 +7810,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             }
           }
 
-          // Timber lagging line: main reference only (e.g. SOE-101.00), no details page
-          const timberLaggingMainRef = (soePageMain && !String(soePageMain).includes('301')) ? soePageMain : 'SOE-101.00'
           // Format: F&I new 3"x10" timber lagging for the exposed depths (Havg=10'-6") as per SOE-101.00
-          proposalText = `F&I new ${dimensions || '##'} timber lagging for the exposed depths (Havg=${heightText || '##'}) as per ${timberLaggingMainRef}`
+          proposalText = `F&I new ${dimensions || '##'} timber lagging for the exposed depths (Havg=${heightText || '##'}) as per ${soePageMain}`
 
-          // Store main ref for backpacking line (backpacking uses main + details on SOE-301.00)
-          window.timberLaggingSoePage = timberLaggingMainRef
+          // Store soePageMain for backpacking line
+          window.timberLaggingSoePage = soePageMain
         } else if (subsectionName.toLowerCase() === 'timber sheeting') {
           // Extract dimensions from items (e.g., "3"x10"" from "Timber sheeting 3"x10"")
           let dimensions = ''
@@ -7672,7 +7894,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           },
           `${pfx}B${currentRow}`
         )
-        fillRatesForProposalRow(currentRow, proposalText)
 
         // Calculate and set row height based on content
         const dynamicHeight = calculateRowHeight(proposalText)
@@ -7834,7 +8055,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const timberLaggingSoePage = window.timberLaggingSoePage || 'SOE-101.00'
           const mainSoeMatch = timberLaggingSoePage.match(/(SOE[-\d.]+)/i)
           const mainSoePage = mainSoeMatch ? mainSoeMatch[1] : 'SOE-101.00'
-          // Backpacking has its own reference: main SOE + details on SOE-301.00 (different from timber lagging line)
           const backpackingText = `F&I new backpacking @ timber lagging ${mainSoePage} & details on SOE-301.00`
           spreadsheet.updateCell({ value: backpackingText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -7848,26 +8068,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             },
             `${pfx}B${currentRow}`
           )
-          fillRatesForProposalRow(currentRow, backpackingText)
-          // Backpacking SF from calculation sheet: find the row with "Backpacking" in column B and reference its J (SF). J is filled by formula at render time so we don't require a value in calculationData.
-          let backpackingSumRowIndex = null
-          if (calculationData && Array.isArray(calculationData)) {
-            let fallbackRow = null
-            for (let i = 0; i < calculationData.length; i++) {
-              const r = calculationData[i]
-              const colB = (r && r[1] != null) ? String(r[1]).trim() : ''
-              const bLower = colB.toLowerCase()
-              if (bLower === 'backpacking') {
-                backpackingSumRowIndex = i + 1
-                break
-              }
-              if (bLower === 'backpacking:') fallbackRow = i + 2
-              else if (bLower.includes('backpacking') && fallbackRow == null) fallbackRow = i + 1
-            }
-            if (backpackingSumRowIndex == null && fallbackRow != null) backpackingSumRowIndex = fallbackRow
-          }
-          if (backpackingSumRowIndex > 0) {
-            spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${backpackingSumRowIndex}` }, `${pfx}D${currentRow}`)
+          // Backpacking uses same SF as timber lagging - reference calculation sheet timber lagging sum row
+          if (sumRowIndex > 0) {
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${sumRowIndex}` }, `${pfx}D${currentRow}`)
             spreadsheet.cellFormat(
               {
                 fontWeight: 'bold',
@@ -7915,7 +8118,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             },
             `${pfx}B${currentRow}`
           )
-          fillRatesForProposalRow(currentRow, formBoardText)
 
           // Calculate and set row height based on content
           const formBoardDynamicHeight = calculateRowHeight(formBoardText)
@@ -8025,7 +8227,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             },
             `${pfx}B${currentRow}`
           )
-          fillRatesForProposalRow(currentRow, shimsProposalText)
 
           // Calculate and set row height based on content
           const shimsDynamicHeight = calculateRowHeight(shimsProposalText)
@@ -8108,12 +8309,39 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         `${pfx}H${currentRow}`
       )
       baseBidTotalRows.push(currentRow)
-      totalRows.push(currentRow)
       currentRow++
     }
-    } // end if (hasSOEScopeData)
 
-    // Process Rock anchor items from calculation data (check before showing section)
+    // Add Rock anchor scope heading after SOE Total
+    spreadsheet.updateCell({ value: 'Rock anchor scope:' }, `${pfx}B${currentRow}`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'center',
+        backgroundColor: '#BDD7EE',
+        border: '1px solid #000000'
+      },
+      `${pfx}B${currentRow}`
+    )
+    currentRow++
+
+    // Add Rock anchors subheading
+    spreadsheet.updateCell({ value: 'Rock anchors: including applicable washers, steel bearing plates, locking hex nuts as required' }, `${pfx}B${currentRow}`)
+    spreadsheet.cellFormat(
+      {
+        fontWeight: 'bold',
+        color: '#000000',
+        textAlign: 'left',
+        backgroundColor: '#D0CECE',
+        textDecoration: 'underline',
+        border: '1px solid #000000'
+      },
+      `${pfx}B${currentRow}`
+    )
+    currentRow++
+
+    // Process Rock anchor items from calculation data
     const rockAnchorItems = []
     if (calculationData && calculationData.length > 0) {
       let inRockAnchorSection = false
@@ -8162,38 +8390,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
       })
     }
-
-    const hasRockAnchorScopeData = rockAnchorItems.length > 0
-
-    if (hasRockAnchorScopeData) {
-    // Add Rock anchor scope heading after SOE Total
-    spreadsheet.updateCell({ value: 'Rock anchor scope:' }, `${pfx}B${currentRow}`)
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'center',
-        backgroundColor: '#BDD7EE',
-        border: '1px solid #000000'
-      },
-      `${pfx}B${currentRow}`
-    )
-    currentRow++
-
-    // Add Rock anchors subheading
-    spreadsheet.updateCell({ value: 'Rock anchors: including applicable washers, steel bearing plates, locking hex nuts as required' }, `${pfx}B${currentRow}`)
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'left',
-        backgroundColor: '#D0CECE',
-        textDecoration: 'underline',
-        border: '1px solid #000000'
-      },
-      `${pfx}B${currentRow}`
-    )
-    currentRow++
 
     // Process and display Rock anchor items (grouped)
     if (rockAnchorItems.length > 0) {
@@ -8292,7 +8488,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           },
           `${pfx}B${currentRow}`
         )
-        fillRatesForProposalRow(currentRow, proposalText)
 
         // Calculate and set row height based on content
         const rockAnchorDynamicHeight = calculateRowHeight(proposalText)
@@ -8507,7 +8702,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           },
           `${pfx}B${currentRow}`
         )
-        fillRatesForProposalRow(currentRow, proposalText)
 
         // Calculate and set row height based on content
         const rockBoltDynamicHeight = calculateRowHeight(proposalText)
@@ -8568,7 +8762,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
     // Add empty row to separate Rock anchor scope from Foundation scope
     currentRow++
-    } // end if (hasRockAnchorScopeData)
 
     // Note: Green background for columns I-N will be applied at the end after all data is written
 
@@ -8855,7 +9048,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           // Add proposal text
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          fillRatesForProposalRow(currentRow, proposalText)
 
           // Apply color if group has Influ
           const cellFormat = {
@@ -9190,7 +9382,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           },
           `${pfx}B${currentRow}`
         )
-        fillRatesForProposalRow(currentRow, proposalText)
 
         // Calculate and set row height based on content
         const foundationPileDynamicHeight = calculateRowHeight(proposalText)
@@ -9261,9 +9452,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           included: [
             'Plates & locking nuts included',
             'Pilings will be threaded at both ends and installed in 5\' or 10\' increments',
-            'One mobilization & demobilization of drilling equipment included',
+            'Single mobilization & demobilization of drilling equipment included',
             'Surveying, stakeout, pile numbering plan & as-built plan included',
-            'One compression reactionary load tests included',
             'Two lateral reactionary load tests included',
             'Video inspections included',
             'Engineering & Shop drawings included'
@@ -9278,10 +9468,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           title: 'Driven piles misc.:',
           included: [
             'The Entire Length of each driven pile is charged including any cut off length',
-            'One mobilization & demobilization of drilling equipment included',
+            'Single mobilization & demobilization of drilling equipment included',
             'Surveying, stakeout, pile numbering plan & as-built plan included',
-            'One compression reactionary load tests included',
-            'One lateral reactionary load tests included',
+            'Single compression reactionary load tests included',
+            'Single lateral reactionary load tests included',
             'Engineering & Shop drawings included'
           ],
           additional: [
@@ -9301,9 +9491,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           title: 'Stelcor pile misc.:',
           included: [
             'Plates & locking nuts included',
-            'One mobilization & demobilization of drilling equipment included',
+            'Single mobilization & demobilization of drilling equipment included',
             'Surveying, stakeout, pile numbering plan & as-built plan included',
-            'One compression reactionary load test included',
+            'Single compression reactionary load test included',
             'Engineering & Shop drawings included'
           ],
           additional: [
@@ -9316,9 +9506,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           title: 'CFA pile misc.:',
           included: [
             'Plates & locking nuts included',
-            'One mobilization & demobilization of drilling equipment included',
+            'Single mobilization & demobilization of drilling equipment included',
             'Surveying, stakeout, pile numbering plan & as-built plan included',
-            'One compression reactionary load test included',
+            'Single compression reactionary load test included',
             'Engineering & Shop drawings included'
           ],
           additional: [
@@ -9360,9 +9550,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             },
             `${pfx}B${currentRow}`
           )
-
-          // Apply unit rates for this misc line from proposal_mapped.json
-          fillRatesForProposalRow(currentRow, item)
 
           // Add special formulas for certain items
           if (item.includes('Plates & locking nuts') && (subsectionName === 'Drilled foundation pile' || subsectionName === 'CFA pile')) {
@@ -9433,66 +9620,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             }
           }
 
-          // Override QTY rate for "Plates & locking nuts included" by pile type:
-          // - Drilled pile misc.: 250
-          // - Stelcor pile misc. and CFA pile misc.: 100
-          if (item.includes('Plates & locking nuts')) {
-            let qtyRate = null
-            if (subsectionName === 'Drilled foundation pile') qtyRate = 250
-            else if (subsectionName === 'Stelcor drilled displacement pile' || subsectionName === 'CFA pile') qtyRate = 100
-            if (qtyRate != null) {
-              spreadsheet.updateCell({ value: qtyRate }, `${pfx}M${currentRow}`)
-              spreadsheet.cellFormat(
-                {
-                  fontWeight: 'normal',
-                  textAlign: 'right',
-                  backgroundColor: 'white'
-                },
-                `${pfx}M${currentRow}`
-              )
-            }
-          }
-
-          // If this misc line is a load test line, set QTY (G) to 1 or 2 based on the leading word
-          const lowerItem = item.toLowerCase()
-          if (lowerItem.includes('load test')) {
-            let qtyValue = null
-            if (lowerItem.startsWith('one ') || lowerItem.includes(' one ')) qtyValue = 1
-            else if (lowerItem.startsWith('two ') || lowerItem.includes(' two ')) qtyValue = 2
-            if (qtyValue != null) {
-              spreadsheet.updateCell({ value: qtyValue }, `${pfx}G${currentRow}`)
-              spreadsheet.cellFormat(
-                {
-                  fontWeight: 'normal',
-                  textAlign: 'right',
-                  backgroundColor: 'white'
-                },
-                `${pfx}G${currentRow}`
-              )
-            }
-          }
-
-          // If this misc line is mobilization/demobilization, override LS rate by pile type
-          if (item.includes('mobilization & demobilization of drilling equipment')) {
-            let lsValue = null
-            if (subsectionName === 'Drilled foundation pile' || subsectionName === 'Stelcor drilled displacement pile') {
-              lsValue = 10000
-            } else if (subsectionName === 'Driven foundation pile') {
-              lsValue = 20000
-            }
-            if (lsValue != null) {
-              spreadsheet.updateCell({ value: lsValue }, `${pfx}N${currentRow}`)
-              spreadsheet.cellFormat(
-                {
-                  fontWeight: 'normal',
-                  textAlign: 'right',
-                  backgroundColor: 'white'
-                },
-                `${pfx}N${currentRow}`
-              )
-            }
-          }
-
           currentRow++
         })
 
@@ -9510,10 +9637,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             },
             `${pfx}B${currentRow}`
           )
-
-          // Apply unit rates for this additional misc line from proposal_mapped.json
-          fillRatesForProposalRow(currentRow, item)
-
           currentRow++
         })
       }
@@ -9585,15 +9708,34 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           `${pfx}B${currentRow}:G${currentRow}`
         )
         baseBidTotalRows.push(currentRow) // Foundation pile section total
-        totalRows.push(currentRow)
 
-        currentRow++ // One row gap after total
+        currentRow++
+
+        // Add empty row after the total (like Demolition Total)
+        currentRow++
       }
     })
 
     // Substructure concrete scope (above Below grade waterproofing scope)
-    const substructureCalcSheet = 'Calculations Sheet'
-    const pileSubsections = ['Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile']
+    if (true) { // eslint-disable-line no-constant-condition
+      // Add Substructure concrete scope header (after CAF piles scope)
+      spreadsheet.updateCell({ value: 'Substructure concrete scope:' }, `${pfx}B${currentRow}`)
+      spreadsheet.cellFormat(
+        {
+          fontWeight: 'bold',
+          color: '#000000',
+          textAlign: 'center',
+          backgroundColor: '#BDD7EE',
+          border: '1px solid #000000',
+          textDecoration: 'underline'
+        },
+        `${pfx}B${currentRow}`
+      )
+      currentRow++
+
+      // Substructure concrete scope table
+      const substructureCalcSheet = 'Calculations Sheet'
+      const pileSubsections = ['Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile']
       const allFoundationSums = (formulaData || []).filter(f =>
         f.itemType === 'foundation_sum' && f.section === 'foundation' && f.subsectionName &&
         !pileSubsections.includes(f.subsectionName)
@@ -9602,20 +9744,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         if (!calculationData || !sumF.firstDataRow) return ''
         const row = calculationData[sumF.firstDataRow - 1]
         return (row?.[1] || '').toString().toLowerCase()
-      }
-      const hasNonZeroTakeoff = (source, isFormulaItem) => {
-        if (!calculationData) return true
-        if (isFormulaItem) {
-          const row = calculationData[source.row - 1]
-          return (parseFloat(row?.[2]) || 0) > 0
-        }
-        const first = (source.firstDataRow || 1) - 1
-        const last = (source.lastDataRow || source.firstDataRow || 1) - 1
-        for (let i = first; i <= last; i++) {
-          const row = calculationData[i]
-          if (row && (parseFloat(row[2]) || 0) > 0) return true
-        }
-        return false
       }
       const substructureTemplate = [
         {
@@ -9687,7 +9815,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             { text: `F&I new (8" thick) concrete liner walls (Havg=11'-2") @ cellar FL to 1st FL as per FO-101.00 & details on FO-203.00`, sub: 'Linear Wall', match: () => true },
             { text: `F&I new (1'-0" wide) foundation walls (Havg=10'-10") @ cellar FL to 1st FL as per FO-101.00`, sub: 'Foundation Wall', match: () => true },
             { text: `F&I new (10" wide) retaining walls (Havg=6'-4") @ court as per FO-101.00`, sub: 'Retaining walls', match: p => p.includes('court') },
-            { text: `F&I new (1'-0" wide) retaining walls w/epoxy reinforcement (Havg=4'-8") @ level 1 as per FO-101.00`, sub: 'Retaining walls', match: p => p.toLowerCase().startsWith('rw') || p.includes('retaining wall') || p.includes('retaining walls') || p.includes('level') }
+            { text: `F&I new (1'-0" wide) retaining walls w/epoxy reinforcement (Havg=4'-8") @ level 1 as per FO-101.00`, sub: 'Retaining walls', match: p => p.includes('epoxy') || p.includes('level') }
           ]
         },
         {
@@ -9714,7 +9842,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         },
         {
           heading: 'Trench drain', items: [
-            { text: 'F&I new trench drain as per FO-102.00 & details on scope sheet pt. no. 65', formulaItem: { itemType: 'electric_conduit', match: p => (p || '').toLowerCase().includes('trench drain') } }
+            { text: 'F&I new trench drain as per FO-102.00 & details on scope sheet pt. no. 65', sub: 'Electric conduit', match: p => p.includes('trench drain') }
           ]
         },
         {
@@ -9723,52 +9851,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           ]
         }
       ]
-      let hasSubstructureScopeData = false
-      const dryRunUsedSum = new Set()
-      const dryRunUsedItem = new Set()
-      for (const { items } of substructureTemplate) {
-        for (const it of items) {
-          const { sub, match, formulaItem } = it
-          let source = null
-          if (formulaItem) {
-            const itemF = (formulaData || []).find(f =>
-              f.itemType === formulaItem.itemType && f.section === 'foundation' &&
-              !dryRunUsedItem.has(f.row) && formulaItem.match((f.parsedData?.particulars || '').toLowerCase())
-            )
-            if (itemF) {
-              source = itemF
-              dryRunUsedItem.add(itemF.row)
-              if (hasNonZeroTakeoff(itemF, true)) { hasSubstructureScopeData = true; break }
-            }
-          } else {
-            const sumF = allFoundationSums.find(f => {
-              if (dryRunUsedSum.has(f.row)) return false
-              if ((f.subsectionName || '').toLowerCase() !== sub.toLowerCase()) return false
-              return match(getFirstParticulars(f))
-            })
-            if (sumF) {
-              source = sumF
-              dryRunUsedSum.add(sumF.row)
-              if (hasNonZeroTakeoff(sumF, false)) { hasSubstructureScopeData = true; break }
-            }
-          }
-        }
-        if (hasSubstructureScopeData) break
-      }
-    if (hasSubstructureScopeData) {
-      spreadsheet.updateCell({ value: 'Substructure concrete scope:' }, `${pfx}B${currentRow}`)
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'center',
-          backgroundColor: '#BDD7EE',
-          border: '1px solid #000000',
-          textDecoration: 'underline'
-        },
-        `${pfx}B${currentRow}`
-      )
-      currentRow++
       const substructureStartRow = currentRow
       const usedSumIds = new Set()
       let lastSubstructureHeading = null
@@ -9777,7 +9859,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         let headingAdded = false
         items.forEach(({ text, sub, match, formulaItem }) => {
           let rowToUse = null
-          let source = null
           if (formulaItem) {
             const itemF = (formulaData || []).find(f =>
               f.itemType === formulaItem.itemType && f.section === 'foundation' &&
@@ -9785,7 +9866,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             )
             if (itemF) {
               rowToUse = itemF.row
-              source = itemF
               usedItemIds.add(rowToUse)
             }
           } else {
@@ -9796,12 +9876,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             })
             if (sumF) {
               rowToUse = sumF.row
-              source = sumF
               usedSumIds.add(rowToUse)
             }
           }
-          if (!rowToUse || !source) return
-          if (!hasNonZeroTakeoff(source, !!formulaItem)) return
+          if (!rowToUse) return
           if (!headingAdded) {
             headingAdded = true
             lastSubstructureHeading = heading
@@ -9820,7 +9898,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!J${sumRow}` }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!L${sumRow}` }, `${pfx}F${currentRow}`)
           spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!M${sumRow}` }, `${pfx}G${currentRow}`)
-          fillRatesForProposalRow(currentRow, text)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         })
@@ -9841,12 +9918,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.updateCell({ formula: `=SUM(F${substructureStartRow}:F${substructureDataEndRow})` }, `${pfx}F${currentRow}`)
         spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}F${currentRow}`)
         try { spreadsheet.numberFormat('#,##0.00', `${pfx}F${currentRow}`) } catch (e) { }
-        fillRatesForProposalRow(currentRow, 'DOB approved concrete washout included')
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
         spreadsheet.updateCell({ value: 'Engineering, shop drawings, formwork drawings, design mixes included' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-        fillRatesForProposalRow(currentRow, 'Engineering, shop drawings, formwork drawings, design mixes included')
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
       }
@@ -9934,7 +10009,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         },
         `${pfx}B${currentRow}`
       )
-      fillRatesForProposalRow(currentRow, proposalText)
 
       // Calculate and set row height based on content
       const waterproofingDynamicHeight = calculateRowHeight(proposalText)
@@ -10156,41 +10230,77 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     }
 
     if (hasHorizontalInsulation) {
-      const calcSheetName = 'Calculations Sheet'
+      const horizontalProposalText = `F&I new (2" thick) XPS rigid insulation @ SOG & grade beam`
+
+      spreadsheet.updateCell({ value: horizontalProposalText }, `${pfx}B${currentRow}`)
+      spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+      spreadsheet.cellFormat(
+        {
+          fontWeight: 'bold',
+          color: '#000000',
+          textAlign: 'left',
+          backgroundColor: 'white',
+          verticalAlign: 'top'
+        },
+        `${pfx}B${currentRow}`
+      )
+
+      // Calculate and set row height based on content
+      const horizontalInsulationDynamicHeight = calculateRowHeight(horizontalProposalText)
+
+      // Find the SQFT total from horizontal insulation sum row (column J)
       let horizontalInsulationSumRow = 0
-      let thicknessFromCalc = '2' // default
+      const calcSheetName = 'Calculations Sheet'
+
       if (formulaData && Array.isArray(formulaData)) {
+        // Find horizontal insulation sum row
         const horizontalInsulationSumFormula = formulaData.find(f =>
           f.itemType === 'waterproofing_horizontal_insulation_sum' &&
           f.section === 'waterproofing'
         )
+
         if (horizontalInsulationSumFormula) {
           horizontalInsulationSumRow = horizontalInsulationSumFormula.row
-          // Thickness is dynamic: read from first data row (column B) e.g. "2"XPS Rigid insulation @ SOG & GB"
-          const firstDataRow = horizontalInsulationSumFormula.firstDataRow
-          if (firstDataRow && calculationData && calculationData[firstDataRow - 1]) {
-            const particulars = (calculationData[firstDataRow - 1][1] || '').toString().trim()
-            const thickMatch = particulars.match(/^(\d+(?:\.\d+)?)\s*"/) || particulars.match(/(\d+(?:\.\d+)?)\s*"\s*XPS/i)
-            if (thickMatch) thicknessFromCalc = thickMatch[1]
+
+          // Add SQFT to column D - reference to calculation sheet sum row (column J)
+          spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${horizontalInsulationSumRow}` }, `${pfx}D${currentRow}`)
+          spreadsheet.cellFormat(
+            {
+              fontWeight: 'bold',
+              textAlign: 'right',
+              backgroundColor: 'white'
+            },
+            `${pfx}D${currentRow}`
+          )
+          // Apply 2 decimal format
+          try {
+            spreadsheet.numberFormat('#,##0.00', `${pfx}D${currentRow}`)
+          } catch (e) {
+            spreadsheet.cellFormat({ format: '#,##0.00' }, `${pfx}D${currentRow}`)
           }
         }
       }
-      const horizontalProposalText = `F&I new (${thicknessFromCalc}" thick) XPS rigid insulation @ SOG & grade beam`
-      spreadsheet.updateCell({ value: horizontalProposalText }, `${pfx}B${currentRow}`)
-      spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+
+      // Add $/1000 formula in column H
+      const horizontalDollarFormula = `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")`
+      spreadsheet.updateCell({ formula: horizontalDollarFormula }, `${pfx}H${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' },
-        `${pfx}B${currentRow}`
+        {
+          fontWeight: 'bold',
+          textAlign: 'right',
+          backgroundColor: 'white',
+          format: '$#,##0.0'
+        },
+        `${pfx}H${currentRow}`
       )
-      if (horizontalInsulationSumRow > 0) {
-        spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${horizontalInsulationSumRow}` }, `${pfx}D${currentRow}`)
-        spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}D${currentRow}`)
-        try { spreadsheet.numberFormat('#,##0.00', `${pfx}D${currentRow}`) } catch (e) { spreadsheet.cellFormat({ format: '#,##0.00' }, `${pfx}D${currentRow}`) }
+      // Apply currency format using numberFormat
+      try {
+        spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}`)
+      } catch (e) {
+        // Fallback already applied in cellFormat
       }
-      fillRatesForProposalRow(currentRow, horizontalProposalText)
-      spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
-      spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.0' }, `${pfx}H${currentRow}`)
-      try { spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}`) } catch (e) { }
+
+      // Row height already set above based on horizontal insulation proposal text
       currentRow++
     }
 
@@ -10200,7 +10310,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     spreadsheet.cellFormat(
       {
         fontWeight: 'normal',
-        fontStyle: 'italic',
         color: '#000000',
         textAlign: 'center',
         backgroundColor: 'white',
@@ -11241,17 +11350,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       return { cipLines: lines, patchLines, somdLines, slabStepsLines, cipStairsLines, concreteHangerLines, lwConcreteFillLines, toppingSlabLines, raisedSlabLines, builtUpSlabLines, builtupRampsLines, builtUpStairLines, shearWallLines, columnsLines, dropPanelLines, concretePostLines, concreteEncasementLines, beamsLines, parapetWallLines, thermalBreakLines, curbsLines, concretePadLines, nonShrinkGroutLines, repairScopeLines }
     }
 
-    // Use data row(s) (same line as description) for values, not the sum row (next line)
-    const useDataRows = (sumFormula) => {
-      if (!sumFormula) return null
-      if (sumFormula.firstDataRow == null) return { type: 'single', row: sumFormula.row }
-      const first = sumFormula.firstDataRow
-      const last = sumFormula.lastDataRow != null ? sumFormula.lastDataRow : first
-      if (first === last) return { type: 'single', row: first }
-      const rows = []
-      for (let r = first; r <= last; r++) rows.push(r)
-      return { type: 'sum', rows }
-    }
     const findSumRowForSubsection = (subsectionName, sumRowKey, groupIndex = 0, line = null) => {
       if (!formulaData || !Array.isArray(formulaData)) return null
       const sums = formulaData.filter(f =>
@@ -11260,15 +11358,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         f.subsectionName === subsectionName
       )
       if (sumRowKey === 'slab8') {
-        return sums[0] ? useDataRows(sums[0]) : null
+        return sums[0] ? { type: 'single', row: sums[0].row } : null
       }
-      if (sumRowKey === 'roofSlab8') return sums[1] ? useDataRows(sums[1]) : (sums[0] ? useDataRows(sums[0]) : null)
-      if (sumRowKey === 'balcony' || sumRowKey === 'terrace' || sumRowKey === 'patch') return sums[0] ? useDataRows(sums[0]) : null
+      if (sumRowKey === 'roofSlab8') return sums[1] ? { type: 'single', row: sums[1].row } : (sums[0] ? { type: 'single', row: sums[0].row } : null)
+      if (sumRowKey === 'balcony' || sumRowKey === 'terrace' || sumRowKey === 'patch') return sums[0] ? { type: 'single', row: sums[0].row } : null
       if (sumRowKey === 'slabSteps') {
         const f = (formulaData || []).find(x =>
           x.itemType === 'superstructure_slab_steps_sum' && x.section === 'superstructure' && x.subsectionName === 'Slab steps'
         )
-        return f ? useDataRows(f) : null
+        return f ? { type: 'single', row: f.row } : null
       }
       if (sumRowKey === 'raisedKneeWall') {
         const rows = (formulaData || []).filter(f =>
@@ -11310,19 +11408,19 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const f = (formulaData || []).find(x =>
           x.itemType === 'superstructure_builtup_ramps_knee_sum' && x.section === 'superstructure' && x.subsectionName === 'Builtup ramps'
         )
-        return f ? useDataRows(f) : null
+        return f ? { type: 'single', row: f.row } : null
       }
       if (sumRowKey === 'builtupRampsStyro') {
         const f = (formulaData || []).find(x =>
           x.itemType === 'superstructure_builtup_ramps_styro_sum' && x.section === 'superstructure' && x.subsectionName === 'Builtup ramps'
         )
-        return f ? useDataRows(f) : null
+        return f ? { type: 'single', row: f.row } : null
       }
       if (sumRowKey === 'builtupRampsRamp') {
         const f = (formulaData || []).find(x =>
           x.itemType === 'superstructure_builtup_ramps_ramp_sum' && x.section === 'superstructure' && x.subsectionName === 'Builtup ramps'
         )
-        return f ? useDataRows(f) : null
+        return f ? { type: 'single', row: f.row } : null
       }
       if (sumRowKey === 'builtUpStairKnee') {
         const rows = (formulaData || []).filter(f =>
@@ -11342,43 +11440,43 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         )
         const idx = groupIndex
         const sumAt = shearSums[idx]
-        return sumAt ? useDataRows(sumAt) : null
+        return sumAt ? { type: 'single', row: sumAt.row } : null
       }
       if (sumRowKey === 'dropPanel') {
         const f = (formulaData || []).find(x =>
           x.itemType === 'superstructure_drop_panel_sum' && x.section === 'superstructure' && x.subsectionName === 'Drop panel'
         )
-        return f ? useDataRows(f) : null
+        return f ? { type: 'single', row: f.row } : null
       }
       if (sumRowKey === 'concretePost') {
         const f = (formulaData || []).find(x =>
           x.itemType === 'superstructure_concrete_post_sum' && x.section === 'superstructure' && x.subsectionName === 'Concrete post'
         )
-        return f ? useDataRows(f) : null
+        return f ? { type: 'single', row: f.row } : null
       }
       if (sumRowKey === 'concreteEncasement') {
         const f = (formulaData || []).find(x =>
           x.itemType === 'superstructure_concrete_encasement_sum' && x.section === 'superstructure' && x.subsectionName === 'Concrete encasement'
         )
-        return f ? useDataRows(f) : null
+        return f ? { type: 'single', row: f.row } : null
       }
       if (sumRowKey === 'beams') {
         const f = (formulaData || []).find(x =>
           x.itemType === 'superstructure_beams_sum' && x.section === 'superstructure' && x.subsectionName === 'Beams'
         )
-        return f ? useDataRows(f) : null
+        return f ? { type: 'single', row: f.row } : null
       }
       if (sumRowKey === 'parapetWalls') {
         const f = (formulaData || []).find(x =>
           x.itemType === 'superstructure_parapet_walls_sum' && x.section === 'superstructure' && x.subsectionName === 'Parapet walls'
         )
-        return f ? useDataRows(f) : null
+        return f ? { type: 'single', row: f.row } : null
       }
       if (sumRowKey === 'thermalBreak') {
         const f = (formulaData || []).find(x =>
           x.itemType === 'superstructure_thermal_break_sum' && x.section === 'superstructure' && x.subsectionName === 'Thermal break'
         )
-        return f ? useDataRows(f) : null
+        return f ? { type: 'single', row: f.row } : null
       }
       if (sumRowKey === 'curbs') {
         const curbSums = (formulaData || []).filter(f =>
@@ -11386,7 +11484,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         )
         const idx = (line && line.curbGroupIndex != null) ? line.curbGroupIndex : groupIndex
         const sumAt = curbSums[idx]
-        return sumAt ? useDataRows(sumAt) : null
+        return sumAt ? { type: 'single', row: sumAt.row } : null
       }
       if (sumRowKey === 'concretePad') {
         const padSums = (formulaData || []).filter(f =>
@@ -11394,13 +11492,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         )
         const idx = (line && line.concretePadGroupIndex != null) ? line.concretePadGroupIndex : groupIndex
         const sumAt = padSums[idx]
-        return sumAt ? useDataRows(sumAt) : null
+        return sumAt ? { type: 'single', row: sumAt.row } : null
       }
       if (sumRowKey === 'nonShrinkGrout') {
         const f = (formulaData || []).find(x =>
           x.itemType === 'superstructure_non_shrink_grout_sum' && x.section === 'superstructure' && x.subsectionName === 'Non-shrink grout'
         )
-        return f ? useDataRows(f) : null
+        return f ? { type: 'single', row: f.row } : null
       }
       if (sumRowKey === 'repairScopeWall' || sumRowKey === 'repairScopeSlab' || sumRowKey === 'repairScopeColumn') {
         const subType = (line && line.repairSubType) || 'wall'
@@ -11419,25 +11517,25 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const f = (formulaData || []).find(x =>
           x.itemType === 'superstructure_builtup_stair_sum' && x.section === 'superstructure' && x.subsectionName === 'Built-up stair'
         )
-        return f ? useDataRows(f) : null
+        return f ? { type: 'single', row: f.row } : null
       }
       if (sumRowKey === 'toppingSlab') {
         const toppingSum = (formulaData || []).find(f =>
           f.itemType === 'superstructure_topping_slab_sum' && f.section === 'superstructure' && f.subsectionName === 'Topping slab'
         )
-        return toppingSum ? useDataRows(toppingSum) : null
+        return toppingSum ? { type: 'single', row: toppingSum.row } : null
       }
       if (sumRowKey === 'lwConcreteFill') {
         const lwSum = (formulaData || []).find(f =>
           f.itemType === 'superstructure_lw_concrete_fill_sum' && f.section === 'superstructure' && f.subsectionName === 'LW concrete fill'
         )
-        return lwSum ? useDataRows(lwSum) : null
+        return lwSum ? { type: 'single', row: lwSum.row } : null
       }
       if (sumRowKey === 'concreteHanger') {
         const hangerSum = (formulaData || []).find(f =>
           f.itemType === 'superstructure_concrete_hanger_sum' && f.section === 'superstructure' && f.subsectionName === 'Concrete hanger'
         )
-        return hangerSum ? useDataRows(hangerSum) : null
+        return hangerSum ? { type: 'single', row: hangerSum.row } : null
       }
       if (sumRowKey === 'somd') {
         const somdSums = (formulaData || []).filter(f =>
@@ -11446,7 +11544,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const sumAt = somdSums[groupIndex]
         return sumAt ? { type: 'single', row: sumAt.row } : null
       }
-      return sums[0] ? useDataRows(sums[0]) : null
+      return sums[0] ? { type: 'single', row: sums[0].row } : null
     }
 
     const { cipLines, patchLines, somdLines, slabStepsLines, cipStairsLines, concreteHangerLines, lwConcreteFillLines, toppingSlabLines, raisedSlabLines, builtUpSlabLines, builtupRampsLines, builtUpStairLines, shearWallLines, columnsLines, dropPanelLines, concretePostLines, concreteEncasementLines, beamsLines, parapetWallLines, thermalBreakLines, curbsLines, concretePadLines, nonShrinkGroutLines, repairScopeLines } = buildSuperstructureProposalLines()
@@ -11465,7 +11563,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' },
           `${pfx}B${currentRow}`
         )
-        fillRatesForProposalRow(currentRow, line.proposalText)
         const dynamicHeight = calculateRowHeight(line.proposalText)
         spreadsheet.updateCell({ value: 50 }, `${pfx}C${currentRow}`)
         spreadsheet.updateCell({ formula: `=C${currentRow}*1.5` }, `${pfx}D${currentRow}`)
@@ -11491,7 +11588,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' },
         `${pfx}B${currentRow}`
       )
-      fillRatesForProposalRow(currentRow, line.proposalText)
       const dynamicHeight = calculateRowHeight(line.proposalText)
       const qtyCol = line.targetCol || 'D'
       if (sumInfo) {
@@ -11507,8 +11603,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       } else {
         spreadsheet.updateCell({ value: '' }, `${pfx}${qtyCol}${currentRow}`)
       }
-      const isCipSlabLine = line.sumRowKey && ['slab8', 'roofSlab8', 'balcony', 'terrace', 'slabSteps'].includes(line.sumRowKey)
-      if (sumInfo && !isCipSlabLine) {
+      if (sumInfo) {
         const cyCol = 'L'
         if (sumInfo.type === 'sum' && sumInfo.rows && sumInfo.rows.length >= 1) {
           const cyRefs = sumInfo.rows.map(r => `'${calcSheetName}'!${cyCol}${r}`).join(',')
@@ -11516,9 +11611,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         } else if (sumInfo.type === 'single' && sumInfo.row) {
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!${cyCol}${sumInfo.row}` }, `${pfx}F${currentRow}`)
         }
-      }
-      if (isCipSlabLine) {
-        spreadsheet.updateCell({ value: 1200 }, `${pfx}F${currentRow}`)
       }
       spreadsheet.cellFormat(
         { fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' },
@@ -11529,7 +11621,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       } catch (e) {
         spreadsheet.cellFormat({ format: '#,##0.00' }, `${pfx}${qtyCol}${currentRow}`)
       }
-      if (sumInfo || isCipSlabLine) {
+      if (sumInfo) {
         spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}F${currentRow}`)
         try { spreadsheet.numberFormat('#,##0.00', `${pfx}F${currentRow}`) } catch (e) { }
       }
@@ -11796,10 +11888,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.updateCell({ value: item }, `${pfx}B${currentRow}`)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', textAlign: 'left' }, `${pfx}B${currentRow}`)
-        const rateLookupKey = item === 'Engineering, shop drawings, formwork drawings, design mixes included'
-          ? 'Engineering, shop drawings, formwork drawings, design mixes included (Superstructure concrete scope)'
-          : item
-        fillRatesForProposalRow(currentRow, rateLookupKey)
         if (item === 'DOB approved concrete washout included' && superstructureScopeStartRow != null && superstructureScopeEndRow != null) {
           const exclPart = washoutExclusionRows.length > 0 ? '-' + washoutExclusionRows.map(r => `F${r}`).join('-') : ''
           spreadsheet.updateCell(
@@ -11832,7 +11920,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       try { spreadsheet.numberFormat('$#,##0.00', `${pfx}F${currentRow}:G${currentRow}`) } catch (e) { }
       spreadsheet.cellFormat({ backgroundColor: '#BDD7EE' }, `${pfx}B${currentRow}:G${currentRow}`)
       baseBidTotalRows.push(currentRow) // Superstructure Concrete Total
-      totalRows.push(currentRow)
       currentRow++
     }
 
@@ -11865,7 +11952,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          fillRatesForProposalRow(currentRow, proposalText)
           const dynamicHeight = calculateRowHeight(proposalText)
           spreadsheet.updateCell({ formula: `='Calculations Sheet'!I${calcRow}` }, `${pfx}C${currentRow}`)
           spreadsheet.updateCell({ formula: `='Calculations Sheet'!J${calcRow}` }, `${pfx}D${currentRow}`)
@@ -11897,7 +11983,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         try { spreadsheet.numberFormat('$#,##0.00', `${pfx}F${currentRow}:G${currentRow}`) } catch (e) { }
         spreadsheet.cellFormat({ backgroundColor: '#BDD7EE' }, `${pfx}B${currentRow}:G${currentRow}`)
         baseBidTotalRows.push(currentRow) // Trenching Total
-        totalRows.push(currentRow)
         currentRow++
       }
     }
@@ -12079,12 +12164,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     demoOrder.forEach(demoType => {
       const demoData = civilDemoItems[demoType]
       if (demoData && demoData.items.length > 0) {
-        // Reference row: use last data row (sum row - 1) so proposal points to same line as calc sheet total
-        const civilDemoSums = (formulaData || []).filter(f => f.itemType === 'civil_demo_sum' && f.section === 'civil_sitework' && f.subsectionName === demoType)
-        const lastDataRowFromParse = demoSumRows[demoType] || 0
-        const sumRowIndex = civilDemoSums.length >= 1
-          ? (civilDemoSums[0].lastDataRow != null ? civilDemoSums[0].lastDataRow : (civilDemoSums[0].row - 1))
-          : lastDataRowFromParse
+        // Get sum row for this demo type from tracked rows
+        const sumRowIndex = demoSumRows[demoType] || 0
 
         // Generate proposal text based on demo type
         let proposalText = demoData.proposalText
@@ -12104,7 +12185,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          fillRatesForProposalRow(currentRow, proposalText)
 
           if (sumRowIndex > 0) {
             // SF in column D
@@ -12121,7 +12201,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          fillRatesForProposalRow(currentRow, proposalText)
 
           if (sumRowIndex > 0) {
             // LF in column C
@@ -12142,15 +12221,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const woodItems = demoData.items.filter(item => item.particulars.toLowerCase().includes('wood'))
 
           if (chainLinkItems.length > 0) {
-            const chainLinkLastDataRow = Math.max(...chainLinkItems.map(i => i.rawRowNumber))
-            const chainLinkFormula = (formulaData || []).find(f => f.itemType === 'civil_demo_sum' && f.section === 'civil_sitework' && f.subsectionName === 'Demo fence' && f.firstDataRow <= chainLinkLastDataRow && chainLinkLastDataRow <= f.lastDataRow)
-            const chainLinkSumRow = chainLinkFormula ? (chainLinkFormula.lastDataRow != null ? chainLinkFormula.lastDataRow : (chainLinkFormula.row - 1)) : chainLinkLastDataRow
+            // Find sum row for chain-link fence (after last chain-link item)
+            const chainLinkLastRow = Math.max(...chainLinkItems.map(i => i.rawRowNumber))
+            const chainLinkSumRow = chainLinkLastRow
 
             proposalText = `Allow to remove existing (H=6'-0", typ) chain-link fence/ vinyl fence as per C-3`
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-            fillRatesForProposalRow(currentRow, proposalText)
 
             // Add LF and SF from calculation sheet
             spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${chainLinkSumRow}` }, `${pfx}C${currentRow}`)
@@ -12161,15 +12239,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
 
           if (woodItems.length > 0) {
-            const woodLastDataRow = Math.max(...woodItems.map(i => i.rawRowNumber))
-            const woodFormula = (formulaData || []).find(f => f.itemType === 'civil_demo_sum' && f.section === 'civil_sitework' && f.subsectionName === 'Demo fence' && f.firstDataRow <= woodLastDataRow && woodLastDataRow <= f.lastDataRow)
-            const woodSumRow = woodFormula ? (woodFormula.lastDataRow != null ? woodFormula.lastDataRow : (woodFormula.row - 1)) : woodLastDataRow
+            // Find sum row for wood fence (after last wood item)
+            const woodLastRow = Math.max(...woodItems.map(i => i.rawRowNumber))
+            const woodSumRow = woodLastRow
 
             proposalText = `Allow to remove existing (H=6'-0", typ) wood-link fence as per C-3`
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-            fillRatesForProposalRow(currentRow, proposalText)
 
             // Add LF and SF from calculation sheet
             spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${woodSumRow}` }, `${pfx}C${currentRow}`)
@@ -12195,7 +12272,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          fillRatesForProposalRow(currentRow, proposalText)
 
           if (sumRowIndex > 0) {
             // LF in column C
@@ -12228,7 +12304,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-            fillRatesForProposalRow(currentRow, proposalText)
 
             spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${removeSumRow}` }, `${pfx}C${currentRow}`)
             spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}C${currentRow}`)
@@ -12243,7 +12318,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-            fillRatesForProposalRow(currentRow, proposalText)
 
             if (railSumRow > 0) {
               spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${railSumRow}` }, `${pfx}C${currentRow}`)
@@ -12264,7 +12338,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-            fillRatesForProposalRow(currentRow, proposalText)
 
             spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${protectSumRow}` }, `${pfx}C${currentRow}`)
             spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}C${currentRow}`)
@@ -12288,7 +12361,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-            fillRatesForProposalRow(currentRow, proposalText)
 
             spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${singleSumRow}` }, `${pfx}G${currentRow}`)
             spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
@@ -12304,7 +12376,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-            fillRatesForProposalRow(currentRow, proposalText)
 
             spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${rowSumRow}` }, `${pfx}G${currentRow}`)
             spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
@@ -12316,7 +12387,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          fillRatesForProposalRow(currentRow, proposalText)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
           spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
           currentRow++
@@ -12326,7 +12396,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          fillRatesForProposalRow(currentRow, proposalText)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
           spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
           currentRow++
@@ -12336,7 +12405,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          fillRatesForProposalRow(currentRow, proposalText)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
           spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
           currentRow++
@@ -12346,7 +12414,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          fillRatesForProposalRow(currentRow, proposalText)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
           spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
           currentRow++
@@ -12356,7 +12423,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          fillRatesForProposalRow(currentRow, proposalText)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
           spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
           currentRow++
@@ -12547,18 +12613,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         )
         currentRow++
 
-        const excFirstRow = civilExcSum.firstDataRow || civilExcSum.row
-        const excLastRow = civilExcSum.lastDataRow || civilExcSum.row
+        const excSumRow = civilExcSum.row
         spreadsheet.updateCell({ value: 'Allow to perform soil excavation, trucking & disposal as per C-4' }, `${pfx}B${currentRow}`)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-        if (excFirstRow && excLastRow && excLastRow !== excFirstRow) {
-          spreadsheet.updateCell({ formula: `=SUM('${excGradingCalcSheet}'!J${excFirstRow}:'${excGradingCalcSheet}'!J${excLastRow})` }, `${pfx}D${currentRow}`)
-          spreadsheet.updateCell({ formula: `=SUM('${excGradingCalcSheet}'!L${excFirstRow}:'${excGradingCalcSheet}'!L${excLastRow})` }, `${pfx}F${currentRow}`)
-        } else if (excFirstRow) {
-          spreadsheet.updateCell({ formula: `='${excGradingCalcSheet}'!J${excFirstRow}` }, `${pfx}D${currentRow}`)
-          spreadsheet.updateCell({ formula: `='${excGradingCalcSheet}'!L${excFirstRow}` }, `${pfx}F${currentRow}`)
-        }
+        spreadsheet.updateCell({ formula: `='${excGradingCalcSheet}'!J${excSumRow}` }, `${pfx}D${currentRow}`)
+        spreadsheet.updateCell({ formula: `='${excGradingCalcSheet}'!L${excSumRow}` }, `${pfx}F${currentRow}`)
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
       }
@@ -12757,50 +12817,29 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
 
         if (civilEleExc) {
-          const excFirstRow = civilEleExc.firstDataRow || civilEleExc.row
-          const excLastRow = civilEleExc.lastDataRow || civilEleExc.row
           spreadsheet.updateCell({ value: 'Allow to perform soil excavation, trucking & disposal (Havg=2\'-11") as per C-4' }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          if (excFirstRow && excLastRow && excLastRow !== excFirstRow) {
-            spreadsheet.updateCell({ formula: `=SUM('${utilsCalcSheet}'!J${excFirstRow}:'${utilsCalcSheet}'!J${excLastRow})` }, `${pfx}D${currentRow}`)
-            spreadsheet.updateCell({ formula: `=SUM('${utilsCalcSheet}'!L${excFirstRow}:'${utilsCalcSheet}'!L${excLastRow})` }, `${pfx}F${currentRow}`)
-          } else if (excFirstRow) {
-            spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!J${excFirstRow}` }, `${pfx}D${currentRow}`)
-            spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!L${excFirstRow}` }, `${pfx}F${currentRow}`)
-          }
+          spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!J${civilEleExc.row}` }, `${pfx}D${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!L${civilEleExc.row}` }, `${pfx}F${currentRow}`)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (civilEleBackfill) {
-          const backFirstRow = civilEleBackfill.firstDataRow || civilEleBackfill.row
-          const backLastRow = civilEleBackfill.lastDataRow || civilEleBackfill.row
           spreadsheet.updateCell({ value: 'Allow to import new clean soil to backfill and compact as per C-4' }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          if (backFirstRow && backLastRow && backLastRow !== backFirstRow) {
-            spreadsheet.updateCell({ formula: `=SUM('${utilsCalcSheet}'!J${backFirstRow}:'${utilsCalcSheet}'!J${backLastRow})` }, `${pfx}D${currentRow}`)
-            spreadsheet.updateCell({ formula: `=SUM('${utilsCalcSheet}'!L${backFirstRow}:'${utilsCalcSheet}'!L${backLastRow})` }, `${pfx}F${currentRow}`)
-          } else if (backFirstRow) {
-            spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!J${backFirstRow}` }, `${pfx}D${currentRow}`)
-            spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!L${backFirstRow}` }, `${pfx}F${currentRow}`)
-          }
+          spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!J${civilEleBackfill.row}` }, `${pfx}D${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!L${civilEleBackfill.row}` }, `${pfx}F${currentRow}`)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (civilEleGravel) {
-          const gravFirstRow = civilEleGravel.firstDataRow || civilEleGravel.row
-          const gravLastRow = civilEleGravel.lastDataRow || civilEleGravel.row
-          spreadsheet.updateCell({ value: 'F&I new (6\" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ utility trench & asphalt pavement as per C-6 & details on C-12' }, `${pfx}B${currentRow}`)
+          spreadsheet.updateCell({ value: 'F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ utility trench & asphalt pavement as per C-6 & details on C-12' }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          if (gravFirstRow && gravLastRow && gravLastRow !== gravFirstRow) {
-            spreadsheet.updateCell({ formula: `=SUM('${utilsCalcSheet}'!J${gravFirstRow}:'${utilsCalcSheet}'!J${gravLastRow})` }, `${pfx}D${currentRow}`)
-            spreadsheet.updateCell({ formula: `=SUM('${utilsCalcSheet}'!L${gravFirstRow}:'${utilsCalcSheet}'!L${gravLastRow})` }, `${pfx}F${currentRow}`)
-          } else if (gravFirstRow) {
-            spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!J${gravFirstRow}` }, `${pfx}D${currentRow}`)
-            spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!L${gravFirstRow}` }, `${pfx}F${currentRow}`)
-          }
+          spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!J${civilEleGravel.row}` }, `${pfx}D${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!L${civilEleGravel.row}` }, `${pfx}F${currentRow}`)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
@@ -13458,10 +13497,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
         // Demo/removal proposal lines with quantities from Calculations Sheet
         // 1. Allow to saw-cut/demo/remove/dispose existing sidewalk - SF and CY from sidewalk
-        const bppLine1 = 'Allow to saw-cut/demo/remove/dispose existing sidewalk'
-        spreadsheet.updateCell({ value: bppLine1 }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 'Allow to saw-cut/demo/remove/dispose existing sidewalk' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-        fillRatesForProposalRow(currentRow, bppLine1)
         if (sidewalkRows.length > 0) {
           spreadsheet.updateCell({ formula: buildSumFormula(sidewalkRows, 'J') }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: buildSumFormula(sidewalkRows, 'L') }, `${pfx}F${currentRow}`)
@@ -13470,10 +13507,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
 
         // 2. Allow to saw-cut/demo/remove/dispose existing 7" sidewalk/driveway - SF and CY from driveway
-        const bppLine2 = 'Allow to saw-cut/demo/remove/dispose existing 7" sidewalk/driveway'
-        spreadsheet.updateCell({ value: bppLine2 }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 'Allow to saw-cut/demo/remove/dispose existing 7" sidewalk/driveway' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-        fillRatesForProposalRow(currentRow, bppLine2)
         if (drivewayRows.length > 0) {
           spreadsheet.updateCell({ formula: buildSumFormula(drivewayRows, 'J') }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: buildSumFormula(drivewayRows, 'L') }, `${pfx}F${currentRow}`)
@@ -13482,10 +13517,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
 
         // 3. Allow to strip existing asphalt & dispose - SF and CY from asphalt
-        const bppLine3 = 'Allow to strip existing asphalt & dispose'
-        spreadsheet.updateCell({ value: bppLine3 }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 'Allow to strip existing asphalt & dispose' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-        fillRatesForProposalRow(currentRow, bppLine3)
         if (asphaltRows.length > 0) {
           spreadsheet.updateCell({ formula: buildSumFormula(asphaltRows, 'J') }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: buildSumFormula(asphaltRows, 'L') }, `${pfx}F${currentRow}`)
@@ -13494,10 +13527,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
 
         // 4. Allow to demo existing concrete curb & dispose - LF and CY from curb
-        const bppLine4 = 'Allow to demo existing concrete curb & dispose'
-        spreadsheet.updateCell({ value: bppLine4 }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 'Allow to demo existing concrete curb & dispose' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-        fillRatesForProposalRow(currentRow, bppLine4)
         if (curbRows.length > 0) {
           spreadsheet.updateCell({ formula: buildSumFormula(curbRows, 'I') }, `${pfx}C${currentRow}`)
           spreadsheet.updateCell({ formula: buildSumFormula(curbRows, 'L') }, `${pfx}F${currentRow}`)
@@ -13506,10 +13537,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
 
         // 5. Allow to demo existing concrete flush curb & dispose - LF and CY from flush curb
-        const bppLine5 = 'Allow to demo existing concrete flush curb & dispose'
-        spreadsheet.updateCell({ value: bppLine5 }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 'Allow to demo existing concrete flush curb & dispose' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-        fillRatesForProposalRow(currentRow, bppLine5)
         if (flushCurbRows.length > 0) {
           spreadsheet.updateCell({ formula: buildSumFormula(flushCurbRows, 'I') }, `${pfx}C${currentRow}`)
           spreadsheet.updateCell({ formula: buildSumFormula(flushCurbRows, 'L') }, `${pfx}F${currentRow}`)
@@ -13519,10 +13548,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
         // F&I proposal lines with quantities from Calculations Sheet
         // 6. F&I new (6" thick) ¾" crushed stone - SF from sidewalk+driveway+asphalt, CY = SF×6"/12/27
-        const bppLine6 = 'F&I new (6" thick) ¾" crushed stone on compacted subgrade @ sidewalks & asphalt'
-        spreadsheet.updateCell({ value: bppLine6 }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 'F&I new (6" thick) ¾" crushed stone on compacted subgrade @ sidewalks & asphalt' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-        fillRatesForProposalRow(currentRow, bppLine6)
         const allSfRows = [...sidewalkRows, ...drivewayRows, ...asphaltRows]
         if (allSfRows.length > 0) {
           spreadsheet.updateCell({ formula: buildSumFormula(allSfRows, 'J') }, `${pfx}D${currentRow}`)
@@ -13532,10 +13559,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
 
         // 7. F&I new (4" thick) concrete sidewalk - SF/CY from sidewalk
-        const bppLine7 = 'F&I new (4" thick) concrete sidewalk, reinf w/ 6x6-W1.4xW1.4 (NYCDOT H-1045, Type I)'
-        spreadsheet.updateCell({ value: bppLine7 }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 'F&I new (4" thick) concrete sidewalk, reinf w/ 6x6-W1.4xW1.4 (NYCDOT H-1045, Type I)' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-        fillRatesForProposalRow(currentRow, bppLine7)
         if (sidewalkRows.length > 0) {
           spreadsheet.updateCell({ formula: buildSumFormula(sidewalkRows, 'J') }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: buildSumFormula(sidewalkRows, 'L') }, `${pfx}F${currentRow}`)
@@ -13544,10 +13569,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
 
         // 8. F&I new (7" thick) concrete sidewalk/driveway - SF/CY from driveway
-        const bppLine8 = 'F&I new (7" thick) concrete sidewalk/driveway, reinf w/ 6x6-W1.4xW1.4 @ corners & driveways'
-        spreadsheet.updateCell({ value: bppLine8 }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 'F&I new (7" thick) concrete sidewalk/driveway, reinf w/ 6x6-W1.4xW1.4 @ corners & driveways' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-        fillRatesForProposalRow(currentRow, bppLine8)
         if (drivewayRows.length > 0) {
           spreadsheet.updateCell({ formula: buildSumFormula(drivewayRows, 'J') }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: buildSumFormula(drivewayRows, 'L') }, `${pfx}F${currentRow}`)
@@ -13556,10 +13579,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
 
         // 9. F&I new (8" thick) concrete curb - LF/SF/CY from curb
-        const bppLine9 = 'F&I new (8" thick) concrete curb (H=1\'-6") NYCDOT H-1010'
-        spreadsheet.updateCell({ value: bppLine9 }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 'F&I new (8" thick) concrete curb (H=1\'-6") NYCDOT H-1010' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-        fillRatesForProposalRow(currentRow, bppLine9)
         if (curbRows.length > 0) {
           spreadsheet.updateCell({ formula: buildSumFormula(curbRows, 'I') }, `${pfx}C${currentRow}`)
           spreadsheet.updateCell({ formula: buildSumFormula(curbRows, 'J') }, `${pfx}D${currentRow}`)
@@ -13569,10 +13590,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
 
         // 10. F&I new (6" thick) flush concrete curb - LF/SF/CY from flush curb
-        const bppLine10 = 'F&I new (6" thick) flush concrete curb (H=1\'-6") NYCDOT H-1010'
-        spreadsheet.updateCell({ value: bppLine10 }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 'F&I new (6" thick) flush concrete curb (H=1\'-6") NYCDOT H-1010' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-        fillRatesForProposalRow(currentRow, bppLine10)
         if (flushCurbRows.length > 0) {
           spreadsheet.updateCell({ formula: buildSumFormula(flushCurbRows, 'I') }, `${pfx}C${currentRow}`)
           spreadsheet.updateCell({ formula: buildSumFormula(flushCurbRows, 'J') }, `${pfx}D${currentRow}`)
@@ -13582,10 +13601,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
 
         // 11. F&I new 1/2" expansion joint - LF from expansion joint
-        const bppLine11 = 'F&I new 1/2" expansion joint & caulking perimeter & 20\' o.c. of new sidewalk'
-        spreadsheet.updateCell({ value: bppLine11 }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 'F&I new 1/2" expansion joint & caulking perimeter & 20\' o.c. of new sidewalk' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-        fillRatesForProposalRow(currentRow, bppLine11)
         if (expansionRows.length > 0) {
           spreadsheet.updateCell({ formula: buildSumFormula(expansionRows, 'I') }, `${pfx}C${currentRow}`)
         }
@@ -13593,10 +13610,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
 
         // 12. F&I new (6"-9" thick) concrete road base - SF/CY from conc road base
-        const bppLine12 = 'F&I new (6"-9" thick) concrete road base (Considered 3\'-0" from curb) @ new asphalt'
-        spreadsheet.updateCell({ value: bppLine12 }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 'F&I new (6"-9" thick) concrete road base (Considered 3\'-0" from curb) @ new asphalt' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-        fillRatesForProposalRow(currentRow, bppLine12)
         if (concRoadBaseRows.length > 0) {
           spreadsheet.updateCell({ formula: buildSumFormula(concRoadBaseRows, 'J') }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: buildSumFormula(concRoadBaseRows, 'L') }, `${pfx}F${currentRow}`)
@@ -13605,10 +13620,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
 
         // 13. F&I new 1½" asphalt wearing course - SF/CY from asphalt
-        const bppLine13 = 'F&I new 1½" asphalt wearing course on 3" asphalt binder course @ stripped roadway'
-        spreadsheet.updateCell({ value: bppLine13 }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 'F&I new 1½" asphalt wearing course on 3" asphalt binder course @ stripped roadway' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-        fillRatesForProposalRow(currentRow, bppLine13)
         if (asphaltRows.length > 0) {
           spreadsheet.updateCell({ formula: buildSumFormula(asphaltRows, 'J') }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: buildSumFormula(asphaltRows, 'L') }, `${pfx}F${currentRow}`)
@@ -13639,7 +13652,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       bppMiscItems.forEach(itemText => {
         spreadsheet.updateCell({ value: itemText }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-        fillRatesForProposalRow(currentRow, itemText)
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
       })
@@ -13822,52 +13834,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       spreadsheet.updateCell({ value: 'Company Name _________________________' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat({ textAlign: 'left', fontWeight: 'normal' }, `${pfx}B${currentRow}:G${currentRow}`)
       currentRow++
-    }
-
-
-    // Draw the main large box border (Left, Right, Bottom)
-    // Top edge was drawn at the beginning (A3:G3).
-    const finalRow = currentRow - 1
-    if (finalRow >= 3) {
-      // Top edge
-      spreadsheet.cellFormat(thickTop, `${pfx}B3:G3`)
-
-      // Bottom edge
-      spreadsheet.cellFormat(thickBottom, `${pfx}B${finalRow}:G${finalRow}`)
-
-      // Left edge (iterate to force application likely)
-      // Applying to range usually works but if background color logic overrides it, we might need to be specific
-      // Or simply re-applying it here at the end should work if it's the last operation.
-      // But to be safe vs background color cells:
-      spreadsheet.cellFormat(thickLeft, `${pfx}B3:B${finalRow}`)
-      spreadsheet.cellFormat(thickRight, `${pfx}G3:G${finalRow}`)
-
-      // Global Font Style Application (Calibri Bold 18pt)
-      // Apply to the entire content area including headers and signature
-      // EXCLUDING Row 1 (Header) which is 10pt
-      spreadsheet.cellFormat({ fontFamily: 'Calibri', fontWeight: 'bold', fontSize: '18pt' }, `${pfx}A2:N${finalRow}`)
-
-      // Override Email label to be normal weight per request
-      spreadsheet.cellFormat({ fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}B6`)
-
-      // Override numerical value columns to be normal weight per request
-      // Columns C-G and I-N (H is handled separately above)
-      // Data starts at Row 13
-      spreadsheet.cellFormat({ fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}C13:G${finalRow}`)
-      spreadsheet.cellFormat({ fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}I13:N${finalRow}`)
-
-      // RE-APPLY BOLD to Total Rows (which were unbolded by the range above)
-      totalRows.forEach(row => {
-        // Apply to the specific columns or the whole row's data area
-        // Often totals are in B, but values are in C-N.
-        spreadsheet.cellFormat({ fontWeight: 'bold', fontFamily: 'Calibri' }, `${pfx}B${row}:N${row}`)
-      })
-    }
-
-    // Uniform row height for all data rows below DESCRIPTION (row 12)
-    const dataRowHeight = 30
-    for (let r = 13; r <= finalRow; r++) {
-      try { spreadsheet.setRowHeight(r, dataRowHeight) } catch (e) { /* ignore */ }
     }
 
     // Individual totals are now added after each subsection's misc section

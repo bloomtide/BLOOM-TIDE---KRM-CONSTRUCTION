@@ -82,9 +82,10 @@ export const generateRockExcavationFormulas = (itemType, rowNum, parsedData) => 
  * Processes all rock excavation items
  * @param {Array} rawDataRows - Raw data rows
  * @param {Array} headers - Column headers
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  * @returns {Array} - Processed items
  */
-export const processRockExcavationItems = (rawDataRows, headers) => {
+export const processRockExcavationItems = (rawDataRows, headers, tracker = null) => {
     const rockExcavationItems = []
 
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
@@ -123,8 +124,17 @@ export const processRockExcavationItems = (rawDataRows, headers) => {
                 )
                 if (existingItem) {
                     existingItem.takeoff += total
+                    // Mark this row as used even though we're aggregating
+                    if (tracker) {
+                        tracker.markUsed(rowIndex)
+                    }
                     return // Skip adding new item
                 }
+            }
+
+            // Mark this row as used
+            if (tracker) {
+                tracker.markUsed(rowIndex)
             }
 
             rockExcavationItems.push(itemData)
@@ -153,9 +163,10 @@ export const processRockExcavationItems = (rawDataRows, headers) => {
  * Processes line drilling items from raw data
  * @param {Array} rawDataRows - Raw data rows
  * @param {Array} headers - Column headers
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  * @returns {Array} - Processed line drilling items
  */
-export const processLineDrillItems = (rawDataRows, headers) => {
+export const processLineDrillItems = (rawDataRows, headers, tracker = null) => {
     const lineDrillItems = []
 
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
@@ -181,6 +192,11 @@ export const processLineDrillItems = (rawDataRows, headers) => {
                 rawRow: row,
                 rawRowNumber: rowIndex + 2
             })
+
+            // Mark this row as used
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
         }
     })
 
@@ -257,7 +273,7 @@ export const calculateLineDrillTotalFT = (lineDrillItems) => {
 
     const result = parseFloat(totalFT.toFixed(2))
 
-    
+
     return result
 }
 

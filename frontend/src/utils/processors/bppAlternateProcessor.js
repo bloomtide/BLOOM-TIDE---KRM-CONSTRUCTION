@@ -75,12 +75,12 @@ const parseCurbDimensions = (particulars) => {
   const widthMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*wide/i)
   // Match height like "Height=1'-6"" -> 1.5 feet
   const heightMatch = particulars.match(/Height\s*=\s*(\d+)'\s*-?\s*(\d+)"/i)
-  
+
   if (!widthMatch || !heightMatch) return null
-  
+
   const widthInches = parseFloat(widthMatch[1])
   const heightFeet = parseInt(heightMatch[1]) + parseInt(heightMatch[2]) / 12
-  
+
   return { widthInches, heightFeet }
 }
 
@@ -94,7 +94,7 @@ const parseAsphaltDimensions = (particulars) => {
   const surfaceMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick\s+)?surface/i)
   const baseMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick\s+)?base/i)
   const gravelMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick\s+)?gravel/i)
-  
+
   return {
     surfaceInches: surfaceMatch ? parseFloat(surfaceMatch[1]) : 0,
     baseInches: baseMatch ? parseFloat(baseMatch[1]) : 0,
@@ -172,9 +172,10 @@ export const generateBPPFormulas = (itemType, rowNum, parsedData) => {
  * Processes all B.P.P. Alternate #2 scope items from raw data, grouped by street and subsection
  * @param {Array} rawDataRows - Array of rows from raw Excel data (excluding header)
  * @param {Array} headers - Column headers from raw data
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  * @returns {object} - Object with street names as keys, each containing subsection items
  */
-export const processBPPAlternateItems = (rawDataRows, headers) => {
+export const processBPPAlternateItems = (rawDataRows, headers, tracker = null) => {
   const itemsByStreet = {}
 
   // Find column indices
@@ -188,7 +189,7 @@ export const processBPPAlternateItems = (rawDataRows, headers) => {
   }
 
   // Process each row
-  rawDataRows.forEach((row) => {
+  rawDataRows.forEach((row, rowIndex) => {
     const digitizerItem = row[digitizerIdx]
     const total = row[totalIdx]
     const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
@@ -222,7 +223,7 @@ export const processBPPAlternateItems = (rawDataRows, headers) => {
 
     // Parse dimensions based on subsection
     let parsed = {}
-    
+
     if (subsection === 'Concrete sidewalk' || subsection === 'Concrete driveway') {
       const thickness = parseThicknessInches(digitizerItem)
       parsed = {
@@ -271,6 +272,11 @@ export const processBPPAlternateItems = (rawDataRows, headers) => {
       subsection,
       streetName
     })
+
+    // Mark this row as used
+    if (tracker) {
+      tracker.markUsed(rowIndex)
+    }
   })
 
   return itemsByStreet

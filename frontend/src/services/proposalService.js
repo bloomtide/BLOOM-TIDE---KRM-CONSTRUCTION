@@ -69,6 +69,29 @@ export const proposalAPI = {
         const response = await axios.post(`${API_URL}/proposals/bulk-delete`, { ids });
         return response.data;
     },
+
+    /**
+     * Update the status of an unused raw data row
+     * @param {string} id - Proposal ID
+     * @param {number} rowIndex - The index of the row to update
+     * @param {boolean} isUsed - The new status
+     * @returns {Promise} Response with updated proposal data
+     */
+    updateUnusedRowStatus: async (id, rowIndex, isUsed) => {
+        const response = await axios.patch(`${API_URL}/proposals/${id}/unused-rows/${rowIndex}`, { isUsed });
+        return response.data;
+    },
+
+    /**
+     * Bulk update status of unused raw data rows
+     * @param {string} id - Proposal ID
+     * @param {Array} updates - Array of update objects { rowIndex, isUsed }
+     * @returns {Promise} Response with updated proposal data
+     */
+    updateUnusedRowStatusBulk: async (id, updates) => {
+        const response = await axios.patch(`${API_URL}/proposals/${id}/unused-rows/bulk`, { updates });
+        return response.data;
+    },
 };
 
 export default proposalAPI;

@@ -204,9 +204,10 @@ export const generateExcavationFormulas = (itemType, rowNum, parsedData) => {
  * Processes all excavation items from raw data
  * @param {Array} rawDataRows - Array of rows from raw Excel data (excluding header)
  * @param {Array} headers - Column headers from raw data
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  * @returns {Array} - Processed excavation items with formulas
  */
-export const processExcavationItems = (rawDataRows, headers) => {
+export const processExcavationItems = (rawDataRows, headers, tracker = null) => {
   const excavationItems = []
 
   // Find column indices
@@ -244,8 +245,17 @@ export const processExcavationItems = (rawDataRows, headers) => {
         )
         if (existingItem) {
           existingItem.takeoff += total
+          // Mark this row as used even though we're aggregating
+          if (tracker) {
+            tracker.markUsed(rowIndex)
+          }
           return // Skip adding new item, already aggregated
         }
+      }
+
+      // Mark this row as used
+      if (tracker) {
+        tracker.markUsed(rowIndex)
       }
 
       excavationItems.push(itemData)
@@ -259,9 +269,10 @@ export const processExcavationItems = (rawDataRows, headers) => {
  * Processes all backfill items from raw data
  * @param {Array} rawDataRows - Array of rows from raw Excel data (excluding header)
  * @param {Array} headers - Column headers from raw data
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  * @returns {Array} - Processed backfill items with formulas
  */
-export const processBackfillItems = (rawDataRows, headers) => {
+export const processBackfillItems = (rawDataRows, headers, tracker = null) => {
   const backfillItems = []
 
   // Find column indices
@@ -290,6 +301,11 @@ export const processBackfillItems = (rawDataRows, headers) => {
         rawRow: row,
         rawRowNumber: rowIndex + 2 // +2 because: +1 for header row, +1 for 1-based indexing
       })
+
+      // Mark this row as used
+      if (tracker) {
+        tracker.markUsed(rowIndex)
+      }
     }
   })
 
@@ -300,9 +316,10 @@ export const processBackfillItems = (rawDataRows, headers) => {
  * Processes all mud slab items from raw data
  * @param {Array} rawDataRows - Array of rows from raw Excel data (excluding header)
  * @param {Array} headers - Column headers from raw data
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  * @returns {Array} - Processed mud slab items with formulas
  */
-export const processMudSlabItems = (rawDataRows, headers) => {
+export const processMudSlabItems = (rawDataRows, headers, tracker = null) => {
   const mudSlabItems = []
 
   // Find column indices
@@ -331,6 +348,11 @@ export const processMudSlabItems = (rawDataRows, headers) => {
         rawRow: row,
         rawRowNumber: rowIndex + 2 // +2 because: +1 for header row, +1 for 1-based indexing
       })
+
+      // Mark this row as used
+      if (tracker) {
+        tracker.markUsed(rowIndex)
+      }
     }
   })
 

@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { SpreadsheetComponent, SheetsDirective, SheetDirective, ColumnsDirective, ColumnDirective } from '@syncfusion/ej2-react-spreadsheet'
-import { FiEye, FiSettings, FiArrowLeft } from 'react-icons/fi'
+import { FiEye, FiSettings, FiArrowLeft, FiCheckSquare } from 'react-icons/fi'
 import toast from 'react-hot-toast'
 import Sidebar from '../components/Sidebar'
 import TopBar from '../components/TopBar'
 import RawDataPreviewModal from '../components/RawDataPreviewModal'
+import UnusedRawDataModal from '../components/UnusedRawDataModal'
 import ProposalSettingsModal from '../components/ProposalSettingsModal'
 import { proposalAPI } from '../services/proposalService'
 import { generateCalculationSheet, generateColumnConfigs } from '../utils/generateCalculationSheet'
@@ -35,11 +36,13 @@ const ProposalDetail = () => {
   const formulaDataRef = useRef([])
   const rockExcavationTotalsRef = useRef({ totalSQFT: 0, totalCY: 0 })
   const lineDrillTotalFTRef = useRef(0)
+  const unusedRawDataRowsRef = useRef([])
   calculationDataRef.current = calculationData
   formulaDataRef.current = formulaData
   rockExcavationTotalsRef.current = rockExcavationTotals
   lineDrillTotalFTRef.current = lineDrillTotalFT
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false)
+  const [isUnusedDataModalOpen, setIsUnusedDataModalOpen] = useState(false)
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState(null)
@@ -95,6 +98,28 @@ const ProposalDetail = () => {
     setFormulaData(result.formulas)
     setRockExcavationTotals(result.rockExcavationTotals || { totalSQFT: 0, totalCY: 0 })
     setLineDrillTotalFT(result.lineDrillTotalFT || 0)
+
+    // Handle unused raw data rows (incoming: preserve isUsed from DB)
+    const calculatedUnusedRows = result.unusedRawDataRows || []
+    const currentDbRows = proposal.unusedRawDataRows || []
+    const dbRowMap = new Map(currentDbRows.map(r => [r.rowIndex, r]))
+
+    const mergedUnusedRows = calculatedUnusedRows.map(calcRow => {
+      const dbRow = dbRowMap.get(calcRow.rowIndex)
+      return {
+        ...calcRow,
+        isUsed: dbRow ? dbRow.isUsed : false
+      }
+    })
+
+    unusedRawDataRowsRef.current = mergedUnusedRows
+
+    const isDifferent = mergedUnusedRows.length !== currentDbRows.length ||
+      mergedUnusedRows.some((r, i) => r.rowIndex !== currentDbRows[i]?.rowIndex)
+
+    if (isDifferent) {
+      setProposal(prev => ({ ...prev, unusedRawDataRows: mergedUnusedRows }))
+    }
 
     // Store window globals for proposal sheet (used by buildProposalSheet)
     window.soldierPileGroups = result.soldierPileGroups || []
@@ -157,9 +182,10 @@ const ProposalDetail = () => {
       rows: result.rows,
       formulas: result.formulas,
       rockExcavationTotals: result.rockExcavationTotals || { totalSQFT: 0, totalCY: 0 },
-      lineDrillTotalFT: result.lineDrillTotalFT || 0
+      lineDrillTotalFT: result.lineDrillTotalFT || 0,
+      unusedRawDataRows: mergedUnusedRows
     }
-  }, [proposal])
+  }, [proposal?.rawExcelData, proposal?.template])
 
   // Apply data and formulas or load from JSON
   useEffect(() => {
@@ -183,33 +209,7 @@ const ProposalDetail = () => {
               restoreImages(proposal.images)
             }
 
-            // Reset: rebuild Proposal Sheet from raw data (regenerates formulas/quantities from calculation data)
-            if (proposal.rawExcelData && generatedDataRef.current) {
-              const gen = generatedDataRef.current
-              try {
-                await new Promise(resolve => setTimeout(resolve, 100))
-                buildProposalSheet(spreadsheetRef.current, {
-                  calculationData: gen.rows,
-                  formulaData: gen.formulas,
-                  rockExcavationTotals: gen.rockExcavationTotals,
-                  lineDrillTotalFT: gen.lineDrillTotalFT,
-                  rawData: rawDataRef.current,
-                  createdAt: proposal.createdAt,
-                  project: proposal.project,
-                  client: proposal.client
-                })
-                proposalBuiltRef.current = true
-                markDirtyAndScheduleSave()
-                await new Promise(resolve => setTimeout(resolve, 300))
-                if (saveTimeoutRef.current) {
-                  clearTimeout(saveTimeoutRef.current)
-                  saveTimeoutRef.current = null
-                }
-                saveSpreadsheet(false)
-              } catch (e) {
-                console.error('Error building proposal sheet after load:', e)
-              }
-            }
+            // Use saved state - do NOT rebuild Proposal Sheet (preserves user edits, updates DB only on changes)
           } catch (error) {
             toast.error('Error loading saved spreadsheet')
           } finally {
@@ -2077,6 +2077,132 @@ const ProposalDetail = () => {
           }
         }
 
+        // Manual Superstructure Items (CIP Stairs and Stairs - Infilled tads)
+
+        if (section === 'superstructure') {
+          // CIP Stairs - Header (underlined, no other data)
+          if (itemType === 'superstructure_manual_cip_stairs_header') {
+            spreadsheet.cellFormat({ textDecoration: 'underline' }, `B${row}`)
+            return
+          }
+
+          // CIP Stairs - Landings: I=empty, J=C, K=empty, L=J*H/27
+          if (itemType === 'superstructure_manual_cip_stairs_landing') {
+            // J = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            // L = J*H/27
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+
+          // CIP Stairs - Stairs: J=C*G*F, K=empty, L=J*H/27, M=C
+          if (itemType === 'superstructure_manual_cip_stairs_stair') {
+            // J = C*G*F
+            spreadsheet.updateCell({ formula: `=C${row}*G${row}*F${row}` }, `J${row}`)
+            // L = J*H/27
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            // M = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            return
+          }
+
+          // CIP Stairs - Stair Slab: I=C, J=I*H/27, K=empty, L=J*G/27, M=empty
+          if (itemType === 'superstructure_manual_cip_stairs_slab') {
+            const { stairsRowNum, slabCMultiplier } = formulaInfo
+            // C = reference to stairs row C (with optional multiplier)
+            if (slabCMultiplier && slabCMultiplier !== 1) {
+              spreadsheet.updateCell({ formula: `=C${stairsRowNum}*${slabCMultiplier}` }, `C${row}`)
+            } else {
+              spreadsheet.updateCell({ formula: `=C${stairsRowNum}` }, `C${row}`)
+            }
+            // I = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            // J = I*H
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            // L = J*G/27
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            return
+          }
+
+          // CIP Stairs - Sum: SUM of I, J, L, M (excludes Landings row)
+          if (itemType === 'superstructure_manual_cip_stairs_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            // Sum I
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            // Sum J
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            // Sum L
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            // Sum M
+            spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+
+          // Stairs - Infilled tads - Header (underlined, no other data)
+          if (itemType === 'superstructure_manual_infilled_header') {
+            spreadsheet.cellFormat({ textDecoration: 'underline' }, `B${row}`)
+            return
+          }
+
+          // Stairs - Infilled tads - Landing 1: J=C, L=(J*H)/27
+          if (itemType === 'superstructure_manual_infilled_landing_1') {
+            // J = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            // L = (J*H)/27
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            // H = blue background
+            spreadsheet.cellFormat({ backgroundColor: '#D9E1F2' }, `H${row}`)
+            return
+          }
+
+          // Stairs - Infilled tads - Landing 2: C=C{landing1}, H=1.5/12 (blue bg), J=C, L=(J*H)/27/2
+          if (itemType === 'superstructure_manual_infilled_landing_2') {
+            const { landing1RowNum } = formulaInfo
+            // C = reference to Landing 1 C
+            spreadsheet.updateCell({ formula: `=C${landing1RowNum}` }, `C${row}`)
+            // H = blue background (no formula)
+            spreadsheet.updateCell({ formula: `` }, `H${row}`)
+            spreadsheet.cellFormat({ backgroundColor: '#D9E1F2' }, `H${row}`)
+            // J = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            // L = (J*H)/27/2
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27/2` }, `L${row}`)
+            return
+          }
+
+          // Stairs - Infilled tads - Landing Sum: J=J{landing1}, L=SUM (all RED)
+          if (itemType === 'superstructure_manual_infilled_landing_sum') {
+            const { landing1RowNum, firstDataRow, lastDataRow } = formulaInfo
+            // J = J{landing1Row}
+            spreadsheet.updateCell({ formula: `=J${landing1RowNum}` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            // L = SUM(L range)
+            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            return
+          }
+
+          // Stairs - Infilled tads - Stairs: J=C*G*F, L=J*H/27, M=C (All RED)
+          if (itemType === 'superstructure_manual_infilled_stair') {
+            // J = C*G*F
+            spreadsheet.updateCell({ formula: `=C${row}*G${row}*F${row}` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            // L = J*H/27
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            // M = C
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+        }
+
         // Apply generic formulas if we got them from generators
         if (formulas) {
           if (formulas.qty) spreadsheet.updateCell({ formula: `=${formulas.qty}` }, `E${row}`)
@@ -2271,7 +2397,8 @@ const ProposalDetail = () => {
       // Save both spreadsheet JSON and images
       await proposalAPI.update(proposalId, {
         spreadsheetJson: jsonObject,
-        images: images
+        images: images,
+        unusedRawDataRows: unusedRawDataRowsRef.current // Sync current unused rows state
       })
 
       const now = new Date()
@@ -2476,6 +2603,73 @@ const ProposalDetail = () => {
     }
   }
 
+  const handleUpdateUnusedRowStatus = async (rowIndex, isUsed) => {
+    try {
+      // Optimistic update
+      const updatedRows = proposal.unusedRawDataRows.map(row => {
+        if (row.rowIndex === rowIndex) {
+          return { ...row, isUsed }
+        }
+        return row
+      })
+      setProposal(prev => ({
+        ...prev,
+        unusedRawDataRows: updatedRows
+      }))
+
+      // API call
+      // The original code used proposalAPI.updateUnusedRowStatus, which is a wrapper.
+      // Assuming the new implementation uses axios directly as shown in the instruction.
+      // If proposalAPI.updateUnusedRowStatus is still desired, this part needs adjustment.
+      // For now, I'll use the axios call as provided in the instruction.
+      // Note: `id` and `unusedRows` are not defined in this scope.
+      // I'll assume `proposalId` for `id` and `proposal.unusedRawDataRows` for `unusedRows`
+      // and that `axios` is imported.
+      const token = localStorage.getItem('token')
+      const config = {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+
+      await proposalAPI.updateUnusedRowStatus(proposalId, rowIndex, isUsed)
+
+      // No need to fetch proposal again as we optimistcally updated
+    } catch (error) {
+      console.error('Error updating row status:', error)
+      toast.error('Failed to update row status')
+      // Revert on error by fetching
+      // fetchProposal()
+    }
+  }
+
+  const handleBulkUpdateUnusedRowStatus = async (updates) => {
+    try {
+      // Optimistic update
+      const updatedRows = [...proposal.unusedRawDataRows]
+      updates.forEach(({ rowIndex, isUsed }) => {
+        const row = updatedRows.find(r => r.rowIndex === rowIndex)
+        if (row) {
+          row.isUsed = isUsed
+        }
+      })
+      setProposal(prev => ({
+        ...prev,
+        unusedRawDataRows: updatedRows
+      }))
+
+      // API call
+      await proposalAPI.updateUnusedRowStatusBulk(proposalId, updates)
+
+      toast.success('Changes saved successfully')
+    } catch (error) {
+      console.error('Error bulk updating row status:', error)
+      toast.error('Failed to save changes')
+      // Revert on error by fetching
+      // fetchProposal()
+    }
+  }
+
   // Handle navigation away - save first if there are unsaved changes
   const handleNavigateBack = useCallback(async () => {
     if (hasUnsavedChanges) {
@@ -2576,6 +2770,13 @@ const ProposalDetail = () => {
           actionButtons={
             <>
               <button
+                onClick={() => setIsUnusedDataModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <FiCheckSquare size={18} />
+                Unused Data
+              </button>
+              <button
                 onClick={() => setIsPreviewModalOpen(true)}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
@@ -2606,8 +2807,8 @@ const ProposalDetail = () => {
           )}
           <SpreadsheetComponent
             ref={spreadsheetRef}
-            allowOpen={true}
             allowSave={true}
+            saveUrl="https://krmestimators.com/dotnet/api/spreadsheet/save"
             showFormulaBar={true}
             showRibbon={true}
             showSheetTabs={true}
@@ -2623,7 +2824,7 @@ const ProposalDetail = () => {
             // Action events - captures all modifications including images
             actionComplete={handleActionComplete}
             // File menu events - trigger save after file menu operations
-            fileMenuItemSelect={() => setTimeout(() => markDirtyAndScheduleSave(), 1000)}
+            // fileMenuItemSelect={() => setTimeout(() => markDirtyAndScheduleSave(), 1000)}
             // Created event
             created={() => {
               // Fallback: when spreadsheet is ready and we have generated data but proposal wasn't built yet (timing)
@@ -2663,6 +2864,15 @@ const ProposalDetail = () => {
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
         rawExcelData={proposal.rawExcelData}
+      />
+
+      <UnusedRawDataModal
+        isOpen={isUnusedDataModalOpen}
+        onClose={() => setIsUnusedDataModalOpen(false)}
+        unusedRows={proposal.unusedRawDataRows}
+        onUpdateRowStatus={handleUpdateUnusedRowStatus}
+        onBulkUpdateRowStatus={handleBulkUpdateUnusedRowStatus}
+        headers={proposal.rawExcelData?.headers}
       />
 
       <ProposalSettingsModal

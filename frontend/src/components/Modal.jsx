@@ -1,7 +1,7 @@
 import React from 'react'
 import { FiX } from 'react-icons/fi'
 
-const Modal = ({ isOpen, onClose, title, subtitle, children, maxWidth = 'max-w-2xl' }) => {
+const Modal = ({ isOpen, onClose, title, subtitle, headerActions, children, maxWidth = 'max-w-2xl' }) => {
     if (!isOpen) return null
 
     return (
@@ -15,17 +15,20 @@ const Modal = ({ isOpen, onClose, title, subtitle, children, maxWidth = 'max-w-2
             {/* Modal Content */}
             <div className={`relative bg-white rounded-lg shadow-xl ${maxWidth} w-full mx-4 max-h-[90vh] overflow-y-auto`}>
                 {/* Header */}
-                <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-start justify-between">
+                <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-start justify-between z-20">
                     <div>
                         <h2 className="text-xl font-bold text-gray-900">{title}</h2>
                         {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 transition-colors p-1"
-                    >
-                        <FiX size={24} />
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {headerActions}
+                        <button
+                            onClick={onClose}
+                            className="text-gray-400 hover:text-gray-600 transition-colors p-1"
+                        >
+                            <FiX size={24} />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Body */}
