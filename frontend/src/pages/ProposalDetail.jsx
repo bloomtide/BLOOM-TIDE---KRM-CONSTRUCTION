@@ -855,6 +855,48 @@ const ProposalDetail = () => {
           }
         } else if (section === 'waterproofing') {
           // Waterproofing formulas
+          if (itemType === 'waterproofing_exterior_side_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            return
+          }
+
+          if (itemType === 'waterproofing_negative_side_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            return
+          }
+
+          if (itemType === 'waterproofing_horizontal_wp') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            return
+          }
+
+          if (itemType === 'waterproofing_horizontal_wp_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            return
+          }
+
+          if (itemType === 'waterproofing_horizontal_insulation') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            return
+          }
+
+          if (itemType === 'waterproofing_horizontal_insulation_sum') {
+            const { firstDataRow, lastDataRow } = formulaInfo
+            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            return
+          }
+
           const waterproofingFormulas = generateWaterproofingFormulas(itemType, row, parsedData || formulaInfo)
           if (waterproofingFormulas.ft) spreadsheet.updateCell({ formula: `=${waterproofingFormulas.ft}` }, `I${row}`)
           if (waterproofingFormulas.height != null) spreadsheet.updateCell({ value: waterproofingFormulas.height }, `H${row}`)
