@@ -2475,7 +2475,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const groupHeaderRow = Array(template.columns.length).fill('')
             groupHeaderRow[1] = `Stair ${group.stairIdentifier}:`
             rows.push(groupHeaderRow)
-            formulas.push({ row: rows.length, itemType: 'stairs_on_grade_group_header', section: 'foundation' })
+            formulas.push({ row: rows.length, itemType: 'stairs_on_grade_group_header', section: 'foundation', stairIdentifier: group.stairIdentifier })
 
             const groupFirstRow = rows.length + 1
             let stairsOnGradeRow = null

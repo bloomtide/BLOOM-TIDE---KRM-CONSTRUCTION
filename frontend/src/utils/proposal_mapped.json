@@ -434,7 +434,12 @@
 {
   "description": "LW concrete topping",
   "values": { "SF": 12 }
-},{
+},
+{
+  "description": "LW concrete topping over ",
+  "values": { "SF": 18 }
+},
+{
   "description": "NW concrete topping",
   "values": { "SF": 15 }
 },
@@ -551,6 +556,42 @@
 {
   "description": "Engineering, shop drawings, formwork drawings, design mixes included (Superstructure concrete scope)",
   "values": { "LS": 40000 }
+},
+{
+  "description": "F&I new (8\" thick) stair landings @ cellar FL to 7th FL, roof FL as per A-208.01",
+  "values": { "LS": 1200 }
+},
+{
+  "description": "F&I new (3'-0\" wide) concrete stairs (262 Riser) @ cellar FL to 7th FL, roof FL as per A-208.01",
+  "values": { "LS": 1500 }
+},
+{
+  "description": "F&I new stair slab as per A-208.01",
+  "values": { "LS": 1200 }
+},
+{
+  "description": "F&I new (4'-0\" wide) concrete stairs (36 Riser) @ cellar FL to 1st FL as per A-209.00",
+  "values": { "LS": 1500 }
+},
+{
+  "description": "F&I new (3'-0\" wide) concrete stairs (16 Riser) @ cellar FL to 1st FL as per A-209.00",
+  "values": { "LS": 1500 }
+},
+{
+  "description": "F&I new (8\" thick) stair landings @ cellar FL as per A-209.00",
+  "values": { "LS": 1200 }
+},
+{
+  "description": "F&I new (3'-0\" wide) concrete stairs (16 Riser) @ cellar FL as per A-209.00",
+  "values": { "LS": 1500 }
+},
+{
+  "description": "stair landings as per A-312.00",
+  "values": { "LS": 1200 }
+},
+{
+  "description": "stairs on grade (",
+  "values": { "LS": 1500 }
 },
 {
   "description": "saw-cut/demo/remove/dispose",
