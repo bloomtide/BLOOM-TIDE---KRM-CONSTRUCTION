@@ -356,10 +356,61 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
       sectionRow[3] = 'CY'
     }
 
-    rows.push(sectionRow)
+    // Determine if section has data
+    let hasSectionData = false
+
+    if (section.section === 'Demolition') {
+      // Check if any subsection in Demolition has items
+      hasSectionData = section.subsections.some(sub => (demolitionItemsBySubsection[sub.name] || []).length > 0 || sub.name.includes('Extra line item'))
+    } else if (section.section === 'Excavation') {
+      hasSectionData = excavationItems.length > 0 || backfillItems.length > 0 || mudSlabItems.length > 0 || section.subsections.some(sub => sub.name.includes('Extra line item'))
+    } else if (section.section === 'Rock Excavation') {
+      hasSectionData = rockExcavationItems.length > 0 || lineDrillItems.length > 0 || section.subsections.some(sub => sub.name.includes('Extra line item'))
+    } else if (section.section === 'SOE') {
+      hasSectionData = [
+        soldierPileGroups, primarySecantItems, secondarySecantItems, tangentPileItems, sheetPileItems,
+        timberLaggingItems, timberSheetingItems, walerItems, rakerItems, upperRakerItems, lowerRakerItems,
+        standOffItems, kickerItems, channelItems, rollChockItems, studBeamItems, innerCornerBraceItems,
+        kneeBraceItems, supportingAngleGroups, pargingItems, heelBlockItems, underpinningItems,
+        rockAnchorItems, rockBoltItems, anchorItems, tieBackItems, concreteSoilRetentionPierItems,
+        guideWallItems, dowelBarItems, rockPinItems, shotcreteItems, permissionGroutingItems,
+        buttonItems, rockStabilizationItems, formBoardItems
+      ].some(arr => arr && arr.length > 0) || hasBackpacking
+    } else if (section.section === 'Foundation') {
+      hasSectionData = [
+        drilledFoundationPileGroups, helicalFoundationPileGroups, drivenFoundationPileItems,
+        stelcorDrilledDisplacementPileItems, cfaPileItems, pileCapItems, stripFootingGroups,
+        isolatedFootingItems, pilasterItems, gradeBeamGroups, tieBeamGroups, thickenedSlabGroups,
+        pierItems, corbelGroups, linearWallGroups, foundationWallGroups, retainingWallGroups,
+        barrierWallGroups, stemWallItems, elevatorPitItems, detentionTankItems, duplexSewageEjectorPitItems,
+        deepSewageEjectorPitItems, greaseTrapItems, houseTrapItems, matSlabItems, mudSlabFoundationItems,
+        sogItems, stairsOnGradeGroups, electricConduitItems
+      ].some(arr => arr && arr.length > 0) || !!buttressItem
+    } else if (section.section === 'Waterproofing') {
+      hasSectionData = [
+        exteriorSideItems, exteriorSidePitItems, negativeSideWallItems, negativeSideSlabItems
+      ].some(arr => arr && arr.length > 0) || section.subsections.some(sub => sub.name.includes('Extra line item'))
+    } else if (section.section === 'Superstructure') {
+      hasSectionData = Object.values(superstructureItems).some(val => Array.isArray(val) ? val.length > 0 : (typeof val === 'object' && val !== null ? Object.values(val).some(v => Array.isArray(v) && v.length > 0) : false))
+    } else if (section.section === 'B.P.P. Alternate #2 scope') {
+      hasSectionData = Object.keys(bppAlternateItemsByStreet).length > 0
+    } else if (section.section === 'Civil / Sitework') {
+      const hasDemo = Object.values(civilDemoItems).some(val => Array.isArray(val) ? val.length > 0 : Object.values(val).some(v => Array.isArray(v) && v.length > 0))
+      const hasOther = Object.values(civilOtherItems).some(val => Array.isArray(val) ? val.length > 0 : Object.values(val).some(v => Array.isArray(v) && v.length > 0))
+      hasSectionData = hasDemo || hasOther
+    } else if (section.section === 'Trenching') {
+      hasSectionData = trenchingTakeoff !== '' && trenchingTakeoff !== null && trenchingTakeoff !== undefined
+    } else {
+      // Default to true for unknown sections to avoid hiding things unnecessarily
+      hasSectionData = true
+    }
+
+    if (hasSectionData) {
+      rows.push(sectionRow)
+    }
 
     // Add empty row after section (or Trenching items)
-    if (section.section === 'Trenching') {
+    if (section.section === 'Trenching' && hasSectionData) {
       const trenchingHeaderRow = rows.length
       rows.push(Array(template.columns.length).fill(''))
       const demoRow = trenchingHeaderRow + 2
@@ -383,7 +434,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
       })
       formulas.push({ row: trenchingHeaderRow, itemType: 'trenching_section_header', section: 'trenching', patchbackRow: rows.length })
       // One empty row after Trenching is added by the final else (sections without subsections)
-    } else {
+    } else if (hasSectionData) {
       rows.push(Array(template.columns.length).fill(''))
     }
 
@@ -565,7 +616,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         }
 
         // Add empty row after subsection
-        rows.push(Array(template.columns.length).fill(''))
+        if (subsectionItems.length > 0 || subsection.name.includes('Extra line item')) {
+          rows.push(Array(template.columns.length).fill(''))
+        }
       })
     } else if (section.section === 'Rock Excavation') {
       // Handle Rock Excavation section
@@ -678,7 +731,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         }
 
         // Add empty row after subsection
-        rows.push(Array(template.columns.length).fill(''))
+        if (subsectionItems.length > 0 || subsection.name === 'For rock excavation Extra line item use this') {
+          rows.push(Array(template.columns.length).fill(''))
+        }
       })
     } else if (section.section === 'SOE') {
       // Handle SOE section with grouped soldier pile items and other subsections
@@ -690,10 +745,53 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           return
         }
 
-        // Add subsection header (indented)
-        const subsectionRow = Array(template.columns.length).fill('')
-        subsectionRow[1] = subsection.name + ':'
-        rows.push(subsectionRow)
+        // Determine if subsection has items
+        let headerCheckItems = []
+        if (subsection.name === 'Drilled soldier pile') headerCheckItems = soldierPileGroups // Group check
+        else if (subsection.name === 'Primary secant piles') headerCheckItems = primarySecantItems
+        else if (subsection.name === 'Secondary secant piles') headerCheckItems = secondarySecantItems
+        else if (subsection.name === 'Tangent piles') headerCheckItems = tangentPileItems
+        else if (subsection.name === 'Sheet pile') headerCheckItems = sheetPileItems
+        else if (subsection.name === 'Timber lagging') headerCheckItems = timberLaggingItems
+        else if (subsection.name === 'Timber sheeting') headerCheckItems = timberSheetingItems
+        else if (subsection.name === 'Waler') headerCheckItems = walerItems
+        else if (subsection.name === 'Raker') headerCheckItems = rakerItems
+        else if (subsection.name === 'Upper Raker') headerCheckItems = upperRakerItems
+        else if (subsection.name === 'Lower Raker') headerCheckItems = lowerRakerItems
+        else if (subsection.name === 'Stand off') headerCheckItems = standOffItems
+        else if (subsection.name === 'Kicker') headerCheckItems = kickerItems
+        else if (subsection.name === 'Channel') headerCheckItems = channelItems
+        else if (subsection.name === 'Roll chock') headerCheckItems = rollChockItems
+        else if (subsection.name === 'Stud beam') headerCheckItems = studBeamItems
+        else if (subsection.name === 'Inner corner brace') headerCheckItems = innerCornerBraceItems
+        else if (subsection.name === 'Knee brace') headerCheckItems = kneeBraceItems
+        else if (subsection.name === 'Supporting angle') headerCheckItems = supportingAngleGroups
+        else if (subsection.name === 'Parging') headerCheckItems = pargingItems
+        else if (subsection.name === 'Heel blocks') headerCheckItems = heelBlockItems
+        else if (subsection.name === 'Underpinning') headerCheckItems = underpinningItems
+        else if (subsection.name === 'Rock anchors') headerCheckItems = rockAnchorItems
+        else if (subsection.name === 'Rock bolts') headerCheckItems = rockBoltItems
+        else if (subsection.name === 'Anchor') headerCheckItems = anchorItems
+        else if (subsection.name === 'Tie back') headerCheckItems = tieBackItems
+        else if (subsection.name === 'Concrete soil retention piers') headerCheckItems = concreteSoilRetentionPierItems
+        else if (subsection.name === 'Guide wall') headerCheckItems = guideWallItems
+        else if (subsection.name === 'Dowel bar') headerCheckItems = dowelBarItems
+        else if (subsection.name === 'Rock pins') headerCheckItems = rockPinItems
+        else if (subsection.name === 'Shotcrete') headerCheckItems = shotcreteItems
+        else if (subsection.name === 'Permission grouting') headerCheckItems = permissionGroutingItems
+        else if (subsection.name === 'Buttons') headerCheckItems = buttonItems
+        else if (subsection.name === 'Rock stabilization') headerCheckItems = rockStabilizationItems
+        else if (subsection.name === 'Form board') headerCheckItems = formBoardItems
+
+        let hasSubsectionData = headerCheckItems.length > 0
+        if (subsection.name === 'Backpacking' && hasBackpacking) hasSubsectionData = true
+
+        if (hasSubsectionData) {
+          // Add subsection header (indented)
+          const subsectionRow = Array(template.columns.length).fill('')
+          subsectionRow[1] = subsection.name + ':'
+          rows.push(subsectionRow)
+        }
 
         // Add space row after Underpinning heading
         if (subsection.name === 'Underpinning') {
@@ -1077,7 +1175,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         }
 
         // Add empty row after subsection
-        rows.push(Array(template.columns.length).fill(''))
+        if (hasSubsectionData) {
+          rows.push(Array(template.columns.length).fill(''))
+        }
       })
     } else if (section.section === 'Foundation') {
       // Foundation section: put CY in col D of heading row; col C will get sum formula later
@@ -1087,10 +1187,47 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
       }
       // Handle Foundation section
       section.subsections.forEach((subsection) => {
-        // Add subsection header (indented)
-        const subsectionRow = Array(template.columns.length).fill('')
-        subsectionRow[1] = subsection.name + ':'
-        rows.push(subsectionRow)
+        // Check if subsection has data
+        let hasSubsectionData = false
+        if (subsection.name === 'Drilled foundation pile') hasSubsectionData = drilledFoundationPileGroups.length > 0
+        else if (subsection.name === 'Helical foundation pile') hasSubsectionData = helicalFoundationPileGroups.length > 0
+        else if (subsection.name === 'Driven foundation pile') hasSubsectionData = drivenFoundationPileItems.length > 0
+        else if (subsection.name === 'Stelcor drilled displacement pile') hasSubsectionData = stelcorDrilledDisplacementPileItems.length > 0
+        else if (subsection.name === 'CFA pile') hasSubsectionData = cfaPileItems.length > 0
+        else if (subsection.name === 'Pile caps') hasSubsectionData = pileCapItems.length > 0
+        else if (subsection.name === 'Strip Footings') hasSubsectionData = stripFootingGroups.length > 0
+        else if (subsection.name === 'Isolated Footings') hasSubsectionData = isolatedFootingItems.length > 0
+        else if (subsection.name === 'Pilaster') hasSubsectionData = pilasterItems.length > 0
+        else if (subsection.name === 'Grade beams') hasSubsectionData = gradeBeamGroups.length > 0
+        else if (subsection.name === 'Tie beam') hasSubsectionData = tieBeamGroups.length > 0
+        else if (subsection.name === 'Thickened slab') hasSubsectionData = thickenedSlabGroups.length > 0
+        else if (subsection.name === 'Buttresses') hasSubsectionData = !!buttressItem
+        else if (subsection.name === 'Pier') hasSubsectionData = pierItems.length > 0
+        else if (subsection.name === 'Corbel') hasSubsectionData = corbelGroups.length > 0
+        else if (subsection.name === 'Linear Wall') hasSubsectionData = linearWallGroups.length > 0
+        else if (subsection.name === 'Foundation Wall') hasSubsectionData = foundationWallGroups.length > 0
+        else if (subsection.name === 'Retaining walls') hasSubsectionData = retainingWallGroups.length > 0
+        else if (subsection.name === 'Barrier wall') hasSubsectionData = barrierWallGroups.length > 0
+        else if (subsection.name === 'Stem wall') hasSubsectionData = stemWallItems.length > 0
+        else if (subsection.name === 'Elevator pit') hasSubsectionData = elevatorPitItems.length > 0
+        else if (subsection.name === 'Detention tank') hasSubsectionData = detentionTankItems.length > 0
+        else if (subsection.name === 'Duplex sewage ejector pit') hasSubsectionData = duplexSewageEjectorPitItems.length > 0
+        else if (subsection.name === 'Deep sewage ejector pit') hasSubsectionData = deepSewageEjectorPitItems.length > 0
+        else if (subsection.name === 'Grease trap') hasSubsectionData = greaseTrapItems.length > 0
+        else if (subsection.name === 'House trap') hasSubsectionData = houseTrapItems.length > 0
+        else if (subsection.name === 'Mat slab') hasSubsectionData = matSlabItems.length > 0
+        else if (subsection.name === 'Mud slab') hasSubsectionData = mudSlabFoundationItems.length > 0
+        else if (subsection.name === 'SOG') hasSubsectionData = sogItems.length > 0
+        else if (subsection.name === 'Stairs on grade') hasSubsectionData = stairsOnGradeGroups.length > 0
+        else if (subsection.name === 'Proposed underground electrical conduit') hasSubsectionData = electricConduitItems.length > 0
+        else if (subsection.name === 'For foundation Extra line item use this') hasSubsectionData = true // Always show extra line item placeholder if section exists? Or only if needed? Treating as always show if section active
+
+        if (hasSubsectionData) {
+          // Add subsection header (indented)
+          const subsectionRow = Array(template.columns.length).fill('')
+          subsectionRow[1] = subsection.name + ':'
+          rows.push(subsectionRow)
+        }
 
         if (subsection.name === 'Drilled foundation pile' && drilledFoundationPileGroups.length > 0) {
           // Process each group for drilled foundation piles.
@@ -2656,7 +2793,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         }
 
         // Add empty row after subsection
-        rows.push(Array(template.columns.length).fill(''))
+        if (hasSubsectionData) {
+          rows.push(Array(template.columns.length).fill(''))
+        }
       })
       // Foundation CY total: sum column L from included subsection sum rows (and data rows for Buttresses Final, Mud Slab, Elevator sump pit)
       const foundationCySumRows = formulas.filter(
@@ -2670,9 +2809,17 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
       })
     } else if (section.section === 'Waterproofing') {
       section.subsections.forEach((subsection) => {
-        const subsectionRow = Array(template.columns.length).fill('')
-        subsectionRow[1] = subsection.name + ':'
-        rows.push(subsectionRow)
+        let hasSubsectionData = false
+        if (subsection.name === 'Exterior side') hasSubsectionData = exteriorSideItems.length > 0 || exteriorSidePitItems.length > 0
+        else if (subsection.name === 'Negative side') hasSubsectionData = negativeSideWallItems.length > 0 || negativeSideSlabItems.length > 0
+        else if (subsection.name === 'Horizontal') hasSubsectionData = exteriorSideItems.length > 0 || negativeSideWallItems.length > 0
+        else if (subsection.name === 'For foundation Extra line item use this') hasSubsectionData = true
+
+        if (hasSubsectionData) {
+          const subsectionRow = Array(template.columns.length).fill('')
+          subsectionRow[1] = subsection.name + ':'
+          rows.push(subsectionRow)
+        }
 
         if (subsection.name === 'Exterior side' && (exteriorSideItems.length > 0 || exteriorSidePitItems.length > 0)) {
           const firstItemRow = rows.length + 1
@@ -2835,13 +2982,49 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           rows.push(Array(template.columns.length).fill(''))
         }
 
-        rows.push(Array(template.columns.length).fill(''))
+        if (hasSubsectionData) {
+          rows.push(Array(template.columns.length).fill(''))
+        }
       })
     } else if (section.section === 'Superstructure') {
       section.subsections.forEach((subsection) => {
-        const subsectionRow = Array(template.columns.length).fill('')
-        subsectionRow[1] = subsection.name + ':'
-        rows.push(subsectionRow)
+        let hasSubsectionData = false
+        // Determine if subsection has data
+        if (subsection.name === 'CIP Slabs') hasSubsectionData = superstructureItems.cipSlab8.length > 0 || superstructureItems.cipRoofSlab8.length > 0
+        else if (subsection.name === 'Balcony slab') hasSubsectionData = superstructureItems.balconySlab.length > 0
+        else if (subsection.name === 'Terrace slab') hasSubsectionData = superstructureItems.terraceSlab.length > 0
+        else if (subsection.name === 'Patch slab') hasSubsectionData = superstructureItems.patchSlab.length > 0
+        else if (subsection.name === 'Slab steps') hasSubsectionData = superstructureItems.slabSteps.length > 0
+        else if (subsection.name === 'LW concrete fill') hasSubsectionData = superstructureItems.lwConcreteFill.length > 0
+        else if (subsection.name === 'Slab on metal deck') hasSubsectionData = superstructureItems.slabOnMetalDeck && superstructureItems.slabOnMetalDeck.length > 0
+        else if (subsection.name === 'Topping slab') hasSubsectionData = superstructureItems.toppingSlab && superstructureItems.toppingSlab.length > 0
+        else if (subsection.name === 'Thermal break') hasSubsectionData = superstructureItems.thermalBreak && superstructureItems.thermalBreak.length > 0
+        else if (subsection.name === 'Raised slab') hasSubsectionData = superstructureItems.raisedSlab && (superstructureItems.raisedSlab.kneeWall.length > 0 || superstructureItems.raisedSlab.raisedSlab.length > 0)
+        else if (subsection.name === 'Built up slab') hasSubsectionData = superstructureItems.builtUpSlab && (superstructureItems.builtUpSlab.kneeWall.length > 0 || superstructureItems.builtUpSlab.builtUpSlab.length > 0)
+        else if (subsection.name === 'Built up stair') hasSubsectionData = superstructureItems.builtUpStair && (superstructureItems.builtUpStair.kneeWall.length > 0 || superstructureItems.builtUpStair.builtUpStairs.length > 0)
+        else if (subsection.name === 'Built up ramps') hasSubsectionData = superstructureItems.builtupRamps && (superstructureItems.builtupRamps.kneeWall.length > 0 || superstructureItems.builtupRamps.ramp.length > 0)
+        else if (subsection.name === 'Concrete hanger') hasSubsectionData = superstructureItems.concreteHanger && superstructureItems.concreteHanger.length > 0
+        else if (subsection.name === 'Shear Walls') hasSubsectionData = superstructureItems.shearWalls && superstructureItems.shearWalls.length > 0
+        else if (subsection.name === 'Parapet walls') hasSubsectionData = superstructureItems.parapetWalls && superstructureItems.parapetWalls.length > 0
+        else if (subsection.name === 'Columns') hasSubsectionData = true // Always show columns? The code logic was unconditional before. Assuming yes or check specific items if needed.
+        else if (subsection.name === 'Concrete post') hasSubsectionData = superstructureItems.concretePost && superstructureItems.concretePost.length > 0
+        else if (subsection.name === 'Concrete encasement') hasSubsectionData = superstructureItems.concreteEncasement && superstructureItems.concreteEncasement.length > 0
+        else if (subsection.name === 'Drop panel') hasSubsectionData = (superstructureItems.dropPanelBracket && superstructureItems.dropPanelBracket.length > 0) || (superstructureItems.dropPanelH && superstructureItems.dropPanelH.length > 0)
+        else if (subsection.name === 'Beams') hasSubsectionData = superstructureItems.beams && superstructureItems.beams.length > 0
+        else if (subsection.name === 'Curbs') hasSubsectionData = superstructureItems.curbs && superstructureItems.curbs.length > 0
+        else if (subsection.name === 'Concrete pad') hasSubsectionData = superstructureItems.concretePad && superstructureItems.concretePad.length > 0
+        else if (subsection.name === 'Non-shrink grout') hasSubsectionData = superstructureItems.nonShrinkGrout && superstructureItems.nonShrinkGrout.length > 0
+        else if (subsection.name === 'Repair scope') hasSubsectionData = superstructureItems.repairScope && superstructureItems.repairScope.length > 0
+        else if (subsection.name === 'CIP Stairs') hasSubsectionData = true // Always show CIP stairs? 
+        else if (subsection.name === 'Stairs \u2013 Infilled tads') hasSubsectionData = true // Always show?
+        else if (subsection.name === 'Ele') hasSubsectionData = true // Always show Ele?
+        else if (subsection.name === 'For Superstructure Extra line item use this') hasSubsectionData = true
+
+        if (hasSubsectionData) {
+          const subsectionRow = Array(template.columns.length).fill('')
+          subsectionRow[1] = subsection.name + ':'
+          rows.push(subsectionRow)
+        }
 
         if (subsection.name === 'CIP Slabs') {
           const slab8FirstRow = rows.length + 1
@@ -3682,7 +3865,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: item.type, section: 'superstructure', subsectionName: subsection.name })
           })
           rows.push(Array(template.columns.length).fill(''))
-        } else {
+        } else if (hasSubsectionData) {
           rows.push(Array(template.columns.length).fill(''))
         }
       })
@@ -3857,9 +4040,23 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     } else if (section.section === 'Civil / Sitework') {
       // Civil / Sitework section
       section.subsections.forEach((subsection) => {
+        // Check if subsection has items (Civil)
+        let hasSubsectionData = false
+        if (subsection.name === 'Demo') hasSubsectionData = Object.values(civilDemoItems).some(val => Array.isArray(val) ? val.length > 0 : Object.values(val).some(v => Array.isArray(v) && v.length > 0))
+        else if (subsection.name === 'Excavation') hasSubsectionData = Object.values(civilOtherItems['Excavation']).some(arr => arr.length > 0)
+        else if (subsection.name === 'Gravel') hasSubsectionData = Object.values(civilOtherItems['Gravel']).some(arr => arr.length > 0)
+        else if (subsection.name === 'Concrete Pavement') hasSubsectionData = civilOtherItems['Concrete Pavement'].length > 0
+        else if (subsection.name === 'Asphalt') hasSubsectionData = civilOtherItems['Asphalt'].length > 0
+        else if (subsection.name === 'Pads') hasSubsectionData = civilOtherItems['Pads'].length > 0
+        else if (subsection.name === 'Soil Erosion') hasSubsectionData = Object.values(civilOtherItems['Soil Erosion']).some(arr => arr.length > 0)
+        else if (subsection.name === 'Fence') hasSubsectionData = Object.values(civilOtherItems['Fence']).some(arr => arr.length > 0)
+        else if (subsection.name === 'Concrete filled steel pipe bollard') hasSubsectionData = Object.values(civilOtherItems['Concrete filled steel pipe bollard']).some(arr => arr.length > 0)
+        else if (subsection.name === 'Site') hasSubsectionData = Object.values(civilOtherItems['Site']).some(val => Array.isArray(val) ? val.length > 0 : Object.values(val).some(v => Array.isArray(v) && v.length > 0))
+        else if (subsection.name === 'Alternate') hasSubsectionData = true // Handled inside
+
         // Add subsection header for all subsections except Alternate,
         // which has custom header/spacing handled in its own block below.
-        if (subsection.name !== 'Alternate') {
+        if (subsection.name !== 'Alternate' && hasSubsectionData) {
           const subsectionRow = Array(template.columns.length).fill('')
           subsectionRow[1] = subsection.name + ':'
           rows.push(subsectionRow)
@@ -4432,9 +4629,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
           }
 
-          if (!hasItems) {
-            rows.push(Array(template.columns.length).fill(''))
-          } else {
+          if (hasItems) {
             rows.push(Array(template.columns.length).fill(''))
           }
         } else if (subsection.name === 'Fence') {
@@ -4502,9 +4697,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             rows.push(Array(template.columns.length).fill(''))
           }
 
-          if (!hasItems) {
-            rows.push(Array(template.columns.length).fill(''))
-          }
+
         } else if (subsection.name === 'Concrete filled steel pipe bollard') {
           // Bollard subsection
           const bollardGroups = civilOtherItems['Concrete filled steel pipe bollard']
@@ -4547,19 +4740,26 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             rows.push(Array(template.columns.length).fill(''))
           }
 
-          if ((!bollardGroups['footing'] || !bollardGroups['footing'].length) && (!bollardGroups['simple'] || !bollardGroups['simple'].length)) {
-            rows.push(Array(template.columns.length).fill(''))
-          }
+
         } else if (subsection.name === 'Site') {
           const siteItems = civilOtherItems['Site']
           const siteOrder = ['Hydrant', 'Wheel stop', 'Drain', 'Protection', 'Signages', 'Main line']
 
           siteOrder.forEach(subName => {
             const groupData = siteItems[subName]
-            // Render Group Header
-            const headerRow = Array(template.columns.length).fill('')
-            headerRow[1] = '  ' + subName + ':'
-            rows.push(headerRow)
+            let hasData = false
+            if (Array.isArray(groupData)) {
+              hasData = groupData && groupData.length > 0
+            } else {
+              hasData = Object.values(groupData).some(sub => sub && sub.length > 0)
+            }
+
+            if (hasData) {
+              // Render Group Header
+              const headerRow = Array(template.columns.length).fill('')
+              headerRow[1] = '  ' + subName + ':'
+              rows.push(headerRow)
+            }
 
             if (Array.isArray(groupData)) {
               if (groupData && groupData.length > 0) {
@@ -4607,7 +4807,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 rows.pop()
               }
             }
-            rows.push(Array(template.columns.length).fill(''))
+            if (hasData) {
+              rows.push(Array(template.columns.length).fill(''))
+            }
           })
         } else if (subsection.name === 'Drains & Utilities') {
           const items = civilOtherItems['Drains & Utilities']
