@@ -2994,7 +2994,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Concrete hanger') hasSubsectionData = superstructureItems.concreteHanger && superstructureItems.concreteHanger.length > 0
         else if (subsection.name === 'Shear Walls') hasSubsectionData = superstructureItems.shearWalls && superstructureItems.shearWalls.length > 0
         else if (subsection.name === 'Parapet walls') hasSubsectionData = superstructureItems.parapetWalls && superstructureItems.parapetWalls.length > 0
-        else if (subsection.name === 'Columns') hasSubsectionData = true // Always show columns? The code logic was unconditional before. Assuming yes or check specific items if needed.
+        else if (subsection.name === 'Columns') hasSubsectionData = superstructureItems.columnsTakeoff && superstructureItems.columnsTakeoff.length > 0
         else if (subsection.name === 'Concrete post') hasSubsectionData = superstructureItems.concretePost && superstructureItems.concretePost.length > 0
         else if (subsection.name === 'Concrete encasement') hasSubsectionData = superstructureItems.concreteEncasement && superstructureItems.concreteEncasement.length > 0
         else if (subsection.name === 'Drop panel') hasSubsectionData = (superstructureItems.dropPanelBracket && superstructureItems.dropPanelBracket.length > 0) || (superstructureItems.dropPanelH && superstructureItems.dropPanelH.length > 0)
@@ -3005,7 +3005,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Repair scope') hasSubsectionData = superstructureItems.repairScope && superstructureItems.repairScope.length > 0
         else if (subsection.name === 'CIP Stairs') hasSubsectionData = true // Always show CIP stairs? 
         else if (subsection.name === 'Stairs \u2013 Infilled tads') hasSubsectionData = true // Always show?
-        else if (subsection.name === 'Ele') hasSubsectionData = true // Always show Ele?
+        else if (subsection.name === 'Ele') hasSubsectionData = civilOtherItems['Drains & Utilities'] && civilOtherItems['Drains & Utilities'].some(i => i.particulars.toLowerCase().includes('electrical conduit'))
         else if (subsection.name === 'For Superstructure Extra line item use this') hasSubsectionData = true
 
         if (hasSubsectionData) {
@@ -4016,14 +4016,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             rows.push(Array(template.columns.length).fill(''))
           }
         })
-      } else {
-        // No items - just add subsection headers
-        section.subsections.forEach((subsection) => {
-          const subsectionRow = Array(template.columns.length).fill('')
-          subsectionRow[1] = subsection.name + ':'
-          rows.push(subsectionRow)
-          rows.push(Array(template.columns.length).fill(''))
-        })
       }
     } else if (section.section === 'Civil / Sitework') {
       // Civil / Sitework section
@@ -4055,10 +4047,27 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           subsection.subSubsections.forEach((subSubsection) => {
             const subSubName = subSubsection.name
 
-            // Add sub-subsection header
-            const subSubsectionRow = Array(template.columns.length).fill('')
-            subSubsectionRow[1] = subSubName + ':'
-            rows.push(subSubsectionRow)
+            // Determine if sub-subsection has data
+            let hasSubData = false
+            if (subSubName === 'Demo asphalt') hasSubData = civilDemoItems['Demo asphalt'].length > 0
+            else if (subSubName === 'Demo curb') hasSubData = civilDemoItems['Demo curb'].length > 0
+            else if (subSubName === 'Demo fence') hasSubData = civilDemoItems['Demo fence']['chain_link_vinyl'].length > 0 || civilDemoItems['Demo fence']['wood'].length > 0 || civilDemoItems['Demo fence']['other'].length > 0
+            else if (subSubName === 'Demo wall') hasSubData = civilDemoItems['Demo wall'].length > 0
+            else if (subSubName === 'Demo pipe') hasSubData = civilDemoItems['Demo pipe']['remove_pipe'].length > 0 || civilDemoItems['Demo pipe']['protect'].length > 0
+            else if (subSubName === 'Demo rail') hasSubData = civilDemoItems['Demo rail'].length > 0
+            else if (subSubName === 'Demo sign') hasSubData = civilDemoItems['Demo sign']['single_sign'].length > 0 || civilDemoItems['Demo sign']['row_of_signs'].length > 0
+            else if (subSubName === 'Demo manhole') hasSubData = civilDemoItems['Demo manhole'].length > 0
+            else if (subSubName === 'Demo fire hydrant') hasSubData = civilDemoItems['Demo fire hydrant'].length > 0
+            else if (subSubName === 'Demo utility pole') hasSubData = civilDemoItems['Demo utility pole'].length > 0
+            else if (subSubName === 'Demo valve') hasSubData = civilDemoItems['Demo valve'].length > 0
+            else if (subSubName === 'Demo inlet') hasSubData = civilDemoItems['Demo inlet']['protect'].length > 0 || civilDemoItems['Demo inlet']['remove'].length > 0
+
+            if (hasSubData) {
+              // Add sub-subsection header
+              const subSubsectionRow = Array(template.columns.length).fill('')
+              subSubsectionRow[1] = subSubName + ':'
+              rows.push(subSubsectionRow)
+            }
 
             // Handle Demo asphalt
             if (subSubName === 'Demo asphalt' && civilDemoItems['Demo asphalt'].length > 0) {
@@ -4154,10 +4163,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I', 'J'] })
                 rows.push(Array(template.columns.length).fill(''))
               }
-              // If no items, add empty row
-              if (fenceGroups['chain_link_vinyl'].length === 0 && fenceGroups['wood'].length === 0 && fenceGroups['other'].length === 0) {
-                rows.push(Array(template.columns.length).fill(''))
-              }
             }
             // Handle Demo wall
             else if (subSubName === 'Demo wall' && civilDemoItems['Demo wall'].length > 0) {
@@ -4215,10 +4220,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['I'] })
                 rows.push(Array(template.columns.length).fill(''))
               }
-              // If no items, add empty row
-              if (pipeGroups['remove_pipe'].length === 0 && pipeGroups['protect'].length === 0) {
-                rows.push(Array(template.columns.length).fill(''))
-              }
             }
             // Handle Demo rail
             else if (subSubName === 'Demo rail' && civilDemoItems['Demo rail'].length > 0) {
@@ -4272,10 +4273,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 const sumRow = Array(template.columns.length).fill('')
                 rows.push(sumRow)
                 formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['M'] })
-                rows.push(Array(template.columns.length).fill(''))
-              }
-              // If no items, add empty row
-              if (signGroups['single_sign'].length === 0 && signGroups['row_of_signs'].length === 0) {
                 rows.push(Array(template.columns.length).fill(''))
               }
             }
@@ -4384,15 +4381,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 formulas.push({ row: rows.length, itemType: 'civil_demo_sum', section: 'civil_sitework', subsectionName: subSubName, firstDataRow: firstRow, lastDataRow: rows.length - 1, sumColumns: ['M'] })
                 rows.push(Array(template.columns.length).fill(''))
               }
-              // If no items, add empty row
-              if (inletGroups['protect'].length === 0 && inletGroups['remove'].length === 0) {
-                rows.push(Array(template.columns.length).fill(''))
-              }
             }
-            else {
-              // No items for this sub-subsection
-              rows.push(Array(template.columns.length).fill(''))
-            }
+
           })
         } else if (subsection.name === 'Excavation') {
           // Excavation subsection
