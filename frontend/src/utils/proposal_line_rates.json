@@ -1,0 +1,46 @@
+{
+  "_comment": "Rates for proposal lines. Each entry: 'line' = text to match (exact or row contains this). LF/SF/LBS/CY/QTY/LS = $ per unit (only include the ones you need). Columns I=LF, J=SF, K=LBS, L=CY, M=QTY, N=LS.",
+  "lines": [
+    {
+      "line": "Allow to perform soil excavation",
+      "CY": 75
+    },
+    {
+      "line": "Allow to import new clean soil to backfill",
+      "CY": 85
+    },
+    {
+      "line": "Allow to perform rock excavation",
+      "CY": 350
+    },
+    {
+      "line": "Allow to perform line drilling",
+      "LF": 30
+    },
+    {
+      "line": "drilled soldier piles",
+      "LF": 180
+    },
+    {
+      "line": "driven pile",
+      "LF": 145
+    },
+    {
+      "line": "primary secant piles",
+      "LF": 200
+    },
+    {
+      "line": "secondary secant piles",
+      "LF": 320
+    },
+    {
+      "line": "tangent piles",
+      "LF": 200
+    },
+    {
+      "line": "saw-cut/demo/remove/dispose existing",
+      "SF": 7,
+      "CY": 500
+    }
+  ]
+}

@@ -1,0 +1,731 @@
+[
+  {
+    "description": "DESCRIPTION",
+    "values": {
+      "LF": "LF",
+      "SF": "SF",
+      "LBS": "LBS",
+      "CY": "CY",
+      "QTY": "QTY",
+      "LS": "LS"
+    }
+  },
+  {
+    "description": "saw-cut/demo/remove/dispose existing",
+    "values": {
+      "SF": 7,
+      "CY": 500
+    }
+  },
+  {
+    "description": "Allow to perform soil excavation, trucking & disposal",
+    "values": {
+      "CY": 75
+    }
+  },
+  {
+    "description": "Allow to import new clean soil to backfill",
+    "values": {
+      "CY": 85
+    }
+  },
+  {
+    "description": "Allow to perform rock excavation, trucking & disposal",
+    "values": {
+      "CY": 350
+    }
+  },
+  {
+    "description": "Allow to perform line drilling",
+    "values": {
+      "LF": 30
+    }
+  },
+  {
+    "description": "drilled soldier piles",
+    "values": {
+      "LF": 180
+    }
+  },
+  {
+    "description": "driven pile",
+    "values": {
+      "LF": 145
+    }
+  },
+  {
+    "description": "driven mini-piles",
+    "values": {
+      "LF": 115
+    }
+  },
+  {
+    "description": "helical piles",
+    "values": {
+      "LF": 120
+    }
+  },
+  {
+    "description": "helical mini-piles",
+    "values": {
+      "SF": 120
+    }
+  },
+  {
+    "description": "stelcor mini-piles",
+    "values": {
+      "LF": 90
+    }
+  },
+  {
+    "description": "cfa mini-piles",
+    "values": {
+      "LF": 90
+    }
+  },
+  {
+    "description": "primary secant piles",
+    "values": {
+      "LF": 200
+    }
+  },
+  {
+    "description": "secondary secant piles",
+    "values": {
+      "LF": 320
+    }
+  },
+  {
+    "description": "tangent pile",
+    "values": {
+      "LF": 200
+    }
+  },
+  {
+    "description": "sheet pile",
+    "values": {
+      "SF": 45
+    }
+  },
+  {
+    "description": "backpacking @ timber lagging",
+    "values": {
+      "SF": 0.00
+    }
+  },
+  {
+    "description": "timber lagging",
+    "values": {
+      "SF": 20
+    }
+  },
+  {
+    "description": "timber sheeting",
+    "values": {
+      "SF": 20
+    }
+  },
+  {
+    "description": "waler",
+    "values": { "LBS": 5 }
+  },
+  {
+    "description": "raker",
+    "values": { "LBS": 5 }
+  },
+  {
+    "description": "upper raker",
+    "values": { "LBS": 5 }
+  },
+  {
+    "description": "lower raker",
+    "values": { "LBS": 5 }
+  },
+  {
+    "description": "stand off",
+    "values": { "LBS": 5 }
+  },
+  {
+    "description": "kicker",
+    "values": { "LBS": 5 }
+  },
+  {
+    "description": "channel",
+    "values": { "LBS": 6 }
+  },
+  {
+    "description": "roll chock",
+    "values": { "LBS": 6 }
+  },
+  {
+    "description": "stub beam",
+    "values": { "LBS": 5 }
+  },
+  {
+    "description": "inner corner brace",
+    "values": { "LBS": 5 }
+  },
+  {
+    "description": "knee brace",
+    "values": { "LBS": 5 }
+  },
+  {
+    "description": "supporting angle @ timber lagging",
+    "values": { "LBS": 5 }
+  },
+  {
+    "description": "supporting angle @ soldier piles",
+    "values": { "LBS": 5 }
+  },
+  {
+    "description": "tie back anchors",
+    "values": { "LF": 150 }
+  },
+  {
+    "description": "parging",
+    "values": { "SF": 20 }
+  },
+  {
+    "description": "heel blocks for raker support",
+    "values": { "CY": 1500 }
+  },
+  {
+    "description": "underpinning piers",
+    "values": { "CY": 1800 }
+  },
+  {
+    "description": "concrete soil retention",
+    "values": { "CY": 2000 }
+  },
+  {
+    "description": "form board",
+    "values": { "SF": 4 }
+  },
+  {
+    "description": "concrete buttons",
+    "values": { "CY": 1800 }
+  },
+  {
+    "description": "guide wall",
+    "values": { "LF": 900 }
+  },
+  {
+    "description": "dowels",
+    "values": { "LF": 100 }
+  },
+  {
+    "description": "rock pins",
+    "values": { "LF": 100 }
+  },
+  {
+    "description": "rock stabilization",
+    "values": { "CY": 850 }
+  },
+  {
+    "description": "permission grouting",
+    "values": { "SF": 20 }
+  },
+  {
+    "description": "mud slab",
+    "values": { "SF": 10 }
+  },
+  {
+    "description": "threaded bar",
+    "values": { "LF": 150 }
+  },
+  {
+    "description": "drilled caisson pile",
+    "values": { "LF": 180 }
+  },
+  {
+    "description": "drilled cassion pile",
+    "values": { "LF": 180 }
+  },
+  {
+    "description": "isolation casing drilled caisson pile",
+    "values": { "LF": 240 }
+  },
+  {
+    "description": "isolation casing drilled cassion pile",
+    "values": { "LF": 240 }
+  },
+  {
+    "description": "Plates & locking nuts included",
+    "values": { "QTY": 250 }
+  },
+  {
+    "description": "One mobilization & demobilization of drilling equipment included",
+    "values": { "LS": 20000 }
+  },
+  {
+    "description": "compression reactionary load tests included",
+    "values": { "QTY": 30000 }
+  },
+  {
+    "description": "Two lateral reactionary load tests included",
+    "values": { "QTY": 7000 }
+  },
+  {
+    "description": "lateral reactionary load tests included",
+    "values": { "QTY": 6000 }
+  },
+  {
+    "description": "Video inspections included",
+    "values": { "QTY": 5000 }
+  },
+  {
+    "description": "Engineering & Shop drawings included",
+    "values": { "LS": 10000 }
+  },
+  {
+    "description": "Upon completion: cut-off of helical pile tops after grade marks & capping with and applicable flat plate",
+    "values": { "LS": 12000 }
+  },
+  {
+    "description": "If torque is not adequate upon reaching the 7' depth, additional lengths will be added & billed",
+    "values": { "LS": 23000 }
+  },
+  {
+    "description": "Pile location, stake out, deviation, pile numbering plans, grade marks for cut-offs included",
+    "values": { "LS": 15000 }
+  },
+  {
+    "description": "gravel/crushed stone",
+    "values": { "CY": 95 }
+  },
+  {
+    "description": "geotextile",
+    "values": { "SF": 2 }
+  },
+  {
+    "description": "sump pit",
+    "values": { "CY": 800 }
+  },
+  {
+    "description": "elevator pit",
+    "values": { "CY": 950 }
+  },
+  {
+    "description": "detention tank",
+    "values": { "CY": 950 }
+  },
+  {
+    "description": "duplex sewage",
+    "values": { "CY": 950 }
+  },
+  {
+    "description": "deep sewage ejector pit slab",
+    "values": { "CY": 800 }
+  },
+  {
+    "description": "deep sewage ejector pit walls",
+    "values": { "CY": 850 }
+  },
+  {
+    "description": "grease trap pit slab",
+    "values": { "CY": 800 }
+  },
+  {
+    "description": "grease trap pit walls",
+    "values": { "CY": 850 }
+  },
+  {
+    "description": "house trap pit slab",
+    "values": { "CY": 800 }
+  },
+  {
+    "description": "house trap pit walls",
+    "values": { "CY": 850 }
+  },
+  {
+    "description": "pile caps",
+    "values": { "CY": 800 }
+  },
+  {
+    "description": "strip footings",
+    "values": { "CY": 800 }
+  },
+  {
+    "description": "isolated footings",
+    "values": { "CY": 800 }
+  },
+  {
+    "description": "piers",
+    "values": { "QTY": 1000 }
+  },
+  {
+    "description": "grade beams",
+    "values": { "CY": 800 }
+  },
+  {
+    "description": "tie beams",
+    "values": { "CY": 800 }
+  },
+  {
+    "description": "Pilasters",
+    "values": { "CY": 800 }
+  },
+  {
+    "description": "thickened slab",
+    "values": { "CY": 800 }
+  },
+  {
+    "description": "mat slab reinforced",
+    "values": { "CY": 800 }
+  },
+  {
+    "description": "mud/rat slab",
+    "values": { "CY": 400 }
+  },
+  {
+    "description": "slab on grade reinforced",
+    "values": { "CY": 800 }
+  },
+  {
+    "description": "corbel",
+    "values": { "CY": 900 }
+  },
+  {
+    "description": "concrete liner walls",
+    "values": { "CY": 900 }
+  },
+  {
+    "description": "foundation walls",
+    "values": { "CY": 900 }
+  },
+  {
+    "description": "retaining walls",
+    "values": { "CY": 900 }
+  },
+  {
+    "description": "w/epoxy reinforcement",
+    "values": { "CY": 950 }
+  },
+  {
+
+  "description": "barrier walls",
+  "values": { "CY": 900 }
+},
+{
+  "description": "stem walls ",
+  "values": { "CY": 900 }
+},
+{
+  "description": "electric conduit",
+  "values": { "LF": 100 }
+},{
+  "description": "perimeter footing drain",
+  "values": { "LF": 80 }
+},
+{
+  "description": "Engineering, shop drawings, formwork drawings, design mixes included",
+  "values": { "LS": 20000 }
+},
+{
+  "description": "trench drain",
+  "values": { "LF": 150 }
+},{
+  "description": "slab",
+  "values": { "CY": 1200 }
+},{
+  "description": "concrete hangers",
+  "values": { "QTY": 2250 }
+},
+{
+  "description": "LW concrete topping",
+  "values": { "SF": 12 }
+},{
+  "description": "NW concrete topping",
+  "values": { "SF": 15 }
+},
+{
+  "description": "LW concrete fill",
+  "values": { "SF": 20 }
+},{
+  "description": "NW topping slab",
+  "values": { "SF": 12 }
+},
+{
+  "description": "knee walls",
+  "values": { "CY": 1200 }
+},
+{
+  "description": "Styrofoam",
+  "values": { "CY": 375 }
+},
+{
+  "description": "slab topping",
+  "values": { "CY": 1200 }
+},{
+  "description": "built up",
+  "values": { "CY": 1200 }
+},
+{
+  "description": "built-up",
+  "values": { "CY": 1200 }
+},
+{
+  "description": "shear wall",
+  "values": { "CY": 1200 }
+},
+{
+  "description": "concrete columns ",
+  "values": { "CY": 1200 }
+},
+{
+  "description": "drop panel",
+  "values": { "CY": 1200 }
+},
+{
+  "description": "concrete post",
+  "values": { "CY": 1200 }
+},
+{
+  "description": "concrete encasement",
+  "values": { "CY": 1200 }
+},
+{
+  "description": "concrete beam",
+  "values": { "CY": 1200 }
+},
+{
+  "description": "beams",
+  "values": { "CY": 1200 }
+},
+{
+  "description": "parapet wall",
+  "values": { "CY": 1200 }
+},
+{
+  "description": "thermal break",
+  "values": { "LF": 100 }
+},
+{
+  "description": "concrete curbs",
+  "values": { "LF": 90 }
+},
+{
+  "description": "concrete curbs - Allowance",
+  "values": { "LF": 100 }
+},
+{
+  "description": "non-shrink grout",
+  "values": { "QTY": 250 }
+},
+{
+  "description": "(4\" thick) concrete pads",
+  "values": { "QTY": 1200, "SF": 20 }
+},
+{
+  "description": "(6\" thick) concrete pads",
+  "values": { "QTY": 1500, "SF": 20 }
+},
+{
+  "description": "(12\" thick) concrete pads",
+  "values": { "QTY": 1800, "SF": 20 }
+},
+{
+  "description": "housekeeping pads - Allowance",
+  "values": { "LS": 5000 }
+},
+{
+  "description": "repair spall concrete wall",
+  "values": { "LF": 120 }
+},
+{
+  "description": "repair concrete slab",
+  "values": { "SF": 50 }
+},
+{
+  "description": "repair concrete column",
+  "values": { "QTY": 600 }
+},
+{
+  "description": "All Rigging of material & concrete pumping included",
+  "values": { "LS": 20000 }
+},
+{
+  "description": "Outrigger netting, jumps & engineering",
+  "values": { "LS": 25000 }
+},
+{
+  "description": "Engineering, shop drawings, formwork drawings, design mixes included (Superstructure concrete scope)",
+  "values": { "LS": 40000 }
+},
+{
+  "description": "saw-cut/demo/remove/dispose",
+  "values": { "SF": 10 }
+},
+{
+  "description": "perform soil excavation, trucking & disposal",
+  "values": { "CY": 400 }
+},
+{
+  "description": "backfill SOE berm with existing stockpiled soil",
+  "values": { "CY": 150 }
+},
+{
+  "description": "gravel/crushed stone (Plumbing/Electrical trenching)",
+  "values": { "CY": 75 }
+},
+{
+  "description": "concrete patch back",
+  "values": { "SF": 18 }
+},
+{
+  "description": "sidewalk",
+  "values": { "SF": 10 }
+},
+{
+  "description": "driveway",
+  "values": { "SF": 11 }
+},
+{
+  "description": "asphalt",
+  "values": { "SF": 9 }
+},
+{
+  "description": "existing concrete curb",
+  "values": { "LF": 30 }
+},
+{
+  "description": "existing concrete flush curb",
+  "values": { "LF": 30 }
+},
+{
+  "description": "crushed stone on compacted subgrade",
+  "values": { "CY": 75 }
+},
+{
+  "description": "concrete sidewalk, reinf w",
+  "values": { "SF": 12 }
+},
+{
+  "description": " concrete sidewalk/driveway, reinf w",
+  "values": { "SF": 15 }
+},
+{
+  "description": "concrete curb",
+  "values": { "LF": 100 }
+},
+{
+  "description": "concrete road base",
+  "values": { "CY": 700 }
+},
+{
+  "description": "asphalt wearing course",
+  "values": { "SF": 10 }
+},
+{
+  "description": "expansion joint & caulking perimeter",
+  "values": { "LF": 10 }
+},
+{
+  "description": "Design mix/TR-3",
+  "values": { "LS": 1500 }
+},
+{
+  "description": "DOT Barriers & Temp Protection",
+  "values": { "LS": 3500 }
+},
+{
+  "description": "DOT Permits",
+  "values": { "LS": 1500 }
+},
+{
+  "description": "Allow to saw-cut/demo/remove/dispose existing full depth asphalt pavement",
+  "values": { "SF": 3 }
+},
+{
+  "description": "Allow to saw-cut/demo/remove/dispose existing asphalt curb",
+  "values": { "LF": 25 }
+},
+{
+  "description": "full depth asphalt pavement",
+  "values": { "SF": 3 }
+},
+{
+  "description": "asphalt curb as per C-3",
+  "values": { "LF": 25 }
+},
+{
+  "description": "chain-link fence",
+  "values": { "LF": 60 }
+},
+{
+  "description": "wood-link fence",
+  "values": { "LF": 60 }
+},
+{
+  "description": "retaining wall",
+  "values": { "LF": 80 }
+},
+{
+  "description": "HDPE pipe",
+  "values": { "LF": 30 }
+},
+{
+  "description": "guiderail",
+  "values": { "LF": 40 }
+},
+{
+  "description": "RCP stormwater main",
+  "values": { "LF": 60 }
+},
+{
+  "description": "remove existing sign",
+  "values": { "QTY": 350 }
+},
+{
+  "description": "row of signs",
+  "values": { "QTY": 350 }
+},
+{
+  "description": "row of sings",
+  "values": { "QTY": 350 }
+},
+{
+  "description": "stormwater inlet",
+  "values": { "QTY": 100 }
+},
+{
+  "description": "fire hydrant",
+  "values": { "QTY": 1200 }
+},
+{
+  "description": "stormwater manhole",
+  "values": { "QTY": 1500 }
+},
+{
+  "description": "utility pole",
+  "values": { "QTY": 100 }
+},
+{
+  "description": "water valve",
+  "values": { "QTY": 100 }
+},
+{
+  "description": "temporary stabilized construction entrance",
+  "values": { "LS": 75 }
+},
+{
+  "description": "silt fence",
+  "values": { "LF": 15 }
+},
+{
+  "description": "inlet filter",
+  "values": { "QTY": 150 }
+},
+{
+  "description": "soil excavation, trucking & disposal as per C-4",
+  "values": { "LS": 75 }
+},
+{
+  "description": "gravel/crushed stone @ transformer",
+  "values": { "LS": 75 }
+},
+{
+  "description": "gravel/crushed stone @ utility trench",
+  "values": { "LS": 75 }
+}
+]
