@@ -13,12 +13,24 @@
   {
     "description": "saw-cut/demo/remove/dispose existing",
     "values": {
-      "SF": 7,
+      "SF": 700,
       "CY": 500
     }
   },
   {
     "description": "Allow to perform soil excavation, trucking & disposal",
+    "values": {
+      "CY": 75
+    }
+  },
+  {
+    "description": "Allow to perform soil excavation, trucking & disposal - Soil excavation scope",
+    "values": {
+      "CY": 75
+    }
+  },
+  {
+    "description": "Allow to perform soil excavation, trucking & disposal - Electric service",
     "values": {
       "CY": 75
     }
@@ -51,6 +63,12 @@
     "description": "driven pile",
     "values": {
       "LF": 145
+    }
+  },
+  {
+    "description": "driven pile - Soldier driven piles scope",
+    "values": {
+      "LF": 150
     }
   },
   {
@@ -187,11 +205,11 @@
   },
   {
     "description": "parging",
-    "values": { "SF": 7.5 }
+    "values": { "SF": 20 }
   },
   {
     "description": "heel blocks for raker support",
-    "values": { "CY": 900 }
+    "values": { "CY": 1500 }
   },
   {
     "description": "underpinning piers",
@@ -211,11 +229,11 @@
   },
   {
     "description": "guide wall",
-    "values": { "CY": 1500 }
+    "values": { "CY": 900 }
   },
   {
     "description": "shotcrete w/",
-    "values": { "SF": 50 }
+    "values": { "SF": 20 }
   },
   {
     "description": "dowels",
@@ -307,7 +325,7 @@
   },
   {
     "description": "Two lateral reactionary load tests included",
-    "values": { "QTY": 7000 }
+    "values": { "QTY": 5000 }
   },
   {
     "description": "lateral reactionary load tests included",
@@ -342,9 +360,18 @@
     "values": { "LS": 15000 }
   },
   {
+    "description": "gravel/crushed stone, including 6MIL vapor barrier",
+    "values": { "CY": 75 }
+  },
+  {
+    "description": "gravel/crushed stone, including 6MIL vapor barrier - Compacted gravel scope",
+    "values": { "CY": 95 }
+  },
+  {
     "description": "gravel/crushed stone",
     "values": { "CY": 95 }
   },
+
   {
     "description": "geotextile",
     "values": { "SF": 2 }
@@ -446,12 +473,24 @@
     "values": { "CY": 400 }
   },
   {
+    "description": "patio slab on grade reinforced",
+    "values": { "CY": 800 }
+  },
+  {
     "description": "slab on grade reinforced",
     "values": { "CY": 800 }
   },
   {
+    "description": "patch slab on grade reinforced",
+    "values": { "SF": 20 }
+  },
+  {
     "description": "slab on grade step",
     "values": { "CY": 800 }
+  },
+  {
+    "description": "buttresses",
+    "values": { "CY": 950 }
   },
   {
     "description": "corbel",
@@ -474,10 +513,9 @@
     "values": { "CY": 950 }
   },
   {
-
-  "description": "barrier walls",
-  "values": { "CY": 900 }
-},
+    "description": "barrier walls",
+    "values": { "CY": 900 }
+  },
 {
   "description": "stem walls ",
   "values": { "CY": 900 }
@@ -590,7 +628,15 @@
   "values": { "LF": 100 }
 },
 {
-  "description": "concrete curbs",
+  "description": "(6\" wide) concrete curbs",
+  "values": { "LF": 80 }
+},
+{
+  "description": "(8\" wide) concrete curbs",
+  "values": { "LF": 90 }
+},
+{
+  "description": "concrete curb",
   "values": { "LF": 90 }
 },
 {
@@ -642,44 +688,52 @@
   "values": { "LS": 40000 }
 },
 {
-  "description": "F&I new (8\" thick) stair landings @ cellar FL to 7th FL, roof FL as per A-208.01",
+  "description": "stair landings @ cellar FL",
   "values": { "CY": 1200 }
 },
 {
-  "description": "F&I new (3'-0\" wide) concrete stairs (262 Riser) @ cellar FL to 7th FL, roof FL as per A-208.01",
+  "description": "concrete stairs (",
   "values": { "CY": 1500 }
 },
 {
-  "description": "F&I new stair slab as per A-208.01",
+  "description": "F&I new stair slab as per",
   "values": { "CY": 1200 }
 },
 {
-  "description": "F&I new (4'-0\" wide) concrete stairs (36 Riser) @ cellar FL to 1st FL as per A-209.00",
+  "description": "concrete stairs (",
   "values": { "CY": 1500 }
 },
 {
-  "description": "F&I new (3'-0\" wide) concrete stairs (16 Riser) @ cellar FL to 1st FL as per A-209.00",
+  "description": "concrete stairs (",
   "values": { "CY": 1500 }
 },
 {
-  "description": "F&I new (8\" thick) stair landings @ cellar FL as per A-209.00",
+  "description": "stair landings @ cellar FL as per",
   "values": { "CY": 1200 }
 },
 {
-  "description": "F&I new (3'-0\" wide) concrete stairs (16 Riser) @ cellar FL as per A-209.00",
-  "values": { "CY": 1500 }
-},
-{
-  "description": "stair landings as per A-312.00",
+  "description": "stair landings",
   "values": { "CY": 1200 }
 },
 {
-  "description": "F&I new (5'-0\" wide) concrete infill (19 Riser) @ metal pan treads (metal pan by others) from cellar FL to 1st FL as per A-313.00",
+  "description": "concrete stairs",
+  "values": { "CY": 1500 }
+},
+{
+  "description": "concrete stairs (",
+  "values": { "CY": 1500 }
+},
+{
+  "description": "stair landings as per",
+  "values": { "CY": 1200 }
+},
+{
+  "description": "concrete infill (",
   "values": { "QTY": 200 }
 },
 {
-  "description": "stairs on grade (",
-  "values": { "LS": 1500 }
+  "description": "stairs on grade",
+  "values": { "CY": 1500 }
 },
 {
   "description": "saw-cut/demo/remove/dispose",
@@ -698,7 +752,7 @@
   "values": { "SF": 10 }
 },
 {
-  "description": "saw-cut/demo/remove/dispose existing 7\" sidewalk/driveway",
+  "description": "saw-cut/demo/remove/dispose existing sidewalk/driveway",
   "values": { "SF": 11 }
 },
 {
@@ -706,7 +760,7 @@
   "values": { "CY": 400 }
 },
 {
-  "description": "Allow to perform soil excavation, trucking & disposal (Havg=2'-2\")",
+  "description": "Allow to perform soil excavation, trucking & disposal (Havg=",
   "values": { "CY": 400 }
 },
 {
@@ -750,8 +804,16 @@
   "values": { "SF": 12 }
 },
 {
-  "description": "concrete sidewalk, reinf w/ 6x6-W1.4xW1.4 w.w.f as per C-4",
+  "description": "concrete sidewalk, reinf w/ ",
   "values": { "SF": 15 }
+},
+{
+  "description": "concrete sidewalk, reinf w/ -Pavement replacement: West Street",
+  "values": { "SF": 12 }
+},
+{
+  "description": "concrete sidewalk, reinf w/ -Pavement replacement: Maple Avenue",
+  "values": { "SF": 12 }
 },
 {
   "description": " concrete sidewalk/driveway, reinf w",
@@ -806,11 +868,11 @@
   "values": { "SF": 3 }
 },
 {
-  "description": "full depth asphalt pavement (1.5\" thick) surface course on (3\" thick) base course",
+  "description": "surface course",
   "values": { "SF": 10 }
 },
 {
-  "description": "asphalt curb as per C-3",
+  "description": "asphalt curb as per",
   "values": { "LF": 25 }
 },
 {
@@ -830,7 +892,7 @@
   "values": { "LF": 30 }
 },
 {
-  "description": "guiderail",
+  "description": "remove guiderail",
   "values": { "LF": 40 }
 },
 {
@@ -838,7 +900,7 @@
   "values": { "LF": 30 }
 },
 {
-  "description": "F&I new fence (",
+  "description": "F&I new fence",
   "values": { "LF": 60 }
 },
 {
@@ -874,15 +936,15 @@
   "values": { "QTY": 1000 }
 },
 {
-  "description": "Allow to relocate existing fire hydrant as per C-3",
+  "description": "Allow to relocate existing fire hydrant",
   "values": { "QTY": 1200 }
 },
 {
-  "description": "Allow to relocate existing fire hydrant as per C-3 - Demolition",
+  "description": "Allow to relocate existing fire hydrant - Demolition",
   "values": { "QTY": 1200 }
 },
 {
-  "description": "Allow to relocate existing fire hydrant as per C-3 - Site",
+  "description": "Allow to relocate existing fire hydrant - Site",
   "values": { "QTY": 1000 }
 },
 {
@@ -922,7 +984,7 @@
   "values": { "QTY": 10000 }
 },
 {
-  "description": "Allow to protect existing stormwater manhole as per C-3",
+  "description": "Allow to protect existing stormwater manhole",
   "values": { "QTY": 1500 }
 },
 {
@@ -932,6 +994,46 @@
 {
   "description": "underground electrical conduit",
   "values": { "LF": 100 }
+},
+{
+  "description": "underground gas service lateral",
+  "values": { "LF": 100 }
+},
+{
+  "description": "connection to existing gas main",
+  "values": { "QTY": 500 }
+},
+{
+  "description": "underground water main",
+  "values": { "LF": 100 }
+},
+{
+  "description": "fire service lateral",
+  "values": { "LF": 100 }
+},
+{
+  "description": "connection to existing water main",
+  "values": { "QTY": 500 }
+},
+{
+  "description": "underground water service lateral",
+  "values": { "LF": 100 }
+},
+{
+  "description": "storm sewer piping",
+  "values": { "LF": 75 }
+},
+{
+  "description": "underground PVC sanitary sewer service",
+  "values": { "LF": 75 }
+},
+{
+  "description": "F&I new sanitary invert",
+  "values": { "LF": 50 }
+},
+{
+  "description": "underslab drainage piping",
+  "values": { "LF": 50 }
 },
 {
   "description": "utility pole",
@@ -954,7 +1056,7 @@
     "values": { "QTY": 150 }
   },
 {
-  "description": "soil excavation, trucking & disposal as per C-4",
+  "description": "soil excavation, trucking & disposal as per",
   "values": { "CY": 75 }
 },
 {
@@ -962,7 +1064,7 @@
   "values": { "CY": 75 }
 },
 {
-  "description": "transformer concrete pad as per A-100.00",
+  "description": "transformer concrete pad as per",
   "values": { "CY": 800 }
 },
 {
@@ -971,11 +1073,11 @@
   },
   {
     "description": "Dewatering allowance",
-    "values": { "LS": 75 }
+    "values": { "CY": 75 }
   },
   {
     "description": "Survey",
-    "values": { "LS": 30000 }
+    "values": { "LS": 0 }
   },
   {
     "description": "Site Logistics",

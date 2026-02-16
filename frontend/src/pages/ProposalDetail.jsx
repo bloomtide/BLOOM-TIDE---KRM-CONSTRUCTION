@@ -231,6 +231,10 @@ const ProposalDetail = () => {
                   saveTimeoutRef.current = null
                 }
                 saveSpreadsheet(false)
+                // Move selection to A1 so red box is not on the image area (B4)
+                setTimeout(() => {
+                  try { spreadsheetRef.current?.goTo('Proposal Sheet!A1') } catch (e) { }
+                }, 50)
               } catch (e) {
                 console.error('Error building proposal sheet after load:', e)
               }
@@ -247,6 +251,15 @@ const ProposalDetail = () => {
       applyDataToSpreadsheet()
     }
   }, [calculationData, formulaData, proposal])
+
+  // Move selection to A1 on Proposal Sheet so the red selection box is not on the image (image is at B4)
+  const moveSelectionOffImage = useCallback(() => {
+    try {
+      if (spreadsheetRef.current) {
+        spreadsheetRef.current.goTo('Proposal Sheet!A1')
+      }
+    } catch (e) { /* ignore */ }
+  }, [])
 
   const applyDataToSpreadsheet = async () => {
     if (!spreadsheetRef.current) return
@@ -294,6 +307,8 @@ const ProposalDetail = () => {
         saveTimeoutRef.current = null
       }
       saveSpreadsheet(false)
+      // Move selection to A1 so red box is not on the image area (B4)
+      setTimeout(moveSelectionOffImage, 50)
     } catch (error) {
       console.error('Error loading spreadsheet model:', error)
       toast.error('Error loading spreadsheet')
@@ -341,15 +356,16 @@ const ProposalDetail = () => {
     const workbookModel = {
       Workbook: {
         sheets: [
-          {
-            name: 'Calculations Sheet',
-            rows: calculationsRows,
-            columns: columns
-          },
+          
           {
             name: 'Proposal Sheet',
             rows: [],
             columns: []
+          },
+          {
+            name: 'Calculations Sheet',
+            rows: calculationsRows,
+            columns: columns
           }
         ],
         activeSheetIndex: 0
@@ -2906,6 +2922,10 @@ const ProposalDetail = () => {
                     rawData: rawDataRef.current
                   })
                   proposalBuiltRef.current = true
+                  // Move selection to A1 so red box is not on the image area (B4)
+                  setTimeout(() => {
+                    try { spreadsheetRef.current?.goTo('Proposal Sheet!A1') } catch (e) { }
+                  }, 50)
                 } catch (e) {
                   console.error('Error building proposal sheet (onCreated):', e)
                 }

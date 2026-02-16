@@ -42,6 +42,21 @@ export const getDemolitionSubsection = (digitizerItem) => {
     return 'Demo isolated footing'
   }
 
+  // Demo Ramp on grade (e.g. "Demo ROG 4" thick")
+  if (itemLower.includes('demo rog') || (itemLower.includes('demo') && itemLower.includes('ramp on grade'))) {
+    return 'Demo Ramp on grade'
+  }
+
+  // Demo retaining wall (e.g. "Demo RW (1'-0"x3'-0")")
+  if (itemLower.includes('demo rw') || (itemLower.includes('demo') && itemLower.includes('retaining wall'))) {
+    return 'Demo retaining wall'
+  }
+
+  // Demo stair on grade (e.g. "Demo stairs on grade", "Demo stair on grade", "Demo Stair slab")
+  if (itemLower.includes('demo stairs on grade') || itemLower.includes('demo stair on grade') || itemLower.includes('demo stair slab')) {
+    return 'Demo stair on grade'
+  }
+
   return null
 }
 
@@ -87,6 +102,24 @@ export const generateDemolitionFormulas = (type, rowNum, parsedData) => {
       formulas.qtyFinal = `C${rowNum}`
       break
 
+    case 'Demo Ramp on grade':
+      // Same as Demo slab on grade: J = Takeoff, L = J*H/27
+      formulas.sqFt = `C${rowNum}`
+      formulas.cy = `J${rowNum}*H${rowNum}/27`
+      break
+
+    case 'Demo retaining wall':
+      // Same as Demo foundation wall: J = C*G, L = J*H/27
+      formulas.sqFt = `C${rowNum}*G${rowNum}`
+      formulas.cy = `J${rowNum}*H${rowNum}/27`
+      break
+
+    case 'Demo stair on grade':
+      // SQ FT = Takeoff (or Takeoff * Width if width present); CY = J*H/27
+      formulas.sqFt = `C${rowNum}*G${rowNum}`
+      formulas.cy = `J${rowNum}*H${rowNum}/27`
+      break
+
     default:
       break
   }
@@ -106,7 +139,10 @@ export const processDemolitionItems = (rawDataRows, headers, tracker = null) => 
     'Demo slab on grade': [],
     'Demo strip footing': [],
     'Demo foundation wall': [],
-    'Demo isolated footing': []
+    'Demo isolated footing': [],
+    'Demo Ramp on grade': [],
+    'Demo retaining wall': [],
+    'Demo stair on grade': []
   }
 
   // Find column indices

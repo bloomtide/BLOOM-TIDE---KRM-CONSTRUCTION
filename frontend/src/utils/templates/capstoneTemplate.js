@@ -26,7 +26,10 @@ export const capstoneTemplate = {
         { name: 'Demo slab on grade', items: [] },
         { name: 'Demo strip footing', items: [] },
         { name: 'Demo foundation wall', items: [] },
-        { name: 'Demo isolated footing', items: [] }
+        { name: 'Demo isolated footing', items: [] },
+        { name: 'Demo Ramp on grade', items: [] },
+        { name: 'Demo retaining wall', items: [] },
+        { name: 'Demo stair on grade', items: [] }
       ]
     },
     {

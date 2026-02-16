@@ -14,12 +14,10 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
-            // Unauthorized
             localStorage.removeItem('user');
-
-            // Only redirect if we're not already on the login page
-            // and if this wasn't a silent check
-            if (window.location.pathname !== '/') {
+            // Don't redirect when the failing request was the initial auth check (/auth/me)
+            const isAuthCheck = error.config?.url?.includes('/auth/me');
+            if (!isAuthCheck && window.location.pathname !== '/') {
                 window.location.href = '/';
             }
         }
