@@ -14382,6 +14382,48 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           return `=SUM(${rows.map(r => `'Calculations Sheet'!${col}${r}`).join(',')})`
         }
 
+        // Average thickness (inches) from calculation sheet for a group of rows. Column H (index 7) = height in feet; also parse "X" thick" from column B (particulars) as fallback.
+        const avgThicknessInchesFromRows = (calcRows) => {
+          if (!calculationData || !calcRows || calcRows.length === 0) return null
+          const thicknessRegex = /(\d+(?:\.\d+)?)\s*"\s*thick/i
+          const values = []
+          calcRows.forEach((excelRow) => {
+            const rowIndex = excelRow - 1
+            if (rowIndex < 0 || rowIndex >= calculationData.length) return
+            const row = calculationData[rowIndex]
+            const heightFeet = row[7]
+            if (heightFeet != null && heightFeet !== '' && !isNaN(Number(heightFeet))) {
+              values.push(Number(heightFeet) * 12)
+            } else {
+              const particulars = row[1] ? String(row[1]) : ''
+              const m = particulars.match(thicknessRegex)
+              if (m) values.push(parseFloat(m[1]))
+            }
+          })
+          if (values.length === 0) return null
+          const sum = values.reduce((a, b) => a + b, 0)
+          return Math.round(sum / values.length * 10) / 10
+        }
+
+        // Average thickness from formulaData parsedData (e.g. heightValue in feet -> inches)
+        const drivewayItems = streetBppItems.filter(f => f.itemType === 'bpp_concrete_driveway')
+        const gravelItems = streetBppItems.filter(f => f.itemType === 'bpp_gravel')
+        let avgDrivewayThick = avgThicknessInchesFromRows(drivewayRows)
+        if (avgDrivewayThick == null && drivewayItems.length > 0) {
+          const fromParsed = drivewayItems
+            .map(f => f.parsedData?.parsed?.heightValue)
+            .filter(v => v != null && !isNaN(Number(v)))
+            .map(v => Number(v) * 12)
+          if (fromParsed.length > 0) avgDrivewayThick = Math.round(fromParsed.reduce((a, b) => a + b, 0) / fromParsed.length * 10) / 10
+        }
+        let avgGravelThick = avgThicknessInchesFromRows(gravelRows)
+        if (avgGravelThick == null && gravelItems.length > 0) {
+          const fromGravelType = gravelItems.map(f => f.gravelType === '6inch' ? 6 : f.gravelType === '4inch' ? 4 : null).filter(Boolean)
+          if (fromGravelType.length > 0) avgGravelThick = fromGravelType.reduce((a, b) => a + b, 0) / fromGravelType.length
+        }
+        const concThickLabel = avgDrivewayThick != null ? `${avgDrivewayThick}"` : '7"'
+        const gravelThickLabel = avgGravelThick != null ? `${avgGravelThick}"` : '6"'
+
         // "Pavement replacement: [Street Name]" header - background only on column B
         spreadsheet.updateCell({ value: `Pavement replacement: ${streetName}` }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
@@ -14404,8 +14446,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
 
-        // 2. Allow to saw-cut/demo/remove/dispose existing 7" sidewalk/driveway - SF and CY from driveway
-        const bppLine2 = 'Allow to saw-cut/demo/remove/dispose existing 7" sidewalk/driveway'
+        // 2. Allow to saw-cut/demo/remove/dispose existing [avg]" sidewalk/driveway - SF and CY from driveway (thickness from group average)
+        const bppLine2 = `Allow to saw-cut/demo/remove/dispose existing ${concThickLabel} sidewalk/driveway`
         spreadsheet.updateCell({ value: bppLine2 }, `${pfx}B${currentRow}`)
           rowBContentMap.set(currentRow, bppLine2)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
@@ -14484,15 +14526,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
 
-        // 8. F&I new (7" thick) concrete sidewalk/driveway - SF/CY from driveway
-        const bppLine8 = 'F&I new (7" thick) concrete sidewalk/driveway, reinf w/ 6x6-W1.4xW1.4 @ corners & driveways'
+        // 8. F&I new Concrete driveway [avg]" thick + Gravel [avg]" thick (typ.) - thickness from group average in calculation sheet; SF/CY from driveway and gravel
+        const bppLine8 = `F&I new Concrete driveway ${concThickLabel} thick + Gravel ${gravelThickLabel} thick (typ.), reinf w/ 6x6-W1.4xW1.4 @ corners & driveways`
         spreadsheet.updateCell({ value: bppLine8 }, `${pfx}B${currentRow}`)
           rowBContentMap.set(currentRow, bppLine8)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
         fillRatesForProposalRow(currentRow, bppLine8)
-        if (drivewayRows.length > 0) {
-          spreadsheet.updateCell({ formula: buildSumFormula(drivewayRows, 'J') }, `${pfx}D${currentRow}`)
-          spreadsheet.updateCell({ formula: buildSumFormula(drivewayRows, 'L') }, `${pfx}F${currentRow}`)
+        const drivewayAndGravelRows = [...drivewayRows, ...gravelRows]
+        if (drivewayAndGravelRows.length > 0) {
+          spreadsheet.updateCell({ formula: buildSumFormula(drivewayAndGravelRows, 'J') }, `${pfx}D${currentRow}`)
+          spreadsheet.updateCell({ formula: buildSumFormula(drivewayAndGravelRows, 'L') }, `${pfx}F${currentRow}`)
         }
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
