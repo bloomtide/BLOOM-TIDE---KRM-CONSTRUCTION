@@ -2,9 +2,19 @@ import { mergeSingleItemGroupsIfAll } from '../groupingUtils.js'
 import {
     parseSoldierPile,
     parseTimberSoldierPile,
+    parseTimberPlank,
+    parseTimberRaker,
+    parseTimberBrace,
+    parseTimberWaler,
+    parseTimberPost,
     calculatePileWeight,
     isSoldierPile,
     isTimberSoldierPile,
+    isTimberPlank,
+    isTimberRaker,
+    isTimberBrace,
+    isTimberWaler,
+    isTimberPost,
     isPrimarySecantPile,
     isSecondarySecantPile,
     isTangentPile,
@@ -198,6 +208,285 @@ export const processTimberSoldierPileItems = (rawDataRows, headers, tracker = nu
     let groups = Array.from(groupMap.values()).sort((a, b) => {
         if (a.parsed.heightRaw !== b.parsed.heightRaw) return a.parsed.heightRaw - b.parsed.heightRaw
         return (a.parsed.embedment || 0) - (b.parsed.embedment || 0)
+    })
+    return mergeSingleItemGroupsIfAll(groups)
+}
+
+/**
+ * Processes timber plank items and groups them (same structure as timber soldier piles, no column K, H not rounded)
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
+ */
+export const processTimberPlankItems = (rawDataRows, headers, tracker = null) => {
+    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
+    const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+
+    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
+
+    const allItems = []
+    rawDataRows.forEach((row, rowIndex) => {
+        const digitizerItem = row[digitizerIdx]
+        const total = parseFloat(row[totalIdx]) || 0
+        const unit = row[unitIdx]
+
+        if (isTimberPlank(digitizerItem)) {
+            const parsed = parseTimberPlank(digitizerItem)
+
+            allItems.push({
+                particulars: digitizerItem,
+                takeoff: total,
+                unit: unit,
+                parsed: parsed,
+                weight: 0,
+                rawRowNumber: rowIndex + 2
+            })
+
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
+        }
+    })
+
+    const groupMap = new Map()
+    allItems.forEach(item => {
+        const groupKey = item.parsed.groupKey
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                type: 'timber_plank',
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    let groups = Array.from(groupMap.values()).sort((a, b) => {
+        return (a.parsed.heightRaw || 0) - (b.parsed.heightRaw || 0)
+    })
+    return mergeSingleItemGroupsIfAll(groups)
+}
+
+/**
+ * Processes timber raker (wood raker) items and groups them (same structure as timber planks: no column K, H not rounded)
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
+ */
+export const processTimberRakerItems = (rawDataRows, headers, tracker = null) => {
+    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
+    const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+
+    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
+
+    const allItems = []
+    rawDataRows.forEach((row, rowIndex) => {
+        const digitizerItem = row[digitizerIdx]
+        const total = parseFloat(row[totalIdx]) || 0
+        const unit = row[unitIdx]
+
+        if (isTimberRaker(digitizerItem)) {
+            const parsed = parseTimberRaker(digitizerItem)
+
+            allItems.push({
+                particulars: digitizerItem,
+                takeoff: total,
+                unit: unit,
+                parsed: parsed,
+                weight: 0,
+                rawRowNumber: rowIndex + 2
+            })
+
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
+        }
+    })
+
+    const groupMap = new Map()
+    allItems.forEach(item => {
+        const groupKey = item.parsed.groupKey
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                type: 'timber_raker',
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    let groups = Array.from(groupMap.values()).sort((a, b) => {
+        return (a.parsed.heightRaw || 0) - (b.parsed.heightRaw || 0)
+    })
+    return mergeSingleItemGroupsIfAll(groups)
+}
+
+/**
+ * Processes timber brace items (Horizontal wood brace and Timber Corner brace) and groups them
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
+ */
+export const processTimberBraceItems = (rawDataRows, headers, tracker = null) => {
+    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
+    const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+
+    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
+
+    const allItems = []
+    rawDataRows.forEach((row, rowIndex) => {
+        const digitizerItem = row[digitizerIdx]
+        const total = parseFloat(row[totalIdx]) || 0
+        const unit = row[unitIdx]
+
+        if (isTimberBrace(digitizerItem)) {
+            const parsed = parseTimberBrace(digitizerItem)
+
+            allItems.push({
+                particulars: digitizerItem,
+                takeoff: total,
+                unit: unit,
+                parsed: parsed,
+                weight: 0,
+                rawRowNumber: rowIndex + 2
+            })
+
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
+        }
+    })
+
+    const groupMap = new Map()
+    allItems.forEach(item => {
+        const groupKey = item.parsed.groupKey
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                type: item.parsed.type,
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    let groups = Array.from(groupMap.values()).sort((a, b) => {
+        const aH = a.parsed.heightRaw || 0
+        const bH = b.parsed.heightRaw || 0
+        if (aH !== bH) return aH - bH
+        return (a.parsed.qty || 0) - (b.parsed.qty || 0)
+    })
+    return mergeSingleItemGroupsIfAll(groups)
+}
+
+/**
+ * Processes timber post items and groups them (same structure as timber soldier piles, no column K)
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
+ */
+export const processTimberPostItems = (rawDataRows, headers, tracker = null) => {
+    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
+    const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+
+    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
+
+    const allItems = []
+    rawDataRows.forEach((row, rowIndex) => {
+        const digitizerItem = row[digitizerIdx]
+        const total = parseFloat(row[totalIdx]) || 0
+        const unit = row[unitIdx]
+
+        if (isTimberPost(digitizerItem)) {
+            const parsed = parseTimberPost(digitizerItem)
+
+            allItems.push({
+                particulars: digitizerItem,
+                takeoff: total,
+                unit: unit,
+                parsed: parsed,
+                weight: 0,
+                rawRowNumber: rowIndex + 2
+            })
+
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
+        }
+    })
+
+    const groupMap = new Map()
+    allItems.forEach(item => {
+        const groupKey = item.parsed.groupKey
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                type: 'timber_post',
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    let groups = Array.from(groupMap.values()).sort((a, b) => {
+        if (a.parsed.heightRaw !== b.parsed.heightRaw) return a.parsed.heightRaw - b.parsed.heightRaw
+        return (a.parsed.embedment || 0) - (b.parsed.embedment || 0)
+    })
+    return mergeSingleItemGroupsIfAll(groups)
+}
+
+/**
+ * Processes timber waler items and groups them
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
+ */
+export const processTimberWalerItems = (rawDataRows, headers, tracker = null) => {
+    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
+    const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+
+    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
+
+    const allItems = []
+    rawDataRows.forEach((row, rowIndex) => {
+        const digitizerItem = row[digitizerIdx]
+        const total = parseFloat(row[totalIdx]) || 0
+        const unit = row[unitIdx]
+
+        if (isTimberWaler(digitizerItem)) {
+            const parsed = parseTimberWaler(digitizerItem)
+
+            allItems.push({
+                particulars: digitizerItem,
+                takeoff: total,
+                unit: unit,
+                parsed: parsed,
+                weight: 0,
+                rawRowNumber: rowIndex + 2
+            })
+
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
+        }
+    })
+
+    const groupMap = new Map()
+    allItems.forEach(item => {
+        const groupKey = item.parsed.groupKey
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                type: 'timber_waler',
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    let groups = Array.from(groupMap.values()).sort((a, b) => {
+        return (a.parsed.qty || 0) - (b.parsed.qty || 0)
     })
     return mergeSingleItemGroupsIfAll(groups)
 }
@@ -1104,6 +1393,45 @@ export const generateSoeFormulas = (itemType, rowNum, itemData) => {
             break
         case 'timber':
             // Timber soldier piles: no column K (LBS)
+            formulas.ft = `H${rowNum}*C${rowNum}`
+            formulas.qtyFinal = `C${rowNum}`
+            break
+        case 'timber_plank':
+            // Timber planks: no column K. If qty from (N) at start: E=qty, I=H*C*E, M=C*E. Else: I=H*C, M=C
+            if (itemData.parsed?.qty != null) {
+                formulas.qty = itemData.parsed.qty
+                formulas.ft = `H${rowNum}*C${rowNum}*E${rowNum}`
+                formulas.qtyFinal = `C${rowNum}*E${rowNum}`
+            } else {
+                formulas.ft = `H${rowNum}*C${rowNum}`
+                formulas.qtyFinal = `C${rowNum}`
+            }
+            break
+        case 'timber_raker':
+            // Timber raker: no column K (LBS), same as timber soldier piles
+            formulas.ft = `H${rowNum}*C${rowNum}`
+            formulas.qtyFinal = `C${rowNum}`
+            break
+        case 'timber_brace_horizontal':
+            // 2"x4" Horizontal wood brace: I=C*H, M=C, height from bracket
+            formulas.height = itemData.parsed?.calculatedHeight
+            formulas.ft = `C${rowNum}*H${rowNum}`
+            formulas.qtyFinal = `C${rowNum}`
+            break
+        case 'timber_brace_corner':
+            // (2) 6"x6" Timber Corner brace: E=qty, F=manual, I=C*E, M=F*E
+            formulas.qty = itemData.parsed?.qty ?? 1
+            formulas.ft = `C${rowNum}*E${rowNum}`
+            formulas.qtyFinal = `F${rowNum}*E${rowNum}`
+            break
+        case 'timber_waler':
+            // (2) 6"x6" Timber waler: E=qty from (N) or 1, F=manual, I=E*C, M=E*F
+            formulas.qty = itemData.parsed?.qty ?? 1
+            formulas.ft = `E${rowNum}*C${rowNum}`
+            formulas.qtyFinal = `E${rowNum}*F${rowNum}`
+            break
+        case 'timber_post':
+            // Timber post: no column K (LBS), same as timber soldier piles
             formulas.ft = `H${rowNum}*C${rowNum}`
             formulas.qtyFinal = `C${rowNum}`
             break
