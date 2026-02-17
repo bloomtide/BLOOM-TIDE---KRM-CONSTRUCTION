@@ -579,7 +579,7 @@
 },
 {
   "description": "timber stringer",
-  "values": { "SF": 20 }
+  "values": { "LF": 100 }
 },
 {
   "description": "timber walers",
@@ -596,6 +596,19 @@
 {
   "description": "timber corner brace",
   "values": { "LF": 85 }
+},
+{
+    "description":"timber soldier piles",
+    "values":{"LF":85}
+
+},  
+{
+  "description":"timber planks",
+  "values":{"LF":100}
+},
+{
+  "description":"timber post",
+  "values":{"LF":80}
 },
 {
   "description": "LW concrete fill",
