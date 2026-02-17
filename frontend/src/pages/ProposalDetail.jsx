@@ -99,11 +99,14 @@ const ProposalDetail = () => {
     setRockExcavationTotals(result.rockExcavationTotals || { totalSQFT: 0, totalCY: 0 })
     setLineDrillTotalFT(result.lineDrillTotalFT || 0)
 
-    // Handle unused raw data rows (incoming: preserve isUsed from DB)
+    setLineDrillTotalFT(result.lineDrillTotalFT || 0)
+
+    // Handle unused raw data rows
     const calculatedUnusedRows = result.unusedRawDataRows || []
     const currentDbRows = proposal.unusedRawDataRows || []
     const dbRowMap = new Map(currentDbRows.map(r => [r.rowIndex, r]))
 
+    // Merge: use calculated rows but preserve isUsed status from DB
     const mergedUnusedRows = calculatedUnusedRows.map(calcRow => {
       const dbRow = dbRowMap.get(calcRow.rowIndex)
       return {
@@ -114,6 +117,8 @@ const ProposalDetail = () => {
 
     unusedRawDataRowsRef.current = mergedUnusedRows
 
+    // Synch to proposal state if different (initial load or new calculation)
+    // Check if lengths differ or if any rowIndex is missing/new
     const isDifferent = mergedUnusedRows.length !== currentDbRows.length ||
       mergedUnusedRows.some((r, i) => r.rowIndex !== currentDbRows[i]?.rowIndex)
 
@@ -208,37 +213,8 @@ const ProposalDetail = () => {
             if (proposal.images && proposal.images.length > 0) {
               restoreImages(proposal.images)
             }
-            // Rebuild Proposal sheet in real time from calculation data (do not use Proposal sheet from DB)
-            if (proposal.rawExcelData && generatedDataRef.current) {
-              const gen = generatedDataRef.current
-              try {
-                await new Promise(resolve => setTimeout(resolve, 100))
-                buildProposalSheet(spreadsheetRef.current, {
-                  calculationData: gen.rows,
-                  formulaData: gen.formulas,
-                  rockExcavationTotals: gen.rockExcavationTotals,
-                  lineDrillTotalFT: gen.lineDrillTotalFT,
-                  rawData: rawDataRef.current,
-                  createdAt: proposal.createdAt,
-                  project: proposal.project,
-                  client: proposal.client
-                })
-                proposalBuiltRef.current = true
-                markDirtyAndScheduleSave()
-                await new Promise(resolve => setTimeout(resolve, 300))
-                if (saveTimeoutRef.current) {
-                  clearTimeout(saveTimeoutRef.current)
-                  saveTimeoutRef.current = null
-                }
-                saveSpreadsheet(false)
-                // Move selection to A1 so red box is not on the image area (B4)
-                setTimeout(() => {
-                  try { spreadsheetRef.current?.goTo('Proposal Sheet!A1') } catch (e) { }
-                }, 50)
-              } catch (e) {
-                console.error('Error building proposal sheet after load:', e)
-              }
-            }
+
+            // Use saved state - do NOT rebuild Proposal Sheet (preserves user edits, updates DB only on changes)
           } catch (error) {
             toast.error('Error loading saved spreadsheet')
           } finally {
@@ -252,179 +228,63 @@ const ProposalDetail = () => {
     }
   }, [calculationData, formulaData, proposal])
 
-  // Move selection to A1 on Proposal Sheet so the red selection box is not on the image (image is at B4)
-  const moveSelectionOffImage = useCallback(() => {
-    try {
-      if (spreadsheetRef.current) {
-        spreadsheetRef.current.goTo('Proposal Sheet!A1')
-      }
-    } catch (e) { /* ignore */ }
-  }, [])
-
-  // Rebuild spreadsheet from explicit data (used by applyDataToSpreadsheet and after saving raw data)
-  const rebuildSpreadsheetFromData = async (data) => {
-    if (!spreadsheetRef.current || !data) return
-    const { calculationRows, formulaRows, rockExcavationTotals: rockTotals, lineDrillTotalFT: lineDrillFT, rawData } = data
-    if (!calculationRows || !formulaRows) return
+  const applyDataToSpreadsheet = async () => {
+    if (!spreadsheetRef.current) return
 
     setIsSpreadsheetLoading(true)
+    // Use setTimeout to allow React to update the UI with loading state
     await new Promise(resolve => setTimeout(resolve, 50))
+
     try {
-      const spreadsheetModel = buildSpreadsheetModel(calculationRows)
+      // Build complete spreadsheet model as JSON for batch loading
+      const spreadsheetModel = buildSpreadsheetModel()
+
+      // Load the entire spreadsheet at once - much faster than individual cell updates
       spreadsheetRef.current.openFromJson({ file: spreadsheetModel })
       hasLoadedFromJson.current = true
-      await new Promise(resolve => setTimeout(resolve, 100))
-      applyFormulasAndStyles({ calculationData: calculationRows, formulaData: formulaRows })
 
-      buildProposalSheet(spreadsheetRef.current, {
-        calculationData: calculationRows,
-        formulaData: formulaRows,
-        rockExcavationTotals: rockTotals ?? { totalSQFT: 0, totalCY: 0 },
-        lineDrillTotalFT: lineDrillFT ?? 0,
-        rawData: rawData ?? rawDataRef.current,
-        createdAt: proposal.createdAt,
-        project: proposal.project,
-        client: proposal.client
-      })
-      proposalBuiltRef.current = true
+      // Apply all formulas and styles after data is loaded
+      // Small delay to ensure spreadsheet is fully rendered
+      await new Promise(resolve => setTimeout(resolve, 100))
+      applyFormulasAndStyles()
+
+      // Build the Proposal sheet from calculation data
+      try {
+        buildProposalSheet(spreadsheetRef.current, {
+          calculationData,
+          formulaData,
+          rockExcavationTotals,
+          lineDrillTotalFT,
+          rawData: rawDataRef.current
+        })
+        proposalBuiltRef.current = true
+      } catch (e) {
+        console.error('Error building proposal sheet:', e)
+      }
+
+      // Trigger initial save to persist both Calculations and Proposal sheets
       markDirtyAndScheduleSave()
+      // Immediate save so Proposal Sheet content persists (programmatic updates may not trigger save events)
       await new Promise(resolve => setTimeout(resolve, 300))
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current)
         saveTimeoutRef.current = null
       }
       saveSpreadsheet(false)
-      setTimeout(moveSelectionOffImage, 50)
     } catch (error) {
-      console.error('Error rebuilding spreadsheet:', error)
-      toast.error('Error rebuilding spreadsheet')
+      console.error('Error loading spreadsheet model:', error)
+      toast.error('Error loading spreadsheet')
     } finally {
       setIsSpreadsheetLoading(false)
     }
   }
 
-  const applyDataToSpreadsheet = async () => {
-    await rebuildSpreadsheetFromData({
-      calculationRows: calculationData,
-      formulaRows: formulaData,
-      rockExcavationTotals,
-      lineDrillTotalFT,
-      rawData: rawDataRef.current
-    })
-  }
-
-  // Save edited raw data to DB and rebuild spreadsheet from it (not from calculation sheet)
-  const handleSaveRawData = useCallback(async (updatedRawExcelData) => {
-    if (!proposalId || !proposal) return
-    const { headers = [], rows = [] } = updatedRawExcelData
-    const rawData = [headers, ...rows]
-    try {
-      await proposalAPI.update(proposalId, { rawExcelData: updatedRawExcelData })
-      setProposal(prev => ({ ...prev, rawExcelData: updatedRawExcelData }))
-      rawDataRef.current = rawData
-
-      const template = proposal.template || 'capstone'
-      const result = generateCalculationSheet(template, rawData)
-      setCalculationData(result.rows)
-      setFormulaData(result.formulas)
-      setRockExcavationTotals(result.rockExcavationTotals || { totalSQFT: 0, totalCY: 0 })
-      setLineDrillTotalFT(result.lineDrillTotalFT || 0)
-
-      const calculatedUnusedRows = result.unusedRawDataRows || []
-      const currentDbRows = proposal.unusedRawDataRows || []
-      const dbRowMap = new Map(currentDbRows.map(r => [r.rowIndex, r]))
-      const mergedUnusedRows = calculatedUnusedRows.map(calcRow => {
-        const dbRow = dbRowMap.get(calcRow.rowIndex)
-        return { ...calcRow, isUsed: dbRow ? dbRow.isUsed : false }
-      })
-      unusedRawDataRowsRef.current = mergedUnusedRows
-      setProposal(prev => ({ ...prev, unusedRawDataRows: mergedUnusedRows }))
-
-      generatedDataRef.current = {
-        rows: result.rows,
-        formulas: result.formulas,
-        rockExcavationTotals: result.rockExcavationTotals || { totalSQFT: 0, totalCY: 0 },
-        lineDrillTotalFT: result.lineDrillTotalFT || 0,
-        unusedRawDataRows: mergedUnusedRows
-      }
-
-      window.soldierPileGroups = result.soldierPileGroups || []
-      window.soeSubsectionItems = new Map()
-      window.primarySecantItems = result.primarySecantItems || []
-      window.secondarySecantItems = result.secondarySecantItems || []
-      window.tangentPileItems = result.tangentPileItems || []
-      window.pargingItems = result.pargingItems || []
-      window.guideWallItems = result.guideWallItems || []
-      window.dowelBarItems = result.dowelBarItems || []
-      window.rockPinItems = result.rockPinItems || []
-      window.rockStabilizationItems = result.rockStabilizationItems || []
-      window.buttonItems = result.buttonItems || []
-      window.drilledFoundationPileGroups = result.drilledFoundationPileGroups || []
-      window.helicalFoundationPileGroups = result.helicalFoundationPileGroups || []
-      window.drivenFoundationPileItems = result.drivenFoundationPileItems || []
-      window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileItems || []
-      window.cfaPileItems = result.cfaPileItems || []
-      window.foundationSubsectionItems = new Map()
-      window.shotcreteItems = result.shotcreteItems || []
-      window.permissionGroutingItems = result.permissionGroutingItems || []
-      window.mudSlabItems = result.mudSlabItems || []
-
-      if (rawData.length > 1) {
-        const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
-        const estimateIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'estimate')
-        const itemsToCheck = {
-          'foundation walls': /^FW\s*\(/i, 'retaining wall': /^RW\s*\(/i, 'vehicle barrier wall': /vehicle\s+barrier\s+wall\s*\(/i,
-          'concrete liner wall': /concrete\s+liner\s+wall\s*\(/i, 'stem wall': /stem\s+wall\s*\(/i, 'grease trap pit wall': /grease\s+trap\s+pit\s+wall/i,
-          'house trap pit wall': /house\s+trap\s+pit\s+wall/i, 'detention tank wall': /detention\s+tank\s+wall/i,
-          'elevator pit walls': /elev(?:ator)?\s+pit\s+wall/i, 'duplex sewage ejector pit wall': /duplex\s+sewage\s+ejector\s+pit\s+wall/i
-        }
-        const negativeSideItemsToCheck = {
-          'detention tank wall': /detention\s+tank\s+wall/i, 'elevator pit walls': /elev(?:ator)?\s+pit\s+wall/i,
-          'detention tank slab': /detention\s+tank\s+slab(?!\s+lid)/i, 'duplex sewage ejector pit wall': /duplex\s+sewage\s+ejector\s+pit\s+wall/i,
-          'duplex sewage ejector pit slab': /duplex\s+sewage\s+ejector\s+pit\s+slab/i, 'elevator pit slab': /elev(?:ator)?\s+pit\s+slab/i
-        }
-        const presentItems = []
-        const presentNegativeSideItems = []
-        const dataRows = rawData.slice(1)
-        dataRows.forEach(row => {
-          const digitizerItem = row[digitizerIdx]
-          if (!digitizerItem) return
-          if (estimateIdx >= 0 && row[estimateIdx] && String(row[estimateIdx]).trim() !== 'Waterproofing') return
-          const itemText = String(digitizerItem).trim()
-          Object.entries(itemsToCheck).forEach(([itemName, pattern]) => {
-            if (pattern.test(itemText) && !presentItems.includes(itemName)) presentItems.push(itemName)
-          })
-          Object.entries(negativeSideItemsToCheck).forEach(([itemName, pattern]) => {
-            if (pattern.test(itemText) && !presentNegativeSideItems.includes(itemName)) presentNegativeSideItems.push(itemName)
-          })
-        })
-        window.waterproofingPresentItems = presentItems
-        window.waterproofingNegativeSideItems = presentNegativeSideItems
-      }
-
-      await rebuildSpreadsheetFromData({
-        calculationRows: result.rows,
-        formulaRows: result.formulas,
-        rockExcavationTotals: result.rockExcavationTotals || { totalSQFT: 0, totalCY: 0 },
-        lineDrillTotalFT: result.lineDrillTotalFT || 0,
-        rawData
-      })
-      toast.success('Raw data saved; proposal rebuilt from saved data.')
-    } catch (error) {
-      console.error('Error saving raw data:', error)
-      toast.error('Failed to save raw data')
-      throw error
-    }
-  }, [proposalId, proposal])
-
   // Build spreadsheet model with raw data only (formulas and styles applied after loading)
-  // Pass calculationRowsOverride to build from explicit data (e.g. after saving raw data)
-  const buildSpreadsheetModel = (calculationRowsOverride) => {
-    const rowsToUse = calculationRowsOverride !== undefined ? calculationRowsOverride : calculationData
+  const buildSpreadsheetModel = () => {
     const calculationsRows = []
 
     // Build rows for Calculations sheet - raw data only
-    rowsToUse.forEach((row, rowIndex) => {
+    calculationData.forEach((row, rowIndex) => {
       const cells = []
 
       row.forEach((cellValue, colIndex) => {
@@ -454,11 +314,10 @@ const ProposalDetail = () => {
     const columns = generateColumnConfigs().map(config => ({ width: config.width }))
 
     // Build the complete workbook model (no formulas - they're applied after loading)
-    // Sheet names must match buildProposalSheet expectations: "Calculations Sheet", "Proposal Sheet"
+    // Sheet order: Proposal first, Calculations second (must match buildProposalSheet: Proposal = 0, Calculations = 1)
     const workbookModel = {
       Workbook: {
         sheets: [
-          
           {
             name: 'Proposal Sheet',
             rows: [],
@@ -487,11 +346,9 @@ const ProposalDetail = () => {
   // 3. Handle all sections: demolition, excavation, rock_excavation, soe, foundation, waterproofing, superstructure, trenching
   // 
   // For now, using a simplified version - copy the full logic from Spreadsheet.jsx for production
-  const applyFormulasAndStyles = (override = {}) => {
+  const applyFormulasAndStyles = () => {
     if (!spreadsheetRef.current) return
     const spreadsheet = spreadsheetRef.current
-    const calcData = override.calculationData ?? calculationData
-    const formData = override.formulaData ?? formulaData
 
     // Ensure we're on the Calculations Sheet when applying formulas
     try {
@@ -502,10 +359,10 @@ const ProposalDetail = () => {
 
     // Helper function to determine column B color based on takeoff value
     const getColumnBColor = (row, parsedData) => {
-      // Check calcData for the initial value in column C
-      const rowIndex = row - 1 // calcData is 0-indexed
-      if (rowIndex >= 0 && rowIndex < calcData.length) {
-        const takeoffValue = calcData[rowIndex][2] // Column C (index 2)
+      // Check calculationData for the initial value in column C
+      const rowIndex = row - 1 // calculationData is 0-indexed
+      if (rowIndex >= 0 && rowIndex < calculationData.length) {
+        const takeoffValue = calculationData[rowIndex][2] // Column C (index 2)
         
         // Consider it as "has data" (RED) only if:
         // 1. Not null/undefined
@@ -565,7 +422,7 @@ const ProposalDetail = () => {
     const deferredFoundationSumL = []
 
     // Apply formulas from formulaData
-    formData.forEach((formulaInfo) => {
+    formulaData.forEach((formulaInfo) => {
       const { row, itemType, parsedData, section, subsection } = formulaInfo
 
       let formulas
@@ -2086,8 +1943,8 @@ const ProposalDetail = () => {
 
             if (takeoffSourceType === 'drains_conduit') {
               // Find "Proposed underground electrical conduit" in Drains & Utilities
-              for (let i = 0; i < calcData.length; i++) {
-                const rowData = calcData[i]
+              for (let i = 0; i < calculationData.length; i++) {
+                const rowData = calculationData[i]
                 const particulars = rowData[1] ? String(rowData[1]).toLowerCase() : ''
                 if (particulars.includes('proposed underground electrical conduit')) {
                   sourceRow = i + 1
@@ -2096,15 +1953,15 @@ const ProposalDetail = () => {
               }
             } else if (takeoffSourceType === 'ele_excavation') {
               // Find Excavation item in Ele subsection (the data row, not the header)
-              for (let i = 0; i < calcData.length; i++) {
-                const rowData = calcData[i]
+              for (let i = 0; i < calculationData.length; i++) {
+                const rowData = calculationData[i]
                 const particulars = rowData[1] ? String(rowData[1]).toLowerCase() : ''
                 // Look for the Excavation data row (not the header which has "  Excavation:")
                 if (particulars === 'excavation' && i > 0) {
                   // Make sure this is in the Ele section by checking previous rows
-                    let inEleSection = false
+                  let inEleSection = false
                   for (let j = i - 1; j >= 0; j--) {
-                    const prevRow = calcData[j]
+                    const prevRow = calculationData[j]
                     if (prevRow[1] && String(prevRow[1]).trim() === 'Ele:') {
                       inEleSection = true
                       break
@@ -2197,14 +2054,14 @@ const ProposalDetail = () => {
               // Find "Proposed Underground gas service lateral" in Drains & Utilities
               // For Gas subsection, Drains & Utilities is BELOW, so search forward from current row
               const searchStart = subsectionName === 'Gas' ? row : 0
-              for (let i = searchStart; i < calcData.length; i++) {
-                const rowData = calcData[i]
+              for (let i = searchStart; i < calculationData.length; i++) {
+                const rowData = calculationData[i]
                 const particulars = rowData[1] ? String(rowData[1]).toLowerCase() : ''
                 if (particulars.includes('proposed') && particulars.includes('gas service lateral')) {
                   // Make sure this is in Drains & Utilities section
                   let inDrainsUtilities = false
                   for (let j = i - 1; j >= 0; j--) {
-                    const prevRow = calcData[j]
+                    const prevRow = calculationData[j]
                     if (prevRow[1] && String(prevRow[1]).includes('Drains & Utilities:')) {
                       inDrainsUtilities = true
                       break
@@ -2223,14 +2080,14 @@ const ProposalDetail = () => {
               // Find "Proposed Underground water main" in Drains & Utilities
               // For Gas subsection, Drains & Utilities is BELOW, so search forward from current row
               const searchStart = subsectionName === 'Gas' ? row : 0
-              for (let i = searchStart; i < calcData.length; i++) {
-                const rowData = calcData[i]
+              for (let i = searchStart; i < calculationData.length; i++) {
+                const rowData = calculationData[i]
                 const particulars = rowData[1] ? String(rowData[1]).toLowerCase() : ''
                 if (particulars.includes('proposed') && particulars.includes('water main')) {
                   // Make sure this is in Drains & Utilities section
                   let inDrainsUtilities = false
                   for (let j = i - 1; j >= 0; j--) {
-                    const prevRow = calcData[j]
+                    const prevRow = calculationData[j]
                     if (prevRow[1] && String(prevRow[1]).includes('Drains & Utilities:')) {
                       inDrainsUtilities = true
                       break
@@ -2247,8 +2104,8 @@ const ProposalDetail = () => {
               }
             } else if (takeoffSourceType === 'drains_sanitary_sewer') {
               // Find "Proposed Underground 8" PVC sanitary sewer service" in Drains & Utilities
-              for (let i = 0; i < calcData.length; i++) {
-                const rowData = calcData[i]
+              for (let i = 0; i < calculationData.length; i++) {
+                const rowData = calculationData[i]
                 const particulars = rowData[1] ? String(rowData[1]).toLowerCase() : ''
                 if (particulars.includes('proposed') && particulars.includes('sanitary sewer')) {
                   sourceRow = i + 1
@@ -2280,18 +2137,18 @@ const ProposalDetail = () => {
               sourceRow = row - 5
             } else if (takeoffSourceType === 'water_excavation_item1') {
               // Find first Excavation item in Water subsection
-              for (let i = 0; i < calcData.length; i++) {
-                const rowData = calcData[i]
+              for (let i = 0; i < calculationData.length; i++) {
+                const rowData = calculationData[i]
                 const particulars = rowData[1] ? String(rowData[1]).toLowerCase() : ''
                 if (particulars.includes('proposed') && particulars.includes('water service lateral') && i > 0) {
                   // Make sure this is in the Water Excavation section
                   let inWaterExcavation = false
                   for (let j = i - 1; j >= 0; j--) {
-                    const prevRow = calcData[j]
+                    const prevRow = calculationData[j]
                     if (prevRow[1] && String(prevRow[1]).trim() === '  Excavation:') {
                       // Check if this is under Water subsection
                       for (let k = j - 1; k >= 0; k--) {
-                        const subsecRow = calcData[k]
+                        const subsecRow = calculationData[k]
                         if (subsecRow[1] && String(subsecRow[1]).trim() === 'Water:') {
                           inWaterExcavation = true
                           break
@@ -2532,7 +2389,7 @@ const ProposalDetail = () => {
       spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'center', color: '#000000' }, 'B1:M1')
 
       // Format section and subsection headers
-      calcData.forEach((row, rowIndex) => {
+      calculationData.forEach((row, rowIndex) => {
         const rowNum = rowIndex + 1
 
         if (row[0] && !row[1]) {
@@ -3133,10 +2990,6 @@ const ProposalDetail = () => {
                     rawData: rawDataRef.current
                   })
                   proposalBuiltRef.current = true
-                  // Move selection to A1 so red box is not on the image area (B4)
-                  setTimeout(() => {
-                    try { spreadsheetRef.current?.goTo('Proposal Sheet!A1') } catch (e) { }
-                  }, 50)
                 } catch (e) {
                   console.error('Error building proposal sheet (onCreated):', e)
                 }
@@ -3144,6 +2997,7 @@ const ProposalDetail = () => {
             }}
           >
             <SheetsDirective>
+              <SheetDirective name="Proposal Sheet" />
               <SheetDirective name="Calculations Sheet">
                 <ColumnsDirective>
                   {generateColumnConfigs().map((config, idx) => (
@@ -3151,7 +3005,6 @@ const ProposalDetail = () => {
                   ))}
                 </ColumnsDirective>
               </SheetDirective>
-              <SheetDirective name="Proposal Sheet" />
             </SheetsDirective>
           </SpreadsheetComponent>
         </div>
@@ -3162,7 +3015,6 @@ const ProposalDetail = () => {
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
         rawExcelData={proposal.rawExcelData}
-        onSave={handleSaveRawData}
       />
 
       <UnusedRawDataModal

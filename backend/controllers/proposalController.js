@@ -175,7 +175,14 @@ export const updateProposal = async (req, res) => {
         if (spreadsheetJson !== undefined) update.spreadsheetJson = spreadsheetJson;
         if (images !== undefined) update.images = images;
         if (unusedRawDataRows !== undefined) update.unusedRawDataRows = unusedRawDataRows;
-        if (rawExcelData !== undefined) update.rawExcelData = rawExcelData;
+        if (rawExcelData !== undefined) {
+            update.rawExcelData = {
+                fileName: rawExcelData.fileName ?? '',
+                sheetName: rawExcelData.sheetName ?? 'Sheet1',
+                headers: Array.isArray(rawExcelData.headers) ? rawExcelData.headers : [],
+                rows: Array.isArray(rawExcelData.rows) ? rawExcelData.rows : [],
+            };
+        }
 
         if (Object.keys(update).length === 0) {
             const proposal = await Proposal.findById(req.params.id);

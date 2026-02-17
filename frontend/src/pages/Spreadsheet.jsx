@@ -11118,8 +11118,8 @@ const Spreadsheet = () => {
               'The Entire Length of each driven pile is charged including any cut off length',
               'Single mobilization & demobilization of drilling equipment included',
               'Surveying, stakeout, pile numbering plan & as-built plan included',
-              'One compression reactionary load tests included',
-              'One lateral reactionary load tests included',
+              'Single compression reactionary load tests included',
+              'Single lateral reactionary load tests included',
               'Engineering & Shop drawings included'
             ],
             additional: [
@@ -11141,7 +11141,7 @@ const Spreadsheet = () => {
               'Plates & locking nuts included',
               'Single mobilization & demobilization of drilling equipment included',
               'Surveying, stakeout, pile numbering plan & as-built plan included',
-              'One compression reactionary load test included',
+              'Single compression reactionary load test included',
               'Engineering & Shop drawings included'
             ],
             additional: [
@@ -11156,7 +11156,7 @@ const Spreadsheet = () => {
               'Plates & locking nuts included',
               'Single mobilization & demobilization of drilling equipment included',
               'Surveying, stakeout, pile numbering plan & as-built plan included',
-              'One compression reactionary load test included',
+              'Single compression reactionary load test included',
               'Engineering & Shop drawings included'
             ],
             additional: [
@@ -11724,7 +11724,6 @@ const Spreadsheet = () => {
       spreadsheet.cellFormat(
         { 
           fontWeight: 'normal', 
-          fontStyle: 'italic',
           color: '#000000', 
           textAlign: 'center',
           backgroundColor: 'white',

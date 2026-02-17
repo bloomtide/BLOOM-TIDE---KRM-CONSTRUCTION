@@ -14,10 +14,18 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   const label = (key) => (headerLabels[key] != null && headerLabels[key] !== '') ? String(headerLabels[key]) : key
   const L = { LF: label('LF'), SF: label('SF'), LBS: label('LBS'), CY: label('CY'), QTY: label('QTY'), LS: label('LS') }
 
-  // B = formula referencing G (same row) for proposal lines that show count from calculation sheet
+  // Build formula so (XX) in column B references column G (QTY) of the same row on proposal sheet (use for all sections)
   const proposalFormulaWithQtyRef = (proposalRow, afterCount) => {
     const escaped = (afterCount || '').replace(/"/g, '""')
-    return `=CONCATENATE("F&I new (",G${proposalRow},"${escaped}")`
+    return `=CONCATENATE("F&I new (", G${proposalRow}, "${escaped}")`
+  }
+  const afterCountFromProposalText = (text) => {
+    const s = text || ''
+    const idx = s.indexOf(')no ')
+    if (idx >= 0) return s.slice(idx)
+    const idx2 = s.indexOf(')no.')
+    if (idx2 >= 0) return s.slice(idx2)
+    return ''
   }
 
   // Extract "whatever is after () and before as per" for rate matching (e.g. "no W12x58 walers" from "F&I new (11)no W12x58 walers as per SOE-101.00")
@@ -472,13 +480,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   // (e.g. "Allow to saw-cut/demo/remove/dispose existing (4\" thick) slab on grade @ existing building as per DM-106.00 & details on DM-107.00")
   // and show it under Demolition scope on the Proposal sheet.
   // Always render demolition lines (with defaults when calculationData is empty)
+  // DM reference (e.g. DM-107.00) is taken from the Page column of the first matching row for that subsection, not hardcoded.
   const getDMReferenceFromRawData = (subsectionName) => {
-    if (!rawData || !Array.isArray(rawData) || rawData.length < 2) return 'DM-106.00'
+    if (!rawData || !Array.isArray(rawData) || rawData.length < 2) return '##'
     const headers = rawData[0]
     const dataRows = rawData.slice(1)
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
-    if (digitizerIdx === -1) return '##'
     const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+    if (digitizerIdx === -1) return '##'
     const subsectionPatterns = {
       'Demo slab on grade': /demo\s+sog/i,
       'Demo strip footing': /demo\s+sf/i,
@@ -493,6 +502,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     for (const row of dataRows) {
       const digitizerItem = row[digitizerIdx]
       if (!digitizerItem || !pattern.test(String(digitizerItem))) continue
+      // Prefer Page column value (e.g. DM-107.00, A-312.00) when present
       if (pageIdx >= 0) {
         const pageValue = row[pageIdx]
         if (pageValue != null && pageValue !== '') {
@@ -501,6 +511,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           if (dmMatch) return dmMatch[0]
         }
       }
+      // Fallback: parse DM-xxx or A-xxx from digitizer item text
       const dmMatch = String(digitizerItem).trim().match(/DM-[\d.]+/i) || String(digitizerItem).trim().match(/A-[\d.]+/i)
       if (dmMatch) return dmMatch[0]
     }
@@ -517,7 +528,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         return `Allow to saw-cut/demo/remove/dispose existing (## thick) ${slabType} @ existing building${dmSuffix}`
       }
       if (slabType.toLowerCase().includes('ramp on grade')) {
-        return `Allow to saw-cut/demo/remove/dispose existing (4" thick) ${slabType} @ existing building${dmSuffix}`
+        return `Allow to saw-cut/demo/remove/dispose existing (## thick) ramp on grade @ existing building${dmSuffix}`
       }
       if (slabType.toLowerCase().includes('retaining wall')) {
         return `Allow to saw-cut/demo/remove/dispose existing (## wide) retaining wall (H=##) @ existing building${dmSuffix}`
@@ -528,11 +539,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       return `Allow to saw-cut/demo/remove/dispose existing ${slabType} @ existing building${dmSuffix}`
     }
     const text = textToParse
+    // Demo stair(s) on grade: width from text, riser count from QTY (placeholder here; formula in caller)
     if (slabType.toLowerCase().includes('stair on grade') || slabType.toLowerCase().includes('stairs on grade')) {
       const widthMatch = text.match(/(\d+'-?\d*"?)\s*wide/i) || text.match(/\(([^)]+)\)/)
       const width = widthMatch ? String(widthMatch[1]).replace(/^\(|\)$/g, '').trim() : '##'
       return `Allow to saw-cut/demo/remove/dispose existing (${width} wide) stairs on grade (## Riser) @ 1st FL${dmSuffix}`
     }
+    // Demo retaining wall: calculation has "Demo RW (1'-0"x3'-0")" -> proposal "(1'-0" wide) retaining wall (H=3'-0")"
     if (slabType.toLowerCase().includes('retaining wall')) {
       const bracketMatch = text.match(/\(([^)]+)\)/)
       if (bracketMatch) {
@@ -543,17 +556,122 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       }
       return `Allow to saw-cut/demo/remove/dispose existing (## wide) retaining wall (H=##) @ existing building${dmSuffix}`
     }
-    const usesThickness = slabType.toLowerCase().includes('slab on grade') || slabType.toLowerCase().includes('ramp on grade')
     let thicknessPart = ''
-    if (usesThickness) {
+    if (slabType.toLowerCase().includes('slab on grade') || slabType.toLowerCase().includes('ramp on grade')) {
       const thicknessMatch = text.match(/(\d+["\"]?\s*thick)/i) || text.match(/(\d+["\"]?)/)
       thicknessPart = thicknessMatch ? `(${thicknessMatch[1]})` : '(## thick)'
     } else {
       const dimMatch = text.match(/\(([^)]+)\)/)
       thicknessPart = dimMatch ? `(${dimMatch[1]})` : '(##)'
     }
-    return `Allow to saw-cut/demo/remove/dispose existing ${thicknessPart} ${slabType} @ existing building${dmSuffix}`
+    const displaySlabType = slabType.toLowerCase().includes('ramp on grade') ? 'ramp on grade' : slabType
+    return `Allow to saw-cut/demo/remove/dispose existing ${thicknessPart} ${displaySlabType} @ existing building${dmSuffix}`
   }
+
+  // Soil excavation scope: SOE ref, P ref from raw data (Page column), like demolition.
+  const getSoilExcavationRefsFromRawData = () => {
+    if (!rawData || !Array.isArray(rawData) || rawData.length < 2) {
+      return { soeRef: '##', pRef: '##', detailsOnRef: '##' }
+    }
+    const headers = rawData[0]
+    const dataRows = rawData.slice(1)
+    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+    if (digitizerIdx === -1) return { soeRef: '##', pRef: '##', detailsOnRef: '##' }
+    for (const row of dataRows) {
+      const digitizerItem = row[digitizerIdx]
+      if (!digitizerItem) continue
+      const d = String(digitizerItem).toLowerCase().trim()
+      if ((d.includes('excavation') || d.includes('soil')) && !d.includes('rock')) {
+        let soeRef = '##'
+        let pRef = '##'
+        let detailsOnRef = '##'
+        if (pageIdx >= 0) {
+          const pageVal = row[pageIdx]
+          if (pageVal != null && pageVal !== '') {
+            const pageStr = String(pageVal).trim()
+            const soeMatch = pageStr.match(/SOE-[\d.]+/i)
+            if (soeMatch) soeRef = soeMatch[0]
+            const pMatch = pageStr.match(/P-[\d.]+/i)
+            if (pMatch) pRef = pMatch[0]
+            const toMatch = pageStr.match(/SOE-[\d.]+[\s]*to[\s]*SOE-[\d.]+/gi)
+            if (toMatch && toMatch.length) detailsOnRef = toMatch[0].trim()
+          }
+        }
+        return { soeRef, pRef, detailsOnRef }
+      }
+    }
+    return { soeRef: '##', pRef: '##', detailsOnRef: '##' }
+  }
+
+  // Collect all unique page refs (SOE-xxx, P-xxx, etc.) from raw rows in the excavation/backfill group:
+  // excavation, soil, backfill, slope exc, underground piping, exc & backfill (not rock). Use for proposal "as per" line.
+  const getUniquePageRefsForExcavationAndBackfillGroup = () => {
+    if (!rawData || !Array.isArray(rawData) || rawData.length < 2) return []
+    const headers = rawData[0]
+    const dataRows = rawData.slice(1)
+    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+    if (digitizerIdx === -1 || pageIdx === -1) return []
+    const refSet = new Set()
+    for (const row of dataRows) {
+      const digitizerItem = row[digitizerIdx]
+      if (!digitizerItem) continue
+      const d = String(digitizerItem).toLowerCase().trim()
+      if (d.includes('rock')) continue
+      const isInGroup =
+        d.includes('excavation') || d.includes('soil') || d.includes('backfill') ||
+        d.includes('slope exc') || d.includes('underground') || d.includes('exc & backfill') ||
+        d.includes('pc-') || /backfill\s*\(h=/i.test(d) || /slope\s+exc/i.test(d)
+      if (!isInGroup) continue
+      const pageVal = row[pageIdx]
+      if (pageVal == null || pageVal === '') continue
+      const pageStr = String(pageVal).trim()
+      const soeRefs = pageStr.match(/SOE-[\d.]+/gi) || []
+      const pRefs = pageStr.match(/P-[\d.]+/gi) || []
+      soeRefs.forEach(r => refSet.add(r))
+      pRefs.forEach(r => refSet.add(r))
+    }
+    return [...refSet]
+  }
+
+  // Collect unique page refs from raw rows in the rock excavation group (digitizer item contains rock + excavation).
+  const getUniquePageRefsForRockExcavationGroup = () => {
+    if (!rawData || !Array.isArray(rawData) || rawData.length < 2) return []
+    const headers = rawData[0]
+    const dataRows = rawData.slice(1)
+    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+    if (digitizerIdx === -1 || pageIdx === -1) return []
+    const refSet = new Set()
+    for (const row of dataRows) {
+      const digitizerItem = row[digitizerIdx]
+      if (!digitizerItem) continue
+      const d = String(digitizerItem).toLowerCase().trim()
+      if (!d.includes('rock') || !(d.includes('excavation') || d.includes('rock excavation') || d.includes('line drill'))) continue
+      const pageVal = row[pageIdx]
+      if (pageVal == null || pageVal === '') continue
+      const pageStr = String(pageVal).trim()
+      const soeRefs = pageStr.match(/SOE-[\d.]+/gi) || []
+      const pRefs = pageStr.match(/P-[\d.]+/gi) || []
+      soeRefs.forEach(r => refSet.add(r))
+      pRefs.forEach(r => refSet.add(r))
+    }
+    return [...refSet]
+  }
+
+  const formatHeightAsFeetInches = (heightValues) => {
+    if (!heightValues || heightValues.length === 0) return '##'
+    const numHeights = heightValues.filter(v => v != null && !Number.isNaN(v) && v > 0).map(v => parseFloat(v))
+    if (numHeights.length === 0) return '##'
+    let avg = numHeights.reduce((a, b) => a + b, 0) / numHeights.length
+    if (avg > 50) avg = avg / 12
+    const feet = Math.floor(avg)
+    const inches = Math.round((avg - feet) * 12)
+    if (inches === 0) return `${feet}'-0"`
+    return `${feet}'-${inches}"`
+  }
+
   const calculateRowSF = (row) => {
     if (!row || row.length === 0) return 0
     const sqftValue = parseFloat(row[9]) || 0
@@ -597,6 +715,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     let excavationRunningCYSum = 0 // Track running sum of calculated CY values
     let foundEmptyParticulars = false // Track if we've found the first empty Particulars row
     let excavationEmptyRowIndex = null // Store the row index where empty Particulars row was found
+    let excavationHeightValues = [] // Collect Height (col H) from excavation data rows for Havg
     let backfillTotalSQFT = 0 // Track total SQFT for backfill section
     let backfillRunningSum = 0 // Track running sum of calculated SQFT values for backfill
     let backfillTotalCY = 0 // Track total CY for backfill section
@@ -614,6 +733,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     let rockExcavationLine1RowIndex = null // First data row in rock excavation subsection (1-based)
     let rockExcavationLine2RowIndex = null // Second data row in rock excavation subsection (1-based)
     let rockExcavationDataRowCount = 0 // Count data rows in rock excavation subsection
+    let rockExcavationHeightValues = [] // Collect Height (col H) from rock excavation data rows for Havg
     let inSOESection = false // Track if we're in the SOE section
     let inDrilledSoldierPileSubsection = false // Track if we're in the "Drilled soldier pile" subsection
     let drilledSoldierPileItems = [] // Collect drilled soldier pile items
@@ -865,10 +985,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // Check if this is the "rock excavation" subsection within the Rock Excavation section
         if (inRockExcavationSection && currentSubsection.toLowerCase() === 'rock excavation') {
           inRockExcavationSubsection = true
-          rockExcavationRunningSum = 0 // Reset running sum
-          rockExcavationRunningCYSum = 0 // Reset CY running sum
-          foundRockExcavationEmptyParticulars = false // Reset flag
-          rockExcavationDataRowCount = 0 // Reset data row counter for LF/SF/CY references
+          rockExcavationRunningSum = 0
+          rockExcavationRunningCYSum = 0
+          foundRockExcavationEmptyParticulars = false
+          rockExcavationDataRowCount = 0
+          rockExcavationHeightValues = []
         } else if (inRockExcavationSubsection && inRockExcavationSection) {
           // We've moved to a different subsection, so the rock excavation subsection has ended
           inRockExcavationSubsection = false
@@ -1278,6 +1399,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           if (calculatedCY > 0) {
             excavationRunningCYSum += calculatedCY
           }
+          const heightVal = parseFloat(row[7])
+          if (!Number.isNaN(heightVal) && heightVal > 0) excavationHeightValues.push(heightVal)
         }
       }
 
@@ -1385,6 +1508,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           rockExcavationDataRowCount++
           if (rockExcavationDataRowCount === 1) rockExcavationLine1RowIndex = rowIndex + 1
           else if (rockExcavationDataRowCount === 2) rockExcavationLine2RowIndex = rowIndex + 1
+          const rockHeightVal = parseFloat(row[7])
+          if (!Number.isNaN(rockHeightVal) && rockHeightVal > 0) rockExcavationHeightValues.push(rockHeightVal)
           if (calculatedSQFT > 0) {
             rockExcavationRunningSum += calculatedSQFT
           }
@@ -1507,7 +1632,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       'Demo strip footing',
       'Demo foundation wall',
       'Demo retaining wall',
-      'Demo isolated footing'
+      'Demo isolated footing',
+      'Demo stair on grade'
     ]
 
     // Check if any of these subsections have data
@@ -1558,22 +1684,32 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const templateText = buildDemolitionTemplate(name, originalText, fallbackText)
         const cellRef = `${pfx}B${currentRow}`
 
+        // Sum row in Calculations Sheet: either from detection (sumRowIndexBySubsection) or last data row + 1 (sum is next row)
         const lastDataIdx = lastDataRowIndexBySubsection.get(name)
         const detectedSumRow = sumRowIndexBySubsection.get(name)
         const sumRowIndex = detectedSumRow != null ? detectedSumRow : (lastDataIdx != null ? lastDataIdx + 2 : null)
 
+        // Stairs on grade: riser count from QTY (column M) – use formula so B updates when calc sheet changes
         const stairsRiserPlaceholder = '(## Riser)'
         const useStairsRiserFormula = templateText.includes(stairsRiserPlaceholder) && sumRowIndex != null
+        let valueOrFormulaForB = templateText
         if (useStairsRiserFormula) {
           const parts = templateText.split(stairsRiserPlaceholder)
           const prefix = (parts[0] || '').trimEnd()
           const suffix = ' Riser)' + (parts[1] || '').trimStart()
           const esc = (s) => (s || '').replace(/"/g, '""')
-          spreadsheet.updateCell({ formula: `=CONCATENATE("${esc(prefix)}",'${demolitionCalcSheet}'!M${sumRowIndex},"${esc(suffix)}")` }, cellRef)
-        } else {
-          spreadsheet.updateCell({ value: templateText }, cellRef)
+          valueOrFormulaForB = {
+            formula: `=CONCATENATE("${esc(prefix)}",'${demolitionCalcSheet}'!M${sumRowIndex},"${esc(suffix)}")`
+          }
         }
-        if (typeof rowBContentMap !== 'undefined') rowBContentMap.set(currentRow, templateText)
+
+        if (typeof valueOrFormulaForB === 'object' && valueOrFormulaForB.formula) {
+          spreadsheet.updateCell(valueOrFormulaForB, cellRef)
+          rowBContentMap.set(currentRow, templateText)
+        } else {
+          spreadsheet.updateCell({ value: valueOrFormulaForB }, cellRef)
+          rowBContentMap.set(currentRow, valueOrFormulaForB)
+        }
         spreadsheet.wrap(cellRef, true)
         spreadsheet.cellFormat(
           {
@@ -1585,7 +1721,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           },
           cellRef
         )
-        fillRatesForProposalRow(currentRow, templateText)
+        fillRatesForProposalRow(currentRow, typeof valueOrFormulaForB === 'object' ? templateText : valueOrFormulaForB)
 
         if (sumRowIndex != null) {
           // Always use formulas so the cell shows the formula and updates when calc sheet changes
@@ -1760,8 +1896,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       currentRow++
     }
 
-    // First soil excavation line
-    const soilExcavationText = 'Allow to perform soil excavation, trucking & disposal (Havg=16\'-9") as per SOE-101.00, P-301.01 & details on SOE-201.01 to SOE-204.00'
+    // First soil excavation line (dynamic: Havg from calculation data; unique page refs from all excavation/backfill group rows)
+    const uniqueExcavationBackfillRefs = getUniquePageRefsForExcavationAndBackfillGroup()
+    const asPerPart = uniqueExcavationBackfillRefs.length > 0 ? uniqueExcavationBackfillRefs.join(', ') : '##'
+    const havgText = formatHeightAsFeetInches(excavationHeightValues)
+    const soilExcavationText = `Allow to perform soil excavation, trucking & disposal (Havg=${havgText}) as per ${asPerPart} & details on`
     spreadsheet.updateCell({ value: soilExcavationText }, `${pfx}B${currentRow}`)
     rowBContentMap.set(currentRow, soilExcavationText)
     spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -1834,9 +1973,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     )
     currentRow++
 
-    // Row 2: Second soil excavation line (new clean soil)
+    // Row 2: Second soil excavation line (new clean soil) – same unique page refs from excavation/backfill group (Underground piping, Backfill, Slope exc, etc.)
     const soilExcavationRow2 = currentRow
-    const backfillSoilText = 'Allow to import new clean soil to backfill and compact as per SOE-101.00, P-301.01 & details on SOE-201.01 to SOE-204.00'
+    const backfillSoilText = `Allow to import new clean soil to backfill and compact as per ${asPerPart} & details on`
     spreadsheet.updateCell({ value: backfillSoilText }, `${pfx}B${currentRow}`)
     rowBContentMap.set(currentRow, backfillSoilText)
     spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -2051,8 +2190,22 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
       }
     }
-    const rockExcavationText = rockExcavationTextFromCalc || 'Allow to perform rock excavation, trucking & disposal for building (Havg=2\'-9") as per SOE-100.00 & details on SOE-A-202.00'
-    const lineDrillingText = lineDrillingTextFromCalc || 'Allow to perform line drilling as per SOE-100.00'
+    const rockUniqueRefs = getUniquePageRefsForRockExcavationGroup()
+    const rockAsPerPart = rockUniqueRefs.length > 0 ? rockUniqueRefs.join(', ') : '##'
+    const havgRock = formatHeightAsFeetInches(rockExcavationHeightValues)
+    let rockExcavationBase
+    if (rockExcavationTextFromCalc) {
+      const stripped = rockExcavationTextFromCalc.replace(/\s+as per [^&]*&\s*details on.*$/i, '').trim()
+      rockExcavationBase = stripped.replace(/\s*\(Havg=[^)]*\)/i, '').trim()
+      rockExcavationBase = rockExcavationBase ? `${rockExcavationBase} (Havg=${havgRock})` : `Allow to perform rock excavation, trucking & disposal for building (Havg=${havgRock})`
+    } else {
+      rockExcavationBase = `Allow to perform rock excavation, trucking & disposal for building (Havg=${havgRock})`
+    }
+    const rockExcavationText = `${rockExcavationBase} as per ${rockAsPerPart} & details on`
+    const lineDrillingBase = lineDrillingTextFromCalc
+      ? lineDrillingTextFromCalc.replace(/\s+as per [^&]*&\s*details on.*$/i, '').replace(/\s+as per .*$/i, '').trim()
+      : 'Allow to perform line drilling'
+    const lineDrillingText = `${lineDrillingBase} as per ${rockAsPerPart} & details on`
 
     // First rock excavation line
     const rockRow1 = currentRow
@@ -2249,6 +2402,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       'Secondary secant piles:',
       'Tangent pile:',
       'Sheet piles:',
+      'Timber soldier piles:',
+      'Timber planks:',
+      'Timber post:',
       'Timber lagging:',
       'Timber sheeting:',
       'Bracing:',
@@ -2373,7 +2529,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             group.takeoff += (item.takeoff || 0)
           })
 
-          // Process each group to extract values
+          // Process each group to extract values (use collected items so we can use item.height from calc row)
+          const itemsByParticulars = new Map()
+          collectedItems.forEach(item => {
+            const p = (item.particulars || '').trim()
+            if (!itemsByParticulars.has(p)) itemsByParticulars.set(p, [])
+            itemsByParticulars.get(p).push(item)
+          })
           groupedItems.forEach((group, particulars) => {
             // Extract diameter and thickness (e.g., "9.625Ø x0.545")
             if (!diameter || !thickness) {
@@ -2384,13 +2546,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               }
             }
 
-            // Extract H value (e.g., "H=27'-10"" or "H=27'-10"+ RS=15'-0"")
+            const groupItems = itemsByParticulars.get(particulars) || []
+            // Extract H value: from particulars (e.g., "H=27'-10"") or from calculation row Height (col H)
+            let heightValue = null
             const hMatch = particulars.match(/H=([0-9'"\-]+)/)
             if (hMatch) {
-              let heightValue = parseDimension(hMatch[1])
+              heightValue = parseDimension(hMatch[1])
               group.hValue = hMatch[1]
-
-              // Check if there's a "+" followed by RS (Rock Socket) - if so, add RS to H
               const rsMatch = particulars.match(/\+\s*RS=([0-9'"\-]+)/i)
               if (rsMatch) {
                 const rsValue = parseDimension(rsMatch[1])
@@ -2398,8 +2560,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 heightValue = heightValue + rsValue
               }
               group.combinedHeight = heightValue
-
-              // Add height for each takeoff (if takeoff is 8, add height 8 times)
+            } else {
+              // Use Height from calculation sheet (column H) when H= not in particulars
+              const fromRow = groupItems.find(it => it.height != null && it.height > 0)
+              if (fromRow && fromRow.height > 0) heightValue = fromRow.height
+            }
+            if (heightValue != null) {
+              group.combinedHeight = heightValue
               for (let i = 0; i < group.takeoff; i++) {
                 totalHeight += heightValue
                 heightCount++
@@ -2464,22 +2631,29 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             // Get SOE page number from raw data
             const soePage = getSOEPageFromRawData(diameter, thickness)
 
-            // Find the sum row for this group
-            // The sum formula is in the same row as the last item (not the next row)
-            const lastRowNumber = Math.max(...collectedItems.map(item => item.rawRowNumber || 0))
-            const sumRowIndex = lastRowNumber // Sum row is the same as last item row
+            // Sum row is the same row as the last item in the calculation sheet (total line)
+            const lastRowNumber = Math.max(...collectedItems.map(item => item.rawRowNumber || 0), 0)
+            const sumRowIndex = lastRowNumber
+
+            // Use QTY from that row (column M) for display when available so (XX)no matches the sheet
+            let displayCount = totalCount
+            if (calculationData && sumRowIndex >= 1 && calculationData[sumRowIndex - 1]) {
+              const rowQty = parseFloat(calculationData[sumRowIndex - 1][12])
+              if (!Number.isNaN(rowQty) && rowQty > 0) displayCount = Math.round(rowQty)
+            }
 
             // Create cell references to the sum row in calculation sheet
-            // FT is in column I, LBS is in column K, QTY is in column M
             const calcSheetName = 'Calculations Sheet'
             const ftCellRef = `'${calcSheetName}'!I${sumRowIndex}`
             const lbsCellRef = `'${calcSheetName}'!K${sumRowIndex}`
             const qtyCellRef = `'${calcSheetName}'!M${sumRowIndex}`
 
-            // Format the proposal text
-            const proposalText = `F&I new (${totalCount})no [${diameter}" Øx${thickness}" thick] drilled soldier piles (H=${heightText}, ${embedmentText} embedment) as per ${soePage}`
+            // Proposal text for rate lookup and row height; B cell uses formula so (XX) updates when QTY changes
+            const proposalText = `F&I new (${displayCount})no [${diameter}" Øx${thickness}" thick] drilled soldier piles (H=${heightText}, ${embedmentText} embedment) as per ${soePage} & details on`
+            const afterCount = `)no [${diameter}" Øx${thickness}" thick] drilled soldier piles (H=${heightText}, ${embedmentText} embedment) as per ${soePage} & details on`
+            const bFormula = proposalFormulaWithQtyRef(currentRow, afterCount)
 
-            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.updateCell({ formula: bFormula }, `${pfx}B${currentRow}`)
               rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat(
@@ -2640,19 +2814,22 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             return feet + (inches / 12)
           }
 
-          // Group items by particulars
+          // Group items by particulars and keep item refs for height from calc row
           const groupedItems = new Map()
+          const itemsByParticulars = new Map()
           hpCollectedItems.forEach(item => {
-            const particulars = item.particulars || ''
+            const particulars = (item.particulars || '').trim()
             if (!groupedItems.has(particulars)) {
               groupedItems.set(particulars, {
                 particulars: particulars,
                 takeoff: 0,
                 hValue: null
               })
+              itemsByParticulars.set(particulars, [])
             }
             const group = groupedItems.get(particulars)
             group.takeoff += (item.takeoff || 0)
+            itemsByParticulars.get(particulars).push(item)
           })
 
           // Process each group to extract values
@@ -2666,30 +2843,31 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               }
             }
 
-            // Extract H value (e.g., "H=24'-9"")
+            const groupItems = itemsByParticulars.get(particulars) || []
+            let heightValue = null
             const hMatch = particulars.match(/H=([0-9'"\-]+)/)
             if (hMatch) {
-              const heightValue = parseDimension(hMatch[1])
+              heightValue = parseDimension(hMatch[1])
               group.hValue = hMatch[1]
+            } else {
+              // Use Height from calculation sheet (column H) when H= not in particulars
+              const fromRow = groupItems.find(it => it.height != null && it.height > 0)
+              if (fromRow && fromRow.height > 0) heightValue = fromRow.height
+            }
 
-              // Calculate FT for this item: FT = H * C (height * takeoff)
+            if (heightValue != null) {
               const itemFT = heightValue * group.takeoff
               totalFT += itemFT
-
-              // Calculate LBS for this item: LBS = FT * weight
               if (hpWeight) {
                 const itemLBS = itemFT * hpWeight
                 totalLBS += itemLBS
               }
-
-              // Add height for each takeoff (if takeoff is 8, add height 8 times)
               for (let i = 0; i < group.takeoff; i++) {
                 totalHeight += heightValue
                 heightCount++
               }
             }
 
-            // Sum total count
             totalCount += group.takeoff
           })
 
@@ -2752,23 +2930,27 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
             const soePage = getHPPageFromRawData(hpType)
 
-            // Find the sum row for this group
-            // The sum formula is in the same row as the last item (not the next row)
-            const lastRowNumber = Math.max(...hpCollectedItems.map(item => item.rawRowNumber || 0))
-            const sumRowIndex = lastRowNumber // Sum row is the same as last item row
+            // Sum row is the same row as the last item in the calculation sheet
+            const lastRowNumber = Math.max(...hpCollectedItems.map(item => item.rawRowNumber || 0), 0)
+            const sumRowIndex = lastRowNumber
 
-            // Create cell references to the sum row in calculation sheet
-            // FT is in column I, LBS is in column K, QTY is in column M
+            // Use QTY from that row (column M) for display when available so (XX)no matches the sheet
+            let displayCount = totalCount
+            if (calculationData && sumRowIndex >= 1 && calculationData[sumRowIndex - 1]) {
+              const rowQty = parseFloat(calculationData[sumRowIndex - 1][12])
+              if (!Number.isNaN(rowQty) && rowQty > 0) displayCount = Math.round(rowQty)
+            }
+
             const calcSheetName = 'Calculations Sheet'
             const ftCellRef = `'${calcSheetName}'!I${sumRowIndex}`
             const lbsCellRef = `'${calcSheetName}'!K${sumRowIndex}`
             const qtyCellRef = `'${calcSheetName}'!M${sumRowIndex}`
 
-            // Format the proposal text: F&I new (101)no [HP12x63] driven pile (Havg=42'-9") as per SOE-B-100.00
-            const proposalText = `F&I new (${totalCount})no [${hpType}] driven pile (Havg=${heightText}) as per ${soePage}`
+            const proposalText = `F&I new (${displayCount})no [${hpType}] driven pile (Havg=${heightText}) as per ${soePage} & details on`
+            const afterCount = `)no [${hpType}] driven pile (Havg=${heightText}) as per ${soePage} & details on`
+            const bFormula = proposalFormulaWithQtyRef(currentRow, afterCount)
 
-
-            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.updateCell({ formula: bFormula }, `${pfx}B${currentRow}`)
               rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat(
@@ -3156,18 +3338,28 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
         const calcSheetName = 'Calculations Sheet'
 
-        // Format proposal text: F&I new (#)no [#" Ø] primary secant piles (Havg=#'-#", #'-#" embedment) as per SOE-#.##
-        // Use totalQty if available, otherwise use totalTakeoff
-        const qtyValue = Math.round(totalQty || totalTakeoff)
-        let proposalText = ''
-        if (diameter) {
-          proposalText = `F&I new (${qtyValue})no [${diameter}" Ø] primary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain}`
-        } else {
-          proposalText = `F&I new (${qtyValue})no [#" Ø] primary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain}`
+        // Use QTY from sum row (column M) for display when available so (XX)no matches the sheet
+        let qtyValue = Math.round(totalQty || totalTakeoff)
+        if (calculationData && sumRowIndex >= 1 && calculationData[sumRowIndex - 1]) {
+          const rowQty = parseFloat(calculationData[sumRowIndex - 1][12])
+          if (!Number.isNaN(rowQty) && rowQty > 0) qtyValue = Math.round(rowQty)
         }
 
+        let proposalText = ''
+        let afterCount = ''
+        if (diameter) {
+          proposalText = `F&I new (${qtyValue})no [${diameter}" Ø] primary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+          afterCount = `)no [${diameter}" Ø] primary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+        } else {
+          proposalText = `F&I new (${qtyValue})no [#" Ø] primary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+          afterCount = `)no [#" Ø] primary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+        }
 
-        spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        if (sumRowIndex > 0) {
+          spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
+        } else {
+          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        }
           rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
@@ -3483,17 +3675,28 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
         const calcSheetName = 'Calculations Sheet'
 
-        // Format proposal text: F&I new (#)no [#" Ø] secondary secant piles (Havg=#'-#", #'-#" embedment) as per SOE-#.##
-        // Use totalQty if available, otherwise use totalTakeoff
-        const qtyValue = Math.round(totalQty || totalTakeoff)
-        let proposalText = ''
-        if (diameter) {
-          proposalText = `F&I new (${qtyValue})no [${diameter}" Ø] secondary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain}`
-        } else {
-          proposalText = `F&I new (${qtyValue})no [#" Ø] secondary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain}`
+        // Use QTY from sum row (column M) for display when available so (XX)no matches the sheet
+        let qtyValue = Math.round(totalQty || totalTakeoff)
+        if (calculationData && sumRowIndex >= 1 && calculationData[sumRowIndex - 1]) {
+          const rowQty = parseFloat(calculationData[sumRowIndex - 1][12])
+          if (!Number.isNaN(rowQty) && rowQty > 0) qtyValue = Math.round(rowQty)
         }
 
-        spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        let proposalText = ''
+        let afterCount = ''
+        if (diameter) {
+          proposalText = `F&I new (${qtyValue})no [${diameter}" Ø] secondary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+          afterCount = `)no [${diameter}" Ø] secondary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+        } else {
+          proposalText = `F&I new (${qtyValue})no [#" Ø] secondary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+          afterCount = `)no [#" Ø] secondary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+        }
+
+        if (sumRowIndex > 0) {
+          spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
+        } else {
+          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        }
           rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
@@ -3810,17 +4013,27 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
         const calcSheetName = 'Calculations Sheet'
 
-        // Format proposal text: F&I new (#)no [#" Ø] tangent pile (Havg=#'-#", #'-#" embedment) as per SOE-#.##
-        // Use totalQty if available, otherwise use totalTakeoff
-        const qtyValue = Math.round(totalQty || totalTakeoff)
-        let proposalText = ''
-        if (diameter) {
-          proposalText = `F&I new (${qtyValue})no [${diameter}" Ø] tangent pile (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain}`
-        } else {
-          proposalText = `F&I new (${qtyValue})no [#" Ø] tangent pile (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain}`
+        let qtyValue = Math.round(totalQty || totalTakeoff)
+        if (calculationData && sumRowIndex >= 1 && calculationData[sumRowIndex - 1]) {
+          const rowQty = parseFloat(calculationData[sumRowIndex - 1][12])
+          if (!Number.isNaN(rowQty) && rowQty > 0) qtyValue = Math.round(rowQty)
         }
 
-        spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        let proposalText = ''
+        let afterCount = ''
+        if (diameter) {
+          proposalText = `F&I new (${qtyValue})no [${diameter}" Ø] tangent pile (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+          afterCount = `)no [${diameter}" Ø] tangent pile (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+        } else {
+          proposalText = `F&I new (${qtyValue})no [#" Ø] tangent pile (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+          afterCount = `)no [#" Ø] tangent pile (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+        }
+
+        if (sumRowIndex > 0) {
+          spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
+        } else {
+          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        }
           rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
@@ -3913,6 +4126,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       'Tangent pile',
       'Sheet pile',
       'Sheet piles',
+      'Timber soldier piles',
+      'Timber planks',
+      'Timber post',
       'Timber lagging',
       'Timber sheeting',
       'Bracing',
@@ -4191,6 +4407,17 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       }
     }
 
+    // Check if Timber soldier piles, Timber planks, Timber post are in soeSubsectionItems
+    const timberSoldierPileGroups = soeSubsectionItems.get('Timber soldier piles') || []
+    const hasTimberSoldierPileItems = timberSoldierPileGroups.length > 0 && timberSoldierPileGroups.some(g => g.length > 0)
+    const timberPlankGroups = soeSubsectionItems.get('Timber planks') || []
+    const hasTimberPlankItems = timberPlankGroups.length > 0 && timberPlankGroups.some(g => g.length > 0)
+    const timberPostGroups = soeSubsectionItems.get('Timber post') || []
+    const hasTimberPostItems = timberPostGroups.length > 0 && timberPostGroups.some(g => g.length > 0)
+    if (hasTimberSoldierPileItems && !collectedSubsections.has('Timber soldier piles')) collectedSubsections.add('Timber soldier piles')
+    if (hasTimberPlankItems && !collectedSubsections.has('Timber planks')) collectedSubsections.add('Timber planks')
+    if (hasTimberPostItems && !collectedSubsections.has('Timber post')) collectedSubsections.add('Timber post')
+
     // Check if heel blocks are in soeSubsectionItems
     const heelBlockGroups = soeSubsectionItems.get('Heel blocks') || []
     const hasHeelBlockItems = heelBlockGroups.length > 0 && heelBlockGroups.some(g => g.length > 0)
@@ -4452,6 +4679,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         collectedSubsections.delete(name)
       } else if (name === 'Timber sheeting' && hasTimberSheetingItems) {
         // Special handling for Timber sheeting - show it if any items exist
+        subsectionsToDisplay.push(name)
+        collectedSubsections.delete(name)
+      } else if (name === 'Timber soldier piles' && hasTimberSoldierPileItems) {
+        subsectionsToDisplay.push(name)
+        collectedSubsections.delete(name)
+      } else if (name === 'Timber planks' && hasTimberPlankItems) {
+        subsectionsToDisplay.push(name)
+        collectedSubsections.delete(name)
+      } else if (name === 'Timber post' && hasTimberPostItems) {
         subsectionsToDisplay.push(name)
         collectedSubsections.delete(name)
       } else if (collectedSubsections.has(name)) {
@@ -5034,12 +5270,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 }
               }
 
-              // Generate proposal text: F&I new (X)no [size] supporting angle @ [location] as per SOE-XXX.XX & details on SOE-XXX.XX
               const qtyValue = Math.round(totalQty || totalTakeoff)
-              const proposalText = `F&I new (${qtyValue})no ${size} supporting angle ${location} as per ${soePageMain} & details on ${soePageDetails}`
+              const proposalText = `F&I new (${qtyValue})no ${size} supporting angle ${location} as per ${soePageMain} & details on`
+              const afterCount = `)no ${size} supporting angle ${location} as per ${soePageMain} & details on`
 
-              // Add proposal text
-              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              if (sumRowIndex > 0) {
+                spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
+              } else {
+                spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              }
                 rowBContentMap.set(currentRow, proposalText)
               spreadsheet.wrap(`${pfx}B${currentRow}`, true)
               spreadsheet.cellFormat(
@@ -5206,13 +5445,17 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             }
 
             if (sizeInfo) {
-              proposalText = `F&I new (${qtyValue})no ${sizeInfo}${displayName.toLowerCase()} as per ${soePageMain}`
+              proposalText = `F&I new (${qtyValue})no ${sizeInfo}${displayName.toLowerCase()} as per ${soePageMain} & details on`
             } else {
-              proposalText = `F&I new (${qtyValue})no ${displayName.toLowerCase()} as per ${soePageMain}`
+              proposalText = `F&I new (${qtyValue})no ${displayName.toLowerCase()} as per ${soePageMain} & details on`
             }
+            const afterCount = afterCountFromProposalText(proposalText)
 
-            // Add proposal text
-            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            if (sumRowIndex > 0 && afterCount) {
+              spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
+            } else {
+              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            }
               rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat(
@@ -5450,9 +5693,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
             // Generate proposal text: F&I new (X)no tie back anchors (L=XX'-XX" + XX'-XX" bond length), XX ½"Ø drill hole as per SOE-XXX.XX
             const qtyValue = Math.round(totalQty || totalTakeoff)
-            const proposalText = `F&I new (${qtyValue})no tie back anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain}`
+            const proposalText = `F&I new (${qtyValue})no tie back anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain} & details on`
+            const afterCount = afterCountFromProposalText(proposalText)
 
-            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            if (sumRowIndex > 0 && afterCount) {
+              spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
+            } else {
+              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            }
               rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat(
@@ -5694,9 +5942,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
             // Generate proposal text: F&I new (X)no tie back anchors (L=XX'-XX" + XX'-XX" bond length), XX ½"Ø drill hole as per SOE-XXX.XX
             const qtyValue = Math.round(totalQty || totalTakeoff)
-            const proposalText = `F&I new (${qtyValue})no tie back anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain}`
+            const proposalText = `F&I new (${qtyValue})no tie back anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain} & details on`
+            const afterCount = afterCountFromProposalText(proposalText)
 
-            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            if (sumRowIndex > 0 && afterCount) {
+              spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
+            } else {
+              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            }
               rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat(
@@ -5932,9 +6185,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
             // Generate proposal text: F&I new (X)no tie down anchors (L=XX'-XX" + XX'-XX" bond length), XX ½"Ø drill hole as per SOE-XXX.XX
             const qtyValue = Math.round(totalQty || totalTakeoff)
-            const proposalText = `F&I new (${qtyValue})no tie down anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain}`
+            const proposalText = `F&I new (${qtyValue})no tie down anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain} & details on`
+            const afterCount = afterCountFromProposalText(proposalText)
 
-            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            if (sumRowIndex > 0 && afterCount) {
+              spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
+            } else {
+              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            }
               rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat(
@@ -6852,13 +7110,18 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           subsectionLower === 'rock stabilization' ||
           subsectionLower === 'shotcrete' ||
           subsectionLower === 'permission grouting' ||
-          subsectionLower === 'mud slab')) {
+          subsectionLower === 'mud slab' ||
+          subsectionLower === 'timber soldier piles' ||
+          subsectionLower === 'timber planks' ||
+          subsectionLower === 'timber post')) {
           sumRowIndex = lastRowNumber + 1
         }
         const calcSheetName = 'Calculations Sheet'
 
         // Generate proposal text based on subsection type
         let proposalText = ''
+        let useFormulaForB = false
+        let afterCountForB = ''
 
         // Special handling for Underpinning
         if (subsectionName.toLowerCase() === 'underpinning') {
@@ -6996,7 +7259,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
 
           // Format: F&I new (X)no typ. heel blocks for raker support as per SOE-XXX.XX
-          proposalText = `F&I new (${totalQtyValue})no typ. heel blocks for raker support as per ${soePageMain}`
+          proposalText = `F&I new (${totalQtyValue})no typ. heel blocks for raker support as per ${soePageMain} & details on`
         } else if (subsectionName.toLowerCase() === 'concrete soil retention piers' || subsectionName.toLowerCase() === 'concrete soil retention pier') {
           // Get total quantity from sum row (column M)
           const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
@@ -7032,7 +7295,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
 
           // Format: F&I new (X)no concrete soil retention pier as per SOE-XXX.XX
-          proposalText = `F&I new (${totalQtyValue})no concrete soil retention pier as per ${soePageMain}`
+          proposalText = `F&I new (${totalQtyValue})no concrete soil retention pier as per ${soePageMain} & details on`
 
           // Find and add form board proposal text right after concrete soil retention pier
           // Search for form board items in calculation data
@@ -7157,7 +7420,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             }
 
             // Store form board proposal text to add after concrete soil retention pier
-            window.formBoardProposalText = `F&I new (${formBoardThickness} thick) form board w/ filter fabric between tunnel and retention pier as per ${formBoardSoePage}`
+            window.formBoardProposalText = `F&I new (${formBoardThickness} thick) form board w/ filter fabric between tunnel and retention pier as per ${formBoardSoePage} & details on`
             window.formBoardItems = formBoardItems
           }
 
@@ -7208,7 +7471,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
 
           // Format: New parging (Havg=XX'-XX") as per SOE-XXX.XX
-          proposalText = `New parging (Havg=${heightText}) as per ${soePageMain}`
+          proposalText = `New parging (Havg=${heightText}) as per ${soePageMain} & details on`
         } else if (subsectionName.toLowerCase() === 'form board') {
           // Get total quantity from sum row (column M)
           const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
@@ -7256,7 +7519,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
 
           // Format: F&I new (1" thick) form board w/ filter fabric between tunnel and retention pier as per SOE-300.00
-          proposalText = `F&I new (${thickness} thick) form board w/ filter fabric between tunnel and retention pier as per ${soePageMain}`
+          proposalText = `F&I new (${thickness} thick) form board w/ filter fabric between tunnel and retention pier as per ${soePageMain} & details on`
         } else if (subsectionName.toLowerCase() === 'concrete buttons' || subsectionName.toLowerCase() === 'buttons') {
           // Get total quantity from sum row (column M)
           const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
@@ -7345,8 +7608,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
           // Format: F&I new (12)no (3'-0"x3'-0" wide) concrete buttons (Havg=3'-3") as per SOESK-01
           proposalText = widthText
-            ? `F&I new (${totalQtyValue})no (${widthText} wide) concrete buttons (Havg=${heightText}) as per ${soePageMain}`
-            : `F&I new (${totalQtyValue})no concrete buttons (Havg=${heightText}) as per ${soePageMain}`
+            ? `F&I new (${totalQtyValue})no (${widthText} wide) concrete buttons (Havg=${heightText}) as per ${soePageMain} & details on`
+            : `F&I new (${totalQtyValue})no concrete buttons (Havg=${heightText}) as per ${soePageMain} & details on`
         } else if (subsectionName.toLowerCase() === 'guide wall' || subsectionName.toLowerCase() === 'guilde wall') {
           // Extract widths from items
           const widths = new Set()
@@ -7403,8 +7666,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
           // Format: F&I new (4'-6½" & 5'-3½" wide) guide wall (H=3'-0") as per SOE-100.00 & details on SOE-300.00
           proposalText = widthText
-            ? `F&I new (${widthText} wide) guide wall (H=${height || '3\'-0"'}) as per ${soePageMain}${soePageDetails ? ` & details on ${soePageDetails}` : ''}`
-            : `F&I new guide wall (H=${height || '3\'-0"'}) as per ${soePageMain}${soePageDetails ? ` & details on ${soePageDetails}` : ''}`
+            ? `F&I new (${widthText} wide) guide wall (H=${height || '3\'-0"'}) as per ${soePageMain} & details on`
+            : `F&I new guide wall (H=${height || '3\'-0"'}) as per ${soePageMain} & details on`
         } else if (subsectionName.toLowerCase() === 'dowels' || subsectionName.toLowerCase() === 'dowel bar') {
           // Get total quantity
           const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
@@ -7473,7 +7736,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
 
           // Format: F&I new (48)no 4-#9 steel dowels bar (Havg=6'-3", 4'-0" rock socket) as per SOESK-01
-          proposalText = `F&I new (${totalQtyValue})no 4-${barSize || '#9'} steel dowels bar (Havg=${heightText}, ${rockSocket || '4\'-0"'} rock socket) as per ${soePageMain}`
+          proposalText = `F&I new (${totalQtyValue})no 4-${barSize || '#9'} steel dowels bar (Havg=${heightText}, ${rockSocket || '4\'-0"'} rock socket) as per ${soePageMain} & details on`
         } else if (subsectionName.toLowerCase() === 'rock pins' || subsectionName.toLowerCase() === 'rock pin') {
           // Get total quantity
           const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
@@ -7537,7 +7800,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
 
           // Format: F&I new (24)no rock pins (Havg=6'-3", 4'-0" rock socket) as per SOESK-01
-          proposalText = `F&I new (${totalQtyValue})no rock pins (Havg=${heightText}, ${rockSocket || '4\'-0"'} rock socket) as per ${soePageMain}`
+          proposalText = `F&I new (${totalQtyValue})no rock pins (Havg=${heightText}, ${rockSocket || '4\'-0"'} rock socket) as per ${soePageMain} & details on`
         } else if (subsectionName.toLowerCase() === 'rock stabilization') {
           // Get SOE page references
           let soePageMain = 'SOE-100.00'
@@ -7569,7 +7832,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
 
           // Format: F&I new rock stabilization as per SOE-100.00
-          proposalText = `F&I new rock stabilization as per ${soePageMain}`
+          proposalText = `F&I new rock stabilization as per ${soePageMain} & details on`
         } else if (subsectionName.toLowerCase() === 'shotcrete') {
           // Extract thickness and wire mesh
           let thickness = ''
@@ -7631,7 +7894,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
 
           // Format: F&I new (6" thick) shotcrete w/ 6x6 wire mesh (Havg=23'-0") as per SOESK-01
-          proposalText = `F&I new (${thickness || '6"'} thick) shotcrete w/ ${wireMesh || '6x6'} wire mesh (Havg=${heightText}) as per ${soePageMain}`
+          proposalText = `F&I new (${thickness || '6"'} thick) shotcrete w/ ${wireMesh || '6x6'} wire mesh (Havg=${heightText}) as per ${soePageMain} & details on`
         } else if (subsectionName.toLowerCase() === 'permission grouting') {
           // Calculate average height
           let totalHeight = 0
@@ -7682,7 +7945,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
 
           // Format: F&I new permission grouting (Havg=16'-0") as per SOESK-01
-          proposalText = `F&I new permission grouting (Havg=${heightText}) as per ${soePageMain}`
+          proposalText = `F&I new permission grouting (Havg=${heightText}) as per ${soePageMain} & details on`
         } else if (subsectionName.toLowerCase() === 'mud slab') {
           // Extract thickness from mud slab items (e.g., "w/ 2" mud slab" -> "2"")
           let thickness = '2"' // Default thickness
@@ -7729,7 +7992,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
 
           // Format: Allow to (2" thick) mud slab as per SOE-101.00
-          proposalText = `Allow to (${thickness} thick) mud slab as per ${soePageMain}`
+          proposalText = `Allow to (${thickness} thick) mud slab as per ${soePageMain} & details on`
         } else if (subsectionName.toLowerCase() === 'sheet pile' || subsectionName.toLowerCase() === 'sheet piles') {
           // Extract sheet pile type (e.g., "NZ-14", "PZC-12", etc.)
           let sheetPileType = ''
@@ -7814,9 +8077,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
           // Format: F&I new [NZ-14] sheet pile (H=27'-0", E=18'-6"embedment) as per SOE-102.00
           if (embedment) {
-            proposalText = `F&I new [${sheetPileType || '#'}] sheet pile (H=${height || '#'}, E=${embedment}embedment) as per ${soePageMain}`
+            proposalText = `F&I new [${sheetPileType || '#'}] sheet pile (H=${height || '#'}, E=${embedment}embedment) as per ${soePageMain} & details on`
           } else {
-            proposalText = `F&I new [${sheetPileType || '#'}] sheet pile (H=${height || '#'}) as per ${soePageMain}`
+            proposalText = `F&I new [${sheetPileType || '#'}] sheet pile (H=${height || '#'}) as per ${soePageMain} & details on`
           }
         } else if (subsectionName.toLowerCase() === 'timber lagging') {
           // Extract dimensions from items (e.g., "3"x10"" from "Timber lagging 3"x10"")
@@ -7880,7 +8143,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           // Timber lagging line: main reference only (e.g. SOE-101.00), no details page
           const timberLaggingMainRef = (soePageMain && !String(soePageMain).includes('301')) ? soePageMain : 'SOE-101.00'
           // Format: F&I new 3"x10" timber lagging for the exposed depths (Havg=10'-6") as per SOE-101.00
-          proposalText = `F&I new ${dimensions || '##'} timber lagging for the exposed depths (Havg=${heightText || '##'}) as per ${timberLaggingMainRef}`
+          proposalText = `F&I new ${dimensions || '##'} timber lagging for the exposed depths (Havg=${heightText || '##'}) as per ${timberLaggingMainRef} & details on`
 
           // Store main ref for backpacking line (backpacking uses main + details on SOE-301.00)
           window.timberLaggingSoePage = timberLaggingMainRef
@@ -7944,15 +8207,204 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
 
           // Format: F&I new 3"x10" timber sheeting (Havg=10'-6") as per SOE-101.00
-          proposalText = `F&I new ${dimensions || '##'} timber sheeting (Havg=${heightText || '##'}) as per ${soePageMain}`
+          proposalText = `F&I new ${dimensions || '##'} timber sheeting (Havg=${heightText || '##'}) as per ${soePageMain} & details on`
+        } else if (subsectionName.toLowerCase() === 'timber soldier piles') {
+          // Format: F&I new (15)no [4"x4"] timber soldier piles (Havg=15'-0", 3'-10" & 5'-0" embedment) as per SOE-101.00 & details on SOE-201.00
+          const parseDimToFeet = (dimStr) => {
+            if (!dimStr) return 0
+            const m = String(dimStr).match(/(\d+)(?:'-?)?(\d+)?/)
+            if (!m) return 0
+            return (parseInt(m[1]) || 0) + ((parseInt(m[2]) || 0) / 12)
+          }
+          const feetToFtIn = (feet) => {
+            const f = Math.floor(feet)
+            const i = Math.round((feet - f) * 12)
+            return i === 0 ? `${f}'-0"` : `${f}'-${i}"`
+          }
+          let sizeStr = ''
+          const heightVals = []
+          const embedmentVals = []
+          group.forEach(item => {
+            const p = (item.particulars || '').trim()
+            const sizeMatch = p.match(/(\d+)"\s*x\s*(\d+)"?/i) || p.match(/(\d+)\s*"\s*x\s*(\d+)/i)
+            if (sizeMatch && !sizeStr) sizeStr = `${sizeMatch[1]}"x${sizeMatch[2]}"`
+            const hMatch = p.match(/H=([0-9'"\-]+)/i)
+            if (hMatch) heightVals.push(parseDimToFeet(hMatch[1]))
+            const eMatch = p.match(/E=([0-9'"\-]+)/i)
+            if (eMatch) embedmentVals.push(parseDimToFeet(eMatch[1]))
+            const rowH = item.height || item.parsed?.heightRaw || 0
+            if (rowH > 0) heightVals.push(rowH)
+          })
+          let havgText = '##'
+          if (heightVals.length > 0) {
+            const avg = heightVals.reduce((a, b) => a + b, 0) / heightVals.length
+            havgText = feetToFtIn(avg)
+          }
+          let embedmentText = ''
+          if (embedmentVals.length > 0) {
+            const uniq = [...new Set(embedmentVals.map(v => Math.round(v * 12)))]
+            const minE = Math.min(...embedmentVals)
+            const maxE = Math.max(...embedmentVals)
+            const minStr = feetToFtIn(minE)
+            const maxStr = feetToFtIn(maxE)
+            if (minE === maxE) {
+              embedmentText = `${minStr} embedment`
+            } else if (uniq.length === 2) {
+              embedmentText = `${minStr} & ${maxStr} embedment`
+            } else {
+              embedmentText = `${minStr} to ${maxStr} embedment`
+            }
+          }
+          let soePageMain = 'SOE-101.00'
+          let soePageDetails = 'SOE-201.00'
+          if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+            const headers = rawData[0]
+            const dataRows = rawData.slice(1)
+            const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+            const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+            if (digitizerIdx !== -1 && pageIdx >= 0) {
+              for (let r = 0; r < dataRows.length; r++) {
+                const d = String(dataRows[r][digitizerIdx] || '').toLowerCase()
+                if (d.includes('timber') && d.includes('soldier')) {
+                  const pageStr = String(dataRows[r][pageIdx] || '').trim()
+                  const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                  if (soeMatches && soeMatches.length > 0) {
+                    soePageMain = soeMatches[0]
+                    if (soeMatches.length > 1) soePageDetails = soeMatches[1]
+                  }
+                  break
+                }
+              }
+            }
+          }
+          const qtyVal = Math.round(totalQty || totalTakeoff || 0)
+          afterCountForB = `)no [${sizeStr || '##'}] timber soldier piles (Havg=${havgText}, ${embedmentText || '## embedment'}) as per ${soePageMain} & details on ${soePageDetails}`
+          proposalText = `F&I new (${qtyVal})no [${sizeStr || '##'}] timber soldier piles (Havg=${havgText}, ${embedmentText || '## embedment'}) as per ${soePageMain} & details on ${soePageDetails}`
+          if (sumRowIndex > 0) useFormulaForB = true
+        } else if (subsectionName.toLowerCase() === 'timber planks') {
+          // Format: F&I new 3"x12" timber planks (H=3'-0") as per SOE-100.00 & details on SOE-002.00
+          let dimensions = ''
+          let heightText = ''
+          group.forEach(item => {
+            const p = (item.particulars || '').trim()
+            const dimMatch = p.match(/(\d+)"\s*x\s*(\d+)"?/i) || p.match(/(\d+)\s*"\s*x\s*(\d+)/i)
+            if (dimMatch && !dimensions) dimensions = `${dimMatch[1]}"x${dimMatch[2]}"`
+            const hMatch = p.match(/H=([0-9'"\-]+)/i)
+            if (hMatch && !heightText) heightText = hMatch[1].replace(/^\(|\)$/g, '').trim()
+          })
+          if (!heightText && group.length > 0) {
+            let totalH = 0
+            let cnt = 0
+            group.forEach(item => {
+              const h = item.height || item.parsed?.heightRaw || 0
+              if (h > 0) { totalH += h; cnt++ }
+            })
+            if (cnt > 0) {
+              const avg = totalH / cnt
+              const f = Math.floor(avg)
+              const i = Math.round((avg - f) * 12)
+              heightText = i === 0 ? `${f}'-0"` : `${f}'-${i}"`
+            }
+          }
+          let soePageMain = 'SOE-100.00'
+          let soePageDetails = 'SOE-002.00'
+          if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+            const headers = rawData[0]
+            const dataRows = rawData.slice(1)
+            const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+            const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+            if (digitizerIdx !== -1 && pageIdx >= 0) {
+              for (let r = 0; r < dataRows.length; r++) {
+                const d = String(dataRows[r][digitizerIdx] || '').toLowerCase()
+                if (d.includes('timber') && d.includes('plank')) {
+                  const pageStr = String(dataRows[r][pageIdx] || '').trim()
+                  const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                  if (soeMatches && soeMatches.length > 0) {
+                    soePageMain = soeMatches[0]
+                    if (soeMatches.length > 1) soePageDetails = soeMatches[1]
+                  }
+                  break
+                }
+              }
+            }
+          }
+          proposalText = `F&I new ${dimensions || '##'} timber planks (H=${heightText || '##'}) as per ${soePageMain} & details on ${soePageDetails}`
+        } else if (subsectionName.toLowerCase() === 'timber post') {
+          // Format: F&I new 6"x6" timber post (Havg=7'-10", 4'-0" to 5'-8" embedment) as per SOE-101.00 & details on SOE-201.00 to SOE-205.00
+          const parseDimToFeet = (dimStr) => {
+            if (!dimStr) return 0
+            const m = String(dimStr).match(/(\d+)(?:'-?)?(\d+)?/)
+            if (!m) return 0
+            return (parseInt(m[1]) || 0) + ((parseInt(m[2]) || 0) / 12)
+          }
+          const feetToFtIn = (feet) => {
+            const f = Math.floor(feet)
+            const i = Math.round((feet - f) * 12)
+            return i === 0 ? `${f}'-0"` : `${f}'-${i}"`
+          }
+          let sizeStr = ''
+          const heightVals = []
+          const embedmentVals = []
+          group.forEach(item => {
+            const p = (item.particulars || '').trim()
+            const sizeMatch = p.match(/(\d+)"\s*x\s*(\d+)"?/i) || p.match(/(\d+)\s*"\s*x\s*(\d+)/i)
+            if (sizeMatch && !sizeStr) sizeStr = `${sizeMatch[1]}"x${sizeMatch[2]}"`
+            const hMatch = p.match(/H=([0-9'"\-]+)/i)
+            if (hMatch) heightVals.push(parseDimToFeet(hMatch[1]))
+            const eMatch = p.match(/E=([0-9'"\-]+)/i)
+            if (eMatch) embedmentVals.push(parseDimToFeet(eMatch[1]))
+            const rowH = item.height || item.parsed?.heightRaw || 0
+            if (rowH > 0) heightVals.push(rowH)
+          })
+          let havgText = '##'
+          if (heightVals.length > 0) {
+            const avg = heightVals.reduce((a, b) => a + b, 0) / heightVals.length
+            havgText = feetToFtIn(avg)
+          }
+          let embedmentText = ''
+          if (embedmentVals.length > 0) {
+            const minE = Math.min(...embedmentVals)
+            const maxE = Math.max(...embedmentVals)
+            embedmentText = minE === maxE ? feetToFtIn(minE) + ' embedment' : `${feetToFtIn(minE)} to ${feetToFtIn(maxE)} embedment`
+          }
+          let soePageMain = 'SOE-101.00'
+          let soePageDetails = 'SOE-201.00'
+          let soePageRange = ''
+          if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+            const headers = rawData[0]
+            const dataRows = rawData.slice(1)
+            const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+            const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+            if (digitizerIdx !== -1 && pageIdx >= 0) {
+              for (let r = 0; r < dataRows.length; r++) {
+                const d = String(dataRows[r][digitizerIdx] || '').toLowerCase()
+                if (d.includes('timber') && d.includes('post')) {
+                  const pageStr = String(dataRows[r][pageIdx] || '').trim()
+                  const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                  const toMatch = pageStr.match(/SOE-[\d.]+[\s]*to[\s]*SOE-[\d.]+/gi)
+                  if (soeMatches && soeMatches.length > 0) {
+                    soePageMain = soeMatches[0]
+                    if (soeMatches.length > 1) soePageDetails = soeMatches[1]
+                  }
+                  if (toMatch && toMatch.length) soePageRange = ' ' + toMatch[0].trim()
+                  break
+                }
+              }
+            }
+          }
+          proposalText = `F&I new ${sizeStr || '##'} timber post (Havg=${havgText}, ${embedmentText || '## embedment'}) as per ${soePageMain} & details on ${soePageDetails}${soePageRange}`
         } else {
           // Default proposal text for other subsections
           proposalText = `${subsectionName} item: ${Math.round(totalQty)} nos`
         }
 
-        // Add proposal text
-        spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
-          rowBContentMap.set(currentRow, proposalText)
+        // Add proposal text (use formula for B when subsection uses QTY from calc sheet, e.g. Timber soldier piles)
+        if (useFormulaForB && sumRowIndex > 0) {
+          spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCountForB) }, `${pfx}B${currentRow}`)
+        } else {
+          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        }
+        rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
           {
@@ -8005,6 +8457,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           subsectionLowerName2 === 'form board' ||
           subsectionLowerName2 === 'sheet pile' ||
           subsectionLowerName2 === 'sheet piles' ||
+          subsectionLowerName2 === 'timber soldier piles' ||
+          subsectionLowerName2 === 'timber planks' ||
+          subsectionLowerName2 === 'timber post' ||
           subsectionLowerName2 === 'timber lagging' ||
           subsectionLowerName2 === 'timber sheeting' ||
           subsectionLowerName2 === 'guide wall' ||
@@ -8049,7 +8504,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           )
         }
 
-        // Add QTY to column G for Underpinning, Concrete soil retention piers, Heel blocks, Concrete buttons, Dowels - reference to calculation sheet sum row
+        // Add QTY to column G for Underpinning, Concrete soil retention piers, Heel blocks, Concrete buttons, Dowels, Timber soldier piles, Timber planks, Timber post - reference to calculation sheet sum row
         if ((subsectionLowerName2 === 'underpinning' ||
           subsectionLowerName2 === 'concrete soil retention piers' ||
           subsectionLowerName2 === 'concrete soil retention pier' ||
@@ -8059,7 +8514,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           subsectionLowerName2 === 'dowels' ||
           subsectionLowerName2 === 'dowel bar' ||
           subsectionLowerName2 === 'rock pins' ||
-          subsectionLowerName2 === 'rock pin') && sumRowIndex > 0) {
+          subsectionLowerName2 === 'rock pin' ||
+          subsectionLowerName2 === 'timber soldier piles' ||
+          subsectionLowerName2 === 'timber planks' ||
+          subsectionLowerName2 === 'timber post') && sumRowIndex > 0) {
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
           spreadsheet.cellFormat(
             {
@@ -8128,7 +8586,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const mainSoeMatch = timberLaggingSoePage.match(/(SOE[-\d.]+)/i)
           const mainSoePage = mainSoeMatch ? mainSoeMatch[1] : 'SOE-101.00'
           // Backpacking has its own reference: main SOE + details on SOE-301.00 (different from timber lagging line)
-          const backpackingText = `F&I new backpacking @ timber lagging ${mainSoePage} & details on SOE-301.00`
+          const backpackingText = `F&I new backpacking @ timber lagging ${mainSoePage} & details on`
           spreadsheet.updateCell({ value: backpackingText }, `${pfx}B${currentRow}`)
             rowBContentMap.set(currentRow, backpackingText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -8307,9 +8765,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           // Generate shims proposal text
           const shimsQtyValue = Math.round(shimsTotalQty || shimsTotalTakeoff || 0)
           const shimsProposalText = `F&I new (${shimsQtyValue})no. sets of 2"x4" @2'-0" O.C. min shim/wedge plates for transfer of vertical load & fill the gab between B.O. existing foundation & T.O. new underpinning w/non-shrink grout/dry pack`
-
-          // Add shims proposal text
-          spreadsheet.updateCell({ value: shimsProposalText }, `${pfx}B${currentRow}`)
+          const afterCountShims = afterCountFromProposalText(shimsProposalText)
+          if (afterCountShims) {
+            spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCountShims) }, `${pfx}B${currentRow}`)
+          } else {
+            spreadsheet.updateCell({ value: shimsProposalText }, `${pfx}B${currentRow}`)
+          }
             rowBContentMap.set(currentRow, shimsProposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat(
@@ -8572,9 +9033,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
         // Generate proposal text with placeholders for missing values
         // Format: F&I new (41)no (1.25"Ø thick) threaded bar (or approved equal) (100 Kips tension load capacity & 80 Kips lock off load capacity) 150KSI rock anchors (5-KSI grout infilled) (L=13'-3" + 10'-6" bond length), 4"Ø drill hole as per FO-101.00
-        const proposalText = `F&I new (${totalQtyValue})no (##"Ø thick) threaded bar (or approved equal) (## Kips tension load capacity & ## Kips lock off load capacity) ##KSI rock anchors (##-KSI grout infilled) (L=${freeLengthText} + ${bondLengthText} bond length), ${drillHole} drill hole as per ${soePageMain}`
-
-        spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        const proposalText = `F&I new (${totalQtyValue})no (##"Ø thick) threaded bar (or approved equal) (## Kips tension load capacity & ## Kips lock off load capacity) ##KSI rock anchors (##-KSI grout infilled) (L=${freeLengthText} + ${bondLengthText} bond length), ${drillHole} drill hole as per ${soePageMain} & details on`
+        const afterCount = afterCountFromProposalText(proposalText)
+        if (afterCount) {
+          spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
+        } else {
+          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        }
           rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
@@ -8789,9 +9254,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
         // Generate proposal text
         // Format: F&I new (11)no threaded bar (or approved equal) 150KSI (20°) rock bolts/dowel (L=10'-0"), 3"Ø drill hole as per SOE-A-100.00
-        const proposalText = `F&I new (${totalQtyValue})no threaded bar (or approved equal) ##KSI (##°) rock bolts/dowel (L=${bondLengthText}), ${drillHole} drill hole as per ${soePageMain}`
-
-        spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        const proposalText = `F&I new (${totalQtyValue})no threaded bar (or approved equal) ##KSI (##°) rock bolts/dowel (L=${bondLengthText}), ${drillHole} drill hole as per ${soePageMain} & details on`
+        const afterCountRB = afterCountFromProposalText(proposalText)
+        if (afterCountRB) {
+          spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCountRB) }, `${pfx}B${currentRow}`)
+        } else {
+          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        }
           rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
@@ -9186,10 +9655,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           proposalText += `, (#-KSI grout infilled)`
           proposalText += ` with (#)qty #00-#" ## Ksi full length reinforcement`
           proposalText += ` (H=${heightText}, ${rockSocketText} rock socket)`
-          proposalText += ` as per ${foReference}, ${soeReference}`
+          proposalText += ` as per ${foReference}, ${soeReference} & details on`
 
-          // Add proposal text
-          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          const afterCountDC = afterCountFromProposalText(proposalText)
+          if (afterCountDC) {
+            spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCountDC) }, `${pfx}B${currentRow}`)
+          } else {
+            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          }
           rowBContentMap.set(currentRow, proposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           fillRatesForProposalRow(currentRow, proposalText)
@@ -9512,10 +9985,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         proposalText += ` (H=${heightText}, ${rockSocketText} rock socket)`
 
         // Add reference codes
-        proposalText += ` as per ${foReference}, ${soeReference}`
+        proposalText += ` as per ${foReference}, ${soeReference} & details on`
 
-        // Add proposal text
-        spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        const afterCountFP = afterCountFromProposalText(proposalText)
+        if (afterCountFP) {
+          spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCountFP) }, `${pfx}B${currentRow}`)
+        } else {
+          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        }
         rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
@@ -9946,71 +10423,156 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
         return false
       }
+      // Get data rows for a group (subsection): from rowsBySubsection or single formula row
+      const getGroupDataRows = (source, sub, isFormulaItem) => {
+        if (!calculationData) return []
+        if (isFormulaItem && source && source.row) {
+          const r = calculationData[source.row - 1]
+          return r ? [r] : []
+        }
+        if (!rowsBySubsection || !sub) return []
+        const direct = rowsBySubsection.get(sub)
+        if (direct && direct.length) return direct
+        const subLower = sub.toLowerCase()
+        for (const [key, rows] of rowsBySubsection) {
+          if (key && key.toLowerCase() === subLower && rows && rows.length) return rows
+        }
+        return []
+      }
+      // Extract height (col H = 7), thickness, width, dimensions (from Particulars col 1) from group rows for dynamic proposal text
+      const getDynamicValuesFromGroupRows = (source, sub, isFormulaItem) => {
+        const rows = getGroupDataRows(source, sub, isFormulaItem)
+        const heightValues = rows.map(r => parseFloat(r[7])).filter(v => !Number.isNaN(v) && v > 0)
+        const heightText = formatHeightAsFeetInches(heightValues)
+        let thicknessText = ''
+        let widthText = ''
+        let dimensionsText = ''
+        for (const r of rows) {
+          const p = (r && r[1] || '').toString()
+          if (!thicknessText) {
+            const feetInch = p.match(/(\d+'\s*-\s*\d+"?)\s*thick/i) || p.match(/(\d+'\s*-\s*\d+"?)(?=\s|,|\)|$)/i)
+            const inchOnly = p.match(/(\d+(?:\/\d+)?)"?\s*thick/i) || p.match(/(\d+(?:\/\d+)?)"(?=\s|,|\)|$)/i)
+            if (feetInch) {
+              thicknessText = feetInch[1].trim()
+              if (!/"/.test(thicknessText)) thicknessText += '"'
+            } else if (inchOnly) {
+              thicknessText = inchOnly[1] + (inchOnly[1].includes('"') ? '' : '"')
+            }
+          }
+          if (!widthText) {
+            const widthRange = p.match(/(\d+'\s*-\s*\d+"?\s*to\s*\d+'\s*-\s*\d+"?)\s*wide/i)
+            const widthInch = p.match(/(\d+"?\s*x\s*\d+"?)\s*wide/i) || p.match(/(\d+)\s*["']?\s*x\s*["']?\s*(\d+)\s*wide/i)
+            const widthSingle = p.match(/(\d+'\s*-\s*\d+"?)\s*wide/i) || p.match(/(\d+(?:\/\d+)?)"?\s*wide/i)
+            if (widthRange) widthText = widthRange[1].trim()
+            else if (widthInch) {
+              const parts = (widthInch[1] + (widthInch[2] ? 'x' + widthInch[2] : '')).split(/\s*x\s*/i)
+              widthText = parts.map(part => part.replace(/\s/g, '').trim() + (part.includes('"') || part.includes("'") ? '' : '"')).join('x')
+            }
+            else if (widthSingle) {
+              widthText = widthSingle[1].trim()
+              if (!/"/.test(widthText) && widthSingle[0].includes('"')) widthText += '"'
+            }
+          }
+          if (!dimensionsText) {
+            const dim3 = p.match(/(\d+'\s*-\s*\d+"?\s*x\s*\d+'\s*-\s*\d+"?\s*x\s*\d+'\s*-\s*\d+"?)/i) || p.match(/(\d+'\s*-\s*\d+"?x\d+'\s*-\s*\d+"?x\d+'\s*-\s*\d+"?)/i)
+            if (dim3) dimensionsText = dim3[1].replace(/\s/g, '').trim()
+          }
+        }
+        return { heightText: heightText || '##', thicknessText, widthText, dimensionsText }
+      }
+      // Replace (H=...), (Havg=...), thickness, width, dimensions in template with values from group data (template wording unchanged)
+      const applyDynamicValuesToTemplate = (text, vals) => {
+        if (!text || typeof text !== 'string') return text
+        if (!vals) return text
+        let out = text
+        if (vals.heightText) {
+          out = out.replace(/\s*\(H(avg)?\s*=\s*[^)]*\)/gi, (full, avg) => {
+            const withTyp = /,\s*typ\.?\s*\)$/.test(full)
+            return ` (H${avg ? 'avg=' : '='}${vals.heightText}${withTyp ? ', typ.' : ''})`
+          })
+        }
+        if (vals.thicknessText) {
+          out = out.replace(/\s*\(\d+'\s*-\s*\d+"?\s*thick[^)]*\)/gi, () => ` (${vals.thicknessText} thick)`)
+          out = out.replace(/\s*\(\d+(?:\/\d+)?"\s*thick[^)]*\)/gi, () => ` (${vals.thicknessText} thick)`)
+          out = out.replace(/\s*\(\d+'\s*-\s*\d+"?\s*thick,\s*typ\.?\)/gi, () => ` (${vals.thicknessText} thick, typ.)`)
+          out = out.replace(/\s*\(\d+(?:\/\d+)?"\s*thick,\s*typ\.?\)/gi, () => ` (${vals.thicknessText} thick, typ.)`)
+        }
+        if (vals.widthText) {
+          out = out.replace(/\s*\(\d+'\s*-\s*\d+"?\s*to\s*\d+'\s*-\s*\d+"?\s*wide\)/gi, () => ` (${vals.widthText} wide)`)
+          out = out.replace(/\s*\(\d+"\s*x\s*\d+"\s*wide\)/gi, () => ` (${vals.widthText} wide)`)
+          out = out.replace(/\s*\(\d+'\s*-\s*\d+"?\s*wide\)/gi, () => ` (${vals.widthText} wide)`)
+          out = out.replace(/\s*\(\d+(?:\/\d+)?"\s*wide\)/gi, () => ` (${vals.widthText} wide)`)
+        }
+        if (vals.dimensionsText) {
+          out = out.replace(/\s*\(\d+'\s*-\s*\d+"?x\d+'\s*-\s*\d+"?x\d+'\s*-\s*\d+"?\)/gi, () => ` (${vals.dimensionsText})`)
+        }
+        return out
+      }
       const substructureTemplate = [
         {
           heading: 'Compacted gravel', items: [
-            { text: `F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ SOG, elevator pit slab, detention tank slab, duplex sewage ejector pit slab & mat as per FO-101.00 & details on FO-203.00`, sub: 'SOG', match: p => p.includes('gravel') && !p.includes('geotextile') },
+            { text: `F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ SOG, elevator pit slab, detention tank slab, duplex sewage ejector pit slab & mat as per FO-101.00 & details on`, sub: 'SOG', match: p => p.includes('gravel') && !p.includes('geotextile') },
           { text: 'F&I new geotextile filter fabric below gravel', sub: 'SOG', match: p => p.includes('geotextile'), showIfExists: true }
           ]
         },
         {
           heading: 'Elevator pit', items: [
             { text: `F&I new (2)no. (1'-0" thick) sump pit (2'-0"x2'-0"x2'-0") reinf w/ #4@12"O.C., T&B/E.F., E.W. typ`, sub: 'Elevator Pit', match: p => p.includes('sump'), formulaItem: { itemType: 'elevator_pit', match: p => (p || '').toLowerCase().includes('sump') } },
-            { text: `F&I new (3'-0" thick) elevator pit slab, reinf w/#5@12"O.C. & #5@12"O.C., as per FO-101.00 & details on FO-203.00`, sub: 'Elevator Pit', match: p => p.includes('elev') && p.includes('slab') && !p.includes('sump') },
-            { text: `F&I new (1'-0" thick) elevator pit walls (H=5'-0") as per FO-101.00 & details on FO-203.00`, sub: 'Elevator Pit', match: p => p.includes('elev') && p.includes('wall') && (p.includes("1'-0") || p.includes('1-0"')) },
-            { text: `F&I new (1'-2" thick) elevator pit walls (H=5'-0") as per FO-101.00 & details on FO-203.00`, sub: 'Elevator Pit', match: p => p.includes('elev') && p.includes('wall') && (p.includes("1'-2") || p.includes('1-2"') || p.includes('1.17')) },
-            { text: `F&I new (1'-2" thick) elevator pit slope transition/haunch (H=2'-3") as per FO-101.00 & details on FO-203.00`, sub: 'Elevator Pit', match: p => p.includes('slope') || p.includes('haunch') }
+            { text: `F&I new (3'-0" thick) elevator pit slab, reinf w/#5@12"O.C. & #5@12"O.C., as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => p.includes('elev') && p.includes('slab') && !p.includes('sump') },
+            { text: `F&I new (1'-0" thick) elevator pit walls (H=5'-0") as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => p.includes('elev') && p.includes('wall') && (p.includes("1'-0") || p.includes('1-0"')) },
+            { text: `F&I new (1'-2" thick) elevator pit walls (H=5'-0") as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => p.includes('elev') && p.includes('wall') && (p.includes("1'-2") || p.includes('1-2"') || p.includes('1.17')) },
+            { text: `F&I new (1'-2" thick) elevator pit slope transition/haunch (H=2'-3") as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => p.includes('slope') || p.includes('haunch') }
           ]
         },
         {
           heading: 'Detention tank w/epoxy coated reinforcement', items: [
-            { text: `F&I new (1'-0" thick) detention tank slab as per FO-101.00 & details on FO-203.00`, sub: 'Detention tank', match: p => p.includes('detention') && p.includes('slab') && !p.includes('lid') },
-            { text: `F&I new (1'-0" thick) detention tank walls (H=10'-0") as per FO-101.00 & details on FO-203.00`, sub: 'Detention tank', match: p => p.includes('detention') && p.includes('wall') },
-            { text: `F&I new (0'-8" thick) detention tank lid slab as per FO-101.00 & details on FO-203.00`, sub: 'Detention tank', match: p => p.includes('detention') && (p.includes('lid') || p.includes('8"')) }
+            { text: `F&I new (1'-0" thick) detention tank slab as per FO-101.00 & details on`, sub: 'Detention tank', match: p => p.includes('detention') && p.includes('slab') && !p.includes('lid') },
+            { text: `F&I new (1'-0" thick) detention tank walls (H=10'-0") as per FO-101.00 & details on`, sub: 'Detention tank', match: p => p.includes('detention') && p.includes('wall') },
+            { text: `F&I new (0'-8" thick) detention tank lid slab as per FO-101.00 & details on`, sub: 'Detention tank', match: p => p.includes('detention') && (p.includes('lid') || p.includes('8"')) }
           ]
         },
         {
           heading: 'Duplex sewage ejector pit', items: [
-            { text: `F&I new (0'-8" thick, typ.) duplex sewage ejector pit slab as per P-301.01`, sub: 'Duplex sewage ejector pit', match: p => p.includes('duplex') && p.includes('slab') },
-            { text: `F&I new (0'-8" thick, typ.) duplex sewage ejector pit wall (H=5'-0", typ.) as per P-301.01`, sub: 'Duplex sewage ejector pit', match: p => p.includes('duplex') && p.includes('wall') }
+            { text: `F&I new (0'-8" thick, typ.) duplex sewage ejector pit slab as per P-301.01 & details on`, sub: 'Duplex sewage ejector pit', match: p => p.includes('duplex') && p.includes('slab') },
+            { text: `F&I new (0'-8" thick, typ.) duplex sewage ejector pit wall (H=5'-0", typ.) as per P-301.01 & details on`, sub: 'Duplex sewage ejector pit', match: p => p.includes('duplex') && p.includes('wall') }
           ]
         },
         {
           heading: 'Deep sewage ejector pit', items: [
-            { text: `F&I new (1'-0" thick) deep sewage ejector pit slab as per P-100.00 & details on P-205.00`, sub: 'Deep sewage ejector pit', match: p => p.includes('deep') && p.includes('slab') },
-          { text: `F&I new (0'-6" wide) deep sewage ejector pit walls (H=8'-6") as per P-100.00`, sub: 'Deep sewage ejector pit', match: p => (p || '').toLowerCase().includes('deep') && (p.includes('wall') || /6\s*[""]?\s*x\s*8\s*['']?\s*-\s*6/i.test(p) || (p.includes('6"') && (p.includes("8'-6") || p.includes("8'- 6")))) }
+            { text: `F&I new (1'-0" thick) deep sewage ejector pit slab as per P-100.00 & details on`, sub: 'Deep sewage ejector pit', match: p => p.includes('deep') && p.includes('slab') },
+          { text: `F&I new (0'-6" wide) deep sewage ejector pit walls (H=8'-6") as per P-100.00 & details on`, sub: 'Deep sewage ejector pit', match: p => (p || '').toLowerCase().includes('deep') && (p.includes('wall') || /6\s*[""]?\s*x\s*8\s*['']?\s*-\s*6/i.test(p) || (p.includes('6"') && (p.includes("8'-6") || p.includes("8'- 6")))) }
           ]
         },
         {
           heading: 'Grease trap pit', items: [
-          { text: `F&I new (1'-0" thick) grease trap pit slab as per P-100.00 & details on P-205.00`, sub: 'Grease trap', match: p => (p || '').toLowerCase().includes('grease') && (p || '').toLowerCase().includes('slab') },
-          { text: `F&I new (0'-6" wide) grease trap pit walls (H=8'-6") as per P-100.00 & details on P-205.00`, sub: 'Grease trap', match: p => (p || '').toLowerCase().includes('grease') && ((p || '').toLowerCase().includes('wall') || /6\s*[""]?\s*x\s*8\s*['']?\s*-\s*6/i.test(p) || ((p || '').includes('6"') && ((p || '').includes("8'-6") || (p || '').includes("8'- 6")))) }
+          { text: `F&I new (1'-0" thick) grease trap pit slab as per P-100.00 & details on`, sub: 'Grease trap', match: p => (p || '').toLowerCase().includes('grease') && (p || '').toLowerCase().includes('slab') },
+          { text: `F&I new (0'-6" wide) grease trap pit walls (H=8'-6") as per P-100.00 & details on`, sub: 'Grease trap', match: p => (p || '').toLowerCase().includes('grease') && ((p || '').toLowerCase().includes('wall') || /6\s*[""]?\s*x\s*8\s*['']?\s*-\s*6/i.test(p) || ((p || '').includes('6"') && ((p || '').includes("8'-6") || (p || '').includes("8'- 6")))) }
           ]
         },
         {
           heading: 'House trap pit', items: [
-          { text: `F&I new (1'-0" thick) house trap pit slab as per P-100.00 & details on P-205.00`, sub: 'House trap', match: p => (p || '').toLowerCase().includes('house trap') && (p || '').toLowerCase().includes('slab') },
-          { text: `F&I new (0'-6" wide) house trap pit walls (H=8'-6") as per P-100.00 & details on P-205.00`, sub: 'House trap', match: p => (p || '').toLowerCase().includes('house trap') && ((p || '').toLowerCase().includes('wall') || /6\s*[""]?\s*x\s*8\s*['']?\s*-\s*6/i.test(p) || ((p || '').includes('6"') && ((p || '').includes("8'-6") || (p || '').includes("8'- 6")))) }
+          { text: `F&I new (1'-0" thick) house trap pit slab as per P-100.00 & details on`, sub: 'House trap', match: p => (p || '').toLowerCase().includes('house trap') && (p || '').toLowerCase().includes('slab') },
+          { text: `F&I new (0'-6" wide) house trap pit walls (H=8'-6") as per P-100.00 & details on`, sub: 'House trap', match: p => (p || '').toLowerCase().includes('house trap') && ((p || '').toLowerCase().includes('wall') || /6\s*[""]?\s*x\s*8\s*['']?\s*-\s*6/i.test(p) || ((p || '').includes('6"') && ((p || '').includes("8'-6") || (p || '').includes("8'- 6")))) }
           ]
         },
         {
           heading: 'Foundation elements', items: [
-            { text: 'F&I new (9)no pile caps as per FO-101.00', sub: 'Pile caps', match: () => true },
-            { text: `F&I new (2'-0" to 7'-0" wide) strip footings (Havg=1'-10") as per FO-101.00`, sub: 'Strip Footings', match: () => true },
-            { text: 'F&I new (15)no isolated footings as per FO-101.00', sub: 'Isolated Footings', match: () => true },
-            { text: `F&I new (17)no (12"x24" wide) piers (H=3'-4") as per FO-101.00`, sub: 'Pier', match: () => true },
-            { text: `F&I new (4)no (22"x16" wide) Pilasters (Havg=8'-0") as per S-101.00`, sub: 'Pilaster', match: () => true },
-            { text: 'F&I new grade beams as per FO-102.00', sub: 'Grade beams', match: () => true },
-            { text: 'F&I new tie beams as per FO-101.00, FO-102.00', sub: 'Tie beam', match: () => true },
-            { text: `F&I new (8" thick) thickened slab as per FO-101.00`, sub: 'Thickened slab', match: () => true },
-            { text: `F&I new (24" thick) mat slab reinforced as per FO-101.00`, sub: 'Mat slab', match: p => p.includes('2\'') || p.includes('24') },
-            { text: `F&I new (36" thick) mat slab reinforced as per FO-101.00`, sub: 'Mat slab', match: p => p.includes('3\'') || p.includes('36') },
-            { text: `F&I new (3" thick) mud/rat slab as per FO-101.00 & details on FO-003.00`, sub: 'Mud Slab', match: () => true },
-            { text: `F&I new (4" thick) slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00`, sub: 'SOG', match: p => (p.includes('sog 4') || (p.includes('sog') && p.includes('4"') && !p.includes('patch') && !p.includes('5"'))) },
-            { text: `F&I new (6" thick) slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00`, sub: 'SOG', match: p => (p.includes('sog 6') || (p.includes('sog') && p.includes('6"') && !p.includes('patio') && !p.includes('step'))) },
-            { text: `F&I new (6" thick) patio slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00`, sub: 'SOG', match: p => p.includes('patio') },
-            { text: `Allow to (5" thick) patch slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00`, sub: 'SOG', match: p => p.includes('patch') },
-            { text: `F&I new (6" thick) slab on grade step (H=1'-2") as per FO-101.00 & details on FO-203.00`, sub: 'SOG', match: p => p.includes('step') },
+            { text: 'F&I new (9)no pile caps as per FO-101.00 & details on', sub: 'Pile caps', match: () => true },
+            { text: `F&I new (2'-0" to 7'-0" wide) strip footings (Havg=1'-10") as per FO-101.00 & details on`, sub: 'Strip Footings', match: () => true },
+            { text: 'F&I new (15)no isolated footings as per FO-101.00 & details on', sub: 'Isolated Footings', match: () => true },
+            { text: `F&I new (17)no (12"x24" wide) piers (H=3'-4") as per FO-101.00 & details on`, sub: 'Pier', match: () => true },
+            { text: `F&I new (4)no (22"x16" wide) Pilasters (Havg=8'-0") as per S-101.00 & details on`, sub: 'Pilaster', match: () => true },
+            { text: 'F&I new grade beams as per FO-102.00 & details on', sub: 'Grade beams', match: () => true },
+            { text: 'F&I new tie beams as per FO-101.00, FO-102.00 & details on', sub: 'Tie beam', match: () => true },
+            { text: `F&I new (8" thick) thickened slab as per FO-101.00 & details on`, sub: 'Thickened slab', match: () => true },
+            { text: `F&I new (24" thick) mat slab reinforced as per FO-101.00 & details on`, sub: 'Mat slab', match: p => p.includes('2\'') || p.includes('24') },
+            { text: `F&I new (36" thick) mat slab reinforced as per FO-101.00 & details on`, sub: 'Mat slab', match: p => p.includes('3\'') || p.includes('36') },
+            { text: `F&I new (3" thick) mud/rat slab as per FO-101.00 & details on`, sub: 'Mud Slab', match: () => true },
+            { text: `F&I new (4" thick) slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00 & details on`, sub: 'SOG', match: p => (p.includes('sog 4') || (p.includes('sog') && p.includes('4"') && !p.includes('patch') && !p.includes('5"'))) },
+            { text: `F&I new (6" thick) slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00 & details on`, sub: 'SOG', match: p => (p.includes('sog 6') || (p.includes('sog') && p.includes('6"') && !p.includes('patio') && !p.includes('step'))) },
+            { text: `F&I new (6" thick) patio slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00 & details on`, sub: 'SOG', match: p => p.includes('patio') },
+            { text: `Allow to (5" thick) patch slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00 & details on`, sub: 'SOG', match: p => p.includes('patch') },
+            { text: `F&I new (6" thick) slab on grade step (H=1'-2") as per FO-101.00 & details on`, sub: 'SOG', match: p => p.includes('step') },
           {
             formulaItem: { itemType: 'buttress_final', match: () => true },
             showIfExists: true,
@@ -10054,26 +10616,26 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               }
               if (page === '##') page = 'FO-101.00'
               const heightPart = height !== '##' ? `(H=${height})` : `(${height})`
-              const line = `F&I new (${qty})no (${width}) buttresses ${heightPart} within foundation walls @ cellar FL to 1st FL as per ${page}`
+              const line = `F&I new (${qty})no (${width}) buttresses ${heightPart} within foundation walls @ cellar FL to 1st FL as per ${page} & details on`
               return { line, data: { qty, width, height, page } }
             }
           },
-            { text: `F&I new (8" thick) corbel (Havg=2'-2") as per FO-101.00 & details on FO-203.00`, sub: 'Corbel', match: () => true },
-            { text: `F&I new (8" thick) concrete liner walls (Havg=11'-2") @ cellar FL to 1st FL as per FO-101.00 & details on FO-203.00`, sub: 'Linear Wall', match: () => true },
-            { text: `F&I new (1'-0" wide) foundation walls (Havg=10'-10") @ cellar FL to 1st FL as per FO-101.00`, sub: 'Foundation Wall', match: () => true },
-            { text: `F&I new (10" wide) retaining walls (Havg=6'-4") @ court as per FO-101.00`, sub: 'Retaining walls', match: p => p.includes('court') },
-            { text: `F&I new (1'-0" wide) retaining walls w/epoxy reinforcement (Havg=4'-8") @ level 1 as per FO-101.00`, sub: 'Retaining walls', match: p => p.toLowerCase().startsWith('rw') || p.includes('retaining wall') || p.includes('retaining walls') || p.includes('level') }
+            { text: `F&I new (8" thick) corbel (Havg=2'-2") as per FO-101.00 & details on`, sub: 'Corbel', match: () => true },
+            { text: `F&I new (8" thick) concrete liner walls (Havg=11'-2") @ cellar FL to 1st FL as per FO-101.00 & details on`, sub: 'Linear Wall', match: () => true },
+            { text: `F&I new (1'-0" wide) foundation walls (Havg=10'-10") @ cellar FL to 1st FL as per FO-101.00 & details on`, sub: 'Foundation Wall', match: () => true },
+            { text: `F&I new (10" wide) retaining walls (Havg=6'-4") @ court as per FO-101.00 & details on`, sub: 'Retaining walls', match: p => p.includes('court') },
+            { text: `F&I new (1'-0" wide) retaining walls w/epoxy reinforcement (Havg=4'-8") @ level 1 as per FO-101.00 & details on`, sub: 'Retaining walls', match: p => p.toLowerCase().startsWith('rw') || p.includes('retaining wall') || p.includes('retaining walls') || p.includes('level') }
           ]
         },
         {
           heading: 'Barrier wall', items: [
-            { text: `F&I new (0'-8" thick) barrier walls (Havg=4'-0") @ cellar FL as per FO-001.00 & details on FO-103.00`, sub: 'Barrier wall', match: p => p.includes('8"') || p.includes('2\'') },
-            { text: `F&I new (0'-10" thick) barrier walls (Havg=5'-1") @ cellar FL as per FO-001.00 & details on FO-103.00`, sub: 'Barrier wall', match: p => p.includes('10"') || p.includes('5\'') }
+            { text: `F&I new (0'-8" thick) barrier walls (Havg=4'-0") @ cellar FL as per FO-001.00 & details on`, sub: 'Barrier wall', match: p => p.includes('8"') || p.includes('2\'') },
+            { text: `F&I new (0'-10" thick) barrier walls (Havg=5'-1") @ cellar FL as per FO-001.00 & details on`, sub: 'Barrier wall', match: p => p.includes('10"') || p.includes('5\'') }
           ]
         },
         {
           heading: 'Stem wall', items: [
-            { text: `F&I new (0'-10" thick) stem walls (Havg=5'-1") @ cellar FL as per FO-001.00 & details on FO-103.00`, sub: 'Stem wall', match: () => true }
+            { text: `F&I new (0'-10" thick) stem walls (Havg=5'-1") @ cellar FL as per FO-001.00 & details on`, sub: 'Stem wall', match: () => true }
           ]
         },
         {
@@ -10088,7 +10650,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         },
         {
           heading: 'Trench drain', items: [
-            { text: 'F&I new trench drain as per FO-102.00 & details on scope sheet pt. no. 65', formulaItem: { itemType: 'electric_conduit', match: p => (p || '').toLowerCase().includes('trench drain') } }
+            { text: 'F&I new trench drain as per FO-102.00 & details on', formulaItem: { itemType: 'electric_conduit', match: p => (p || '').toLowerCase().includes('trench drain') } }
           ]
         },
         {
@@ -10274,13 +10836,22 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
           const sumRow = rowToUse
           const getTextResult = typeof getText === 'function' ? getText(source, calculationData, rawData) : null
-          const displayText = getTextResult != null && typeof getTextResult === 'object' && getTextResult.line != null
+          let displayText = getTextResult != null && typeof getTextResult === 'object' && getTextResult.line != null
             ? getTextResult.line
             : (getTextResult != null && typeof getTextResult === 'string' ? getTextResult : text)
+          if (displayText === text && source != null && text) {
+            const dynVals = getDynamicValuesFromGroupRows(source, sub, !!formulaItem)
+            displayText = applyDynamicValuesToTemplate(text, dynVals)
+          }
           if (getTextResult?.data) {
             console.log('Final as per schedule count', getTextResult.data, getTextResult.line)
           }
-          spreadsheet.updateCell({ value: displayText }, `${pfx}B${currentRow}`)
+          const afterCountSub = afterCountFromProposalText(displayText)
+          if (afterCountSub) {
+            spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCountSub) }, `${pfx}B${currentRow}`)
+          } else {
+            spreadsheet.updateCell({ value: displayText }, `${pfx}B${currentRow}`)
+          }
           rowBContentMap.set(currentRow, displayText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
@@ -13246,7 +13817,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       currentRow++
 
       erosionItems.stabilized_entrance.forEach(({ rowNum, thickness = 6 }) => {
-          const stabilizedText = `F&I new (${thickness}" thick) temporary stabilized construction entrance w/geotextile fabric as per C-8 & details on C-12`
+          const stabilizedText = `F&I new (${thickness}" thick) temporary stabilized construction entrance w/geotextile fabric as per C-8 & details on`
           spreadsheet.updateCell({ value: stabilizedText }, `${pfx}B${currentRow}`)
           rowBContentMap.set(currentRow, stabilizedText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -13260,7 +13831,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       })
 
       erosionItems.silt_fence.forEach(({ rowNum, heightStr = "2'-6\"" }) => {
-          const siltFenceText = `F&I new silt fence (H=${heightStr}) as per C-8 & details on C-13`
+          const siltFenceText = `F&I new silt fence (H=${heightStr}) as per C-8 & details on`
           spreadsheet.updateCell({ value: siltFenceText }, `${pfx}B${currentRow}`)
           rowBContentMap.set(currentRow, siltFenceText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -13274,7 +13845,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       })
 
       erosionItems.inlet_filter.forEach(({ rowNum, qty = 1 }) => {
-          const inletFilterText = `F&I new (${qty})no inlet filter as per C-8 & details on C-13`
+          const inletFilterText = `F&I new (${qty})no inlet filter as per C-8 & details on`
           spreadsheet.updateCell({ value: inletFilterText }, `${pfx}B${currentRow}`)
           rowBContentMap.set(currentRow, inletFilterText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -13415,7 +13986,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const sumFormulaL = gravel6Rows.length === 1
             ? `='${excGradingCalcSheet}'!L${gravel6Rows[0].rowNum}`
             : `=SUM(${gravel6Rows.map(r => `'${excGradingCalcSheet}'!L${r.rowNum}`).join(',')})`
-            const utilityTrenchGravelText = `F&I new (6" thick) gravel/crushed stone @ utility trench & asphalt pavement as per C-6 & details on C-12`
+            const utilityTrenchGravelText = `F&I new (6" thick) gravel/crushed stone @ utility trench & asphalt pavement as per C-6 & details on`
             spreadsheet.updateCell({ value: utilityTrenchGravelText }, `${pfx}B${currentRow}`)
             rowBContentMap.set(currentRow, utilityTrenchGravelText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -13637,7 +14208,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         if (civilEleGravel) {
           const gravFirstRow = civilEleGravel.firstDataRow || civilEleGravel.row
           const gravLastRow = civilEleGravel.lastDataRow || civilEleGravel.row
-            const gravelUtilText = 'F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ utility trench & asphalt pavement as per C-6 & details on C-12'
+            const gravelUtilText = 'F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ utility trench & asphalt pavement as per C-6 & details on'
             spreadsheet.updateCell({ value: gravelUtilText }, `${pfx}B${currentRow}`)
             rowBContentMap.set(currentRow, gravelUtilText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -13734,7 +14305,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           currentRow++
         }
         if (gasGravRow) {
-            const gravelUtilText = 'F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ utility trench & asphalt pavement as per C-6 & details on C-12'
+            const gravelUtilText = 'F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ utility trench & asphalt pavement as per C-6 & details on'
             spreadsheet.updateCell({ value: gravelUtilText }, `${pfx}B${currentRow}`)
             rowBContentMap.set(currentRow, gravelUtilText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -13804,7 +14375,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
         const watGravRowOrFallback = watGravRow || watExcRow || watBackRow
         if (watGravRowOrFallback) {
-            const gravelUtilText = 'F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ utility trench & asphalt pavement as per C-6 & details on C-12'
+            const gravelUtilText = 'F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ utility trench & asphalt pavement as per C-6 & details on'
             spreadsheet.updateCell({ value: gravelUtilText }, `${pfx}B${currentRow}`)
             rowBContentMap.set(currentRow, gravelUtilText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -14054,7 +14625,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
         const cpRow = civilConcretePavementSum.row
         const cpRefs = getSiteRefsFromRawData(/concrete\s+sidewalk|reinforced\s+sidewalk/i, 'C-4', 'C-11')
-          const concreteSidewalkText = `F&I new (4" thick) concrete sidewalk, reinf w/ 6x6-W1.4xW1.4 w.w.f as per ${cpRefs.main} & details on ${cpRefs.details}`
+          const concreteSidewalkText = `F&I new (4" thick) concrete sidewalk, reinf w/ 6x6-W1.4xW1.4 w.w.f as per ${cpRefs.main} & details on`
           spreadsheet.updateCell({ value: concreteSidewalkText }, `${pfx}B${currentRow}`)
           rowBContentMap.set(currentRow, concreteSidewalkText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -14075,7 +14646,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
         const apRow = civilAsphaltSum.row
         const apRefs = getSiteRefsFromRawData(/asphalt\s+pavement|full\s+depth\s+asphalt/i, 'FO-001.00', 'C-11')
-          const asphaltPavementText = `F&I new full depth asphalt pavement (1.5" thick) surface course on (3" thick) base course as per ${apRefs.main} & details on ${apRefs.details}`
+          const asphaltPavementText = `F&I new full depth asphalt pavement (1.5" thick) surface course on (3" thick) base course as per ${apRefs.main} & details on`
           spreadsheet.updateCell({ value: asphaltPavementText }, `${pfx}B${currentRow}`)
           rowBContentMap.set(currentRow, asphaltPavementText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -14158,7 +14729,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const heightStr = hIn > 0 ? `${hFt}'-${hIn}"` : `${hFt}'-0"`
         const bollardQty = getSiteQtyFromSum(civilBollardFootingSum)
         const bollardRefs = getSiteRefsFromRawData(/bollard/i, 'C-4', 'C-11')
-          const bollardText = `F&I new (${bollardQty ?? 28})no (${diaStr} Ø wide) concrete filled steel pipe bollard (Havg=${heightStr}) as per ${bollardRefs.main} & details on ${bollardRefs.details}`
+          const bollardText = `F&I new (${bollardQty ?? 28})no (${diaStr} Ø wide) concrete filled steel pipe bollard (Havg=${heightStr}) as per ${bollardRefs.main} & details on`
           spreadsheet.updateCell({ value: bollardText }, `${pfx}B${currentRow}`)
           rowBContentMap.set(currentRow, bollardText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -14382,48 +14953,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           return `=SUM(${rows.map(r => `'Calculations Sheet'!${col}${r}`).join(',')})`
         }
 
-        // Average thickness (inches) from calculation sheet for a group of rows. Column H (index 7) = height in feet; also parse "X" thick" from column B (particulars) as fallback.
-        const avgThicknessInchesFromRows = (calcRows) => {
-          if (!calculationData || !calcRows || calcRows.length === 0) return null
-          const thicknessRegex = /(\d+(?:\.\d+)?)\s*"\s*thick/i
-          const values = []
-          calcRows.forEach((excelRow) => {
-            const rowIndex = excelRow - 1
-            if (rowIndex < 0 || rowIndex >= calculationData.length) return
-            const row = calculationData[rowIndex]
-            const heightFeet = row[7]
-            if (heightFeet != null && heightFeet !== '' && !isNaN(Number(heightFeet))) {
-              values.push(Number(heightFeet) * 12)
-            } else {
-              const particulars = row[1] ? String(row[1]) : ''
-              const m = particulars.match(thicknessRegex)
-              if (m) values.push(parseFloat(m[1]))
-            }
-          })
-          if (values.length === 0) return null
-          const sum = values.reduce((a, b) => a + b, 0)
-          return Math.round(sum / values.length * 10) / 10
-        }
-
-        // Average thickness from formulaData parsedData (e.g. heightValue in feet -> inches)
-        const drivewayItems = streetBppItems.filter(f => f.itemType === 'bpp_concrete_driveway')
-        const gravelItems = streetBppItems.filter(f => f.itemType === 'bpp_gravel')
-        let avgDrivewayThick = avgThicknessInchesFromRows(drivewayRows)
-        if (avgDrivewayThick == null && drivewayItems.length > 0) {
-          const fromParsed = drivewayItems
-            .map(f => f.parsedData?.parsed?.heightValue)
-            .filter(v => v != null && !isNaN(Number(v)))
-            .map(v => Number(v) * 12)
-          if (fromParsed.length > 0) avgDrivewayThick = Math.round(fromParsed.reduce((a, b) => a + b, 0) / fromParsed.length * 10) / 10
-        }
-        let avgGravelThick = avgThicknessInchesFromRows(gravelRows)
-        if (avgGravelThick == null && gravelItems.length > 0) {
-          const fromGravelType = gravelItems.map(f => f.gravelType === '6inch' ? 6 : f.gravelType === '4inch' ? 4 : null).filter(Boolean)
-          if (fromGravelType.length > 0) avgGravelThick = fromGravelType.reduce((a, b) => a + b, 0) / fromGravelType.length
-        }
-        const concThickLabel = avgDrivewayThick != null ? `${avgDrivewayThick}"` : '7"'
-        const gravelThickLabel = avgGravelThick != null ? `${avgGravelThick}"` : '6"'
-
         // "Pavement replacement: [Street Name]" header - background only on column B
         spreadsheet.updateCell({ value: `Pavement replacement: ${streetName}` }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
@@ -14446,8 +14975,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
 
-        // 2. Allow to saw-cut/demo/remove/dispose existing [avg]" sidewalk/driveway - SF and CY from driveway (thickness from group average)
-        const bppLine2 = `Allow to saw-cut/demo/remove/dispose existing ${concThickLabel} sidewalk/driveway`
+        // 2. Allow to saw-cut/demo/remove/dispose existing 7" sidewalk/driveway - SF and CY from driveway
+        const bppLine2 = 'Allow to saw-cut/demo/remove/dispose existing 7" sidewalk/driveway'
         spreadsheet.updateCell({ value: bppLine2 }, `${pfx}B${currentRow}`)
           rowBContentMap.set(currentRow, bppLine2)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
@@ -14526,16 +15055,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
 
-        // 8. F&I new Concrete driveway [avg]" thick + Gravel [avg]" thick (typ.) - thickness from group average in calculation sheet; SF/CY from driveway and gravel
-        const bppLine8 = `F&I new Concrete driveway ${concThickLabel} thick + Gravel ${gravelThickLabel} thick (typ.), reinf w/ 6x6-W1.4xW1.4 @ corners & driveways`
+        // 8. F&I new (7" thick) concrete sidewalk/driveway - SF/CY from driveway
+        const bppLine8 = 'F&I new (7" thick) concrete sidewalk/driveway, reinf w/ 6x6-W1.4xW1.4 @ corners & driveways'
         spreadsheet.updateCell({ value: bppLine8 }, `${pfx}B${currentRow}`)
           rowBContentMap.set(currentRow, bppLine8)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
         fillRatesForProposalRow(currentRow, bppLine8)
-        const drivewayAndGravelRows = [...drivewayRows, ...gravelRows]
-        if (drivewayAndGravelRows.length > 0) {
-          spreadsheet.updateCell({ formula: buildSumFormula(drivewayAndGravelRows, 'J') }, `${pfx}D${currentRow}`)
-          spreadsheet.updateCell({ formula: buildSumFormula(drivewayAndGravelRows, 'L') }, `${pfx}F${currentRow}`)
+        if (drivewayRows.length > 0) {
+          spreadsheet.updateCell({ formula: buildSumFormula(drivewayRows, 'J') }, `${pfx}D${currentRow}`)
+          spreadsheet.updateCell({ formula: buildSumFormula(drivewayRows, 'L') }, `${pfx}F${currentRow}`)
         }
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
