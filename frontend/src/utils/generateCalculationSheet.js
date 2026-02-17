@@ -11,6 +11,11 @@ import {
   processTimberLaggingItems,
   processTimberSheetingItems,
   processTimberSoldierPileItems,
+  processTimberPlankItems,
+  processTimberWalerItems,
+  processTimberRakerItems,
+  processTimberBraceItems,
+  processTimberPostItems,
   processWalerItems,
   processRakerItems,
   processUpperRakerItems,
@@ -137,6 +142,11 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let timberLaggingItems = []
   let timberSheetingItems = []
   let timberSoldierPileGroups = []
+  let timberPlankGroups = []
+  let timberWalerGroups = []
+  let timberRakerGroups = []
+  let timberBraceGroups = []
+  let timberPostGroups = []
   let walerItems = []
   let rakerItems = []
   let upperRakerItems = []
@@ -263,6 +273,11 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     timberLaggingItems = processTimberLaggingItems(dataRows, headers, tracker)
     timberSheetingItems = processTimberSheetingItems(dataRows, headers, tracker)
     timberSoldierPileGroups = processTimberSoldierPileItems(dataRows, headers, tracker)
+    timberPlankGroups = processTimberPlankItems(dataRows, headers, tracker)
+    timberWalerGroups = processTimberWalerItems(dataRows, headers, tracker)
+    timberRakerGroups = processTimberRakerItems(dataRows, headers, tracker)
+    timberBraceGroups = processTimberBraceItems(dataRows, headers, tracker)
+    timberPostGroups = processTimberPostItems(dataRows, headers, tracker)
     walerItems = processWalerItems(dataRows, headers, tracker)
     rakerItems = processRakerItems(dataRows, headers, tracker)
     upperRakerItems = processUpperRakerItems(dataRows, headers, tracker)
@@ -382,7 +397,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
       hasSectionData = rockExcavationItems.length > 0 || lineDrillItems.length > 0 || section.subsections.some(sub => sub.name.includes('Extra line item'))
     } else if (section.section === 'SOE') {
       hasSectionData = [
-        soldierPileGroups, timberSoldierPileGroups, primarySecantItems, secondarySecantItems, tangentPileItems, sheetPileItems,
+        soldierPileGroups, timberSoldierPileGroups, timberPlankGroups, timberWalerGroups, timberRakerGroups, timberBraceGroups, timberPostGroups, primarySecantItems, secondarySecantItems, tangentPileItems, sheetPileItems,
         timberLaggingItems, timberSheetingItems, walerItems, rakerItems, upperRakerItems, lowerRakerItems,
         standOffItems, kickerItems, channelItems, rollChockItems, studBeamItems, innerCornerBraceItems,
         kneeBraceItems, supportingAngleGroups, pargingItems, heelBlockItems, underpinningItems,
@@ -776,6 +791,11 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         let headerCheckItems = []
         if (subsection.name === 'Drilled soldier pile') headerCheckItems = soldierPileGroups // Group check
         else if (subsection.name === 'Timber soldier piles') headerCheckItems = timberSoldierPileGroups // Group check
+        else if (subsection.name === 'Timber planks') headerCheckItems = timberPlankGroups // Group check
+        else if (subsection.name === 'Timber waler') headerCheckItems = timberWalerGroups // Group check
+        else if (subsection.name === 'Timber raker') headerCheckItems = timberRakerGroups // Group check
+        else if (subsection.name === 'Timber brace') headerCheckItems = timberBraceGroups // Group check
+        else if (subsection.name === 'Timber post') headerCheckItems = timberPostGroups // Group check
         else if (subsection.name === 'Primary secant piles') headerCheckItems = primarySecantItems
         else if (subsection.name === 'Secondary secant piles') headerCheckItems = secondarySecantItems
         else if (subsection.name === 'Tangent piles') headerCheckItems = tangentPileItems
@@ -864,6 +884,112 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             rows.push(sumRow)
             formulas.push({ row: rows.length, itemType: 'timber_soldier_pile_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
             if (groupIndex < timberSoldierPileGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
+          })
+        } else if (subsection.name === 'Timber planks' && timberPlankGroups.length > 0) {
+          // Process each group for timber planks (no column K, H not rounded). If (N) at start, E=qty, I=H*C*E, M=C*E
+          timberPlankGroups.forEach((group, groupIndex) => {
+            const firstGroupRow = rows.length + 1
+            group.items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.calculatedHeight || ''
+              if (item.parsed.qty != null) {
+                itemRow[4] = item.parsed.qty
+              }
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'soldier_pile_item', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'timber_plank_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
+            if (groupIndex < timberPlankGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
+          })
+        } else if (subsection.name === 'Timber waler' && timberWalerGroups.length > 0) {
+          // Timber waler: E=qty from (N) or 1, F=manual, I=E*C, M=E*F. Sum I and M only if multiple items.
+          const timberWalerTotalItems = timberWalerGroups.reduce((sum, g) => sum + g.items.length, 0)
+          const hasMultipleTimberWalerItems = timberWalerTotalItems > 1
+          timberWalerGroups.forEach((group, groupIndex) => {
+            const firstGroupRow = rows.length + 1
+            group.items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[4] = item.parsed.qty ?? 1
+              // Col F (index 5) = length, empty for manual input
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'timber_waler_item', parsedData: item, section: 'soe', hasMultipleItems: hasMultipleTimberWalerItems })
+            })
+            if (hasMultipleTimberWalerItems) {
+              const sumRow = Array(template.columns.length).fill('')
+              rows.push(sumRow)
+              formulas.push({ row: rows.length, itemType: 'timber_waler_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
+            }
+            if (groupIndex < timberWalerGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
+          })
+        } else if (subsection.name === 'Timber raker' && timberRakerGroups.length > 0) {
+          // Process each group for timber raker (same as timber planks: no column K, H not rounded)
+          timberRakerGroups.forEach((group, groupIndex) => {
+            const firstGroupRow = rows.length + 1
+            group.items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.calculatedHeight || ''
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'soldier_pile_item', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'timber_raker_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
+            if (groupIndex < timberRakerGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
+          })
+        } else if (subsection.name === 'Timber brace' && timberBraceGroups.length > 0) {
+          // Timber brace: per-group - multiple same-type items -> sum I and M, items black; single item or merged (different types) -> no sum, I and M red
+          timberBraceGroups.forEach((group, groupIndex) => {
+            const firstGroupRow = rows.length + 1
+            const hasMultipleItemsInGroup = group.items.length > 1 && !group.isMerged
+            group.items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              if (item.parsed.type === 'timber_brace_corner') {
+                itemRow[4] = item.parsed.qty ?? 1
+                // Col F (index 5) = length, empty for manual input
+              } else {
+                itemRow[7] = item.parsed.calculatedHeight || ''
+              }
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'timber_brace_item', parsedData: item, section: 'soe', hasMultipleItems: hasMultipleItemsInGroup })
+            })
+            if (hasMultipleItemsInGroup) {
+              const sumRow = Array(template.columns.length).fill('')
+              rows.push(sumRow)
+              formulas.push({ row: rows.length, itemType: 'timber_brace_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
+            }
+            if (groupIndex < timberBraceGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
+          })
+        } else if (subsection.name === 'Timber post' && timberPostGroups.length > 0) {
+          // Process each group for timber post (same as timber soldier piles: no column K)
+          timberPostGroups.forEach((group, groupIndex) => {
+            const firstGroupRow = rows.length + 1
+            group.items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.calculatedHeight || ''
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'soldier_pile_item', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'timber_post_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
+            if (groupIndex < timberPostGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
           })
         } else {
           // Other SOE subsections

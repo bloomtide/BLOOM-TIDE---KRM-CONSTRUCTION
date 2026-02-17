@@ -685,7 +685,7 @@ const Spreadsheet = () => {
 
         formulas = generateRockExcavationFormulas(itemType === 'rock_excavation_item' ? parsedData.itemType : itemType, row, parsedData)
       } else if (section === 'soe') {
-        if (['soldier_pile_item', 'soe_generic_item', 'backpacking_item', 'supporting_angle', 'parging', 'heel_block', 'underpinning', 'shims', 'rock_anchor', 'rock_bolt', 'anchor', 'tie_back', 'concrete_soil_retention_pier', 'guide_wall', 'dowel_bar', 'rock_pin', 'shotcrete', 'permission_grouting', 'button', 'rock_stabilization', 'form_board'].includes(itemType)) {
+        if (['soldier_pile_item', 'timber_brace_item', 'timber_waler_item', 'soe_generic_item', 'backpacking_item', 'supporting_angle', 'parging', 'heel_block', 'underpinning', 'shims', 'rock_anchor', 'rock_bolt', 'anchor', 'tie_back', 'concrete_soil_retention_pier', 'guide_wall', 'dowel_bar', 'rock_pin', 'shotcrete', 'permission_grouting', 'button', 'rock_stabilization', 'form_board'].includes(itemType)) {
           try {
             const soeFormulas = generateSoeFormulas(itemType, row, parsedData || formulaInfo)
             if (soeFormulas.takeoff) spreadsheet.updateCell({ formula: `=${soeFormulas.takeoff}` }, `C${row}`)
@@ -753,18 +753,28 @@ const Spreadsheet = () => {
               spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             }
+            // Timber brace - columns I and M in red only when single item in group (no sum row)
+            if (itemType === 'timber_brace_item' && !formulaInfo?.hasMultipleItems) {
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            }
+            // Timber waler - columns I and M in red only when single item (no sum row)
+            if (itemType === 'timber_waler_item' && !formulaInfo?.hasMultipleItems) {
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            }
           } catch (error) {
             // Ignore errors
           }
           return
         }
 
-        if (itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum' || itemType === 'soe_generic_sum') {
+        if (itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum' || itemType === 'timber_plank_group_sum' || itemType === 'timber_raker_group_sum' || itemType === 'timber_brace_group_sum' || itemType === 'timber_waler_group_sum' || itemType === 'timber_post_group_sum' || itemType === 'soe_generic_sum') {
           const { firstDataRow, lastDataRow, subsectionName } = formulaInfo
           try {
             // Standard sum for FT (I) for all SOE, except Heel blocks
             const ftSumSubsections = ['Rock anchors', 'Rock bolts', 'Anchor', 'Tie back', 'Dowel bar', 'Rock pins', 'Shotcrete', 'Permission grouting', 'Form board', 'Guide wall']
-            if (subsectionName !== 'Heel blocks' && (ftSumSubsections.includes(subsectionName) || !['Concrete soil retention piers', 'Buttons', 'Rock stabilization'].includes(subsectionName))) {
+            if ((itemType === 'timber_waler_group_sum' || itemType === 'timber_brace_group_sum') || (itemType !== 'timber_brace_group_sum' && subsectionName !== 'Heel blocks' && (ftSumSubsections.includes(subsectionName) || !['Concrete soil retention piers', 'Buttons', 'Rock stabilization'].includes(subsectionName)))) {
               spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
             }
@@ -828,7 +838,7 @@ const Spreadsheet = () => {
               'Rock pins',
               'Buttons'
             ]
-            if (itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum' || qtySubsections.includes(subsectionName)) {
+            if (itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum' || itemType === 'timber_plank_group_sum' || itemType === 'timber_raker_group_sum' || itemType === 'timber_waler_group_sum' || itemType === 'timber_brace_group_sum' || itemType === 'timber_post_group_sum' || qtySubsections.includes(subsectionName)) {
               spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
             }

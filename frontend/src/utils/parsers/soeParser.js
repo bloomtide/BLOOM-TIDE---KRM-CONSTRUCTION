@@ -142,6 +142,55 @@ export const isTimberSoldierPile = (digitizerItem) => {
 }
 
 /**
+ * Identifies if item is a timber plank
+ * e.g. 3"x12" Timber planks (H=3'-0")
+ */
+export const isTimberPlank = (digitizerItem) => {
+    if (!digitizerItem || typeof digitizerItem !== 'string') return false
+    const itemLower = digitizerItem.toLowerCase()
+    return itemLower.includes('timber plank')
+}
+
+/**
+ * Parses timber plank parameters
+ * e.g. 3"x12" Timber planks (H=3'-0") or (2) 3"x12" Timber planks (H=3'-0")
+ * Same structure as timber soldier piles but: no E (embedment), calculatedHeight = H from bracket (no rounding)
+ * Optional qty from (N) at start
+ */
+export const parseTimberPlank = (itemName) => {
+    const result = {
+        type: 'timber_plank',
+        size: null,
+        heightRaw: 0,
+        calculatedHeight: 0,
+        qty: null,
+        groupKey: null
+    }
+
+    const qtyMatch = itemName.match(/^\((\d+)\)/)
+    if (qtyMatch) {
+        result.qty = parseInt(qtyMatch[1], 10) || 1
+    }
+
+    const sizeMatch = itemName.match(/(\d+)"\s*x\s*(\d+)"/i)
+    if (sizeMatch) {
+        result.size = `${sizeMatch[1]}x${sizeMatch[2]}`
+    }
+
+    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
+    if (hMatch) result.heightRaw = parseDimension(hMatch[1])
+
+    // Timber planks: use H from bracket directly, do NOT round up
+    result.calculatedHeight = result.heightRaw
+
+    const hValue = Math.round(result.heightRaw * 12)
+    const qtyPart = result.qty != null ? `-q${result.qty}` : ''
+    result.groupKey = `timber-plank-${result.size || 'other'}-${hValue}${qtyPart}`
+
+    return result
+}
+
+/**
  * Parses timber soldier pile parameters
  * e.g. 4"x4" Timber soldier piles (H=11'-2", E=5'-0)
  * Same structure as drilled: H, E, calculatedHeight, groupKey
@@ -172,6 +221,181 @@ export const parseTimberSoldierPile = (itemName) => {
     const hValue = Math.round(result.heightRaw * 12)
     const eValue = result.embedment ? Math.round(result.embedment * 12) : 0
     result.groupKey = `timber-${result.size || 'other'}-${hValue}-${eValue}`
+
+    return result
+}
+
+/**
+ * Identifies if item is a timber post
+ * e.g. 6"x6" Timber post (H=5'-6", E=4'-0")
+ */
+export const isTimberPost = (digitizerItem) => {
+    if (!digitizerItem || typeof digitizerItem !== 'string') return false
+    const itemLower = digitizerItem.toLowerCase()
+    return itemLower.includes('timber post')
+}
+
+/**
+ * Parses timber post parameters
+ * e.g. 6"x6" Timber post (H=5'-6", E=4'-0")
+ * Same structure as timber soldier pile but: calculatedHeight = H from bracket (no rounding)
+ */
+export const parseTimberPost = (itemName) => {
+    const result = {
+        type: 'timber_post',
+        size: null,
+        heightRaw: 0,
+        embedment: null,
+        calculatedHeight: 0,
+        groupKey: null
+    }
+
+    const sizeMatch = itemName.match(/(\d+)"\s*x\s*(\d+)"/i)
+    if (sizeMatch) {
+        result.size = `${sizeMatch[1]}x${sizeMatch[2]}`
+    }
+
+    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
+    const eMatch = itemName.match(/E=([0-9'"\-]+)/)
+
+    if (hMatch) result.heightRaw = parseDimension(hMatch[1])
+    if (eMatch) result.embedment = parseDimension(eMatch[1])
+
+    // Timber post: use H from bracket directly, do NOT round up
+    result.calculatedHeight = result.heightRaw
+
+    const hValue = Math.round(result.heightRaw * 12)
+    const eValue = result.embedment ? Math.round(result.embedment * 12) : 0
+    result.groupKey = `timber-post-${result.size || 'other'}-${hValue}-${eValue}`
+
+    return result
+}
+
+/**
+ * Identifies if item is a timber raker (wood raker)
+ * e.g. 4"x4" Wood raker (H=2'-1" typ.)
+ */
+export const isTimberRaker = (digitizerItem) => {
+    if (!digitizerItem || typeof digitizerItem !== 'string') return false
+    const itemLower = digitizerItem.toLowerCase()
+    return itemLower.includes('wood raker')
+}
+
+/**
+ * Parses timber raker parameters
+ * e.g. 4"x4" Wood raker (H=2'-1" typ.)
+ * Same structure as timber planks: no column K, calculatedHeight = H from bracket (no rounding)
+ */
+export const parseTimberRaker = (itemName) => {
+    const result = {
+        type: 'timber_raker',
+        size: null,
+        heightRaw: 0,
+        calculatedHeight: 0,
+        groupKey: null
+    }
+
+    const sizeMatch = itemName.match(/(\d+)"\s*x\s*(\d+)"/i)
+    if (sizeMatch) {
+        result.size = `${sizeMatch[1]}x${sizeMatch[2]}`
+    }
+
+    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
+    if (hMatch) result.heightRaw = parseDimension(hMatch[1])
+
+    // Timber raker: use H from bracket directly, do NOT round up
+    result.calculatedHeight = result.heightRaw
+
+    const hValue = Math.round(result.heightRaw * 12)
+    result.groupKey = `timber-raker-${result.size || 'other'}-${hValue}`
+
+    return result
+}
+
+/**
+ * Identifies if item is a timber brace (Horizontal wood brace or Timber Corner brace)
+ * e.g. 2"x4" Horizontal wood brace (H=2'-0" typ.) or (2) 6"x6" Timber Corner brace
+ */
+export const isTimberBrace = (digitizerItem) => {
+    if (!digitizerItem || typeof digitizerItem !== 'string') return false
+    const itemLower = digitizerItem.toLowerCase()
+    return itemLower.includes('horizontal wood brace') || itemLower.includes('timber corner brace')
+}
+
+/**
+ * Parses timber brace parameters
+ * Two types: horizontal_wood_brace (H from bracket) or timber_corner_brace (qty from (N) at start)
+ */
+export const parseTimberBrace = (itemName) => {
+    const itemLower = itemName.toLowerCase()
+    const isCornerBrace = itemLower.includes('timber corner brace')
+
+    const result = {
+        type: isCornerBrace ? 'timber_brace_corner' : 'timber_brace_horizontal',
+        size: null,
+        heightRaw: 0,
+        calculatedHeight: 0,
+        qty: 1,
+        groupKey: null
+    }
+
+    const sizeMatch = itemName.match(/(\d+)"\s*x\s*(\d+)"/i)
+    if (sizeMatch) {
+        result.size = `${sizeMatch[1]}x${sizeMatch[2]}`
+    }
+
+    if (isCornerBrace) {
+        // (2) 6"x6" Timber Corner brace - qty from (N) at start
+        const qtyMatch = itemName.match(/^\((\d+)\)/)
+        if (qtyMatch) {
+            result.qty = parseInt(qtyMatch[1], 10) || 1
+        }
+        result.groupKey = `timber-brace-corner-${result.size || 'other'}-${result.qty}`
+    } else {
+        // 2"x4" Horizontal wood brace (H=2'-0" typ.)
+        const hMatch = itemName.match(/H=([0-9'"\-]+)/)
+        if (hMatch) result.heightRaw = parseDimension(hMatch[1])
+        result.calculatedHeight = result.heightRaw
+        const hValue = Math.round(result.heightRaw * 12)
+        result.groupKey = `timber-brace-h-${result.size || 'other'}-${hValue}`
+    }
+
+    return result
+}
+
+/**
+ * Identifies if item is a timber waler
+ * e.g. (2) 6"x6" Timber waler
+ */
+export const isTimberWaler = (digitizerItem) => {
+    if (!digitizerItem || typeof digitizerItem !== 'string') return false
+    const itemLower = digitizerItem.toLowerCase()
+    return itemLower.includes('timber waler')
+}
+
+/**
+ * Parses timber waler parameters
+ * e.g. (2) 6"x6" Timber waler - qty from (N) at start, or 1 if not present
+ */
+export const parseTimberWaler = (itemName) => {
+    const result = {
+        type: 'timber_waler',
+        size: null,
+        qty: 1,
+        groupKey: null
+    }
+
+    const sizeMatch = itemName.match(/(\d+)"\s*x\s*(\d+)"/i)
+    if (sizeMatch) {
+        result.size = `${sizeMatch[1]}x${sizeMatch[2]}`
+    }
+
+    const qtyMatch = itemName.match(/^\((\d+)\)/)
+    if (qtyMatch) {
+        result.qty = parseInt(qtyMatch[1], 10) || 1
+    }
+
+    result.groupKey = `timber-waler-${result.size || 'other'}-${result.qty}`
 
     return result
 }
@@ -229,8 +453,8 @@ export const isTimberLagging = (digitizerItem) => {
  * New identifiers for additional SOE sections
  */
 export const isTimberSheeting = (item) => item?.toLowerCase().includes('timber sheeting')
-export const isWaler = (item) => item?.toLowerCase().includes('waler')
-export const isRaker = (item) => item?.toLowerCase().includes('raker') && !item?.toLowerCase().includes('upper') && !item?.toLowerCase().includes('lower')
+export const isWaler = (item) => item?.toLowerCase().includes('waler') && !item?.toLowerCase().includes('timber waler')
+export const isRaker = (item) => item?.toLowerCase().includes('raker') && !item?.toLowerCase().includes('upper') && !item?.toLowerCase().includes('lower') && !item?.toLowerCase().includes('wood raker')
 export const isUpperRaker = (item) => item?.toLowerCase().includes('upper raker')
 export const isLowerRaker = (item) => item?.toLowerCase().includes('lower raker')
 export const isStandOff = (item) => item?.toLowerCase().includes('stand off')
@@ -618,9 +842,19 @@ export const parseSoeItem = (itemName) => {
 export default {
     parseSoldierPile,
     parseTimberSoldierPile,
+    parseTimberPlank,
+    parseTimberRaker,
+    parseTimberBrace,
+    parseTimberWaler,
+    parseTimberPost,
     calculatePileWeight,
     isSoldierPile,
     isTimberSoldierPile,
+    isTimberPlank,
+    isTimberRaker,
+    isTimberPost,
+    isTimberBrace,
+    isTimberWaler,
     isPrimarySecantPile,
     isSecondarySecantPile,
     isTangentPile,

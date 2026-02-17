@@ -693,7 +693,7 @@ const ProposalDetail = () => {
           formulas = generateRockExcavationFormulas(itemType === 'rock_excavation_item' ? (parsedData?.itemType || itemType) : itemType, row, parsedData)
         } else if (section === 'soe') {
           // SOE section - use generateSoeFormulas for items
-          const soeItemTypes = ['soldier_pile_item', 'soe_generic_item', 'backpacking_item', 'supporting_angle', 'parging', 'heel_block', 'underpinning', 'shims', 'rock_anchor', 'rock_bolt', 'anchor', 'tie_back', 'concrete_soil_retention_pier', 'guide_wall', 'dowel_bar', 'rock_pin', 'shotcrete', 'permission_grouting', 'button', 'rock_stabilization', 'form_board']
+          const soeItemTypes = ['soldier_pile_item', 'timber_brace_item', 'timber_waler_item', 'soe_generic_item', 'backpacking_item', 'supporting_angle', 'parging', 'heel_block', 'underpinning', 'shims', 'rock_anchor', 'rock_bolt', 'anchor', 'tie_back', 'concrete_soil_retention_pier', 'guide_wall', 'dowel_bar', 'rock_pin', 'shotcrete', 'permission_grouting', 'button', 'rock_stabilization', 'form_board']
 
           if (soeItemTypes.includes(itemType)) {
             const soeFormulas = generateSoeFormulas(itemType, row, parsedData || formulaInfo)
@@ -751,10 +751,18 @@ const ProposalDetail = () => {
               spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             }
+            if (itemType === 'timber_brace_item' && !formulaInfo?.hasMultipleItems) {
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            }
+            if (itemType === 'timber_waler_item' && !formulaInfo?.hasMultipleItems) {
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            }
             return
           }
 
-          if (itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum' || itemType === 'soe_generic_sum') {
+          if (itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum' || itemType === 'timber_plank_group_sum' || itemType === 'timber_raker_group_sum' || itemType === 'timber_brace_group_sum' || itemType === 'timber_waler_group_sum' || itemType === 'timber_post_group_sum' || itemType === 'soe_generic_sum') {
             const { firstDataRow, lastDataRow, subsectionName } = formulaInfo
             const ftSumSubsections = ['Rock anchors', 'Rock bolts', 'Anchor', 'Tie back', 'Dowel bar', 'Rock pins', 'Shotcrete', 'Permission grouting', 'Form board', 'Guide wall']
             const sqFtSubsections = ['Sheet pile', 'Timber lagging', 'Timber sheeting', 'Parging', 'Heel blocks', 'Underpinning', 'Concrete soil retention piers', 'Guide wall', 'Shotcrete', 'Permission grouting', 'Buttons', 'Form board', 'Rock stabilization']
@@ -762,7 +770,7 @@ const ProposalDetail = () => {
             const qtySubsections = ['Primary secant piles', 'Secondary secant piles', 'Tangent piles', 'Waler', 'Raker', 'Upper Raker', 'Lower Raker', 'Stand off', 'Kicker', 'Channel', 'Roll chock', 'Stud beam', 'Inner corner brace', 'Knee brace', 'Supporting angle', 'Heel blocks', 'Underpinning', 'Rock anchors', 'Rock bolts', 'Anchor', 'Tie back', 'Concrete soil retention piers', 'Dowel bar', 'Rock pins', 'Buttons']
             const cySubsections = ['Heel blocks', 'Underpinning', 'Concrete soil retention piers', 'Guide wall', 'Shotcrete', 'Buttons', 'Rock stabilization']
 
-            if (subsectionName !== 'Heel blocks' && (ftSumSubsections.includes(subsectionName) || !['Concrete soil retention piers', 'Buttons', 'Rock stabilization'].includes(subsectionName))) {
+            if ((itemType === 'timber_waler_group_sum' || itemType === 'timber_brace_group_sum') || (itemType !== 'timber_brace_group_sum' && subsectionName !== 'Heel blocks' && (ftSumSubsections.includes(subsectionName) || !['Concrete soil retention piers', 'Buttons', 'Rock stabilization'].includes(subsectionName)))) {
               spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
             }
@@ -774,7 +782,7 @@ const ProposalDetail = () => {
               spreadsheet.updateCell({ formula: `=SUM(K${firstDataRow}:K${lastDataRow})` }, `K${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `K${row}`)
             }
-            if ((itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum') || qtySubsections.includes(subsectionName)) {
+            if ((itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum' || itemType === 'timber_plank_group_sum' || itemType === 'timber_raker_group_sum' || itemType === 'timber_waler_group_sum' || itemType === 'timber_brace_group_sum' || itemType === 'timber_post_group_sum') || qtySubsections.includes(subsectionName)) {
               spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
             }
