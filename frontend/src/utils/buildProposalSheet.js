@@ -9823,6 +9823,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           ]
         },
         {
+          heading: 'Sump pump pit', items: [
+            { text: `F&I new (0'-8" thick, typ.) sump pump pit slab as per P-301.01`, sub: 'Sump pump pit', match: p => p.includes('sump pump') && p.includes('slab') },
+            { text: `F&I new sump pump pit wall (8"x5'-0", typ.) as per P-301.01`, sub: 'Sump pump pit', match: p => p.includes('sump pump') && p.includes('wall') }
+          ]
+        },
+        {
           heading: 'Grease trap pit', items: [
             { text: `F&I new (1'-0" thick) grease trap pit slab as per P-100.00 & details on P-205.00`, sub: 'Grease trap', match: p => p.includes('grease') && p.includes('slab') },
             { text: `F&I new (0'-6" wide) grease trap pit walls (H=8'-6") as per P-100.00 & details on P-205.00`, sub: 'Grease trap', match: p => p.includes('grease') && p.includes('wall') }

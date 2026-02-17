@@ -77,6 +77,7 @@ import {
   processDetentionTankItems,
   processDuplexSewageEjectorPitItems,
   processDeepSewageEjectorPitItems,
+  processSumpPumpPitItems,
   processGreaseTrapItems,
   processHouseTrapItems,
   processMatSlabItems,
@@ -212,6 +213,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let detentionTankItems = []
   let duplexSewageEjectorPitItems = []
   let deepSewageEjectorPitItems = []
+  let sumpPumpPitItems = []
   let greaseTrapItems = []
   let houseTrapItems = []
   let matSlabItems = []
@@ -352,6 +354,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     detentionTankItems = processDetentionTankItems(dataRows, headers, tracker)
     duplexSewageEjectorPitItems = processDuplexSewageEjectorPitItems(dataRows, headers, tracker)
     deepSewageEjectorPitItems = processDeepSewageEjectorPitItems(dataRows, headers, tracker)
+    sumpPumpPitItems = processSumpPumpPitItems(dataRows, headers, tracker)
     greaseTrapItems = processGreaseTrapItems(dataRows, headers, tracker)
     houseTrapItems = processHouseTrapItems(dataRows, headers, tracker)
     matSlabItems = processMatSlabItems(dataRows, headers, tracker)
@@ -426,8 +429,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         stelcorDrilledDisplacementPileItems, cfaPileItems, pileCapItems, stripFootingGroups,
         isolatedFootingItems, pilasterItems, gradeBeamGroups, tieBeamGroups, thickenedSlabGroups,
         pierItems, corbelGroups, linearWallGroups, foundationWallGroups, retainingWallGroups,
-        barrierWallGroups, stemWallItems, elevatorPitItems, serviceElevatorPitItems, detentionTankItems, duplexSewageEjectorPitItems,
-        deepSewageEjectorPitItems, greaseTrapItems, houseTrapItems, matSlabItems, mudSlabFoundationItems,
+        barrierWallGroups, stemWallItems, elevatorPitItems, serviceElevatorPitItems, detentionTankItems,         duplexSewageEjectorPitItems,
+        deepSewageEjectorPitItems, sumpPumpPitItems, greaseTrapItems, houseTrapItems, matSlabItems, mudSlabFoundationItems,
         sogItems, stairsOnGradeGroups, electricConduitItems
       ].some(arr => arr && arr.length > 0) || !!buttressItem
     } else if (section.section === 'Waterproofing') {
@@ -1486,6 +1489,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Detention tank') hasSubsectionData = detentionTankItems.length > 0
         else if (subsection.name === 'Duplex sewage ejector pit') hasSubsectionData = duplexSewageEjectorPitItems.length > 0
         else if (subsection.name === 'Deep sewage ejector pit') hasSubsectionData = deepSewageEjectorPitItems.length > 0
+        else if (subsection.name === 'Sump pump pit') hasSubsectionData = sumpPumpPitItems.length > 0
         else if (subsection.name === 'Grease trap') hasSubsectionData = greaseTrapItems.length > 0
         else if (subsection.name === 'House trap') hasSubsectionData = houseTrapItems.length > 0
         else if (subsection.name === 'Mat slab') hasSubsectionData = matSlabItems.length > 0
@@ -2674,6 +2678,85 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 itemRow[7] = item.parsed.height || '' // Height (H)
                 rows.push(itemRow)
                 formulas.push({ row: rows.length, itemType: 'deep_sewage_ejector_pit', parsedData: item, section: 'foundation' })
+              })
+              const wallSumRow = Array(template.columns.length).fill('')
+              rows.push(wallSumRow)
+              formulas.push({
+                row: rows.length,
+                itemType: 'foundation_sum',
+                section: 'foundation',
+                firstDataRow: wallGroupFirstRow,
+                lastDataRow: rows.length - 1,
+                subsectionName: subsection.name,
+                foundationCySumRow: true
+              })
+            })
+          }
+        } else if (subsection.name === 'Sump pump pit' && sumpPumpPitItems.length > 0) {
+          // Group items by type (same structure as Duplex sewage ejector pit)
+          const slabItems = []
+          const wallItems = []
+
+          sumpPumpPitItems.forEach(item => {
+            const subType = item.parsed?.itemSubType
+            if (subType === 'slab') {
+              slabItems.push(item)
+            } else if (subType === 'wall') {
+              wallItems.push(item)
+            }
+          })
+
+          // Add slab items
+          if (slabItems.length > 0) {
+            const slabFirstRow = rows.length + 1
+            foundationSlabRows.sumpPumpPit = slabFirstRow
+            slabItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.heightFromName || '' // Height (H)
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'sump_pump_pit', parsedData: item, section: 'foundation' })
+            })
+            const slabSumRow = Array(template.columns.length).fill('')
+            rows.push(slabSumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: slabFirstRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name,
+              excludeISum: true, // Exclude I sum for slab items
+              foundationCySumRow: true
+            })
+            rows.push(Array(template.columns.length).fill(''))
+          }
+
+          // Group wall items by size
+          if (wallItems.length > 0) {
+            const wallGroups = new Map()
+            wallItems.forEach(item => {
+              const groupKey = item.parsed.groupKey || 'OTHER'
+              if (!wallGroups.has(groupKey)) {
+                wallGroups.set(groupKey, [])
+              }
+              wallGroups.get(groupKey).push(item)
+            })
+
+            getMergedGroupsIfNeeded(wallGroups).forEach((group) => {
+              const { items } = group
+              const wallGroupFirstRow = rows.length + 1
+              items.forEach(item => {
+                const itemRow = Array(template.columns.length).fill('')
+                itemRow[1] = item.particulars
+                itemRow[2] = item.takeoff
+                itemRow[3] = item.unit
+                itemRow[6] = item.parsed.width || '' // Width (G)
+                itemRow[7] = item.parsed.height || '' // Height (H)
+                rows.push(itemRow)
+                formulas.push({ row: rows.length, itemType: 'sump_pump_pit', parsedData: item, section: 'foundation' })
               })
               const wallSumRow = Array(template.columns.length).fill('')
               rows.push(wallSumRow)

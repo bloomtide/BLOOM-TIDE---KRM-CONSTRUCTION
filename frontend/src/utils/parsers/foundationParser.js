@@ -380,6 +380,15 @@ export const isDeepSewageEjectorPit = (item) => {
 }
 
 /**
+ * Identifies if item is a sump pump pit item
+ */
+export const isSumpPumpPit = (item) => {
+    if (!item || typeof item !== 'string') return false
+    const itemLower = item.toLowerCase()
+    return itemLower.includes('sump pump')
+}
+
+/**
  * Identifies if item is a grease trap item
  */
 export const isGreaseTrap = (item) => {
@@ -1328,6 +1337,47 @@ export const parseDeepSewageEjectorPit = (itemName) => {
 }
 
 /**
+ * Parses sump pump pit items
+ * Handles: slab items (extract height from name), wall items (parse from bracket)
+ * Same grouping and formulas as Duplex sewage ejector pit
+ */
+export const parseSumpPumpPit = (itemName) => {
+    const result = {
+        type: 'sump_pump_pit',
+        itemSubType: null, // 'slab', 'wall'
+        width: 0,
+        height: 0,
+        heightFromName: null,
+        groupKey: null
+    }
+
+    const itemLower = itemName.toLowerCase()
+
+    if (itemLower.includes('slab')) {
+        result.itemSubType = 'slab'
+        // Extract height from name like "8""
+        const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
+        if (inchMatch) {
+            const inches = parseFloat(inchMatch[1])
+            result.heightFromName = inches / 12 // Convert to feet
+        }
+        return result
+    } else if (itemLower.includes('wall')) {
+        result.itemSubType = 'wall'
+        const dims = parseBracketDimensions(itemName)
+        if (dims && dims.length >= 2) {
+            // Width (G) and Height (H) from bracket
+            result.width = dims[0]   // Width (G)
+            result.height = dims[1]  // Height (H)
+            result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        }
+        return result
+    }
+
+    return result
+}
+
+/**
  * Parses grease trap items
  * Handles: slab items (extract height from name), wall items (parse from bracket)
  */
@@ -1589,6 +1639,7 @@ export default {
     isDetentionTank,
     isDuplexSewageEjectorPit,
     isDeepSewageEjectorPit,
+    isSumpPumpPit,
     isGreaseTrap,
     isHouseTrap,
     isMatSlab,
@@ -1619,6 +1670,7 @@ export default {
     parseDetentionTank,
     parseDuplexSewageEjectorPit,
     parseDeepSewageEjectorPit,
+    parseSumpPumpPit,
     parseGreaseTrap,
     parseHouseTrap,
     parseMatSlab,

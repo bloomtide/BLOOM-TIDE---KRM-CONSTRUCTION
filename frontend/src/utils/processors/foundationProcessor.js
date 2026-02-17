@@ -26,6 +26,7 @@ import {
     isDetentionTank,
     isDuplexSewageEjectorPit,
     isDeepSewageEjectorPit,
+    isSumpPumpPit,
     isGreaseTrap,
     isHouseTrap,
     isMatSlab,
@@ -57,6 +58,7 @@ import {
     parseDetentionTank,
     parseDuplexSewageEjectorPit,
     parseDeepSewageEjectorPit,
+    parseSumpPumpPit,
     parseGreaseTrap,
     parseHouseTrap,
     parseMatSlab,
@@ -589,6 +591,13 @@ export const processDeepSewageEjectorPitItems = (rawDataRows, headers, tracker =
 }
 
 /**
+ * Process sump pump pit items (same grouping and formulas as Duplex sewage ejector pit)
+ */
+export const processSumpPumpPitItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isSumpPumpPit, parseSumpPumpPit, tracker)
+}
+
+/**
  * Processes grease trap items
  */
 export const processGreaseTrapItems = (rawDataRows, headers, tracker = null) => {
@@ -1010,6 +1019,25 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
             }
             break
 
+        case 'sump_pump_pit':
+            const sppSubType = itemData.parsed?.itemSubType
+            if (sppSubType === 'slab') {
+                // Sump pump pit slab: J=C, L=J*H/27 (same as Duplex sewage ejector pit)
+                formulas.sqFt = `C${rowNum}`
+                if (itemData.parsed?.heightFromName !== undefined) {
+                    formulas.height = itemData.parsed.heightFromName
+                }
+                formulas.cy = `J${rowNum}*H${rowNum}/27`
+            } else if (sppSubType === 'wall') {
+                // Sump pump pit wall: I=C, J=I*H, L=J*G/27 (same as Duplex sewage ejector pit)
+                formulas.ft = `C${rowNum}`
+                formulas.sqFt = `I${rowNum}*H${rowNum}`
+                if (itemData.parsed?.width !== undefined) formulas.width = itemData.parsed.width
+                if (itemData.parsed?.height !== undefined) formulas.height = itemData.parsed.height
+                formulas.cy = `J${rowNum}*G${rowNum}/27`
+            }
+            break
+
         case 'grease_trap':
             const gtSubType = itemData.parsed?.itemSubType
             if (gtSubType === 'slab') {
@@ -1188,6 +1216,7 @@ export default {
     processDetentionTankItems,
     processDuplexSewageEjectorPitItems,
     processDeepSewageEjectorPitItems,
+    processSumpPumpPitItems,
     processGreaseTrapItems,
     processHouseTrapItems,
     processMatSlabItems,
