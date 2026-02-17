@@ -73,6 +73,7 @@ import {
   processBarrierWallItems,
   processStemWallItems,
   processElevatorPitItems,
+  processServiceElevatorPitItems,
   processDetentionTankItems,
   processDuplexSewageEjectorPitItems,
   processDeepSewageEjectorPitItems,
@@ -207,6 +208,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let barrierWallGroups = []
   let stemWallItems = []
   let elevatorPitItems = []
+  let serviceElevatorPitItems = []
   let detentionTankItems = []
   let duplexSewageEjectorPitItems = []
   let deepSewageEjectorPitItems = []
@@ -346,6 +348,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     barrierWallGroups = processBarrierWallItems(dataRows, headers, tracker)
     stemWallItems = processStemWallItems(dataRows, headers, tracker)
     elevatorPitItems = processElevatorPitItems(dataRows, headers, tracker)
+    serviceElevatorPitItems = processServiceElevatorPitItems(dataRows, headers, tracker)
     detentionTankItems = processDetentionTankItems(dataRows, headers, tracker)
     duplexSewageEjectorPitItems = processDuplexSewageEjectorPitItems(dataRows, headers, tracker)
     deepSewageEjectorPitItems = processDeepSewageEjectorPitItems(dataRows, headers, tracker)
@@ -423,7 +426,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         stelcorDrilledDisplacementPileItems, cfaPileItems, pileCapItems, stripFootingGroups,
         isolatedFootingItems, pilasterItems, gradeBeamGroups, tieBeamGroups, thickenedSlabGroups,
         pierItems, corbelGroups, linearWallGroups, foundationWallGroups, retainingWallGroups,
-        barrierWallGroups, stemWallItems, elevatorPitItems, detentionTankItems, duplexSewageEjectorPitItems,
+        barrierWallGroups, stemWallItems, elevatorPitItems, serviceElevatorPitItems, detentionTankItems, duplexSewageEjectorPitItems,
         deepSewageEjectorPitItems, greaseTrapItems, houseTrapItems, matSlabItems, mudSlabFoundationItems,
         sogItems, stairsOnGradeGroups, electricConduitItems
       ].some(arr => arr && arr.length > 0) || !!buttressItem
@@ -1489,6 +1492,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Barrier wall') hasSubsectionData = barrierWallGroups.length > 0
         else if (subsection.name === 'Stem wall') hasSubsectionData = stemWallItems.length > 0
         else if (subsection.name === 'Elevator Pit') hasSubsectionData = elevatorPitItems.length > 0
+        else if (subsection.name === 'Service elevator pit') hasSubsectionData = serviceElevatorPitItems.length > 0
         else if (subsection.name === 'Detention tank') hasSubsectionData = detentionTankItems.length > 0
         else if (subsection.name === 'Duplex sewage ejector pit') hasSubsectionData = duplexSewageEjectorPitItems.length > 0
         else if (subsection.name === 'Deep sewage ejector pit') hasSubsectionData = deepSewageEjectorPitItems.length > 0
@@ -2057,36 +2061,48 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         } else if (subsection.name === 'Elevator Pit' && elevatorPitItems.length > 0) {
           const firstItemRow = rows.length + 1
 
-          // Group elevator pit items by sub-type for proper rendering
+          // Group elevator pit items by sub-type for proper rendering (slab and mat are separate)
+          const sumpItems = []
           const slabItems = []
+          const matItems = []
           const wallItems = []
           const slopeItems = []
 
           elevatorPitItems.forEach(item => {
             const subType = item.parsed?.itemSubType
-            if (subType === 'slab') {
+            if (subType === 'sump_pit') {
+              sumpItems.push(item)
+            } else if (subType === 'slab') {
               slabItems.push(item)
+            } else if (subType === 'mat') {
+              matItems.push(item)
             } else if (subType === 'wall') {
               wallItems.push(item)
             } else if (subType === 'slope_transition') {
               slopeItems.push(item)
             }
-            // Note: sump_pit items are not added from data, only the manual one with 2 EA
           })
 
-          // Add manual "Sump pit" item with value 2 EA
-          const sumpPitRow = Array(template.columns.length).fill('')
-          sumpPitRow[1] = 'Sump pit'
-          sumpPitRow[2] = 2
-          sumpPitRow[3] = 'EA'
-          rows.push(sumpPitRow)
-          formulas.push({
-            row: rows.length,
-            itemType: 'elevator_pit',
-            parsedData: { particulars: 'Sump pit', takeoff: 2, unit: 'EA', parsed: { type: 'elevator_pit', itemSubType: 'sump_pit' } },
-            section: 'foundation',
-            foundationCySumRow: true
+          // Add sump pit items from raw data (sump pit @ elevator, sump pit @ elevator pit)
+          sumpItems.forEach(item => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit
+            rows.push(itemRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'elevator_pit',
+              parsedData: item,
+              section: 'foundation',
+              foundationCySumRow: true
+            })
           })
+
+          // Add empty row between sump and slab if we have slab items
+          if (sumpItems.length > 0 && slabItems.length > 0) {
+            rows.push(Array(template.columns.length).fill(''))
+          }
 
           // Add slab items
           const slabFirstRow = slabItems.length > 0 ? rows.length + 1 : null
@@ -2101,7 +2117,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'elevator_pit', parsedData: item, section: 'foundation' })
           })
 
-          // Add sum row for slab items
+          // Add sum row for slab items (slab has no I column)
           if (slabItems.length > 0) {
             const slabSumRow = Array(template.columns.length).fill('')
             rows.push(slabSumRow)
@@ -2112,11 +2128,39 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               firstDataRow: slabFirstRow,
               lastDataRow: rows.length - 1,
               subsectionName: subsection.name,
-              foundationCySumRow: true
+              foundationCySumRow: true,
+              excludeISum: true
             })
           }
 
-          // Add empty row between slab and wall
+          // Add mat items (separate from slab)
+          if (matItems.length > 0) {
+            rows.push(Array(template.columns.length).fill('')) // Empty row between slab and mat
+            const matFirstRow = rows.length + 1
+            matItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.heightFromH || '' // Height (H)
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'elevator_pit', parsedData: item, section: 'foundation' })
+            })
+            const matSumRow = Array(template.columns.length).fill('')
+            rows.push(matSumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: matFirstRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name,
+              foundationCySumRow: true,
+              excludeISum: true
+            })
+          }
+
+          // Add empty row between slab/mat and wall
           if (wallItems.length > 0) {
             rows.push(Array(template.columns.length).fill(''))
           }
@@ -2194,6 +2238,186 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               formulas.push({ row: rows.length, itemType: 'elevator_pit', parsedData: item, section: 'foundation' })
             })
             // Add sum row for this slope group
+            const slopeSumRow = Array(template.columns.length).fill('')
+            rows.push(slopeSumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: slopeGroupFirstRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name,
+              foundationCySumRow: true
+            })
+            })
+        } else if (subsection.name === 'Service elevator pit' && serviceElevatorPitItems.length > 0) {
+          // Same structure as Elevator Pit: sump, slab, mat, wall, slope
+          const sumpItems = []
+          const slabItems = []
+          const matItems = []
+          const wallItems = []
+          const slopeItems = []
+
+          serviceElevatorPitItems.forEach(item => {
+            const subType = item.parsed?.itemSubType
+            if (subType === 'sump_pit') {
+              sumpItems.push(item)
+            } else if (subType === 'slab') {
+              slabItems.push(item)
+            } else if (subType === 'mat') {
+              matItems.push(item)
+            } else if (subType === 'wall') {
+              wallItems.push(item)
+            } else if (subType === 'slope_transition') {
+              slopeItems.push(item)
+            }
+          })
+
+          // Add sump pit items (Sump pit @ service elevator, Sump pit @ service elevator pit)
+          sumpItems.forEach(item => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit
+            rows.push(itemRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'service_elevator_pit',
+              parsedData: item,
+              section: 'foundation',
+              foundationCySumRow: true
+            })
+          })
+
+          if (sumpItems.length > 0 && slabItems.length > 0) {
+            rows.push(Array(template.columns.length).fill(''))
+          }
+
+          // Add slab items
+          const slabFirstRow = slabItems.length > 0 ? rows.length + 1 : null
+          if (slabFirstRow) foundationSlabRows.serviceElevatorPit = slabFirstRow
+          slabItems.forEach(item => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit
+            itemRow[7] = item.parsed.heightFromH || ''
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'service_elevator_pit', parsedData: item, section: 'foundation' })
+          })
+
+          if (slabItems.length > 0) {
+            const slabSumRow = Array(template.columns.length).fill('')
+            rows.push(slabSumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: slabFirstRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name,
+              foundationCySumRow: true,
+              excludeISum: true
+            })
+          }
+
+          // Add mat items
+          if (matItems.length > 0) {
+            rows.push(Array(template.columns.length).fill(''))
+            const matFirstRow = rows.length + 1
+            matItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.heightFromH || ''
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'service_elevator_pit', parsedData: item, section: 'foundation' })
+            })
+            const matSumRow = Array(template.columns.length).fill('')
+            rows.push(matSumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: matFirstRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name,
+              foundationCySumRow: true,
+              excludeISum: true
+            })
+          }
+
+          if (wallItems.length > 0) {
+            rows.push(Array(template.columns.length).fill(''))
+          }
+
+          // Group wall items by size
+          const wallGroups = new Map()
+          wallItems.forEach(item => {
+            const groupKey = item.parsed.groupKey || 'OTHER'
+            if (!wallGroups.has(groupKey)) {
+              wallGroups.set(groupKey, [])
+            }
+            wallGroups.get(groupKey).push(item)
+          })
+
+          const wallGroupsToIterate = getMergedGroupsIfNeeded(wallGroups)
+          wallGroupsToIterate.forEach((group, groupIndex) => {
+            const { items } = group
+            const wallGroupFirstRow = rows.length + 1
+            items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[6] = item.parsed.width || ''
+              itemRow[7] = item.parsed.height || ''
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'service_elevator_pit', parsedData: item, section: 'foundation' })
+            })
+            const wallSumRow = Array(template.columns.length).fill('')
+            rows.push(wallSumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: wallGroupFirstRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name,
+              foundationCySumRow: true
+            })
+            if (groupIndex < wallGroupsToIterate.length - 1 || slopeItems.length > 0) {
+              rows.push(Array(template.columns.length).fill(''))
+            }
+          })
+
+          if (slopeItems.length > 0) {
+            rows.push(Array(template.columns.length).fill(''))
+          }
+
+          const slopeGroups = new Map()
+          slopeItems.forEach(item => {
+            const groupKey = item.parsed.groupKey || 'OTHER'
+            if (!slopeGroups.has(groupKey)) {
+              slopeGroups.set(groupKey, [])
+            }
+            slopeGroups.get(groupKey).push(item)
+          })
+
+          getMergedGroupsIfNeeded(slopeGroups).forEach((group) => {
+            const { items } = group
+            const slopeGroupFirstRow = rows.length + 1
+            items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[6] = item.parsed.width || ''
+              itemRow[7] = item.parsed.height || ''
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'service_elevator_pit', parsedData: item, section: 'foundation' })
+            })
             const slopeSumRow = Array(template.columns.length).fill('')
             rows.push(slopeSumRow)
             formulas.push({
