@@ -11326,6 +11326,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           ]
         },
         {
+          heading: 'Sump pump pit', items: [
+            { text: `F&I new (0'-8" thick, typ.) sump pump pit slab as per P-301.01`, sub: 'Sump pump pit', match: p => (p || '').toLowerCase().includes('sump pump') && (p || '').toLowerCase().includes('slab') },
+            { text: `F&I new (0'-8" thick, typ.) sump pump pit wall (H=5'-0", typ.) as per P-301.01`, sub: 'Sump pump pit', match: p => (p || '').toLowerCase().includes('sump pump') && (p || '').toLowerCase().includes('wall') }
+          ]
+        },
+        {
           heading: 'Grease trap pit', items: [
           { text: `F&I new (1'-0" thick) grease trap pit slab as per P-100.00 & details on`, sub: 'Grease trap', match: p => (p || '').toLowerCase().includes('grease') && (p || '').toLowerCase().includes('slab') },
           { text: `F&I new (0'-6" wide) grease trap pit walls (H=8'-6") as per P-100.00 & details on`, sub: 'Grease trap', match: p => (p || '').toLowerCase().includes('grease') && ((p || '').toLowerCase().includes('wall') || /6\s*[""]?\s*x\s*8\s*['']?\s*-\s*6/i.test(p) || ((p || '').includes('6"') && ((p || '').includes("8'-6") || (p || '').includes("8'- 6")))) }
@@ -11432,7 +11438,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         },
         {
           heading: 'Trench drain', items: [
-            { text: 'F&I new trench drain as per FO-102.00 & details on', formulaItem: { itemType: 'electric_conduit', match: p => (p || '').toLowerCase().includes('trench drain') } }
+            { text: 'F&I new concrete @ trench drain as per FO-102.00 & details on', formulaItem: { itemType: 'electric_conduit', match: p => (p || '').toLowerCase().includes('trench drain') } }
           ]
         },
         {

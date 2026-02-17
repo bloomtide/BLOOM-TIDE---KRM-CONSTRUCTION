@@ -12,6 +12,7 @@ import {
     isPilaster,
     isGradeBeam,
     isTieBeam,
+    isStrapBeam,
     isThickenedSlab,
     isButtress,
     isPier,
@@ -26,6 +27,7 @@ import {
     isDetentionTank,
     isDuplexSewageEjectorPit,
     isDeepSewageEjectorPit,
+    isSumpPumpPit,
     isGreaseTrap,
     isHouseTrap,
     isMatSlab,
@@ -44,6 +46,7 @@ import {
     parsePilaster,
     parseGradeBeam,
     parseTieBeam,
+    parseStrapBeam,
     parseThickenedSlab,
     parsePier,
     parseCorbel,
@@ -57,6 +60,7 @@ import {
     parseDetentionTank,
     parseDuplexSewageEjectorPit,
     parseDeepSewageEjectorPit,
+    parseSumpPumpPit,
     parseGreaseTrap,
     parseHouseTrap,
     parseMatSlab,
@@ -353,6 +357,28 @@ export const processTieBeamItems = (rawDataRows, headers, tracker = null) => {
 }
 
 /**
+ * Processes strap beam items and groups them by size (same pattern as tie beam)
+ */
+export const processStrapBeamItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericFoundationItems(rawDataRows, headers, isStrapBeam, parseStrapBeam, tracker)
+
+    const groupMap = new Map()
+    items.forEach(item => {
+        const groupKey = item.parsed.groupKey || 'OTHER'
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    return mergeSingleItemGroupsIfAll(Array.from(groupMap.values()))
+}
+
+/**
  * Processes thickened slab items and groups them by size
  */
 export const processThickenedSlabItems = (rawDataRows, headers, tracker = null) => {
@@ -586,6 +612,13 @@ export const processDuplexSewageEjectorPitItems = (rawDataRows, headers, tracker
  */
 export const processDeepSewageEjectorPitItems = (rawDataRows, headers, tracker = null) => {
     return processGenericFoundationItems(rawDataRows, headers, isDeepSewageEjectorPit, parseDeepSewageEjectorPit, tracker)
+}
+
+/**
+ * Process sump pump pit items (same grouping and formulas as Duplex sewage ejector pit)
+ */
+export const processSumpPumpPitItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isSumpPumpPit, parseSumpPumpPit, tracker)
 }
 
 /**
@@ -1010,6 +1043,25 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
             }
             break
 
+        case 'sump_pump_pit':
+            const sppSubType = itemData.parsed?.itemSubType
+            if (sppSubType === 'slab') {
+                // Sump pump pit slab: J=C, L=J*H/27 (same as Duplex sewage ejector pit)
+                formulas.sqFt = `C${rowNum}`
+                if (itemData.parsed?.heightFromName !== undefined) {
+                    formulas.height = itemData.parsed.heightFromName
+                }
+                formulas.cy = `J${rowNum}*H${rowNum}/27`
+            } else if (sppSubType === 'wall') {
+                // Sump pump pit wall: I=C, J=I*H, L=J*G/27 (same as Duplex sewage ejector pit)
+                formulas.ft = `C${rowNum}`
+                formulas.sqFt = `I${rowNum}*H${rowNum}`
+                if (itemData.parsed?.width !== undefined) formulas.width = itemData.parsed.width
+                if (itemData.parsed?.height !== undefined) formulas.height = itemData.parsed.height
+                formulas.cy = `J${rowNum}*G${rowNum}/27`
+            }
+            break
+
         case 'grease_trap':
             const gtSubType = itemData.parsed?.itemSubType
             if (gtSubType === 'slab') {
@@ -1175,6 +1227,7 @@ export default {
     processPilasterItems,
     processGradeBeamItems,
     processTieBeamItems,
+    processStrapBeamItems,
     processThickenedSlabItems,
     processButtressItems,
     processPierItems,
@@ -1188,6 +1241,7 @@ export default {
     processDetentionTankItems,
     processDuplexSewageEjectorPitItems,
     processDeepSewageEjectorPitItems,
+    processSumpPumpPitItems,
     processGreaseTrapItems,
     processHouseTrapItems,
     processMatSlabItems,
