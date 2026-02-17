@@ -1682,6 +1682,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const firstRowWithB = subsectionRows.find(r => r[1] && String(r[1]).trim())
         const fallbackText = originalText ? null : (firstRowWithB ? String(firstRowWithB[1]).trim() : null)
         const templateText = buildDemolitionTemplate(name, originalText, fallbackText)
+        console.log('Proposal row:', currentRow, 'subsection:', name, 'templateText:', templateText)
         const cellRef = `${pfx}B${currentRow}`
 
         // Sum row in Calculations Sheet: either from detection (sumRowIndexBySubsection) or last data row + 1 (sum is next row)
@@ -2394,15 +2395,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     )
     currentRow++
 
-    // SOE Headings
+    // SOE Headings (hardcoded order; Timber soldier piles: always below Soldier drilled piles:)
     const soeHeadings = [
       'Soldier drilled piles:',
+      'Timber soldier piles:',
       'Soldier driven piles:',
       'Primary secant piles:',
       'Secondary secant piles:',
       'Tangent pile:',
       'Sheet piles:',
-      'Timber soldier piles:',
       'Timber planks:',
       'Timber post:',
       'Timber lagging:',
@@ -4116,6 +4117,86 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       })
     }
 
+    // Fallback: ensure Timber soldier piles / planks / post are in soeSubsectionItems when present in calculationData
+    // (parser may miss them if section detection or subsection tracking skips rows)
+    const timberSubsectionNames = ['Timber soldier piles', 'Timber planks', 'Timber post']
+    if (calculationData && calculationData.length > 0) {
+      timberSubsectionNames.forEach((subName) => {
+        const existing = (window.soeSubsectionItems || new Map()).get(subName) || []
+        if (existing.length > 0 && existing.some(g => g.length > 0)) return
+        const groups = []
+        let inSubsection = false
+        let currentGroup = []
+        for (let i = 0; i < calculationData.length; i++) {
+          const row = calculationData[i]
+          const colB = row && row[1] != null ? String(row[1]).trim() : ''
+          const colA = row && row[0] != null ? String(row[0]).trim().toLowerCase() : ''
+          if (colA === 'soe') {
+            inSubsection = false
+            currentGroup = []
+            continue
+          }
+          if (colA === 'foundation' || (colA && colA !== 'soe' && colA !== 'demolition' && colA !== 'excavation' && colA !== 'rock excavation')) {
+            inSubsection = false
+            if (currentGroup.length > 0) {
+              groups.push(currentGroup)
+              currentGroup = []
+            }
+            continue
+          }
+          if (colB === (subName + ':')) {
+            inSubsection = true
+            if (currentGroup.length > 0) {
+              groups.push(currentGroup)
+              currentGroup = []
+            }
+            continue
+          }
+          if (inSubsection && colB && colB.endsWith(':')) {
+            inSubsection = false
+            if (currentGroup.length > 0) {
+              groups.push(currentGroup)
+              currentGroup = []
+            }
+            continue
+          }
+          if (inSubsection && colB && !colB.endsWith(':')) {
+            const takeoff = parseFloat(row[2]) || 0
+            const unit = row[3] || ''
+            const height = parseFloat(row[7]) || 0
+            const sqft = parseFloat(row[9]) || 0
+            const lbs = parseFloat(row[10]) || 0
+            const qty = parseFloat(row[12]) || 0
+            if (takeoff > 0 || qty > 0 || colB.toLowerCase().includes('timber')) {
+              currentGroup.push({
+                particulars: colB,
+                takeoff,
+                unit,
+                height,
+                sqft,
+                lbs,
+                qty,
+                rawRow: row,
+                rawRowNumber: i + 2
+              })
+            }
+            continue
+          }
+          if (inSubsection && !colB) {
+            if (currentGroup.length > 0) {
+              groups.push(currentGroup)
+              currentGroup = []
+            }
+          }
+        }
+        if (currentGroup.length > 0) groups.push(currentGroup)
+        if (groups.length > 0 && groups.some(g => g.length > 0)) {
+          if (!window.soeSubsectionItems) window.soeSubsectionItems = new Map()
+          window.soeSubsectionItems.set(subName, groups)
+        }
+      })
+    }
+
     // Add SOE subsection headers that come after soldier pile subsections
     // These should be displayed as grey headers, not processed groups
     const soeSubsectionItems = window.soeSubsectionItems || new Map()
@@ -5077,6 +5158,115 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         )
         currentRow++
 
+        // Bracing summary lines: values from Timber waler / Timber raker / Timber brace (size, qty, SOE refs dynamic)
+        let soeBracingMain = 'SOE-101.00'
+        let soeBracingDetails = 'SOE-002.00'
+        if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+          const headers = rawData[0]
+          const dataRows = rawData.slice(1)
+          const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
+          const pageIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'page')
+          if (digitizerIdx !== -1 && pageIdx !== -1) {
+            for (let r = 0; r < dataRows.length; r++) {
+              const d = String(dataRows[r][digitizerIdx] || '').toLowerCase()
+              if (d.includes('waler') || d.includes('raker') || d.includes('timber brace') || d.includes('horizontal brace') || d.includes('corner brace')) {
+                const pageStr = String(dataRows[r][pageIdx] || '').trim()
+                const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                if (soeMatches && soeMatches.length > 0) {
+                  soeBracingMain = soeMatches[0]
+                  if (soeMatches.length > 1) soeBracingDetails = soeMatches[1]
+                }
+                break
+              }
+            }
+          }
+        }
+        const asPerBracing = ` as per ${soeBracingMain} & details on ${soeBracingDetails}`
+
+        const extractSizeFromParticulars = (p) => {
+          if (!p || typeof p !== 'string') return ''
+          const m = p.match(/(\d+)"\s*x\s*(\d+)"?/i) || p.match(/(\d+)\s*"\s*x\s*(\d+)/i)
+          return m ? `${m[1]}"x${m[2]}"` : ''
+        }
+        const extractQtyFromParticulars = (p) => {
+          if (!p || typeof p !== 'string') return null
+          const m = p.match(/^\((\d+)\)\s*/)
+          return m ? parseInt(m[1], 10) : null
+        }
+        const flattenGroups = (groups) => (groups || []).flat().filter(Boolean)
+        const sumQty = (items) => items.reduce((s, i) => s + (i.qty != null ? Number(i.qty) : i.takeoff != null ? Number(i.takeoff) : 0), 0)
+
+        // Helper: get bracing items from soeSubsectionItems or by scanning calculationData
+        const getBracingItemsForSummary = (subsectionKeys) => {
+          for (const key of subsectionKeys) {
+            const groups = soeSubsectionItems.get(key) || []
+            const items = flattenGroups(groups)
+            if (items.length > 0) return items
+          }
+          // Fallback: scan calculationData for first matching subsection (e.g. "Timber waler")
+          const subsectionName = subsectionKeys[0]
+          const fromCalc = findBracingItemsFromCalculationDataForSummary(subsectionName)
+          if (fromCalc.length > 0) return fromCalc
+          return []
+        }
+        const findBracingItemsFromCalculationDataForSummary = (subsectionName) => {
+          if (!calculationData || calculationData.length === 0) return []
+          const found = []
+          let inSubsection = false
+          calculationData.forEach((row, index) => {
+            const sheetRow = index + 1
+            const colB = row[1]
+            if (colB && typeof colB === 'string') {
+              const bText = colB.trim()
+              if (bText.endsWith(':') && bText.slice(0, -1).trim().toLowerCase() === subsectionName.toLowerCase()) {
+                inSubsection = true
+                return
+              }
+              if (inSubsection && bText.endsWith(':')) {
+                inSubsection = false
+                return
+              }
+              if (inSubsection && bText && !bText.endsWith(':') && row[2] !== undefined) {
+                found.push({
+                  particulars: bText,
+                  takeoff: parseFloat(row[2]) || 0,
+                  qty: parseFloat(row[12]) || 0,
+                  rawRowNumber: sheetRow
+                })
+              }
+            }
+          })
+          return found
+        }
+
+        const walerGroups = soeSubsectionItems.get('Timber waler') || soeSubsectionItems.get('Waler') || []
+        const rakerGroups = soeSubsectionItems.get('Timber raker') || soeSubsectionItems.get('Raker') || []
+        const braceGroups = soeSubsectionItems.get('Timber brace') || soeSubsectionItems.get('Bracing') || []
+        let walerItems = flattenGroups(walerGroups)
+        let rakerItems = flattenGroups(rakerGroups)
+        let braceItems = flattenGroups(braceGroups)
+        if (walerItems.length === 0) walerItems = getBracingItemsForSummary(['Timber waler', 'Waler'])
+        if (rakerItems.length === 0) rakerItems = getBracingItemsForSummary(['Timber raker', 'Raker'])
+        if (braceItems.length === 0) braceItems = getBracingItemsForSummary(['Timber brace', 'Bracing'])
+
+        const walerQty = walerItems.length ? (sumQty(walerItems) || extractQtyFromParticulars(walerItems[0].particulars) || 0) : 0
+        const rakerQty = rakerItems.length ? (sumQty(rakerItems) || 0) : 0
+        const walerSize = walerItems.length ? (extractSizeFromParticulars(walerItems[0].particulars) || '##') : '##'
+        const rakerSize = rakerItems.length ? (extractSizeFromParticulars(rakerItems[0].particulars) || '##') : '##'
+        const horizontalBraceItems = braceItems.filter(i => (i.particulars || '').toLowerCase().includes('horizontal'))
+        const cornerBraceItems = braceItems.filter(i => (i.particulars || '').toLowerCase().includes('corner'))
+        const horizontalQty = horizontalBraceItems.length ? sumQty(horizontalBraceItems) : 0
+        const cornerQty = cornerBraceItems.length ? (sumQty(cornerBraceItems) || 0) : 0
+        const horizontalSize = horizontalBraceItems.length ? (extractSizeFromParticulars(horizontalBraceItems[0].particulars) || '##') : '##'
+        const cornerSize = cornerBraceItems.length ? (extractSizeFromParticulars(cornerBraceItems[0].particulars) || '##') : '##'
+
+        // Calculation sheet: Timber waler has sum row only when >1 item; Timber raker always has sum row per group; Timber brace has sum row only when >1 item in group
+        const maxRawRow = (items) => items.length ? Math.max(...items.map(i => i.rawRowNumber || 0), 0) : 0
+        const walerSumRow = walerItems.length ? (walerItems.length > 1 ? maxRawRow(walerItems) + 1 : maxRawRow(walerItems)) : 0
+        const rakerSumRow = rakerItems.length ? maxRawRow(rakerItems) + 1 : 0
+        const horizontalSumRow = horizontalBraceItems.length ? (horizontalBraceItems.length > 1 ? maxRawRow(horizontalBraceItems) + 1 : maxRawRow(horizontalBraceItems)) : 0
+        const cornerSumRow = cornerBraceItems.length ? (cornerBraceItems.length > 1 ? maxRawRow(cornerBraceItems) + 1 : maxRawRow(cornerBraceItems)) : 0
+
         // Process all bracing-related subsections and display their items
         // Map subsection names to display names (matching template names)
         const bracingDisplayNames = {
@@ -5538,6 +5728,61 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             currentRow++ // Move to next row
           })
         })
+
+        // After all detailed bracing items, add the four summary lines at the end of the Bracing section
+        const calcSheetName = 'Calculations Sheet'
+        const bracingSummaryLines = [
+          { qty: walerQty, size: walerSize, label: 'timber walers', sumRowIndex: walerSumRow },
+          { qty: rakerQty, size: rakerSize, label: 'timber rakers', sumRowIndex: rakerSumRow },
+          { qty: horizontalQty, size: horizontalSize, label: 'timber horizontal braces', sumRowIndex: horizontalSumRow },
+          { qty: cornerQty, size: cornerSize, label: 'timber corner brace', sumRowIndex: cornerSumRow }
+        ]
+
+        bracingSummaryLines.forEach(({ qty, size, label, sumRowIndex }) => {
+          const sizeStr = size || '##'
+          // Always show the numeric quantity (including 0) in the proposal text
+          const text = `F&I new (${String(qty)})no ${sizeStr} ${label}${asPerBracing}`
+          if (sumRowIndex > 0) {
+            const afterCount = `)no ${sizeStr} ${label}${asPerBracing}`
+            spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${sumRowIndex}` }, `${pfx}D${currentRow}`)
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!K${sumRowIndex}` }, `${pfx}E${currentRow}`)
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!L${sumRowIndex}` }, `${pfx}F${currentRow}`)
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
+          } else {
+            spreadsheet.updateCell({ value: text }, `${pfx}B${currentRow}`)
+            // Always set C–G so formula bar shows a formula; when no sum row use refs that display blank
+            spreadsheet.updateCell({ formula: `=IFERROR('${calcSheetName}'!I0,"")` }, `${pfx}C${currentRow}`)
+            spreadsheet.updateCell({ formula: `=IFERROR('${calcSheetName}'!J0,"")` }, `${pfx}D${currentRow}`)
+            spreadsheet.updateCell({ formula: `=IFERROR('${calcSheetName}'!K0,"")` }, `${pfx}E${currentRow}`)
+            spreadsheet.updateCell({ formula: `=IFERROR('${calcSheetName}'!L0,"")` }, `${pfx}F${currentRow}`)
+            spreadsheet.updateCell({ formula: `=IFERROR('${calcSheetName}'!M0,"")` }, `${pfx}G${currentRow}`)
+          }
+          const sumCellFormat = { fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }
+          spreadsheet.cellFormat(sumCellFormat, `${pfx}C${currentRow}`)
+          spreadsheet.cellFormat(sumCellFormat, `${pfx}D${currentRow}`)
+          spreadsheet.cellFormat(sumCellFormat, `${pfx}E${currentRow}`)
+          spreadsheet.cellFormat(sumCellFormat, `${pfx}F${currentRow}`)
+          spreadsheet.cellFormat(sumCellFormat, `${pfx}G${currentRow}`)
+          rowBContentMap.set(currentRow, text)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat(
+            {
+              fontWeight: 'bold',
+              color: '#000000',
+              textAlign: 'left',
+              backgroundColor: 'white',
+              verticalAlign: 'top',
+              textDecoration: 'none'
+            },
+            `${pfx}B${currentRow}`
+          )
+          fillRatesForProposalRow(currentRow, text)
+          const dynamicHeight = calculateRowHeight(text)
+          currentRow++
+        })
+
         // Add Tie back anchor section right after Bracing
         // Add Tie back anchor header
         const tieBackText = `Tie back anchor: including applicable washers, steel bearing plates, locking hex nuts as required`
@@ -7093,6 +7338,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             sumRowIndex = (sumFormula.lastDataRow != null ? sumFormula.lastDataRow + 1 : sumFormula.row)
           }
         }
+        // For Timber soldier piles, Timber planks, Timber post: sum row is same as last data row (I170 not I171)
         if (sumRowIndex === lastRowNumber && (subsectionLower === 'parging' ||
           subsectionLower === 'heel blocks' ||
           subsectionLower === 'underpinning' ||
@@ -7110,10 +7356,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           subsectionLower === 'rock stabilization' ||
           subsectionLower === 'shotcrete' ||
           subsectionLower === 'permission grouting' ||
-          subsectionLower === 'mud slab' ||
-          subsectionLower === 'timber soldier piles' ||
-          subsectionLower === 'timber planks' ||
-          subsectionLower === 'timber post')) {
+          subsectionLower === 'mud slab')) {
           sumRowIndex = lastRowNumber + 1
         }
         const calcSheetName = 'Calculations Sheet'
@@ -8209,7 +8452,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           // Format: F&I new 3"x10" timber sheeting (Havg=10'-6") as per SOE-101.00
           proposalText = `F&I new ${dimensions || '##'} timber sheeting (Havg=${heightText || '##'}) as per ${soePageMain} & details on`
         } else if (subsectionName.toLowerCase() === 'timber soldier piles') {
-          // Format: F&I new (15)no [4"x4"] timber soldier piles (Havg=15'-0", 3'-10" & 5'-0" embedment) as per SOE-101.00 & details on SOE-201.00
+          // Template text: F&I new (15)no [4"x4"] timber soldier piles (Havg=15'-0", 3'-10" & 5'-0" embedment) as per SOE-101.00 & details on SOE-201.00
+          // (qty from G, size/Havg/embedment from group items, SOE refs from raw data)
           const parseDimToFeet = (dimStr) => {
             if (!dimStr) return 0
             const m = String(dimStr).match(/(\d+)(?:'-?)?(\d+)?/)
@@ -8280,9 +8524,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const qtyVal = Math.round(totalQty || totalTakeoff || 0)
           afterCountForB = `)no [${sizeStr || '##'}] timber soldier piles (Havg=${havgText}, ${embedmentText || '## embedment'}) as per ${soePageMain} & details on ${soePageDetails}`
           proposalText = `F&I new (${qtyVal})no [${sizeStr || '##'}] timber soldier piles (Havg=${havgText}, ${embedmentText || '## embedment'}) as per ${soePageMain} & details on ${soePageDetails}`
+          console.log('Template text (Timber soldier piles):', proposalText)
           if (sumRowIndex > 0) useFormulaForB = true
         } else if (subsectionName.toLowerCase() === 'timber planks') {
-          // Format: F&I new 3"x12" timber planks (H=3'-0") as per SOE-100.00 & details on SOE-002.00
+          // Template text: F&I new 3"x12" timber planks (H=3'-0") as per SOE-100.00 & details on SOE-002.00
+          // (dimensions and H from group items, SOE refs from raw data)
           let dimensions = ''
           let heightText = ''
           group.forEach(item => {
@@ -8329,8 +8575,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             }
           }
           proposalText = `F&I new ${dimensions || '##'} timber planks (H=${heightText || '##'}) as per ${soePageMain} & details on ${soePageDetails}`
+          console.log('Template text (Timber planks):', proposalText)
         } else if (subsectionName.toLowerCase() === 'timber post') {
-          // Format: F&I new 6"x6" timber post (Havg=7'-10", 4'-0" to 5'-8" embedment) as per SOE-101.00 & details on SOE-201.00 to SOE-205.00
+          // Template text: F&I new 6"x6" timber post (Havg=7'-10", 4'-0" to 5'-8" embedment) as per SOE-101.00 & details on SOE-201.00 to SOE-205.00
+          // (size/Havg/embedment from group items, SOE refs from raw data; " to SOE-205.00" when page has range)
           const parseDimToFeet = (dimStr) => {
             if (!dimStr) return 0
             const m = String(dimStr).match(/(\d+)(?:'-?)?(\d+)?/)
@@ -8393,6 +8641,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             }
           }
           proposalText = `F&I new ${sizeStr || '##'} timber post (Havg=${havgText}, ${embedmentText || '## embedment'}) as per ${soePageMain} & details on ${soePageDetails}${soePageRange}`
+          console.log('Template text (Timber post):', proposalText)
         } else {
           // Default proposal text for other subsections
           proposalText = `${subsectionName} item: ${Math.round(totalQty)} nos`

@@ -214,7 +214,36 @@ const ProposalDetail = () => {
               restoreImages(proposal.images)
             }
 
-            // Use saved state - do NOT rebuild Proposal Sheet (preserves user edits, updates DB only on changes)
+            // Rebuild Proposal sheet from calculation data on every refresh (so it stays in sync with rawExcelData)
+            if (proposal.rawExcelData && generatedDataRef.current) {
+              const gen = generatedDataRef.current
+              try {
+                await new Promise(resolve => setTimeout(resolve, 100))
+                buildProposalSheet(spreadsheetRef.current, {
+                  calculationData: gen.rows,
+                  formulaData: gen.formulas,
+                  rockExcavationTotals: gen.rockExcavationTotals,
+                  lineDrillTotalFT: gen.lineDrillTotalFT,
+                  rawData: rawDataRef.current,
+                  createdAt: proposal.createdAt,
+                  project: proposal.project,
+                  client: proposal.client
+                })
+                proposalBuiltRef.current = true
+                markDirtyAndScheduleSave()
+                await new Promise(resolve => setTimeout(resolve, 300))
+                if (saveTimeoutRef.current) {
+                  clearTimeout(saveTimeoutRef.current)
+                  saveTimeoutRef.current = null
+                }
+                saveSpreadsheet(false)
+                setTimeout(() => {
+                  try { spreadsheetRef.current?.goTo('Proposal Sheet!A1') } catch (e) { }
+                }, 50)
+              } catch (e) {
+                console.error('Error building proposal sheet after load:', e)
+              }
+            }
           } catch (error) {
             toast.error('Error loading saved spreadsheet')
           } finally {
