@@ -1,10 +1,11 @@
-
+import { fontColor } from '@syncfusion/ej2-spreadsheet'
 import { convertToFeet } from './parsers/dimensionParser'
 import proposalMapped from './proposal_mapped.json'
 
 export function buildProposalSheet(spreadsheet, { calculationData, formulaData, rockExcavationTotals, lineDrillTotalFT, rawData, createdAt, project, client }) {
   // Full Proposal template (match screenshot layout).
-  const proposalSheetIndex = 1
+  // Sheet order in workbook: Proposal Sheet = 0, Calculations Sheet = 1 (must match ProposalDetail.jsx sheets array order)
+  const proposalSheetIndex = 0
   const pfx = 'Proposal Sheet!'
 
   // Header labels from proposal_mapped.json (DESCRIPTION entry); fallback to key name if missing
@@ -58,6 +59,34 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         return key.indexOf(desc) >= 0 && atWordBoundary(desc, key)
       })
       if (rowContains.length > 0) {
+        // When line has both "full depth asphalt pavement" and "surface course", prefer "surface course" (SF 10) so dynamic thickness values work across sheets
+        const keyLower = key.toLowerCase()
+        if (keyLower.includes('full depth asphalt pavement') && keyLower.includes('surface course')) {
+          const surfaceCourse = rowContains.find(e => e.description.trim().toLowerCase().includes('surface course'))
+          if (surfaceCourse && surfaceCourse.values) return surfaceCourse.values
+        }
+        // When line has "buttresses" and "foundation walls", prefer "buttresses" (CY 950) not "foundation walls" (CY 900)
+        if (keyLower.includes('buttresses') && keyLower.includes('foundation walls')) {
+          const buttresses = rowContains.find(e => e.description.trim().toLowerCase().includes('buttresses'))
+          if (buttresses && buttresses.values) return buttresses.values
+        }
+        // When line has "saw-cut/demo/remove/dispose existing" and "sidewalk/driveway", use sidewalk/driveway rate (SF 11) even if key has extra text like 7" (so exact substring may not match)
+        if (keyLower.includes('saw-cut/demo/remove/dispose existing') && keyLower.includes('sidewalk/driveway')) {
+          const sidewalkDriveway = withRates.find(e => e.description.trim().toLowerCase().includes('sidewalk/driveway'))
+          if (sidewalkDriveway && sidewalkDriveway.values) return sidewalkDriveway.values
+        }
+        // When line has "saw-cut/demo/remove/dispose existing" and "sidewalk", prefer sidewalk rate (SF 10) over generic
+        if (keyLower.includes('saw-cut/demo/remove/dispose existing') && keyLower.includes('sidewalk')) {
+          const sidewalk = rowContains.find(e => e.description.trim().toLowerCase().includes('sidewalk'))
+          if (sidewalk && sidewalk.values) return sidewalk.values
+        }
+        // When line has "concrete sidewalk, reinf w/" and "Pavement replacement: West Street" or "Maple Avenue", prefer that rate (SF 12) over generic "concrete sidewalk, reinf w/ " (SF 15)
+        if (keyLower.includes('concrete sidewalk, reinf w/') && (keyLower.includes('pavement replacement: west street') || keyLower.includes('pavement replacement: maple avenue'))) {
+          const westStreet = withRates.find(e => e.description.trim().toLowerCase().includes('pavement replacement: west street'))
+          const mapleAve = withRates.find(e => e.description.trim().toLowerCase().includes('pavement replacement: maple avenue'))
+          if (keyLower.includes('pavement replacement: west street') && westStreet?.values) return westStreet.values
+          if (keyLower.includes('pavement replacement: maple avenue') && mapleAve?.values) return mapleAve.values
+        }
         // Prefer longest matching description so "slab on grade reinforced" wins over "slab"; if same length, prefer earliest in key
         const best = rowContains.reduce((best, e) => {
           const desc = e.description.trim()
@@ -84,8 +113,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   }
 
   // Fill columns I–N (unit rates $/LF, $/SF, etc.) from proposal_mapped.json for a proposal row
-  const fillRatesForProposalRow = (row, descriptionText) => {
-    const values = getRatesForDescription(descriptionText)
+  // When rateLookupKey is provided, use it for rate lookup (e.g. BPP concrete sidewalk under "Pavement replacement: West Street") so SF 12 is used instead of generic SF 15
+  const fillRatesForProposalRow = (row, descriptionText, rateLookupKey) => {
+    const values = getRatesForDescription(rateLookupKey != null ? rateLookupKey : descriptionText)
     if (!values) return
     const colMap = { LF: 'I', SF: 'J', LBS: 'K', CY: 'L', QTY: 'M', LS: 'N' }
     Object.entries(colMap).forEach(([key, col]) => {
@@ -105,6 +135,17 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     try { spreadsheet.clear({ range: `${pfx}A1:Z1000` }) } catch (e2) { /* ignore */ }
   }
 
+  // Keep the header row visible when scrolling – freeze row 1
+  try {
+    // Prefer API that accepts sheet index when available
+    if (typeof spreadsheet.freezePanes === 'function') {
+      spreadsheet.freezePanes(1, 0, proposalSheetIndex)
+    }
+  } catch (e) {
+    // Fallback for older signatures that don't take sheet index
+    try { spreadsheet.freezePanes(1, 0) } catch (e2) { /* ignore */ }
+  }
+
   // Column widths to mirror screenshot
   const colWidths = {
     A: 40,  // margin
@@ -115,28 +156,68 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     F: 146, // CY
     G: 146, // QTY
     H: 107, // $/1000 spacer - widened
-    I: 87,  // LF
-    J: 87,  // SF
-    K: 87,  // LBS
-    L: 87,  // CY
-    M: 87,  // QTY
-    N: 87   // LS
+    I: 100,  // LF - wide enough for $  12,000.00 and larger
+    J: 100,  // SF
+    K: 100,  // LBS
+    L: 100,  // CY
+    M: 100,  // QTY
+    N: 100   // LS
   }
+  // Calculation sheet (index 0): default width per column (Estimate, Particulars, Takeoff, Unit, QTY, Length, Width, Height, FT, SQ FT, LBS, CY, QTY)
+  const calculationSheetIndex = 1
+  const calcSheetColWidths = {
+    A: 70,   // Estimate
+    B: 220,  // Particulars (wider for item text)
+    C: 90,   // Takeoff
+    D: 55,   // Unit
+    E: 55,   // QTY
+    F: 70,   // Length
+    G: 70,   // Width
+    H: 70,   // Height
+    I: 70,   // FT
+    J: 75,   // SQ FT
+    K: 70,   // LBS
+    L: 70,   // CY
+    M: 55    // QTY
+  }
+  Object.entries(calcSheetColWidths).forEach(([col, width]) => {
+    try { spreadsheet.setColWidth(width, col.charCodeAt(0) - 65, calculationSheetIndex) } catch (e) { }
+  })
+  // Red right border on column H from row 1 to last row with data on Calculation sheet
+  const calcLastRow = calculationData && calculationData.length > 0 ? calculationData.length : 1
+  try {
+    spreadsheet.cellFormat({ borderRight: '1px solid #ff0000' }, `'Calculations Sheet'!H1:H${calcLastRow}`)
+  } catch (e) { }
+  // One empty row after data, then black bottom border on that row (whole row)
+  const calcEmptyRow = calcLastRow + 1
+  try {
+    spreadsheet.cellFormat({ borderBottom: '1px solid #000000' }, `'Calculations Sheet'!A${calcEmptyRow}:N${calcEmptyRow}`)
+  } catch (e) { }
+
+  // Apply column widths only to Proposal sheet (sheet index 1), not to Calculation sheet
   Object.entries(colWidths).forEach(([col, width]) => {
-    // Try both 0 and 1 indices to match the active sheet
-    try { spreadsheet.setColWidth(width, col.charCodeAt(0) - 65, 0) } catch (e) { }
-    try { spreadsheet.setColWidth(width, col.charCodeAt(0) - 65, 1) } catch (e) { }
-    // Also try referencing by sheet name logic if possible, but indices are standard
+    try { spreadsheet.setColWidth(width, col.charCodeAt(0) - 65, proposalSheetIndex) } catch (e) { }
   })
 
-  // Set height for 1st row (index 0) to 24
-  try { spreadsheet.setRowHeight(24, 0, 0) } catch (e) { }
-  try { spreadsheet.setRowHeight(24, 0, 1) } catch (e) { }
+  // Set height for 1st row only on Proposal sheet
+  try { spreadsheet.setRowHeight(24, 0, proposalSheetIndex) } catch (e) { }
+  // Row 12 (DESCRIPTION header): height 34
+  try { spreadsheet.setRowHeight(34, 11, proposalSheetIndex) } catch (e) { }
 
   // Track all section total rows for BASE BID TOTAL formula
   const baseBidTotalRows = []
   // Track rows that should remain bold (totals) to override the unbold rule
   const totalRows = []
+  // Rows where column C is "Total SF" – re-apply bold + italic after global format
+  const totalSFRowsForItalic = []
+  // Note rows (e.g. "Note: Backfill SOE voids...") – keep normal weight after global bold
+  const noteRows = []
+  // WR Meadows Installer note row – re-apply normal, italic, center
+  const wpNoteRow = []
+  // Rows with long text that need dynamic height (e.g. soil excavation); re-applied after uniform height loop
+  const dynamicHeightRows = []
+  // Column B content per row for dynamic height (row number -> text)
+  const rowBContentMap = new Map()
 
   // Helper function to calculate row height based on text content in column B
   const calculateRowHeight = (text) => {
@@ -150,7 +231,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     // Approximate line height for 18pt font. 30px is very tight for 18pt (24px).
     // Try tightly packed to meet request.
     const lineHeight = 26
-    const padding = 4
+    // Vertical padding (y) so multi-line text isn't tightly fit – space above and below
+    const paddingTop = 8
+    const paddingBottom = 8
+    const verticalPadding = paddingTop + paddingBottom
     // Average char width for 18pt Calibri Bold is approx 11-12px
     const charWidth = 11
 
@@ -162,8 +246,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     const textLength = text.length
     const estimatedLines = Math.max(1, Math.ceil(textLength / charsPerLine))
 
-    // Calculate height: (lines * lineHeight) + padding
-    const calculatedHeight = Math.max(30, Math.ceil(estimatedLines * lineHeight + padding))
+    // Calculate height: (lines * lineHeight) + padding top & bottom so text is vertically centered
+    const calculatedHeight = Math.max(30, Math.ceil(estimatedLines * lineHeight + verticalPadding))
 
     // Increase cap significantly as 18pt text takes space
     return Math.min(calculatedHeight, 400)
@@ -180,6 +264,18 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   const thickRight = { borderRight: '2px solid #000000' }
   const thin = { border: '1px solid #000000' }
 
+  // Total row B-G borders: left of B and right of G black; top/bottom black; internal borders match row bg
+  function applyTotalRowBorders(spreadsheet, pfx, row, backgroundColor) {
+    const black = '1px solid #000000'
+    const bgBorder = `1px solid ${backgroundColor}`
+    spreadsheet.cellFormat({ backgroundColor, borderTop: black, borderBottom: black, borderLeft: black, borderRight: bgBorder }, `${pfx}B${row}`)
+    spreadsheet.cellFormat({ backgroundColor, borderTop: black, borderBottom: black, borderLeft: bgBorder, borderRight: bgBorder }, `${pfx}C${row}`)
+    spreadsheet.cellFormat({ backgroundColor, borderTop: black, borderBottom: black, borderLeft: bgBorder, borderRight: bgBorder }, `${pfx}D${row}`)
+    spreadsheet.cellFormat({ backgroundColor, borderTop: black, borderBottom: black, borderLeft: bgBorder, borderRight: bgBorder }, `${pfx}E${row}`)
+    spreadsheet.cellFormat({ backgroundColor, borderTop: black, borderBottom: black, borderLeft: bgBorder, borderRight: bgBorder }, `${pfx}F${row}`)
+    spreadsheet.cellFormat({ backgroundColor, borderTop: black, borderBottom: black, borderLeft: bgBorder, borderRight: black }, `${pfx}G${row}`)
+  }
+
     // Top header row (row 1) - labels from proposal_mapped.json DESCRIPTION entry
     ;[
       ['C1', L.LF], ['D1', L.SF], ['E1', L.LBS], ['F1', L.CY], ['G1', L.QTY],
@@ -188,8 +284,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     ].forEach(([cell, value]) => spreadsheet.updateCell({ value }, `${pfx}${cell}`))
   spreadsheet.cellFormat(headerGray, `${pfx}C1:N1`)
   spreadsheet.cellFormat(thick, `${pfx}C1:N1`)
-  // Make $/1000 cell background white
-  spreadsheet.cellFormat({ backgroundColor: 'white' }, `${pfx}H1`)
+  // Make $/1000 cell background white; $/1000 heading at 11pt; border; centered
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontSize: '11pt', border: '1px solid #000000', textAlign: 'center', verticalAlign: 'middle' }, `${pfx}H1`)
 
   // Main outer frame around top content block (PERIMETER ONLY).
   // Avoid applying a border to the full range, since that creates thick internal grid lines.
@@ -208,7 +304,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   spreadsheet.updateCell({ value: '37-24 24th Street, Suite 132, Long Island City, NY 11101' }, `${pfx}B4`)
   spreadsheet.updateCell({ value: 'Tel: 718 726-1525 | Fax: 718 726-1601 | Cell: 917 600-3958' }, `${pfx}B5`)
   spreadsheet.updateCell({ value: 'Email:' }, `${pfx}B6`)
-  spreadsheet.cellFormat({ fontWeight: 'bold' }, `${pfx}B4:B5`)
+  spreadsheet.cellFormat({ fontWeight: 'bold' }, `${pfx}B4`)
+  spreadsheet.cellFormat({ fontWeight: 'normal', fontSize: '11pt', color: '#0B76C3', textDecoration: 'underline' }, `${pfx}B5`)
   spreadsheet.cellFormat({ color: '#0B76C3', textDecoration: 'underline' }, `${pfx}B6`)
   spreadsheet.cellFormat(thin, `${pfx}F4:G6`)
   // Remove borders from B4:E8 - ensure no border color
@@ -219,21 +316,22 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   }
   // Reapply formatting without borders
   spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', fontFamily: 'Calibri (Body)' }, `${pfx}B4:E8`)
-  spreadsheet.cellFormat({ fontWeight: 'bold' }, `${pfx}B4:B5`)
+  spreadsheet.cellFormat({ fontWeight: 'bold' }, `${pfx}B4`)
+  spreadsheet.cellFormat({ fontWeight: 'normal', fontSize: '11pt', color: '#0B76C3', textDecoration: 'underline' }, `${pfx}B5`)
   spreadsheet.cellFormat({ color: '#0B76C3', textDecoration: 'underline' }, `${pfx}B6`)
 
-  // Logo (image) near center top-left; uses public path
-  try {
+  // Logo (image) in B4 – deferred so the sheet is rendered first (fixes “sometimes appears, sometimes not”)
     const imgSrc = encodeURI('/images/templateimage.png')
-    // Start around mid of column B and extend roughly to column E
-    // (B width is large; left offset pushes the image start into the middle of B)
-    spreadsheet.insertImage(
-      [{ src: imgSrc, width: 529, height: 182, left: 790, top: 70 }],
-      `${pfx}B4`
-    )
+  const logoSpec = [{ src: imgSrc, width: 528, height: 128, left: 760, top: 10 }]
+  setTimeout(() => {
+    try {
+      if (spreadsheet && typeof spreadsheet.insertImage === 'function') {
+        spreadsheet.insertImage(logoSpec, `${pfx}B4`)
+      }
   } catch (e) {
     // ignore
   }
+  }, 250)
 
   // Date/Project/Client block
   const proposalDate = createdAt ? new Date(createdAt).toLocaleDateString() : "Today's date"
@@ -250,8 +348,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   // Row 3: Estimate #25-1150
   spreadsheet.merge(`${pfx}F3:G3`)
   spreadsheet.updateCell({ value: 'Estimate #2' }, `${pfx}F3`)
-  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontSize: '11pt', fontWeight: 'bold', borderTop: '1px solid #000000', borderLeft: '1px solid #000000', borderRight: '1px solid #000000' }, `${pfx}F3`)
-  spreadsheet.cellFormat({ backgroundColor: 'white', fontSize: '11pt', fontWeight: 'bold', borderTop: '1px solid #000000', borderRight: '1px solid #000000' }, `${pfx}G3`)
+  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontSize: '11pt', fontWeight: 'bold', borderTop: '1px solid #000000', borderLeft: '2px solid #000000', borderBottom: '2px solid #000000', borderRight: '1px solid #000000' }, `${pfx}F3`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontSize: '11pt', fontWeight: 'bold', borderTop: '1px solid #000000', borderRight: '1px solid #000000', borderBottom: '2px solid #000000' }, `${pfx}G3`)
   spreadsheet.cellFormat({ backgroundColor: 'white', fontSize: '11pt', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H3`)
 
   // Row 4: Empty row
@@ -302,6 +400,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '2px solid #000000', borderBottom: '2px solid #000000', borderRight: '2px solid #000000' }, `${pfx}F10:G10`)
   spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H10`)
 
+  // Explicit right border on G5, G6, G10, G11 (right edge of grey box / Date block)
+  const rightBorderBlack = { borderLeft: '2px solid #000000' }
+  spreadsheet.cellFormat(rightBorderBlack, `${pfx}H5`)
+  spreadsheet.cellFormat(rightBorderBlack, `${pfx}H6`)
+  spreadsheet.cellFormat(rightBorderBlack, `${pfx}H9`)
+  spreadsheet.cellFormat(rightBorderBlack, `${pfx}H10`)
+
+
   // Bottom header row (row 12) - labels from proposal_mapped.json DESCRIPTION entry
   spreadsheet.updateCell({ value: 'DESCRIPTION' }, `${pfx}B12`)
     ;[
@@ -312,9 +418,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   spreadsheet.updateCell({ value: L.LS }, `${pfx}N12`)
 
   spreadsheet.cellFormat(headerGray, `${pfx}B12:N12`)
-  spreadsheet.cellFormat(thick, `${pfx}B12:N12`)
-  // Make $/1000 cell background white
-  spreadsheet.cellFormat({ backgroundColor: 'white' }, `${pfx}H12`)
+  spreadsheet.cellFormat({ fontSize: '18pt', border: '2px solid #000000' }, `${pfx}C12:N12`) // LF, SF, LBS, CY, QTY, LF, SF, LBS, CY, QTY, LS at 18pt
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontSize: '11pt', textAlign: 'center', verticalAlign: 'middle' }, `${pfx}H12`) // $/1000 in row 12: 11pt, white, centered
+  spreadsheet.cellFormat({ fontWeight: '300' }, `${pfx}B12:N12`) // row 12: semi-bold
+  // 2px border on entire row 12 (DESCRIPTION, LF, SF, LBS, CY, QTY, $/1000, I–N)
+  spreadsheet.cellFormat({ border: '2px solid #000000' }, `${pfx}B12:N12`)
 
   // Row 13: Empty row between DESCRIPTION and Demolition scope
   spreadsheet.cellFormat({ backgroundColor: 'white' }, `${pfx}B13:N13`)
@@ -336,24 +444,27 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         fontFamily: 'Calibri (Body)',
         textAlign: 'right',
         backgroundColor: 'white',
-        format: '$#,##0.0'
+        format: '$#,##0.00'
       },
       `${pfx}H13:H1000`
     )
-    spreadsheet.numberFormat('$#,##0.0', `${pfx}H13:H1000`)
+    spreadsheet.numberFormat('$#,##0.00', `${pfx}H13:H1000`)
   } catch (e) {
     // Fallback - format will be applied individually as rows are created
   }
 
   // Row 14: Demolition scope heading
   spreadsheet.updateCell({ value: 'Demolition scope:' }, `${pfx}B14`)
+  rowBContentMap.set(14, 'Demolition scope:')
+  spreadsheet.wrap(`${pfx}B14`, true)
   spreadsheet.cellFormat({
     backgroundColor: '#BDD7EE',
     textAlign: 'center',
     verticalAlign: 'middle',
     textDecoration: 'underline',
     fontWeight: 'normal',
-    border: '1px solid #000000'
+    border: '1px solid #000000',
+    wrapText: true
   }, `${pfx}B14`)
 
   // Demolition scope lines from Calculations Sheet:
@@ -1110,7 +1221,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             sumRowsBySubsection.set(currentSubsection, row)
             if (currentSubsection && currentSubsection.startsWith('Demo')) {
               sumRowIndexBySubsection.set(currentSubsection, rowIndex + 1)
-            }
+          }
           }
         }
       }
@@ -1410,12 +1521,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     if (hasDemolitionItems) {
       // Demolition Scope Heading
       spreadsheet.updateCell({ value: 'Demolition scope:' }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, 'Demolition scope:')
+      spreadsheet.wrap(`${pfx}B${currentRow}`, true)
       spreadsheet.cellFormat({
         backgroundColor: '#BDD7EE',
         textAlign: 'center',
         verticalAlign: 'middle',
         textDecoration: 'underline',
-        fontWeight: 'normal'
+        fontWeight: 'normal',
+        wrapText: true
       }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat({ backgroundColor: 'white' }, `${pfx}C${currentRow}:G${currentRow}`)
       currentRow++
@@ -1459,6 +1573,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         } else {
           spreadsheet.updateCell({ value: templateText }, cellRef)
         }
+        if (typeof rowBContentMap !== 'undefined') rowBContentMap.set(currentRow, templateText)
         spreadsheet.wrap(cellRef, true)
         spreadsheet.cellFormat(
           {
@@ -1479,10 +1594,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           spreadsheet.updateCell({ formula: `='${demolitionCalcSheet}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
         } else {
           // Fallback: compute from in-memory data (when sum row index not found)
-          const subsectionRows = rowsBySubsection.get(name) || []
-          const subsectionSF = calculateSF(subsectionRows)
-          const formattedSF = parseFloat(subsectionSF.toFixed(2))
-          spreadsheet.updateCell({ value: formattedSF }, `${pfx}D${currentRow}`)
+        const subsectionRows = rowsBySubsection.get(name) || []
+        const subsectionSF = calculateSF(subsectionRows)
+        const formattedSF = parseFloat(subsectionSF.toFixed(2))
+        spreadsheet.updateCell({ value: formattedSF }, `${pfx}D${currentRow}`)
 
           const subsectionCY = calculateCY(subsectionRows)
           const formattedCY = parseFloat(subsectionCY.toFixed(2))
@@ -1513,15 +1628,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           },
           `${pfx}F${currentRow}`
         )
-        spreadsheet.cellFormat(
-          {
-            fontWeight: 'bold',
-            color: '#000000',
-            textAlign: 'right',
-            format: '#,##0.00'
-          },
-          `${pfx}G${currentRow}`
-        )
+          spreadsheet.cellFormat(
+            {
+              fontWeight: 'bold',
+              color: '#000000',
+              textAlign: 'right',
+              format: '#,##0.00'
+            },
+            `${pfx}G${currentRow}`
+          )
 
         // Add $/1000 formula in column H
         const dollarFormula = `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")`
@@ -1552,12 +1667,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
       // Add note below all demolition items
       spreadsheet.updateCell({ value: 'Note: Site/building demolition by others.' }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, 'Note: Site/building demolition by others.')
+      spreadsheet.wrap(`${pfx}B${currentRow}`, true)
       spreadsheet.cellFormat(
         {
           fontWeight: 'bold',
           color: '#000000',
           textAlign: 'left',
-          backgroundColor: 'white'
+          backgroundColor: 'white',
+          wrapText: true
         },
         `${pfx}B${currentRow}`
       )
@@ -1571,8 +1689,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           fontWeight: 'bold',
           color: '#000000',
           textAlign: 'left',
-          backgroundColor: '#BDD7EE',
-          border: '1px solid #000000'
+          backgroundColor: '#BDD7EE'
         },
         `${pfx}D${currentRow}:E${currentRow}`
       )
@@ -1587,19 +1704,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           color: '#000000',
           textAlign: 'right',
           backgroundColor: '#BDD7EE',
-          border: '1px solid #000000',
           format: '$#,##0.00'
         },
         `${pfx}F${currentRow}:G${currentRow}`
       )
 
-      // Apply background color to entire row
-      spreadsheet.cellFormat(
-        {
-          backgroundColor: '#BDD7EE'
-        },
-        `${pfx}B${currentRow}:G${currentRow}`
-      )
+      applyTotalRowBorders(spreadsheet, pfx, currentRow, '#BDD7EE')
       baseBidTotalRows.push(currentRow) // Demolition Total
       totalRows.push(currentRow)
 
@@ -1616,6 +1726,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
     // Excavation scope heading
     spreadsheet.updateCell({ value: 'Excavation scope:' }, `${pfx}B${currentRow}`)
+    rowBContentMap.set(currentRow, 'Excavation scope:')
     spreadsheet.cellFormat({
       backgroundColor: '#BDD7EE',
       textAlign: 'center',
@@ -1637,6 +1748,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       currentRow++ // Extra line after Excavation scope
       // Soil excavation scope heading
       spreadsheet.updateCell({ value: 'Soil excavation scope:' }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, 'Soil excavation scope:')
       spreadsheet.cellFormat({
         backgroundColor: '#FFF2CC',
         textAlign: 'center',
@@ -1651,6 +1763,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     // First soil excavation line
     const soilExcavationText = 'Allow to perform soil excavation, trucking & disposal (Havg=16\'-9") as per SOE-101.00, P-301.01 & details on SOE-201.01 to SOE-204.00'
     spreadsheet.updateCell({ value: soilExcavationText }, `${pfx}B${currentRow}`)
+    rowBContentMap.set(currentRow, soilExcavationText)
+    spreadsheet.wrap(`${pfx}B${currentRow}`, true)
     spreadsheet.cellFormat(
       {
         fontWeight: 'bold',
@@ -1661,8 +1775,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       },
       `${pfx}B${currentRow}`
     )
-    spreadsheet.setRowHeight(currentRow, 30) // Set row height for wrapped text
-    fillRatesForProposalRow(currentRow, soilExcavationText)
+    const soilExcavationHeight = calculateRowHeight(soilExcavationText)
+    try { spreadsheet.setRowHeight(soilExcavationHeight, currentRow - 1, proposalSheetIndex) } catch (e) { }
+    dynamicHeightRows.push({ row: currentRow, height: soilExcavationHeight })
+    // Use scope-specific rate lookup so CY 75 applies only under Soil excavation scope (proposal_mapped.json).
+    // Pass only this key so it exact-matches the scope entry; the full line contains "(Havg=...)" so it would match the (Havg= entry (400) instead.
+    fillRatesForProposalRow(currentRow, 'Allow to perform soil excavation, trucking & disposal - Soil excavation scope')
     const soilExcavationRow1 = currentRow
 
     // Add SF value from excavation total to column D
@@ -1720,16 +1838,22 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     const soilExcavationRow2 = currentRow
     const backfillSoilText = 'Allow to import new clean soil to backfill and compact as per SOE-101.00, P-301.01 & details on SOE-201.01 to SOE-204.00'
     spreadsheet.updateCell({ value: backfillSoilText }, `${pfx}B${currentRow}`)
+    rowBContentMap.set(currentRow, backfillSoilText)
+    spreadsheet.wrap(`${pfx}B${currentRow}`, true)
     spreadsheet.cellFormat(
       {
         fontWeight: 'bold',
         color: '#000000',
         textAlign: 'left',
         backgroundColor: 'white',
-        verticalAlign: 'top'
+        verticalAlign: 'top',
+        wrapText: true
       },
       `${pfx}B${currentRow}`
     )
+    const backfillSoilHeight = calculateRowHeight(backfillSoilText)
+    try { spreadsheet.setRowHeight(backfillSoilHeight, currentRow - 1, proposalSheetIndex) } catch (e) { }
+    dynamicHeightRows.push({ row: currentRow, height: backfillSoilHeight })
     fillRatesForProposalRow(currentRow, backfillSoilText)
 
     // Add SF value
@@ -1780,21 +1904,25 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     )
     currentRow++
 
-    // Notes
+    // Notes: single-column cell in B with rich text – "Note:" bold, rest normal
     const notes = [
-      'Note: Backfill SOE voids by others',
+      'Note: Backfill SOE voids by others only',
       'Note: NJ Res Soil included, contaminated, mixed, hazardous, petroleum impacted not incl.',
       'Note: Bedrock not included, see add alt unit rate if required'
     ]
     notes.forEach(note => {
-      spreadsheet.updateCell({ value: note }, `${pfx}B${currentRow}`)
+      noteRows.push(currentRow)
+      const colonIdx = note.indexOf(': ')
+      const boldPart = colonIdx >= 0 ? note.slice(0, colonIdx) + ':' : note
+      const normalPart = colonIdx >= 0 ? note.slice(colonIdx + 1) : '' // includes space after colon
+      const richText = [
+        { text: boldPart, style: { fontWeight: 'bold' } },
+        { text: normalPart, style: { fontWeight: 'normal' } }
+      ]
+      spreadsheet.updateCell({ value: note, richText }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, note)
       spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'left',
-          backgroundColor: 'white'
-        },
+        { color: '#000000', textAlign: 'left', backgroundColor: 'white' },
         `${pfx}B${currentRow}`
       )
       currentRow++
@@ -1810,8 +1938,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           fontWeight: 'bold',
           color: '#000000',
           textAlign: 'left',
-          backgroundColor: '#FFF2CC',
-          border: '1px solid #000000'
+          backgroundColor: '#FFF2CC'
         },
         `${pfx}D${currentRow}:E${currentRow}`
       )
@@ -1825,13 +1952,18 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           color: '#000000',
           textAlign: 'right',
           backgroundColor: '#FFF2CC',
-          border: '1px solid #000000',
           format: '$#,##0.00'
         },
         `${pfx}F${currentRow}:G${currentRow}`
       )
-      spreadsheet.cellFormat({ backgroundColor: '#FFF2CC' }, `${pfx}B${currentRow}:G${currentRow}`)
-      baseBidTotalRows.push(currentRow) // Soil Excavation Total
+      applyTotalRowBorders(spreadsheet, pfx, currentRow, '#FFF2CC')
+      // Soil Excavation Total: left border of B, C, E match row bg (no black left edge)
+      const soilExcavationBg = '#FFF2CC'
+      const soilTotalRow = currentRow
+        ;['B', 'C', 'E'].forEach(col => {
+          spreadsheet.cellFormat({ backgroundColor: soilExcavationBg, borderLeft: `1px solid ${soilExcavationBg}` }, `${pfx}${col}${soilTotalRow}`)
+        })
+      baseBidTotalRows.push(soilTotalRow) // Soil Excavation Total
       totalRows.push(currentRow)
 
       soilExcavationTotalRow = currentRow
@@ -1859,9 +1991,17 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     // ROCK EXCAVATION SECTION (only when rock has values)
     // -------------------------------------------------------------------------
     let rockExcavationTotalRow = null
+    // Resolve rock excavation / line drill sum rows from formulaData so we use formulas (not hardcoded values)
+    if (hasRockExcavation && formulaData && Array.isArray(formulaData)) {
+      const rockExcSum = formulaData.find(f => f.itemType === 'rock_excavation_sum' && f.section === 'rock_excavation')
+      const lineDrillSum = formulaData.find(f => f.itemType === 'line_drill_sum' && f.section === 'rock_excavation')
+      if (rockExcSum && rockExcSum.row) rockExcavationLine1RowIndex = rockExcSum.row
+      if (lineDrillSum && lineDrillSum.row) rockExcavationLine2RowIndex = lineDrillSum.row
+    }
     if (hasRockExcavation) {
     // Rock excavation scope heading
     spreadsheet.updateCell({ value: 'Rock excavation scope:' }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, 'Rock excavation scope:')
     spreadsheet.cellFormat({
       backgroundColor: '#FFF2CC',
       textAlign: 'center',
@@ -1917,6 +2057,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     // First rock excavation line
     const rockRow1 = currentRow
     spreadsheet.updateCell({ value: rockExcavationText }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, rockExcavationText)
     spreadsheet.wrap(`${pfx}B${currentRow}`, true)
     spreadsheet.cellFormat(
       {
@@ -1924,7 +2065,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         color: '#000000',
         textAlign: 'left',
         backgroundColor: 'white',
-        verticalAlign: 'top'
+          verticalAlign: 'top',
+          textDecoration: 'none'
       },
       `${pfx}B${currentRow}`
     )
@@ -1955,6 +2097,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     // Second rock excavation line
     const rockRow2 = currentRow
     spreadsheet.updateCell({ value: lineDrillingText }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, lineDrillingText)
     spreadsheet.wrap(`${pfx}B${currentRow}`, true)
     spreadsheet.cellFormat(
       {
@@ -1962,7 +2105,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         color: '#000000',
         textAlign: 'left',
         backgroundColor: 'white',
-        verticalAlign: 'top'
+          verticalAlign: 'top',
+          textDecoration: 'none'
       },
       `${pfx}B${currentRow}`
     )
@@ -1995,8 +2139,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           fontWeight: 'bold',
           color: '#000000',
           textAlign: 'left',
-        backgroundColor: '#FFF2CC',
-        border: '1px solid #000000'
+          backgroundColor: '#FFF2CC'
       },
       `${pfx}D${currentRow}:E${currentRow}`
     )
@@ -2010,12 +2153,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         color: '#000000',
         textAlign: 'right',
         backgroundColor: '#FFF2CC',
-        border: '1px solid #000000',
         format: '$#,##0.00'
       },
       `${pfx}F${currentRow}:G${currentRow}`
     )
-    spreadsheet.cellFormat({ backgroundColor: '#FFF2CC', border: '1px solid #000000' }, `${pfx}B${currentRow}:C${currentRow}`)
+      applyTotalRowBorders(spreadsheet, pfx, currentRow, '#FFF2CC')
     baseBidTotalRows.push(currentRow) // Rock Excavation Total
     totalRows.push(currentRow)
 
@@ -2032,8 +2174,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         fontWeight: 'bold',
         color: '#000000',
         textAlign: 'left',
-        backgroundColor: '#BDD7EE',
-        border: '1px solid #000000'
+        backgroundColor: '#BDD7EE'
       },
       `${pfx}D${currentRow}:E${currentRow}`
     )
@@ -2049,16 +2190,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         color: '#000000',
         textAlign: 'right',
         backgroundColor: '#BDD7EE',
-        border: '1px solid #000000',
         format: '$#,##0.00'
       },
       `${pfx}F${currentRow}:G${currentRow}`
     )
-    spreadsheet.cellFormat({ backgroundColor: '#BDD7EE', border: '1px solid #000000' }, `${pfx}B${currentRow}:C${currentRow}`)
-    if (!hasRockExcavation) {
-      baseBidTotalRows.push(currentRow) // Excavation Total (only row for excavation when no rock)
-      totalRows.push(currentRow)
-    }
+    applyTotalRowBorders(spreadsheet, pfx, currentRow, '#BDD7EE')
+    baseBidTotalRows.push(currentRow) // Excavation Total (with or without rock)
+    totalRows.push(currentRow) // so Excavation Total gets centered $ like other totals
 
     currentRow++ // Extra line after Excavation Total
 
@@ -2090,6 +2228,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     if (hasSOEScopeData) {
     // SOE Scope
     spreadsheet.updateCell({ value: 'SOE scope:' }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, 'SOE scope:')
     spreadsheet.cellFormat(
       {
         fontWeight: 'bold',
@@ -2139,6 +2278,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       const rowNum = currentRow
       headingRows[heading] = rowNum
       spreadsheet.updateCell({ value: heading }, `${pfx}B${rowNum}`)
+        rowBContentMap.set(rowNum, heading)
       spreadsheet.cellFormat(
         {
           fontWeight: 'bold',
@@ -2340,6 +2480,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             const proposalText = `F&I new (${totalCount})no [${diameter}" Øx${thickness}" thick] drilled soldier piles (H=${heightText}, ${embedmentText} embedment) as per ${soePage}`
 
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat(
               {
@@ -2347,7 +2488,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 color: '#000000',
                 textAlign: 'left',
                 backgroundColor: 'white',
-                verticalAlign: 'top'
+                  verticalAlign: 'top',
+                  textDecoration: 'none'
               },
               `${pfx}B${currentRow}`
             )
@@ -2397,7 +2539,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 fontWeight: 'bold',
                 textAlign: 'right',
                 backgroundColor: 'white',
-                format: '$#,##0.0'
+        format: '$#,##0.00'
               },
               `${pfx}H${currentRow}`
             )
@@ -2418,6 +2560,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       // Ensure "Soldier driven piles:" heading is visible before HP piles
       // Add it at the current row, then increment for HP piles
       spreadsheet.updateCell({ value: 'Soldier driven piles:' }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, 'Soldier driven piles:')
       spreadsheet.cellFormat(
         {
           fontWeight: 'bold',
@@ -2626,6 +2769,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
 
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat(
               {
@@ -2633,11 +2777,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 color: '#000000',
                 textAlign: 'left',
                 backgroundColor: 'white',
-                verticalAlign: 'top'
+                  verticalAlign: 'top',
+                  textDecoration: 'none'
               },
               `${pfx}B${currentRow}`
             )
-            fillRatesForProposalRow(currentRow, proposalText)
+            // Use scope-specific rate so Soldier driven piles get LF 150 (proposal_mapped.json)
+            fillRatesForProposalRow(currentRow, 'driven pile - Soldier driven piles scope')
 
             // Add FT (LF) to column C - reference to calculation sheet sum row
             spreadsheet.updateCell({ formula: `=${ftCellRef}` }, `${pfx}C${currentRow}`)
@@ -2680,7 +2826,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 fontWeight: 'bold',
                 textAlign: 'right',
                 backgroundColor: 'white',
-                format: '$#,##0.0'
+                  format: '$#,##0.00'
               },
               `${pfx}H${currentRow}`
             )
@@ -2739,6 +2885,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       // HP piles were added and we're past the heading row
       // Ensure "Primary secant piles:" heading is visible before primary secant content
       spreadsheet.updateCell({ value: 'Primary secant piles:' }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, 'Primary secant piles:')
       spreadsheet.cellFormat(
         {
           fontWeight: 'bold',
@@ -3021,6 +3168,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
 
         spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
           {
@@ -3028,7 +3176,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             color: '#000000',
             textAlign: 'left',
             backgroundColor: 'white',
-            verticalAlign: 'top'
+              verticalAlign: 'top',
+              textDecoration: 'none'
           },
           `${pfx}B${currentRow}`
         )
@@ -3081,14 +3230,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             fontWeight: 'bold',
             textAlign: 'right',
             backgroundColor: 'white',
-            format: '$#,##0.0'
+              format: '$#,##0.00'
           },
           `${pfx}H${currentRow}`
         )
 
         // Apply currency format
         try {
-          spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+            spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
         } catch (e) {
           // Fallback already applied in cellFormat
         }
@@ -3138,6 +3287,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     } else {
       // Ensure "Secondary secant piles:" heading is visible before secondary secant content
       spreadsheet.updateCell({ value: 'Secondary secant piles:' }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, 'Secondary secant piles:')
       spreadsheet.cellFormat(
         {
           fontWeight: 'bold',
@@ -3344,6 +3494,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
 
         spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
           {
@@ -3351,7 +3502,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             color: '#000000',
             textAlign: 'left',
             backgroundColor: 'white',
-            verticalAlign: 'top'
+              verticalAlign: 'top',
+              textDecoration: 'none'
           },
           `${pfx}B${currentRow}`
         )
@@ -3404,14 +3556,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             fontWeight: 'bold',
             textAlign: 'right',
             backgroundColor: 'white',
-            format: '$#,##0.0'
+              format: '$#,##0.00'
           },
           `${pfx}H${currentRow}`
         )
 
         // Apply currency format
         try {
-          spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+            spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
         } catch (e) {
           // Fallback already applied in cellFormat
         }
@@ -3461,6 +3613,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     } else {
       // Ensure "Tangent pile:" heading is visible before tangent pile content
       spreadsheet.updateCell({ value: 'Tangent pile:' }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, 'Tangent pile:')
       spreadsheet.cellFormat(
         {
           fontWeight: 'bold',
@@ -3668,6 +3821,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
 
         spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
           {
@@ -3675,7 +3829,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             color: '#000000',
             textAlign: 'left',
             backgroundColor: 'white',
-            verticalAlign: 'top'
+              verticalAlign: 'top',
+              textDecoration: 'none'
           },
           `${pfx}B${currentRow}`
         )
@@ -3728,14 +3883,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             fontWeight: 'bold',
             textAlign: 'right',
             backgroundColor: 'white',
-            format: '$#,##0.0'
+              format: '$#,##0.00'
           },
           `${pfx}H${currentRow}`
         )
 
         // Apply currency format
         try {
-          spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+            spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
         } catch (e) {
           // Fallback already applied in cellFormat
         }
@@ -4672,6 +4827,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // Add Bracing header
         const subsectionText = `Bracing: including shims, stiffeners, and/or wale seats as required`
         spreadsheet.updateCell({ value: subsectionText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, subsectionText)
         spreadsheet.cellFormat(
           {
             fontWeight: 'bold',
@@ -4884,6 +5040,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
               // Add proposal text
               spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+                rowBContentMap.set(currentRow, proposalText)
               spreadsheet.wrap(`${pfx}B${currentRow}`, true)
               spreadsheet.cellFormat(
                 {
@@ -4891,7 +5048,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                   color: '#000000',
                   textAlign: 'left',
                   backgroundColor: 'white',
-                  verticalAlign: 'top'
+                    verticalAlign: 'top',
+                    textDecoration: 'none'
                 },
                 `${pfx}B${currentRow}`
               )
@@ -4947,14 +5105,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                   fontWeight: 'bold',
                   textAlign: 'right',
                   backgroundColor: 'white',
-                  format: '$#,##0.0'
+                    format: '$#,##0.00'
                 },
                 `${pfx}H${currentRow}`
               )
 
               // Apply currency format
               try {
-                spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+                  spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
               } catch (e) {
                 // Fallback already applied in cellFormat
               }
@@ -5055,6 +5213,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
             // Add proposal text
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat(
               {
@@ -5062,7 +5221,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 color: '#000000',
                 textAlign: 'left',
                 backgroundColor: 'white',
-                verticalAlign: 'top'
+                  verticalAlign: 'top',
+                  textDecoration: 'none'
               },
               `${pfx}B${currentRow}`
             )
@@ -5118,14 +5278,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 fontWeight: 'bold',
                 textAlign: 'right',
                 backgroundColor: 'white',
-                format: '$#,##0.0'
+                  format: '$#,##0.00'
               },
               `${pfx}H${currentRow}`
             )
 
             // Apply currency format
             try {
-              spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+                spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
             } catch (e) {
               // Fallback already applied in cellFormat
             }
@@ -5139,6 +5299,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // Add Tie back anchor header
         const tieBackText = `Tie back anchor: including applicable washers, steel bearing plates, locking hex nuts as required`
         spreadsheet.updateCell({ value: tieBackText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, tieBackText)
         spreadsheet.cellFormat(
           {
             fontWeight: 'bold',
@@ -5292,6 +5453,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             const proposalText = `F&I new (${qtyValue})no tie back anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain}`
 
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat(
               {
@@ -5299,7 +5461,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 color: '#000000',
                 textAlign: 'left',
                 backgroundColor: 'white',
-                verticalAlign: 'top'
+                  verticalAlign: 'top',
+                  textDecoration: 'none'
               },
               `${pfx}B${currentRow}`
             )
@@ -5352,14 +5515,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 fontWeight: 'bold',
                 textAlign: 'right',
                 backgroundColor: 'white',
-                format: '$#,##0.0'
+                  format: '$#,##0.00'
               },
               `${pfx}H${currentRow}`
             )
 
             // Apply currency format
             try {
-              spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+                spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
             } catch (e) {
               // Fallback already applied in cellFormat
             }
@@ -5380,6 +5543,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // Add Tie back anchor header
         const tieBackText = `Tie back anchor: including applicable washers, steel bearing plates, locking hex nuts as required`
         spreadsheet.updateCell({ value: tieBackText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, tieBackText)
         spreadsheet.cellFormat(
           {
             fontWeight: 'bold',
@@ -5533,6 +5697,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             const proposalText = `F&I new (${qtyValue})no tie back anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain}`
 
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat(
               {
@@ -5540,7 +5705,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 color: '#000000',
                 textAlign: 'left',
                 backgroundColor: 'white',
-                verticalAlign: 'top'
+                  verticalAlign: 'top',
+                  textDecoration: 'none'
               },
               `${pfx}B${currentRow}`
             )
@@ -5593,14 +5759,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 fontWeight: 'bold',
                 textAlign: 'right',
                 backgroundColor: 'white',
-                format: '$#,##0.0'
+                  format: '$#,##0.00'
               },
               `${pfx}H${currentRow}`
             )
 
             // Apply currency format
             try {
-              spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+                spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
             } catch (e) {
               // Fallback already applied in cellFormat
             }
@@ -5669,6 +5835,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           // Add Tie down anchor header
           const tieDownText = `Tie down anchor: including applicable washers, steel bearing plates, locking hex nuts as required`
           spreadsheet.updateCell({ value: tieDownText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, tieDownText)
           spreadsheet.cellFormat(
             {
               fontWeight: 'bold',
@@ -5768,6 +5935,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             const proposalText = `F&I new (${qtyValue})no tie down anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain}`
 
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
             spreadsheet.cellFormat(
               {
@@ -5775,7 +5943,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 color: '#000000',
                 textAlign: 'left',
                 backgroundColor: 'white',
-                verticalAlign: 'top'
+                  verticalAlign: 'top',
+                  textDecoration: 'none'
               },
               `${pfx}B${currentRow}`
             )
@@ -5828,14 +5997,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 fontWeight: 'bold',
                 textAlign: 'right',
                 backgroundColor: 'white',
-                format: '$#,##0.0'
+                  format: '$#,##0.00'
               },
               `${pfx}H${currentRow}`
             )
 
             // Apply currency format
             try {
-              spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+                spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
             } catch (e) {
               // Fallback already applied in cellFormat
             }
@@ -5860,6 +6029,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       if (subsectionName.toLowerCase() === 'misc.' || subsectionName.toLowerCase() === 'misc') {
         // Add subsection header
         spreadsheet.updateCell({ value: `${subsectionName}:` }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, `${subsectionName}:`)
         spreadsheet.cellFormat(
           {
             fontWeight: 'bold',
@@ -5882,6 +6052,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
         miscItems.forEach((item) => {
           spreadsheet.updateCell({ value: item }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, item)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat(
             {
@@ -5911,6 +6082,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       }
 
       spreadsheet.updateCell({ value: subsectionText }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, subsectionText)
       spreadsheet.cellFormat(
         {
           fontWeight: 'bold',
@@ -7780,6 +7952,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
         // Add proposal text
         spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
           {
@@ -7787,7 +7960,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             color: '#000000',
             textAlign: 'left',
             backgroundColor: 'white',
-            verticalAlign: 'top'
+              verticalAlign: 'top',
+              textDecoration: 'none'
           },
           `${pfx}B${currentRow}`
         )
@@ -7933,14 +8107,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             fontWeight: 'bold',
             textAlign: 'right',
             backgroundColor: 'white',
-            format: '$#,##0.0'
+              format: '$#,##0.00'
           },
           `${pfx}H${currentRow}`
         )
 
         // Apply currency format
         try {
-          spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+            spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
         } catch (e) {
           // Fallback already applied in cellFormat
         }
@@ -7956,6 +8130,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           // Backpacking has its own reference: main SOE + details on SOE-301.00 (different from timber lagging line)
           const backpackingText = `F&I new backpacking @ timber lagging ${mainSoePage} & details on SOE-301.00`
           spreadsheet.updateCell({ value: backpackingText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, backpackingText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat(
             {
@@ -8005,12 +8180,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               color: '#000000',
               textAlign: 'right',
               backgroundColor: 'white',
-              format: '$#,##0.0'
+                format: '$#,##0.00'
             },
             `${pfx}H${currentRow}`
           )
           try {
-            spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+              spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
           } catch (e) { /* ignore */ }
         }
 
@@ -8023,6 +8198,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
           // Add form board proposal text
           spreadsheet.updateCell({ value: formBoardText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, formBoardText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat(
             {
@@ -8050,7 +8226,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           })
 
           // Find form board sum row in calculation sheet
-          let formBoardSumRowIndex = formBoardLastRowNumber + 1
+            // Sum row is on the same row as the last form board item, not the next row
+            let formBoardSumRowIndex = formBoardLastRowNumber
 
           // Add FT (LF) to column C - reference to calculation sheet sum row
           if (formBoardSumRowIndex > 0) {
@@ -8086,14 +8263,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               fontWeight: 'bold',
               textAlign: 'right',
               backgroundColor: 'white',
-              format: '$#,##0.0'
+                format: '$#,##0.00'
             },
             `${pfx}H${currentRow}`
           )
 
           // Apply currency format
           try {
-            spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+              spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
           } catch (e) {
             // Fallback already applied in cellFormat
           }
@@ -8133,6 +8310,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
           // Add shims proposal text
           spreadsheet.updateCell({ value: shimsProposalText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, shimsProposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat(
             {
@@ -8170,14 +8348,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               fontWeight: 'bold',
               textAlign: 'right',
               backgroundColor: 'white',
-              format: '$#,##0.0'
+                format: '$#,##0.00'
             },
             `${pfx}H${currentRow}`
           )
 
           // Apply currency format
           try {
-            spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+              spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
           } catch (e) {
             // Fallback already applied in cellFormat
           }
@@ -8201,34 +8379,28 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           fontWeight: 'bold',
           color: '#000000',
           textAlign: 'left',
-          backgroundColor: '#BDD7EE',
-          border: '1px solid #000000'
+            backgroundColor: '#BDD7EE'
         },
         `${pfx}D${currentRow}:E${currentRow}`
       )
       spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
+        // SOE total in F:G (like Demolition Total / Excavation Total), not in H
+        spreadsheet.updateCell({ formula: `=SUM(H${soeScopeStartRow}:H${soeScopeEndRow})*1000` }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat(
         {
+            fontWeight: 'bold',
+            color: '#000000',
+            textAlign: 'center',
           backgroundColor: '#BDD7EE',
-          border: '1px solid #000000'
+            format: '$#,##0.00'
         },
         `${pfx}F${currentRow}:G${currentRow}`
       )
-
-      // Add sum formula for column H ($/1000) - sum all SOE subsection totals and multiply by 1000
-      spreadsheet.updateCell({ formula: `=SUM(H${soeScopeStartRow}:H${soeScopeEndRow})*1000` }, `${pfx}H${currentRow}`)
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          backgroundColor: '#BDD7EE',
-          border: '1px solid #000000',
-          format: '$#,##0.0'
-        },
-        `${pfx}H${currentRow}`
-      )
+        applyTotalRowBorders(spreadsheet, pfx, currentRow, '#BDD7EE')
       baseBidTotalRows.push(currentRow)
       totalRows.push(currentRow)
       currentRow++
+        currentRow++ // Empty row after SOE Total
     }
     } // end if (hasSOEScopeData)
 
@@ -8287,6 +8459,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     if (hasRockAnchorScopeData) {
     // Add Rock anchor scope heading after SOE Total
     spreadsheet.updateCell({ value: 'Rock anchor scope:' }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, 'Rock anchor scope:')
     spreadsheet.cellFormat(
       {
         fontWeight: 'bold',
@@ -8301,6 +8474,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
     // Add Rock anchors subheading
     spreadsheet.updateCell({ value: 'Rock anchors: including applicable washers, steel bearing plates, locking hex nuts as required' }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, 'Rock anchors: including applicable washers, steel bearing plates, locking hex nuts as required')
     spreadsheet.cellFormat(
       {
         fontWeight: 'bold',
@@ -8315,6 +8489,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     currentRow++
 
     // Process and display Rock anchor items (grouped)
+      const rockAnchorStartRow = currentRow
     if (rockAnchorItems.length > 0) {
       // Group rock anchor items by similar characteristics (drill hole, free length, bond length)
       const rockAnchorGroups = new Map()
@@ -8400,6 +8575,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const proposalText = `F&I new (${totalQtyValue})no (##"Ø thick) threaded bar (or approved equal) (## Kips tension load capacity & ## Kips lock off load capacity) ##KSI rock anchors (##-KSI grout infilled) (L=${freeLengthText} + ${bondLengthText} bond length), ${drillHole} drill hole as per ${soePageMain}`
 
         spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
           {
@@ -8407,7 +8583,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             color: '#000000',
             textAlign: 'left',
             backgroundColor: 'white',
-            verticalAlign: 'top'
+              verticalAlign: 'top',
+              textDecoration: 'none'
           },
           `${pfx}B${currentRow}`
         )
@@ -8463,14 +8640,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             fontWeight: 'bold',
             textAlign: 'right',
             backgroundColor: 'white',
-            format: '$#,##0.0'
+              format: '$#,##0.00'
           },
           `${pfx}H${currentRow}`
         )
 
         // Apply currency format
         try {
-          spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+            spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
         } catch (e) {
           // Fallback already applied in cellFormat
         }
@@ -8615,6 +8792,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const proposalText = `F&I new (${totalQtyValue})no threaded bar (or approved equal) ##KSI (##°) rock bolts/dowel (L=${bondLengthText}), ${drillHole} drill hole as per ${soePageMain}`
 
         spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
           {
@@ -8622,7 +8800,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             color: '#000000',
             textAlign: 'left',
             backgroundColor: 'white',
-            verticalAlign: 'top'
+              verticalAlign: 'top',
+              textDecoration: 'none'
           },
           `${pfx}B${currentRow}`
         )
@@ -8668,14 +8847,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             fontWeight: 'bold',
             textAlign: 'right',
             backgroundColor: 'white',
-            format: '$#,##0.0'
+              format: '$#,##0.00'
           },
           `${pfx}H${currentRow}`
         )
 
         // Apply currency format
         try {
-          spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+            spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
         } catch (e) {
           // Fallback already applied in cellFormat
         }
@@ -8684,6 +8863,43 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
       })
     }
+      const rockAnchorEndRow = currentRow - 1
+
+      // Add Rock anchor Total row when there are data rows
+      if (rockAnchorEndRow >= rockAnchorStartRow) {
+        // Label across B–E, amount in F–G, same layout as other totals
+        spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
+        spreadsheet.updateCell({ value: 'Rock anchor Total:' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat(
+          {
+            fontWeight: 'bold',
+            color: '#000000',
+            textAlign: 'right',
+            backgroundColor: '#BDD7EE'
+          },
+          `${pfx}B${currentRow}:E${currentRow}`
+        )
+
+        spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
+        spreadsheet.updateCell(
+          { formula: `=SUM(H${rockAnchorStartRow}:H${rockAnchorEndRow})*1000` },
+          `${pfx}F${currentRow}`
+        )
+        spreadsheet.cellFormat(
+          {
+            fontWeight: 'bold',
+            color: '#000000',
+            textAlign: 'right',
+            backgroundColor: '#BDD7EE',
+            format: '$#,##0.00'
+          },
+          `${pfx}F${currentRow}:G${currentRow}`
+        )
+
+        applyTotalRowBorders(spreadsheet, pfx, currentRow, '#BDD7EE')
+        totalRows.push(currentRow)
+        currentRow++
+      }
 
     // Add empty row to separate Rock anchor scope from Foundation scope
     currentRow++
@@ -8739,6 +8955,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       const subsectionText = `${displayName} scope:`
 
       spreadsheet.updateCell({ value: subsectionText }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, subsectionText)
       spreadsheet.cellFormat(
         {
           fontWeight: 'bold',
@@ -8973,6 +9190,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
           // Add proposal text
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, proposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           fillRatesForProposalRow(currentRow, proposalText)
 
@@ -9069,7 +9287,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               fontWeight: 'bold',
               textAlign: 'right',
               backgroundColor: groupHasInflu ? '#FCE4D6' : 'white',
-              format: '$#,##0.0'
+              format: '$#,##0.00'
             },
             `${pfx}H${currentRow}`
           )
@@ -9298,6 +9516,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
         // Add proposal text
         spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
           {
@@ -9305,7 +9524,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             color: '#000000',
             textAlign: 'left',
             backgroundColor: 'white',
-            verticalAlign: 'top'
+            verticalAlign: 'top',
+            textDecoration: 'none'
           },
           `${pfx}B${currentRow}`
         )
@@ -9360,7 +9580,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             fontWeight: 'bold',
             textAlign: 'right',
             backgroundColor: 'white',
-            format: '$#,##0.0'
+            format: '$#,##0.00'
           },
           `${pfx}H${currentRow}`
         )
@@ -9468,6 +9688,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // Add included items
         miscSection.included.forEach((item, index) => {
           spreadsheet.updateCell({ value: item }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, item)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat(
             {
@@ -9511,14 +9732,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                   fontWeight: 'normal',
                   textAlign: 'right',
                   backgroundColor: 'white',
-                  format: '$#,##0.0'
+                  format: '$#,##0.00'
                 },
                 `${pfx}H${currentRow}`
               )
 
               // Apply currency format
               try {
-                spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+                spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
               } catch (e) {
                 // Fallback already applied in cellFormat
               }
@@ -9544,14 +9765,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                   fontWeight: 'normal',
                   textAlign: 'right',
                   backgroundColor: 'white',
-                  format: '$#,##0.0'
+                  format: '$#,##0.00'
                 },
                 `${pfx}H${currentRow}`
               )
 
               // Apply currency format
               try {
-                spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}:N${currentRow}`)
+                spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
               } catch (e) {
                 // Fallback already applied in cellFormat
               }
@@ -9603,6 +9824,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // Add additional cost items
         miscSection.additional.forEach(item => {
           spreadsheet.updateCell({ value: item }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, item)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat(
             {
@@ -9647,8 +9869,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             fontWeight: 'bold',
             color: '#000000',
             textAlign: 'left',
-            backgroundColor: '#BDD7EE',
-            border: '1px solid #000000'
+            backgroundColor: '#BDD7EE'
           },
           `${pfx}D${currentRow}:E${currentRow}`
         )
@@ -9662,7 +9883,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             color: '#000000',
             textAlign: 'right',
             backgroundColor: '#BDD7EE',
-            border: '1px solid #000000',
             format: '$#,##0.00'
           },
           `${pfx}F${currentRow}:G${currentRow}`
@@ -9681,17 +9901,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           )
         }
 
-        // Apply background color to entire row B:G (like Demolition Total)
-        spreadsheet.cellFormat(
-          {
-            backgroundColor: '#BDD7EE'
-          },
-          `${pfx}B${currentRow}:G${currentRow}`
-        )
+        applyTotalRowBorders(spreadsheet, pfx, currentRow, '#BDD7EE')
         baseBidTotalRows.push(currentRow) // Foundation pile section total
         totalRows.push(currentRow)
 
         currentRow++ // One row gap after total
+        currentRow++ // Empty row after Foundation Piles Total
       }
     })
 
@@ -9710,6 +9925,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       const hasNonZeroTakeoff = (source, isFormulaItem) => {
         if (!calculationData) return true
         if (isFormulaItem) {
+        if (source.itemType === 'buttress_final') {
+          const finalRow = calculationData[source.row - 1]
+          const mVal = parseFloat(finalRow?.[12]) || 0
+          if (mVal > 0) return true
+          if (source.buttressRow) {
+            const takeoffRow = calculationData[source.buttressRow - 1]
+            return (parseFloat(takeoffRow?.[2]) || 0) > 0
+          }
+          return false
+        }
           const row = calculationData[source.row - 1]
           return (parseFloat(row?.[2]) || 0) > 0
         }
@@ -9725,7 +9950,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         {
           heading: 'Compacted gravel', items: [
             { text: `F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ SOG, elevator pit slab, detention tank slab, duplex sewage ejector pit slab & mat as per FO-101.00 & details on FO-203.00`, sub: 'SOG', match: p => p.includes('gravel') && !p.includes('geotextile') },
-            { text: 'F&I new geotextile filter fabric below gravel', sub: 'SOG', match: p => p.includes('geotextile') }
+          { text: 'F&I new geotextile filter fabric below gravel', sub: 'SOG', match: p => p.includes('geotextile'), showIfExists: true }
           ]
         },
         {
@@ -9753,19 +9978,19 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         {
           heading: 'Deep sewage ejector pit', items: [
             { text: `F&I new (1'-0" thick) deep sewage ejector pit slab as per P-100.00 & details on P-205.00`, sub: 'Deep sewage ejector pit', match: p => p.includes('deep') && p.includes('slab') },
-            { text: `F&I new (0'-6" wide) deep sewage ejector pit walls (H=8'-6") as per P-100.00 & details on P-205.00`, sub: 'Deep sewage ejector pit', match: p => p.includes('deep') && p.includes('wall') }
+          { text: `F&I new (0'-6" wide) deep sewage ejector pit walls (H=8'-6") as per P-100.00`, sub: 'Deep sewage ejector pit', match: p => (p || '').toLowerCase().includes('deep') && (p.includes('wall') || /6\s*[""]?\s*x\s*8\s*['']?\s*-\s*6/i.test(p) || (p.includes('6"') && (p.includes("8'-6") || p.includes("8'- 6")))) }
           ]
         },
         {
           heading: 'Grease trap pit', items: [
-            { text: `F&I new (1'-0" thick) grease trap pit slab as per P-100.00 & details on P-205.00`, sub: 'Grease trap', match: p => p.includes('grease') && p.includes('slab') },
-            { text: `F&I new (0'-6" wide) grease trap pit walls (H=8'-6") as per P-100.00 & details on P-205.00`, sub: 'Grease trap', match: p => p.includes('grease') && p.includes('wall') }
+          { text: `F&I new (1'-0" thick) grease trap pit slab as per P-100.00 & details on P-205.00`, sub: 'Grease trap', match: p => (p || '').toLowerCase().includes('grease') && (p || '').toLowerCase().includes('slab') },
+          { text: `F&I new (0'-6" wide) grease trap pit walls (H=8'-6") as per P-100.00 & details on P-205.00`, sub: 'Grease trap', match: p => (p || '').toLowerCase().includes('grease') && ((p || '').toLowerCase().includes('wall') || /6\s*[""]?\s*x\s*8\s*['']?\s*-\s*6/i.test(p) || ((p || '').includes('6"') && ((p || '').includes("8'-6") || (p || '').includes("8'- 6")))) }
           ]
         },
         {
           heading: 'House trap pit', items: [
-            { text: `F&I new (1'-0" thick) house trap pit slab as per P-100.00 & details on P-205.00`, sub: 'House trap', match: p => p.includes('house trap') && p.includes('slab') },
-            { text: `F&I new (0'-6" wide) house trap pit walls (H=8'-6") as per P-100.00 & details on P-205.00`, sub: 'House trap', match: p => p.includes('house trap') && p.includes('wall') }
+          { text: `F&I new (1'-0" thick) house trap pit slab as per P-100.00 & details on P-205.00`, sub: 'House trap', match: p => (p || '').toLowerCase().includes('house trap') && (p || '').toLowerCase().includes('slab') },
+          { text: `F&I new (0'-6" wide) house trap pit walls (H=8'-6") as per P-100.00 & details on P-205.00`, sub: 'House trap', match: p => (p || '').toLowerCase().includes('house trap') && ((p || '').toLowerCase().includes('wall') || /6\s*[""]?\s*x\s*8\s*['']?\s*-\s*6/i.test(p) || ((p || '').includes('6"') && ((p || '').includes("8'-6") || (p || '').includes("8'- 6")))) }
           ]
         },
         {
@@ -9786,7 +10011,53 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             { text: `F&I new (6" thick) patio slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00`, sub: 'SOG', match: p => p.includes('patio') },
             { text: `Allow to (5" thick) patch slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00`, sub: 'SOG', match: p => p.includes('patch') },
             { text: `F&I new (6" thick) slab on grade step (H=1'-2") as per FO-101.00 & details on FO-203.00`, sub: 'SOG', match: p => p.includes('step') },
-            { text: `F&I new (14)no (2'-0" to 3'-6" wide) buttresses (H=10'-3") within foundation walls @ cellar FL to 1st FL as per FO-101.00`, sub: 'Buttresses', match: () => true },
+          {
+            formulaItem: { itemType: 'buttress_final', match: () => true },
+            showIfExists: true,
+            getText: (source, calculationData, rawData) => {
+              let qty = '##'
+              if (source.row && calculationData && calculationData[source.row - 1]) {
+                const mVal = calculationData[source.row - 1][12]
+                const n = Math.round(parseFloat(mVal) || 0)
+                if (n > 0) qty = String(n)
+              }
+              if (qty === '##' && source.buttressRow && calculationData && calculationData[source.buttressRow - 1]) {
+                const takeoffVal = calculationData[source.buttressRow - 1][2]
+                const n = Math.round(parseFloat(takeoffVal) || 0)
+                if (n > 0) qty = String(n)
+              }
+              let width = '##'
+              let height = '##'
+              let page = '##'
+              if (rawData && rawData.length >= 2) {
+                const headers = rawData[0]
+                const dataRows = rawData.slice(1)
+                const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
+                const pageIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'page')
+                for (let i = 0; i < dataRows.length; i++) {
+                  const row = dataRows[i]
+                  const digitizerItem = (row[digitizerIdx] || '').toString()
+                  if (digitizerItem.toLowerCase().includes('buttress')) {
+                    const particulars = digitizerItem
+                    const widthMatch = particulars.match(/(\d+'\s*-\s*\d+"?\s*to\s*\d+'\s*-\s*\d+"?)\s*wide/i) || particulars.match(/(\d+'\s*-\s*\d+"?)\s*wide/i)
+                    if (widthMatch) width = widthMatch[1].trim()
+                    const heightMatch = particulars.match(/H\s*=\s*(\d+'\s*-\s*\d+")/i)
+                    if (heightMatch) height = heightMatch[1].trim()
+                    if (pageIdx >= 0 && row[pageIdx]) {
+                      const pageStr = String(row[pageIdx]).trim()
+                      const foMatch = pageStr.match(/(?:FO|P)-[\d.]+/i)
+                      if (foMatch) page = foMatch[0]
+                    }
+                    break
+                  }
+                }
+              }
+              if (page === '##') page = 'FO-101.00'
+              const heightPart = height !== '##' ? `(H=${height})` : `(${height})`
+              const line = `F&I new (${qty})no (${width}) buttresses ${heightPart} within foundation walls @ cellar FL to 1st FL as per ${page}`
+              return { line, data: { qty, width, height, page } }
+            }
+          },
             { text: `F&I new (8" thick) corbel (Havg=2'-2") as per FO-101.00 & details on FO-203.00`, sub: 'Corbel', match: () => true },
             { text: `F&I new (8" thick) concrete liner walls (Havg=11'-2") @ cellar FL to 1st FL as per FO-101.00 & details on FO-203.00`, sub: 'Linear Wall', match: () => true },
             { text: `F&I new (1'-0" wide) foundation walls (Havg=10'-10") @ cellar FL to 1st FL as per FO-101.00`, sub: 'Foundation Wall', match: () => true },
@@ -9806,9 +10077,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           ]
         },
         {
-          heading: 'Stair on grade',
-          customStairsOnGrade: true,
-          items: []
+        heading: 'Stair on grade',
+        customStairsOnGrade: true,
+        items: []
         },
         {
           heading: 'Electric conduit', items: [
@@ -9829,17 +10100,17 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       let hasSubstructureScopeData = false
       const dryRunUsedSum = new Set()
       const dryRunUsedItem = new Set()
-      for (const { items, customStairsOnGrade } of substructureTemplate) {
-        if (customStairsOnGrade) {
-          const stairsOnGradeFormulas = (formulaData || []).filter(f =>
-            f.itemType === 'stairs_on_grade' && f.section === 'foundation' && hasNonZeroTakeoff(f, true)
-          )
-          if (stairsOnGradeFormulas.length > 0) hasSubstructureScopeData = true
-          if (hasSubstructureScopeData) break
-          continue
-        }
+    for (const { items, customStairsOnGrade } of substructureTemplate) {
+      if (customStairsOnGrade) {
+        const stairsOnGradeFormulas = (formulaData || []).filter(f =>
+          f.itemType === 'stairs_on_grade' && f.section === 'foundation' && hasNonZeroTakeoff(f, true)
+        )
+        if (stairsOnGradeFormulas.length > 0) hasSubstructureScopeData = true
+        if (hasSubstructureScopeData) break
+        continue
+      }
         for (const it of items) {
-          const { sub, match, formulaItem } = it
+        const { sub, match, formulaItem, showIfExists } = it
           let source = null
           if (formulaItem) {
             const itemF = (formulaData || []).find(f =>
@@ -9849,7 +10120,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             if (itemF) {
               source = itemF
               dryRunUsedItem.add(itemF.row)
-              if (hasNonZeroTakeoff(itemF, true)) { hasSubstructureScopeData = true; break }
+            if (showIfExists || hasNonZeroTakeoff(itemF, true)) { hasSubstructureScopeData = true; break }
             }
           } else {
             const sumF = allFoundationSums.find(f => {
@@ -9860,7 +10131,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             if (sumF) {
               source = sumF
               dryRunUsedSum.add(sumF.row)
-              if (hasNonZeroTakeoff(sumF, false)) { hasSubstructureScopeData = true; break }
+            if (showIfExists || hasNonZeroTakeoff(sumF, false)) { hasSubstructureScopeData = true; break }
             }
           }
         }
@@ -9950,8 +10221,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               const text = getStairsOnGradeProposalText(formulaEntry)
               const sumRow = formulaEntry.row
               spreadsheet.updateCell({ value: text }, `${pfx}B${currentRow}`)
+              rowBContentMap.set(currentRow, text)
               spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-              spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
               spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!I${sumRow}` }, `${pfx}C${currentRow}`)
               spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!J${sumRow}` }, `${pfx}D${currentRow}`)
               spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!L${sumRow}` }, `${pfx}F${currentRow}`)
@@ -9963,7 +10235,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           })
           return
         }
-        items.forEach(({ text, sub, match, formulaItem }) => {
+        items.forEach(({ text, sub, match, formulaItem, showIfExists, getText }) => {
           let rowToUse = null
           let source = null
           if (formulaItem) {
@@ -9989,7 +10261,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             }
           }
           if (!rowToUse || !source) return
-          if (!hasNonZeroTakeoff(source, !!formulaItem)) return
+          if (!showIfExists && !hasNonZeroTakeoff(source, !!formulaItem)) return
           if (!headingAdded) {
             headingAdded = true
             lastSubstructureHeading = heading
@@ -10001,14 +10273,24 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             currentRow++
           }
           const sumRow = rowToUse
-          spreadsheet.updateCell({ value: text }, `${pfx}B${currentRow}`)
+          const getTextResult = typeof getText === 'function' ? getText(source, calculationData, rawData) : null
+          const displayText = getTextResult != null && typeof getTextResult === 'object' && getTextResult.line != null
+            ? getTextResult.line
+            : (getTextResult != null && typeof getTextResult === 'string' ? getTextResult : text)
+          if (getTextResult?.data) {
+            console.log('Final as per schedule count', getTextResult.data, getTextResult.line)
+          }
+          spreadsheet.updateCell({ value: displayText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, displayText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!I${sumRow}` }, `${pfx}C${currentRow}`)
           spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!J${sumRow}` }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!L${sumRow}` }, `${pfx}F${currentRow}`)
           spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!M${sumRow}` }, `${pfx}G${currentRow}`)
-          fillRatesForProposalRow(currentRow, text)
+          // Compacted gravel: use CY 95 for gravel/crushed stone with 6MIL vapor barrier (proposal_mapped.json)
+          const gravelRateKey = (lastSubstructureHeading === 'Compacted gravel' && displayText.includes('gravel/crushed stone, including 6MIL vapor barrier')) ? 'gravel/crushed stone, including 6MIL vapor barrier - Compacted gravel scope' : displayText
+          fillRatesForProposalRow(currentRow, gravelRateKey)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         })
@@ -10025,7 +10307,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           currentRow++
         }
         spreadsheet.updateCell({ value: 'DOB approved concrete washout included' }, `${pfx}B${currentRow}`)
-        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
         spreadsheet.updateCell({ formula: `=SUM(F${substructureStartRow}:F${substructureDataEndRow})` }, `${pfx}F${currentRow}`)
         spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}F${currentRow}`)
         try { spreadsheet.numberFormat('#,##0.00', `${pfx}F${currentRow}`) } catch (e) { }
@@ -10033,7 +10315,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
         spreadsheet.updateCell({ value: 'Engineering, shop drawings, formwork drawings, design mixes included' }, `${pfx}B${currentRow}`)
-        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
         fillRatesForProposalRow(currentRow, 'Engineering, shop drawings, formwork drawings, design mixes included')
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
@@ -10043,16 +10325,18 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
         spreadsheet.updateCell({ value: 'Substructure concrete Total:' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD7EE', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD7EE' },
           `${pfx}B${currentRow}:E${currentRow}`
         )
         spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
         spreadsheet.updateCell({ formula: `=SUM(H${substructureStartRow}:H${substructureEndRow})*1000` }, `${pfx}F${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD7EE', border: '1px solid #000000', format: '$#,##0.00' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD7EE', format: '$#,##0.00' },
           `${pfx}F${currentRow}:G${currentRow}`
         )
+        applyTotalRowBorders(spreadsheet, pfx, currentRow, '#BDD7EE')
         currentRow++
+        currentRow++ // Empty row after Substructure concrete Total
       }
 
       currentRow++
@@ -10075,6 +10359,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     // Increase row height
 
     currentRow++
+    const wpScopeStartRow = currentRow
 
     // Add proposal text with present waterproofing items
     const waterproofingItems = window.waterproofingPresentItems || []
@@ -10124,6 +10409,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       const proposalText = `F&I new Precon by WR Meadows waterproofing membrane (vertical only) with Hydro duct protection/drainage board & R15 2"XPS Rigid Insulation @ ${itemsText}`
 
       spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, proposalText)
       spreadsheet.wrap(`${pfx}B${currentRow}`, true)
       spreadsheet.cellFormat(
         {
@@ -10197,13 +10483,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               fontWeight: 'bold',
               textAlign: 'right',
               backgroundColor: 'white',
-              format: '$#,##0.0'
+              format: '$#,##0.00'
             },
             `${pfx}H${currentRow}`
           )
           // Apply currency format using numberFormat
           try {
-            spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}`)
+            spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}`)
           } catch (e) {
             // Fallback already applied in cellFormat
           }
@@ -10242,6 +10528,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const negativeProposalText = `F&I new Aquafin waterproofing @ negative side of the ${negativeItemsText}`
 
         spreadsheet.updateCell({ value: negativeProposalText }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, negativeProposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
           {
@@ -10249,7 +10536,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             color: '#000000',
             textAlign: 'left',
             backgroundColor: 'white',
-            verticalAlign: 'top'
+            verticalAlign: 'top',
+            textDecoration: 'none'
           },
           `${pfx}B${currentRow}`
         )
@@ -10315,13 +10603,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             fontWeight: 'bold',
             textAlign: 'right',
             backgroundColor: 'white',
-            format: '$#,##0.0'
+            format: '$#,##0.00'
           },
           `${pfx}H${currentRow}`
         )
         // Apply currency format using numberFormat
         try {
-          spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}`)
+          spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}`)
         } catch (e) {
           // Fallback already applied in cellFormat
         }
@@ -10334,6 +10622,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       if (hasHorizontalWP && horizontalWPSumRow > 0) {
         const horizontalWPProposalText = 'F&I new Precon by WR Meadows waterproofing membrane (horizontal) @ SOG'
         spreadsheet.updateCell({ value: horizontalWPProposalText }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, horizontalWPProposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
           {
@@ -10341,7 +10630,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             color: '#000000',
             textAlign: 'left',
             backgroundColor: 'white',
-            verticalAlign: 'top'
+            verticalAlign: 'top',
+            textDecoration: 'none'
           },
           `${pfx}B${currentRow}`
         )
@@ -10360,18 +10650,19 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")`
         }, `${pfx}H${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.0' },
+          { fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.00' },
           `${pfx}H${currentRow}`
         )
         try {
-          spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}`)
-        } catch (e) {}
+          spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}`)
+        } catch (e) { }
         currentRow++
       }
     } else if (hasHorizontalWP) {
       // No vertical items but horizontal WP subsection exists – show horizontal membrane line (even when sum is 0)
       const horizontalWPProposalText = 'F&I new Precon by WR Meadows waterproofing membrane (horizontal) @ SOG'
       spreadsheet.updateCell({ value: horizontalWPProposalText }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, horizontalWPProposalText)
       spreadsheet.wrap(`${pfx}B${currentRow}`, true)
       spreadsheet.cellFormat(
         {
@@ -10400,12 +10691,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")`
       }, `${pfx}H${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.0' },
+        { fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.00' },
         `${pfx}H${currentRow}`
       )
       try {
-        spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}`)
-      } catch (e) {}
+        spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}`)
+      } catch (e) { }
       currentRow++
     } else {
       // No vertical, negative-side, or horizontal WP items – show "No details provided"
@@ -10422,29 +10713,24 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       currentRow++
     }
 
-    // Add horizontal insulation proposal text if present (check calculation sheet for horizontal insulation sum)
-    // Horizontal insulation items are always created in the calculation sheet, so check formulaData
+    // XPS rigid insulation @ SOG & grade beam – part of waterproofing (before Total)
     let hasHorizontalInsulation = false
     if (formulaData && Array.isArray(formulaData)) {
       const horizontalInsulationSumFormula = formulaData.find(f =>
-        f.itemType === 'waterproofing_horizontal_insulation_sum' &&
-        f.section === 'waterproofing'
+        f.itemType === 'waterproofing_horizontal_insulation_sum' && f.section === 'waterproofing'
       )
       hasHorizontalInsulation = !!horizontalInsulationSumFormula
     }
-
     if (hasHorizontalInsulation) {
       const calcSheetName = 'Calculations Sheet'
       let horizontalInsulationSumRow = 0
-      let thicknessFromCalc = '2' // default
+      let thicknessFromCalc = '2'
       if (formulaData && Array.isArray(formulaData)) {
         const horizontalInsulationSumFormula = formulaData.find(f =>
-          f.itemType === 'waterproofing_horizontal_insulation_sum' &&
-          f.section === 'waterproofing'
+          f.itemType === 'waterproofing_horizontal_insulation_sum' && f.section === 'waterproofing'
         )
         if (horizontalInsulationSumFormula) {
           horizontalInsulationSumRow = horizontalInsulationSumFormula.row
-          // Thickness is dynamic: read from first data row (column B) e.g. "2"XPS Rigid insulation @ SOG & GB"
           const firstDataRow = horizontalInsulationSumFormula.firstDataRow
           if (firstDataRow && calculationData && calculationData[firstDataRow - 1]) {
             const particulars = (calculationData[firstDataRow - 1][1] || '').toString().trim()
@@ -10455,9 +10741,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       }
       const horizontalProposalText = `F&I new (${thicknessFromCalc}" thick) XPS rigid insulation @ SOG & grade beam`
       spreadsheet.updateCell({ value: horizontalProposalText }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, horizontalProposalText)
       spreadsheet.wrap(`${pfx}B${currentRow}`, true)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' },
         `${pfx}B${currentRow}`
       )
       if (horizontalInsulationSumRow > 0) {
@@ -10467,26 +10754,60 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       }
       fillRatesForProposalRow(currentRow, horizontalProposalText)
       spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
-      spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.0' }, `${pfx}H${currentRow}`)
-      try { spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}`) } catch (e) { }
+      spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.00' }, `${pfx}H${currentRow}`)
+      try { spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}`) } catch (e) { }
       currentRow++
     }
 
-    // Add note about WR Meadows Installer
-    spreadsheet.updateCell({ value: 'Note: Capstone Contracting Corp is a licensed WR Meadows Installer ' }, `${pfx}B${currentRow}`)
+    // Note: Capstone Contracting Corp is a licensed WR Meadows Installer – part of waterproofing (not bold, italic, centered)
+    wpNoteRow.push(currentRow)
+    spreadsheet.merge(`${pfx}B${currentRow}:C${currentRow}`)
+    const wpNote = 'Note: Capstone Contracting Corp is a licensed WR Meadows Installer'
+    spreadsheet.updateCell({ value: wpNote }, `${pfx}B${currentRow}`)
+    rowBContentMap.set(currentRow, wpNote)
     spreadsheet.wrap(`${pfx}B${currentRow}`, true)
     spreadsheet.cellFormat(
-      {
-        fontWeight: 'normal',
-        fontStyle: 'italic',
-        color: '#000000',
-        textAlign: 'center',
-        backgroundColor: 'white',
-        verticalAlign: 'middle'
-      },
-      `${pfx}B${currentRow}`
+      { fontWeight: 'normal', fontStyle: 'italic', color: '#000000', textAlign: 'center', verticalAlign: 'middle', backgroundColor: 'white' },
+      `${pfx}B${currentRow}:C${currentRow}`
     )
     currentRow++
+
+    const wpScopeEndRow = currentRow - 1
+    // Add Below grade waterproofing Total row when there are data rows
+    if (wpScopeEndRow >= wpScopeStartRow) {
+      // Label across B–E, amount in F–G, same layout as other totals
+      spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
+      spreadsheet.updateCell({ value: 'Below grade waterproofing Total:' }, `${pfx}B${currentRow}`)
+    spreadsheet.cellFormat(
+      {
+          fontWeight: 'bold',
+        color: '#000000',
+          textAlign: 'right',
+          backgroundColor: '#BDD7EE'
+        },
+        `${pfx}B${currentRow}:E${currentRow}`
+      )
+
+      spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
+      spreadsheet.updateCell(
+        { formula: `=SUM(H${wpScopeStartRow}:H${wpScopeEndRow})*1000` },
+        `${pfx}F${currentRow}`
+      )
+      spreadsheet.cellFormat(
+        {
+          fontWeight: 'bold',
+          color: '#000000',
+          textAlign: 'right',
+          backgroundColor: '#BDD7EE',
+          format: '$#,##0.00'
+        },
+        `${pfx}F${currentRow}:G${currentRow}`
+      )
+
+      applyTotalRowBorders(spreadsheet, pfx, currentRow, '#BDD7EE')
+      totalRows.push(currentRow)
+    currentRow++
+    }
 
     // Add empty row above Superstructure concrete scope
     currentRow++
@@ -11441,12 +11762,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             else if (qtyIdx >= 0 && r[qtyIdx] != null) totalQty += parseFloat(String(r[qtyIdx]).replace(/[^\d.-]/g, '')) || 0
           })
           if (totalQty === 0) totalQty = rows.length
+          const totalQtyRounded = Number.isInteger(totalQty) ? totalQty : Math.round(totalQty * 100) / 100
+          const totalQtyDisplay = totalQtyRounded % 1 === 0 ? Math.round(totalQtyRounded) : totalQtyRounded
           const thickStr = `${key}"`
           const floorText = formatFloorRefs(rows.map(r => extractFloorRef(r[digitizerIdx]))) || 'as indicated'
           const sRefs = extractSPageRefs(rows)
-          const padWord = totalQty === 1 ? 'concrete pad' : 'concrete pads'
+          const padWord = totalQtyDisplay === 1 ? 'concrete pad' : 'concrete pads'
           concretePadLines.push({
-            proposalText: `F&I new (${totalQty})no (${thickStr} thick) ${padWord} @ ${floorText} as per ${sRefs}`,
+            proposalText: `F&I new (${totalQtyDisplay})no (${thickStr} thick) ${padWord} @ ${floorText} as per ${sRefs}`,
             sumRowKey: 'concretePad',
             subsectionName: 'Concrete pad',
             concretePadGroupIndex: groupIndex,
@@ -11766,33 +12089,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       })
     }
 
-    // Static proposal text for CIP Stairs (matches calculation table groups)
-    const CIP_STAIRS_PROPOSAL_TEXT = {
-      'Stair A, B & D:': {
-        landings: 'F&I new (8" thick) stair landings @ cellar FL to 7th FL, roof FL as per A-208.01',
-        stairs: 'F&I new (3\'-0" wide) concrete stairs (262 Riser) @ cellar FL to 7th FL, roof FL as per A-208.01',
-        slab: 'F&I new stair slab as per A-208.01'
-      },
-      'Stair E & F:': {
-        stairs: 'F&I new (4\'-0" wide) concrete stairs (36 Riser) @ cellar FL to 1st FL as per A-209.00',
-        slab: 'F&I new stair slab as per A-209.00'
-      },
-      'Misc. stair:': {
-        stairs: 'F&I new (3\'-0" wide) concrete stairs (16 Riser) @ cellar FL to 1st FL as per A-209.00',
-        slab: 'F&I new stair slab as per A-209.00'
-      },
-      'Ext. stair:': {
-        landings: 'F&I new (8" thick) stair landings @ cellar FL as per A-209.00',
-        stairs: 'F&I new (3\'-0" wide) concrete stairs (16 Riser) @ cellar FL as per A-209.00',
-        slab: 'F&I new stair slab as per A-209.00'
-      }
+    // Template proposal text for CIP Stairs (placeholder format; values come from calculation sheet columns)
+    const CIP_STAIRS_PROPOSAL_TEMPLATE = {
+      landings: 'F&I new (#" thick) stair landings @ ## as per ##',
+      stairs: 'F&I new (#" wide) concrete stairs (## Riser) @ # as per ##',
+      slab: 'F&I new stair slab as per'
     }
-    const getCipStairsProposalText = (groupName, lineType) => {
-      const normalized = groupName.trim()
-      const key = normalized.endsWith(':') ? normalized : `${normalized}:`
-      const map = CIP_STAIRS_PROPOSAL_TEXT[key] || CIP_STAIRS_PROPOSAL_TEXT['Stair A, B & D:']
-      return map[lineType] || null
-    }
+    const getCipStairsProposalText = (groupName, lineType) => CIP_STAIRS_PROPOSAL_TEMPLATE[lineType] || null
     // Only render slab line when the slab row has actual quantity data (so we don't add a third line when original has two: landings + stairs)
     const cipStairsSlabRowHasData = (grp) => {
       if (grp.slabRow == null || !calculationData || !Array.isArray(calculationData)) return false
@@ -11815,9 +12118,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       if (superstructureScopeStartRow == null) superstructureScopeStartRow = currentRow
       if (line.allowance) {
         spreadsheet.updateCell({ value: line.proposalText }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, line.proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
-          { fontWeight: lineFontWeight, color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' },
+          { fontWeight: lineFontWeight, color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' },
           `${pfx}B${currentRow}`
         )
         fillRatesForProposalRow(currentRow, line.proposalText)
@@ -11831,8 +12135,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           })
         const dollarFormula = `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")`
         spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
-        spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.0' }, `${pfx}H${currentRow}`)
-        try { spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}`) } catch (e) { }
+        spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.00' }, `${pfx}H${currentRow}`)
+        try { spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}`) } catch (e) { }
         washoutExclusionRows.push(currentRow)
         superstructureScopeEndRow = currentRow
         currentRow++
@@ -11841,9 +12145,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       const groupIndex = line.somdGroupIndex ?? line.shearGroupIndex ?? line.curbGroupIndex ?? line.concretePadGroupIndex ?? 0
       const sumInfo = findSumRowForSubsection(line.subsectionName, line.sumRowKey, groupIndex, line)
       spreadsheet.updateCell({ value: line.proposalText }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, line.proposalText)
       spreadsheet.wrap(`${pfx}B${currentRow}`, true)
       spreadsheet.cellFormat(
-        { fontWeight: lineFontWeight, color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' },
+        { fontWeight: lineFontWeight, color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' },
         `${pfx}B${currentRow}`
       )
       const rateLookupKey = (line.subsectionName === 'Slab on metal deck' && /concrete topping/i.test(line.proposalText))
@@ -11894,11 +12199,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       const dollarFormula = `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")`
       spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.0' },
+        { fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.00' },
         `${pfx}H${currentRow}`
       )
       try {
-        spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}`)
+        spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}`)
       } catch (e) { }
       const isWashoutExclusion = ['thermalBreak', 'nonShrinkGrout', 'repairScopeWall', 'repairScopeSlab', 'repairScopeColumn'].includes(line.sumRowKey)
       if (isWashoutExclusion) washoutExclusionRows.push(currentRow)
@@ -11918,19 +12223,18 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       const cipEndRow = currentRow - 1
       spreadsheet.updateCell({ value: 'Total SF' }, `${pfx}C${currentRow}`)
       spreadsheet.updateCell({ formula: `=SUM(D${cipStartRow}:D${cipEndRow})` }, `${pfx}D${currentRow}`)
-      spreadsheet.updateCell({ formula: `=SUM(F${cipStartRow}:F${cipEndRow})` }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', fontStyle: 'italic' },
+        { fontWeight: 'bold', fontStyle: 'italic', color: '#000000', textAlign: 'left', backgroundColor: 'white' },
         `${pfx}C${currentRow}`
       )
-        ;['D', 'F'].forEach(col => {
           spreadsheet.cellFormat(
             { fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' },
-            `${pfx}${col}${currentRow}`
+        `${pfx}D${currentRow}`
           )
-          try { spreadsheet.numberFormat('#,##0.00', `${pfx}${col}${currentRow}`) } catch (e) { }
-        })
+      try { spreadsheet.numberFormat('#,##0.00', `${pfx}D${currentRow}`) } catch (e) { }
       washoutExclusionRows.push(currentRow)
+      totalRows.push(currentRow) // So "Total SF" stays bold after global C13:G normal-weight override
+      totalSFRowsForItalic.push(currentRow) // So "Total SF" cell (C) is re-applied bold + italic
       superstructureScopeEndRow = currentRow
       currentRow++
       if (slabStepsLines.length > 0) {
@@ -12075,7 +12379,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       beamsLines.forEach(renderProposalLine)
     }
     const cipStairSubHeaderLabel = (name) => {
-      const t = name.trim()
+      const t = (name || '').trim()
       const withColon = t.endsWith(':') ? t : `${t}:`
       if (withColon === 'Ext. stair:') return 'Exterior stair:'
       return withColon
@@ -12085,8 +12389,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       const showRisersSuffix = options.riserSuffix === true
       if (superstructureScopeStartRow == null) superstructureScopeStartRow = currentRow
       spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, proposalText)
       spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-      spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+      spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
       spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${calcRow}` }, `${pfx}D${currentRow}`)
       spreadsheet.updateCell({ formula: `='${calcSheetName}'!L${calcRow}` }, `${pfx}F${currentRow}`)
       spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${calcRow}` }, `${pfx}G${currentRow}`)
@@ -12098,7 +12403,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       try { spreadsheet.numberFormat('#,##0.00', `${pfx}F${currentRow}`) } catch (e) { }
       try { spreadsheet.numberFormat(showRisersSuffix ? '#,##0" Risers"' : '#,##0.00', `${pfx}G${currentRow}`) } catch (e) { }
       spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
-      spreadsheet.cellFormat({ fontWeight: 'normal', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.0' }, `${pfx}H${currentRow}`)
+      spreadsheet.cellFormat({ fontWeight: 'normal', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.00' }, `${pfx}H${currentRow}`)
       currentRow++
     }
     if (parapetWallLines.length > 0) {
@@ -12138,6 +12443,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       cipStairsGroupsFromFormulas.forEach((grp) => {
         const subHeaderLabel = cipStairSubHeaderLabel(grp.name)
         spreadsheet.updateCell({ value: subHeaderLabel }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, subHeaderLabel)
         spreadsheet.cellFormat(
           { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#E2EFDA', textDecoration: 'underline', borderBottom: '1px solid #000000' },
           `${pfx}B${currentRow}`
@@ -12161,6 +12467,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       cipStairsGroupsWithLines.forEach(({ groupName, lines }) => {
         const subHeaderLabel = cipStairSubHeaderLabel(groupName)
         spreadsheet.updateCell({ value: subHeaderLabel }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, subHeaderLabel)
         spreadsheet.cellFormat(
           { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#E2EFDA', textDecoration: 'underline', borderBottom: '1px solid #000000' },
           `${pfx}B${currentRow}`
@@ -12178,18 +12485,19 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       )
       currentRow++
       infilledGroups.forEach((grp) => {
-        spreadsheet.updateCell({ value: grp.name }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: grp.name && grp.name.endsWith(':') ? grp.name : `${grp.name || 'Stair'}:` }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
           { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#E2EFDA', textDecoration: 'underline', borderBottom: '1px solid #000000' },
           `${pfx}B${currentRow}`
         )
         currentRow++
-        const landingText = 'F&I new (2" thick, typ.) LW concrete topping over 1½" x 12 GA (metal deck by others), reinforced w/WWF @ cellar FL to 1st FL as per A-313.00'
-        const stairText = "F&I new (5'-0\" wide) concrete infill (19 Riser) @ metal pan treads (metal pan by others) from cellar FL to 1st FL as per A-313.00"
+        const landingText = 'F&I new (#" thick) stair landings @ ## as per ##'
+        const stairText = 'F&I new (#" wide) concrete stairs (## Riser) @ # as per ##'
         if (grp.landingSumRow != null) {
           spreadsheet.updateCell({ value: landingText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, landingText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${grp.landingSumRow}` }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!L${grp.landingSumRow}` }, `${pfx}F${currentRow}`)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${grp.landingSumRow}` }, `${pfx}G${currentRow}`)
@@ -12201,13 +12509,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           try { spreadsheet.numberFormat('#,##0.00', `${pfx}F${currentRow}`) } catch (e) { }
           try { spreadsheet.numberFormat('#,##0.00', `${pfx}G${currentRow}`) } catch (e) { }
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
-          spreadsheet.cellFormat({ fontWeight: 'normal', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.0' }, `${pfx}H${currentRow}`)
+          spreadsheet.cellFormat({ fontWeight: 'normal', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.00' }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (grp.stairRow != null) {
           spreadsheet.updateCell({ value: stairText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, stairText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${grp.stairRow}` }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!L${grp.stairRow}` }, `${pfx}F${currentRow}`)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${grp.stairRow}` }, `${pfx}G${currentRow}`)
@@ -12219,7 +12528,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           try { spreadsheet.numberFormat('#,##0.00', `${pfx}F${currentRow}`) } catch (e) { }
           try { spreadsheet.numberFormat('#,##0" Risers"', `${pfx}G${currentRow}`) } catch (e) { }
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
-          spreadsheet.cellFormat({ fontWeight: 'normal', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.0' }, `${pfx}H${currentRow}`)
+          spreadsheet.cellFormat({ fontWeight: 'normal', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.00' }, `${pfx}H${currentRow}`)
           currentRow++
         }
       })
@@ -12267,6 +12576,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       ]
       miscItems.forEach((item, idx) => {
         spreadsheet.updateCell({ value: item }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, item)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', textAlign: 'left' }, `${pfx}B${currentRow}`)
         const rateLookupKey = item === 'Engineering, shop drawings, formwork drawings, design mixes included'
@@ -12284,8 +12594,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
         const dollarFormula = `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")`
         spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
-        spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.0' }, `${pfx}H${currentRow}`)
-        try { spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}`) } catch (e) { }
+        spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.00' }, `${pfx}H${currentRow}`)
+        try { spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}`) } catch (e) { }
         currentRow++
       })
     }
@@ -12293,20 +12603,21 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
       spreadsheet.updateCell({ value: 'Superstructure Concrete Total:' }, `${pfx}D${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#BDD7EE', border: '1px solid #000000' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#BDD7EE' },
         `${pfx}D${currentRow}:E${currentRow}`
       )
       spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
       spreadsheet.updateCell({ formula: `=SUM(H${superstructureScopeStartRow}:H${superstructureScopeEndRow})*1000` }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD7EE', border: '1px solid #000000', format: '$#,##0.00' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD7EE', format: '$#,##0.00' },
         `${pfx}F${currentRow}:G${currentRow}`
       )
       try { spreadsheet.numberFormat('$#,##0.00', `${pfx}F${currentRow}:G${currentRow}`) } catch (e) { }
-      spreadsheet.cellFormat({ backgroundColor: '#BDD7EE' }, `${pfx}B${currentRow}:G${currentRow}`)
+      applyTotalRowBorders(spreadsheet, pfx, currentRow, '#BDD7EE')
       baseBidTotalRows.push(currentRow) // Superstructure Concrete Total
       totalRows.push(currentRow)
       currentRow++
+      currentRow++ // Empty row after Superstructure Concrete Total
     }
 
     // Add empty row after Superstructure concrete scope
@@ -12336,8 +12647,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const proposalText = trenchingProposalTextMap[tf.name] || tf.name
           const calcRow = tf.row
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, proposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           fillRatesForProposalRow(currentRow, proposalText)
           const dynamicHeight = calculateRowHeight(proposalText)
           spreadsheet.updateCell({ formula: `='Calculations Sheet'!I${calcRow}` }, `${pfx}C${currentRow}`)
@@ -12349,8 +12661,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             })
           const dollarFormula = `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")`
           spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
-          spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.0' }, `${pfx}H${currentRow}`)
-          try { spreadsheet.numberFormat('$#,##0.0', `${pfx}H${currentRow}`) } catch (e) { }
+          spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.00' }, `${pfx}H${currentRow}`)
+          try { spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}`) } catch (e) { }
           currentRow++
         })
         const trenchingEndRow = currentRow - 1
@@ -12358,17 +12670,17 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
         spreadsheet.updateCell({ value: 'Trenching Total:' }, `${pfx}D${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#BDD7EE', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#BDD7EE' },
           `${pfx}D${currentRow}:E${currentRow}`
         )
         spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
         spreadsheet.updateCell({ formula: `=SUM(H${trenchingStartRow}:H${trenchingEndRow})*1000` }, `${pfx}F${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD7EE', border: '1px solid #000000', format: '$#,##0.00' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD7EE', format: '$#,##0.00' },
           `${pfx}F${currentRow}:G${currentRow}`
         )
         try { spreadsheet.numberFormat('$#,##0.00', `${pfx}F${currentRow}:G${currentRow}`) } catch (e) { }
-        spreadsheet.cellFormat({ backgroundColor: '#BDD7EE' }, `${pfx}B${currentRow}:G${currentRow}`)
+        applyTotalRowBorders(spreadsheet, pfx, currentRow, '#BDD7EE')
         baseBidTotalRows.push(currentRow) // Trenching Total
         totalRows.push(currentRow)
         currentRow++
@@ -12408,6 +12720,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     // Add empty row after BASE BID TOTAL
     currentRow++
 
+    // Only show Add Alternate #1 (Sitework) and Add Alternate #2 (B.P.P.) when both sections exist in the calculation sheet
+    const hasBPPAlternate2InCalc = calculationData && calculationData.some(row => String(row[0] || '').trim() === 'B.P.P. Alternate #2 scope')
+    const hasCivilSiteworkInCalc = calculationData && calculationData.some(row => String(row[0] || '').trim() === 'Civil / Sitework')
+    if (hasBPPAlternate2InCalc && hasCivilSiteworkInCalc) {
     // Add Alternate #1: Sitework scope header
     let siteworkScopeStartRow = null
     const siteworkTotalFRows = []
@@ -12575,8 +12891,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
           // Display Demo asphalt with SF and CY
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, proposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           fillRatesForProposalRow(currentRow, proposalText)
 
           if (sumRowIndex > 0) {
@@ -12592,8 +12909,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         } else if (demoType === 'Demo curb') {
           proposalText = 'Allow to saw-cut/demo/remove/dispose existing asphalt curb as per C-3'
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, proposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           fillRatesForProposalRow(currentRow, proposalText)
 
           if (sumRowIndex > 0) {
@@ -12621,8 +12939,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
             proposalText = `Allow to remove existing (H=6'-0", typ) chain-link fence/ vinyl fence as per C-3`
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
             fillRatesForProposalRow(currentRow, proposalText)
 
             // Add LF and SF from calculation sheet
@@ -12640,8 +12959,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
             proposalText = `Allow to remove existing (H=6'-0", typ) wood-link fence as per C-3`
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
             fillRatesForProposalRow(currentRow, proposalText)
 
             // Add LF and SF from calculation sheet
@@ -12666,8 +12986,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
           proposalText = `Allow to remove (${width} wide) retaining wall (H=${height}, typ.) as per C-3`
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, proposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           fillRatesForProposalRow(currentRow, proposalText)
 
           if (sumRowIndex > 0) {
@@ -12699,8 +13020,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             const size = sizeMatch ? sizeMatch[1] : '##'
             proposalText = `Allow to remove existing HDPE pipe (${size}" thick) as per C-3`
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
             fillRatesForProposalRow(currentRow, proposalText)
 
             spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${removeSumRow}` }, `${pfx}C${currentRow}`)
@@ -12714,8 +13036,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             const railSumRow = demoSumRows['Demo rail'] || 0
             proposalText = `Allow to remove guiderail as per C-3`
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
             fillRatesForProposalRow(currentRow, proposalText)
 
             if (railSumRow > 0) {
@@ -12735,8 +13058,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             const size = sizeMatch ? sizeMatch[1] : '##'
             proposalText = `Allow to protect existing RCP stormwater main (${size}" thick) as per C-3`
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
             fillRatesForProposalRow(currentRow, proposalText)
 
             spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${protectSumRow}` }, `${pfx}C${currentRow}`)
@@ -12759,8 +13083,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
             proposalText = `Allow to remove existing sign as per C-3`
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
             fillRatesForProposalRow(currentRow, proposalText)
 
             spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${singleSumRow}` }, `${pfx}G${currentRow}`)
@@ -12775,8 +13100,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
             proposalText = `Allow to remove existing row of signs as per C-3`
             spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+              spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
             fillRatesForProposalRow(currentRow, proposalText)
 
             spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${rowSumRow}` }, `${pfx}G${currentRow}`)
@@ -12787,8 +13113,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         } else if (demoType === 'Demo inlet' && sumRowIndex > 0) {
           proposalText = 'Allow to remove existing stormwater inlet as per C-3'
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, proposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           fillRatesForProposalRow(currentRow, proposalText)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
           spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
@@ -12797,9 +13124,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         } else if (demoType === 'Demo fire hydrant' && sumRowIndex > 0) {
           proposalText = 'Allow to relocate existing fire hydrant as per C-3'
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, proposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-          fillRatesForProposalRow(currentRow, 'Allow to relocate existing fire hydrant as per C-3 - Demolition')
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
+            fillRatesForProposalRow(currentRow, 'Allow to relocate existing fire hydrant as per C-3 - Demolition')
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
           spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
           currentRow++
@@ -12807,8 +13135,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         } else if (demoType === 'Demo manhole' && sumRowIndex > 0) {
           proposalText = 'Allow to protect existing stormwater manhole as per C-3'
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, proposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           fillRatesForProposalRow(currentRow, proposalText)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
           spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
@@ -12817,8 +13146,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         } else if (demoType === 'Demo utility pole' && sumRowIndex > 0) {
           proposalText = 'Allow to protect utility pole as per C-3'
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, proposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           fillRatesForProposalRow(currentRow, proposalText)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
           spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
@@ -12827,8 +13157,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         } else if (demoType === 'Demo valve' && sumRowIndex > 0) {
           proposalText = 'Allow to protect existing water valve as per C-3'
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, proposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           fillRatesForProposalRow(currentRow, proposalText)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
           spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
@@ -12839,8 +13170,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // Default handling for other demo types
         if (proposalText) {
           spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, proposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           currentRow++
         }
       }
@@ -12852,15 +13184,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
       spreadsheet.updateCell({ value: 'Site Demo / Removals Total:' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle' },
         `${pfx}B${currentRow}:E${currentRow}`
       )
       spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
       spreadsheet.updateCell({ formula: `=SUM(H${demoStartRow}:H${demoEndRow})*1000` }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', format: '$#,##0.00' },
         `${pfx}F${currentRow}:G${currentRow}`
       )
+        applyTotalRowBorders(spreadsheet, pfx, currentRow, '#FEF2CB')
       siteworkTotalFRows.push(currentRow)
       currentRow++
     }
@@ -12913,38 +13246,41 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       currentRow++
 
       erosionItems.stabilized_entrance.forEach(({ rowNum, thickness = 6 }) => {
-        const stabilizedText = `F&I new (${thickness}" thick) temporary stabilized construction entrance w/geotextile fabric as per C-8 & details on C-12`
-        spreadsheet.updateCell({ value: stabilizedText }, `${pfx}B${currentRow}`)
+          const stabilizedText = `F&I new (${thickness}" thick) temporary stabilized construction entrance w/geotextile fabric as per C-8 & details on C-12`
+          spreadsheet.updateCell({ value: stabilizedText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, stabilizedText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
         spreadsheet.updateCell({ formula: `='${erosionCalcSheetName}'!J${rowNum}` }, `${pfx}D${currentRow}`)
-        spreadsheet.updateCell({ formula: `='${erosionCalcSheetName}'!K${rowNum}` }, `${pfx}E${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${erosionCalcSheetName}'!K${rowNum}` }, `${pfx}E${currentRow}`)
         spreadsheet.updateCell({ formula: `='${erosionCalcSheetName}'!L${rowNum}` }, `${pfx}F${currentRow}`)
-        fillRatesForProposalRow(currentRow, stabilizedText)
+          fillRatesForProposalRow(currentRow, stabilizedText)
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
       })
 
       erosionItems.silt_fence.forEach(({ rowNum, heightStr = "2'-6\"" }) => {
-        const siltFenceText = `F&I new silt fence (H=${heightStr}) as per C-8 & details on C-13`
-        spreadsheet.updateCell({ value: siltFenceText }, `${pfx}B${currentRow}`)
+          const siltFenceText = `F&I new silt fence (H=${heightStr}) as per C-8 & details on C-13`
+          spreadsheet.updateCell({ value: siltFenceText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, siltFenceText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
         spreadsheet.updateCell({ formula: `='${erosionCalcSheetName}'!I${rowNum}` }, `${pfx}C${currentRow}`)
         spreadsheet.updateCell({ formula: `='${erosionCalcSheetName}'!J${rowNum}` }, `${pfx}D${currentRow}`)
         spreadsheet.updateCell({ formula: `='${erosionCalcSheetName}'!L${rowNum}` }, `${pfx}F${currentRow}`)
-        fillRatesForProposalRow(currentRow, siltFenceText)
+          fillRatesForProposalRow(currentRow, siltFenceText)
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
       })
 
       erosionItems.inlet_filter.forEach(({ rowNum, qty = 1 }) => {
-        const inletFilterText = `F&I new (${qty})no inlet filter as per C-8 & details on C-13`
-        spreadsheet.updateCell({ value: inletFilterText }, `${pfx}B${currentRow}`)
+          const inletFilterText = `F&I new (${qty})no inlet filter as per C-8 & details on C-13`
+          spreadsheet.updateCell({ value: inletFilterText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, inletFilterText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
         spreadsheet.updateCell({ formula: `='${erosionCalcSheetName}'!M${rowNum}` }, `${pfx}G${currentRow}`)
-        fillRatesForProposalRow(currentRow, inletFilterText)
+          fillRatesForProposalRow(currentRow, inletFilterText)
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
       })
@@ -12954,15 +13290,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
       spreadsheet.updateCell({ value: 'Erosion & Sediment Control Total:' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle' },
         `${pfx}B${currentRow}:E${currentRow}`
       )
       spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
       spreadsheet.updateCell({ formula: `=SUM(H${erosionDataStartRow}:H${erosionEndRow})*1000` }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', format: '$#,##0.00' },
         `${pfx}F${currentRow}:G${currentRow}`
       )
+        applyTotalRowBorders(spreadsheet, pfx, currentRow, '#FEF2CB')
       siteworkTotalFRows.push(currentRow)
       currentRow++
     }
@@ -13029,10 +13366,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
         const excFirstRow = civilExcSum.firstDataRow || civilExcSum.row
         const excLastRow = civilExcSum.lastDataRow || civilExcSum.row
-        const soilExcavationC4Text = 'Allow to perform soil excavation, trucking & disposal as per C-4'
-        spreadsheet.updateCell({ value: soilExcavationC4Text }, `${pfx}B${currentRow}`)
+          const soilExcavationC4Text = 'Allow to perform soil excavation, trucking & disposal as per C-4'
+          spreadsheet.updateCell({ value: soilExcavationC4Text }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, soilExcavationC4Text)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
         if (excFirstRow && excLastRow && excLastRow !== excFirstRow) {
           spreadsheet.updateCell({ formula: `=SUM('${excGradingCalcSheet}'!J${excFirstRow}:'${excGradingCalcSheet}'!J${excLastRow})` }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: `=SUM('${excGradingCalcSheet}'!L${excFirstRow}:'${excGradingCalcSheet}'!L${excLastRow})` }, `${pfx}F${currentRow}`)
@@ -13040,7 +13378,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           spreadsheet.updateCell({ formula: `='${excGradingCalcSheet}'!J${excFirstRow}` }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: `='${excGradingCalcSheet}'!L${excFirstRow}` }, `${pfx}F${currentRow}`)
         }
-        fillRatesForProposalRow(currentRow, soilExcavationC4Text)
+          fillRatesForProposalRow(currentRow, soilExcavationC4Text)
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
       }
@@ -13057,13 +13395,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const tpRows = gravelItems.transformer_pad
           const sumFormulaJ = tpRows.length === 1 ? `='${excGradingCalcSheet}'!J${tpRows[0].rowNum}` : `=SUM(${tpRows.map(r => `'${excGradingCalcSheet}'!J${r.rowNum}`).join(',')})`
           const sumFormulaL = tpRows.length === 1 ? `='${excGradingCalcSheet}'!L${tpRows[0].rowNum}` : `=SUM(${tpRows.map(r => `'${excGradingCalcSheet}'!L${r.rowNum}`).join(',')})`
-          const transformerGravelText = `F&I new (4" thick) gravel/crushed stone @ transformer concrete pad as per A-100.00`
-          spreadsheet.updateCell({ value: transformerGravelText }, `${pfx}B${currentRow}`)
+            const transformerGravelText = `F&I new (4" thick) gravel/crushed stone @ transformer concrete pad as per A-100.00`
+            spreadsheet.updateCell({ value: transformerGravelText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, transformerGravelText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: sumFormulaJ }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: sumFormulaL }, `${pfx}F${currentRow}`)
-          fillRatesForProposalRow(currentRow, transformerGravelText)
+            fillRatesForProposalRow(currentRow, transformerGravelText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
@@ -13076,13 +13415,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const sumFormulaL = gravel6Rows.length === 1
             ? `='${excGradingCalcSheet}'!L${gravel6Rows[0].rowNum}`
             : `=SUM(${gravel6Rows.map(r => `'${excGradingCalcSheet}'!L${r.rowNum}`).join(',')})`
-          const utilityTrenchGravelText = `F&I new (6" thick) gravel/crushed stone @ utility trench & asphalt pavement as per C-6 & details on C-12`
-          spreadsheet.updateCell({ value: utilityTrenchGravelText }, `${pfx}B${currentRow}`)
+            const utilityTrenchGravelText = `F&I new (6" thick) gravel/crushed stone @ utility trench & asphalt pavement as per C-6 & details on C-12`
+            spreadsheet.updateCell({ value: utilityTrenchGravelText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, utilityTrenchGravelText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: sumFormulaJ }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: sumFormulaL }, `${pfx}F${currentRow}`)
-          fillRatesForProposalRow(currentRow, utilityTrenchGravelText)
+            fillRatesForProposalRow(currentRow, utilityTrenchGravelText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
@@ -13093,15 +13433,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
       spreadsheet.updateCell({ value: 'Excavation, Backfill & Grading Total:' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle' },
         `${pfx}B${currentRow}:E${currentRow}`
       )
       spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
       spreadsheet.updateCell({ formula: `=SUM(H${excGradingDataStartRow}:H${excGradingEndRow})*1000` }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', format: '$#,##0.00' },
         `${pfx}F${currentRow}:G${currentRow}`
       )
+        applyTotalRowBorders(spreadsheet, pfx, currentRow, '#FEF2CB')
       siteworkTotalFRows.push(currentRow)
       currentRow++
     }
@@ -13114,26 +13455,28 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       `${pfx}B${currentRow}`
     )
     currentRow++
-    const dewateringAllowanceText = 'Dewatering allowance - Budget $200k'
-    spreadsheet.updateCell({ value: dewateringAllowanceText }, `${pfx}B${currentRow}`)
+      const dewateringAllowanceText = 'Dewatering allowance - Budget $200k'
+      spreadsheet.updateCell({ value: dewateringAllowanceText }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, dewateringAllowanceText)
     spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-    spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-    spreadsheet.updateCell({ value: 1 }, `${pfx}G${currentRow}`)
-    fillRatesForProposalRow(currentRow, dewateringAllowanceText)
-    spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+      spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
+      spreadsheet.updateCell({ value: 1 }, `${pfx}G${currentRow}`)
+      fillRatesForProposalRow(currentRow, dewateringAllowanceText)
+      spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
     currentRow++
     spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
     spreadsheet.updateCell({ value: 'Dewatering Total:' }, `${pfx}B${currentRow}`)
     spreadsheet.cellFormat(
-      { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle' },
       `${pfx}B${currentRow}:E${currentRow}`
     )
     spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
     spreadsheet.updateCell({ value: 200000 }, `${pfx}F${currentRow}`)
     spreadsheet.cellFormat(
-      { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', format: '$#,##0.00' },
       `${pfx}F${currentRow}:G${currentRow}`
     )
+      applyTotalRowBorders(spreadsheet, pfx, currentRow, '#FEF2CB')
     siteworkTotalFRows.push(currentRow)
     currentRow++
 
@@ -13249,83 +13592,89 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         if (civilEleExc) {
           const excFirstRow = civilEleExc.firstDataRow || civilEleExc.row
           const excLastRow = civilEleExc.lastDataRow || civilEleExc.row
-          const soilExcC4Text = 'Allow to perform soil excavation, trucking & disposal (Havg=2\'-11") as per C-4'
-          spreadsheet.updateCell({ value: soilExcC4Text }, `${pfx}B${currentRow}`)
+            const soilExcC4Text = 'Allow to perform soil excavation, trucking & disposal (Havg=2\'-11") as per C-4'
+            spreadsheet.updateCell({ value: soilExcC4Text }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, soilExcC4Text)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           if (excFirstRow && excLastRow && excLastRow !== excFirstRow) {
             spreadsheet.updateCell({ formula: `=SUM('${utilsCalcSheet}'!J${excFirstRow}:'${utilsCalcSheet}'!J${excLastRow})` }, `${pfx}D${currentRow}`)
             spreadsheet.updateCell({ formula: `=SUM('${utilsCalcSheet}'!L${excFirstRow}:'${utilsCalcSheet}'!L${excLastRow})` }, `${pfx}F${currentRow}`)
           } else if (excFirstRow) {
             spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!J${excFirstRow}` }, `${pfx}D${currentRow}`)
             spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!L${excFirstRow}` }, `${pfx}F${currentRow}`)
-          } else {
-            spreadsheet.updateCell({ value: 0 }, `${pfx}D${currentRow}`)
-            spreadsheet.updateCell({ value: 0 }, `${pfx}F${currentRow}`)
-          }
-          fillRatesForProposalRow(currentRow, soilExcC4Text)
+            } else {
+              spreadsheet.updateCell({ value: 0 }, `${pfx}D${currentRow}`)
+              spreadsheet.updateCell({ value: 0 }, `${pfx}F${currentRow}`)
+            }
+            // Electric service: use CY 75 for soil excavation (proposal_mapped.json)
+            fillRatesForProposalRow(currentRow, 'Allow to perform soil excavation, trucking & disposal - Electric service')
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (civilEleBackfill) {
           const backFirstRow = civilEleBackfill.firstDataRow || civilEleBackfill.row
           const backLastRow = civilEleBackfill.lastDataRow || civilEleBackfill.row
-          const backfillC4Text = 'Allow to import new clean soil to backfill and compact as per C-4'
-          spreadsheet.updateCell({ value: backfillC4Text }, `${pfx}B${currentRow}`)
+            const backfillC4Text = 'Allow to import new clean soil to backfill and compact as per C-4'
+            spreadsheet.updateCell({ value: backfillC4Text }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, backfillC4Text)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           if (backFirstRow && backLastRow && backLastRow !== backFirstRow) {
             spreadsheet.updateCell({ formula: `=SUM('${utilsCalcSheet}'!J${backFirstRow}:'${utilsCalcSheet}'!J${backLastRow})` }, `${pfx}D${currentRow}`)
             spreadsheet.updateCell({ formula: `=SUM('${utilsCalcSheet}'!L${backFirstRow}:'${utilsCalcSheet}'!L${backLastRow})` }, `${pfx}F${currentRow}`)
           } else if (backFirstRow) {
             spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!J${backFirstRow}` }, `${pfx}D${currentRow}`)
             spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!L${backFirstRow}` }, `${pfx}F${currentRow}`)
-          } else {
-            spreadsheet.updateCell({ value: 0 }, `${pfx}D${currentRow}`)
-            spreadsheet.updateCell({ value: 0 }, `${pfx}F${currentRow}`)
-          }
-          fillRatesForProposalRow(currentRow, backfillC4Text)
+            } else {
+              spreadsheet.updateCell({ value: 0 }, `${pfx}D${currentRow}`)
+              spreadsheet.updateCell({ value: 0 }, `${pfx}F${currentRow}`)
+            }
+            fillRatesForProposalRow(currentRow, backfillC4Text)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (civilEleGravel) {
           const gravFirstRow = civilEleGravel.firstDataRow || civilEleGravel.row
           const gravLastRow = civilEleGravel.lastDataRow || civilEleGravel.row
-          const gravelUtilText = 'F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ utility trench & asphalt pavement as per C-6 & details on C-12'
-          spreadsheet.updateCell({ value: gravelUtilText }, `${pfx}B${currentRow}`)
+            const gravelUtilText = 'F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ utility trench & asphalt pavement as per C-6 & details on C-12'
+            spreadsheet.updateCell({ value: gravelUtilText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, gravelUtilText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           if (gravFirstRow && gravLastRow && gravLastRow !== gravFirstRow) {
             spreadsheet.updateCell({ formula: `=SUM('${utilsCalcSheet}'!J${gravFirstRow}:'${utilsCalcSheet}'!J${gravLastRow})` }, `${pfx}D${currentRow}`)
             spreadsheet.updateCell({ formula: `=SUM('${utilsCalcSheet}'!L${gravFirstRow}:'${utilsCalcSheet}'!L${gravLastRow})` }, `${pfx}F${currentRow}`)
           } else if (gravFirstRow) {
             spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!J${gravFirstRow}` }, `${pfx}D${currentRow}`)
             spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!L${gravFirstRow}` }, `${pfx}F${currentRow}`)
-          } else {
-            spreadsheet.updateCell({ value: 0 }, `${pfx}D${currentRow}`)
-            spreadsheet.updateCell({ value: 0 }, `${pfx}F${currentRow}`)
-          }
-          fillRatesForProposalRow(currentRow, gravelUtilText)
+            } else {
+              spreadsheet.updateCell({ value: 0 }, `${pfx}D${currentRow}`)
+              spreadsheet.updateCell({ value: 0 }, `${pfx}F${currentRow}`)
+            }
+            fillRatesForProposalRow(currentRow, gravelUtilText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (utilPoleItem) {
-          const utilPoleText = 'F&I new underground connection to existing utility pole as per C-6'
-          spreadsheet.updateCell({ value: utilPoleText }, `${pfx}B${currentRow}`)
+            const utilPoleText = 'F&I new underground connection to existing utility pole as per C-6'
+            spreadsheet.updateCell({ value: utilPoleText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, utilPoleText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!M${utilPoleItem.row}` }, `${pfx}G${currentRow}`)
-          fillRatesForProposalRow(currentRow, utilPoleText)
+            fillRatesForProposalRow(currentRow, utilPoleText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (eleConduitItem) {
-          const eleConduitText = 'F&I new underground electrical conduit'
-          spreadsheet.updateCell({ value: eleConduitText }, `${pfx}B${currentRow}`)
+            const eleConduitText = 'F&I new underground electrical conduit'
+            spreadsheet.updateCell({ value: eleConduitText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, eleConduitText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!I${eleConduitItem.row}` }, `${pfx}C${currentRow}`)
-          fillRatesForProposalRow(currentRow, eleConduitText)
+            fillRatesForProposalRow(currentRow, eleConduitText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
@@ -13336,14 +13685,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             `${pfx}B${currentRow}`
           )
           currentRow++
-          const transformerPadText = 'F&I new (8" thick) transformer concrete pad as per A-100.00'
-          spreadsheet.updateCell({ value: transformerPadText }, `${pfx}B${currentRow}`)
+            const transformerPadText = 'F&I new (8" thick) transformer concrete pad as per A-100.00'
+            spreadsheet.updateCell({ value: transformerPadText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, transformerPadText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!J${civilPadsSum.row}` }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!L${civilPadsSum.row}` }, `${pfx}F${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!M${civilPadsSum.row}` }, `${pfx}G${currentRow}`)
-          fillRatesForProposalRow(currentRow, transformerPadText)
+            fillRatesForProposalRow(currentRow, transformerPadText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
@@ -13360,52 +13710,59 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const gasBackRow = gasSums.Backfill
         const gasGravRow = gasSums.Gravel
         if (gasExcRow) {
-          const soilExcC4Text = 'Allow to perform soil excavation, trucking & disposal (Havg=2\'-11") as per C-4'
-          spreadsheet.updateCell({ value: soilExcC4Text }, `${pfx}B${currentRow}`)
+            const soilExcC4Text = 'Allow to perform soil excavation, trucking & disposal (Havg=2\'-11") as per C-4'
+            spreadsheet.updateCell({ value: soilExcC4Text }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, soilExcC4Text)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!J${gasExcRow}` }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!L${gasExcRow}` }, `${pfx}F${currentRow}`)
-          fillRatesForProposalRow(currentRow, soilExcC4Text)
+            fillRatesForProposalRow(currentRow, soilExcC4Text)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (gasBackRow) {
-          const backfillC4Text = 'Allow to import new clean soil to backfill and compact as per C-4'
-          spreadsheet.updateCell({ value: backfillC4Text }, `${pfx}B${currentRow}`)
+            const backfillC4Text = 'Allow to import new clean soil to backfill and compact as per C-4'
+            spreadsheet.updateCell({ value: backfillC4Text }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, backfillC4Text)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!J${gasBackRow}` }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!L${gasBackRow}` }, `${pfx}F${currentRow}`)
-          fillRatesForProposalRow(currentRow, backfillC4Text)
+            fillRatesForProposalRow(currentRow, backfillC4Text)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (gasGravRow) {
-          const gravelUtilText = 'F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ utility trench & asphalt pavement as per C-6 & details on C-12'
-          spreadsheet.updateCell({ value: gravelUtilText }, `${pfx}B${currentRow}`)
+            const gravelUtilText = 'F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ utility trench & asphalt pavement as per C-6 & details on C-12'
+            spreadsheet.updateCell({ value: gravelUtilText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, gravelUtilText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!J${gasGravRow}` }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!L${gasGravRow}` }, `${pfx}F${currentRow}`)
-          fillRatesForProposalRow(currentRow, gravelUtilText)
+            fillRatesForProposalRow(currentRow, gravelUtilText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (gasLateralItem) {
-          spreadsheet.updateCell({ value: 'F&I new (4" thick) underground gas service lateral as per C-6' }, `${pfx}B${currentRow}`)
+          const gasLateralText = 'F&I new (4" thick) underground gas service lateral as per C-6'
+          spreadsheet.updateCell({ value: gasLateralText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!I${gasLateralItem.row}` }, `${pfx}C${currentRow}`)
+          fillRatesForProposalRow(currentRow, gasLateralText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         const gasMainSum = getSiteSumByKey('Gas')
         if (gasMainSum) {
-          spreadsheet.updateCell({ value: 'F&I new (1)no connection to existing gas main as per C-6' }, `${pfx}B${currentRow}`)
+          const gasConnectionText = 'F&I new (1)no connection to existing gas main as per C-6'
+          spreadsheet.updateCell({ value: gasConnectionText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!M${gasMainSum.row}` }, `${pfx}G${currentRow}`)
+          fillRatesForProposalRow(currentRow, gasConnectionText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
@@ -13422,69 +13779,80 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const watBackRow = waterSums.Backfill
         const watGravRow = waterSums.Gravel
         if (watExcRow) {
-          const soilExcC4Text = 'Allow to perform soil excavation, trucking & disposal (Havg=2\'-11") as per C-4'
-          spreadsheet.updateCell({ value: soilExcC4Text }, `${pfx}B${currentRow}`)
+            const soilExcC4Text = 'Allow to perform soil excavation, trucking & disposal (Havg=2\'-11") as per C-4'
+            spreadsheet.updateCell({ value: soilExcC4Text }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, soilExcC4Text)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!J${watExcRow}` }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!L${watExcRow}` }, `${pfx}F${currentRow}`)
-          fillRatesForProposalRow(currentRow, soilExcC4Text)
+            fillRatesForProposalRow(currentRow, soilExcC4Text)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (watBackRow) {
-          const backfillC4Text = 'Allow to import new clean soil to backfill and compact as per C-4'
-          spreadsheet.updateCell({ value: backfillC4Text }, `${pfx}B${currentRow}`)
+            const backfillC4Text = 'Allow to import new clean soil to backfill and compact as per C-4'
+            spreadsheet.updateCell({ value: backfillC4Text }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, backfillC4Text)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!J${watBackRow}` }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!L${watBackRow}` }, `${pfx}F${currentRow}`)
-          fillRatesForProposalRow(currentRow, backfillC4Text)
+            fillRatesForProposalRow(currentRow, backfillC4Text)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         const watGravRowOrFallback = watGravRow || watExcRow || watBackRow
         if (watGravRowOrFallback) {
-          const gravelUtilText = 'F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ utility trench & asphalt pavement as per C-6 & details on C-12'
-          spreadsheet.updateCell({ value: gravelUtilText }, `${pfx}B${currentRow}`)
+            const gravelUtilText = 'F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ utility trench & asphalt pavement as per C-6 & details on C-12'
+            spreadsheet.updateCell({ value: gravelUtilText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, gravelUtilText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!J${watGravRowOrFallback}` }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!L${watGravRowOrFallback}` }, `${pfx}F${currentRow}`)
-          fillRatesForProposalRow(currentRow, gravelUtilText)
+            fillRatesForProposalRow(currentRow, gravelUtilText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (waterMainItem) {
-          spreadsheet.updateCell({ value: 'F&I new underground water main as per C-6' }, `${pfx}B${currentRow}`)
+          const waterMainText = 'F&I new underground water main as per C-6'
+          spreadsheet.updateCell({ value: waterMainText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!I${waterMainItem.row}` }, `${pfx}C${currentRow}`)
+          fillRatesForProposalRow(currentRow, waterMainText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (fireServiceItem) {
-          spreadsheet.updateCell({ value: 'F&I new (6" thick) fire service lateral as per C-6' }, `${pfx}B${currentRow}`)
+          const fireServiceText = 'F&I new (6" thick) fire service lateral as per C-6'
+          spreadsheet.updateCell({ value: fireServiceText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!I${fireServiceItem.row}` }, `${pfx}C${currentRow}`)
+          fillRatesForProposalRow(currentRow, fireServiceText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         const waterMainSum = getSiteSumByKey('Water')
         if (waterMainSum) {
-          spreadsheet.updateCell({ value: 'F&I new (3)no connection to existing water main as per C-6' }, `${pfx}B${currentRow}`)
+          const waterConnectionText = 'F&I new (3)no connection to existing water main as per C-6'
+          spreadsheet.updateCell({ value: waterConnectionText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!M${waterMainSum.row}` }, `${pfx}G${currentRow}`)
+          fillRatesForProposalRow(currentRow, waterConnectionText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (waterServiceItem) {
-          spreadsheet.updateCell({ value: 'F&I new (4" thick) underground water service lateral as per C-6' }, `${pfx}B${currentRow}`)
+          const waterServiceText = 'F&I new (4" thick) underground water service lateral as per C-6'
+          spreadsheet.updateCell({ value: waterServiceText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!I${waterServiceItem.row}` }, `${pfx}C${currentRow}`)
+          fillRatesForProposalRow(currentRow, waterServiceText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
@@ -13498,37 +13866,45 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         )
         currentRow++
         if (stormSewerItem) {
-          spreadsheet.updateCell({ value: 'F&I new (10" Ø) storm sewer piping as per P-099.00' }, `${pfx}B${currentRow}`)
+          const stormSewerText = 'F&I new (10" Ø) storm sewer piping as per P-099.00'
+          spreadsheet.updateCell({ value: stormSewerText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!I${stormSewerItem.row}` }, `${pfx}C${currentRow}`)
+          fillRatesForProposalRow(currentRow, stormSewerText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (sanitarySewerItem) {
-          spreadsheet.updateCell({ value: 'F&I new (8" Ø) underground PVC sanitary sewer service as per C-6' }, `${pfx}B${currentRow}`)
+          const sanitarySewerText = 'F&I new (8" Ø) underground PVC sanitary sewer service as per C-6'
+          spreadsheet.updateCell({ value: sanitarySewerText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!I${sanitarySewerItem.row}` }, `${pfx}C${currentRow}`)
+          fillRatesForProposalRow(currentRow, sanitarySewerText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (sanitInvertRows.length > 0) {
-          spreadsheet.updateCell({ value: 'F&I new sanitary invert as per C-6' }, `${pfx}B${currentRow}`)
+          const sanitInvertText = 'F&I new sanitary invert as per C-6'
+          spreadsheet.updateCell({ value: sanitInvertText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           const lfFormula = sanitInvertRows.length === 1
             ? `='${utilsCalcSheet}'!I${sanitInvertRows[0].row}`
             : `=AVERAGE(${sanitInvertRows.map(r => `'${utilsCalcSheet}'!I${r.row}`).join(',')})`
           spreadsheet.updateCell({ formula: lfFormula }, `${pfx}C${currentRow}`)
+          fillRatesForProposalRow(currentRow, sanitInvertText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
         if (underslabItem) {
-          spreadsheet.updateCell({ value: 'F&I new underslab drainage piping' }, `${pfx}B${currentRow}`)
+          const underslabText = 'F&I new underslab drainage piping'
+          spreadsheet.updateCell({ value: underslabText }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${utilsCalcSheet}'!I${underslabItem.row}` }, `${pfx}C${currentRow}`)
+          fillRatesForProposalRow(currentRow, underslabText)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         }
@@ -13539,15 +13915,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
       spreadsheet.updateCell({ value: 'Utilities Total:' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle' },
         `${pfx}B${currentRow}:E${currentRow}`
       )
       spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
       spreadsheet.updateCell({ formula: `=SUM(H${utilsDataStartRow}:H${utilsEndRow})*1000` }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', format: '$#,##0.00' },
         `${pfx}F${currentRow}:G${currentRow}`
       )
+        applyTotalRowBorders(spreadsheet, pfx, currentRow, '#FEF2CB')
       siteworkTotalFRows.push(currentRow)
       currentRow++
     }
@@ -13561,12 +13938,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       `${pfx}B${currentRow}`
     )
     currentRow++
-    const stormwaterManholeText = 'F&I new stormwater manhole as per C-5'
-    spreadsheet.updateCell({ value: stormwaterManholeText }, `${pfx}B${currentRow}`)
+      const stormwaterManholeText = 'F&I new stormwater manhole as per C-5'
+      spreadsheet.updateCell({ value: stormwaterManholeText }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, stormwaterManholeText)
     spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-    spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+      spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
     spreadsheet.updateCell({ value: 1 }, `${pfx}G${currentRow}`)
-    fillRatesForProposalRow(currentRow, stormwaterManholeText)
+      fillRatesForProposalRow(currentRow, stormwaterManholeText)
     spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
     currentRow++
     const stormWaterEndRow = currentRow - 1
@@ -13574,15 +13952,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
     spreadsheet.updateCell({ value: 'Storm Water Management Total:' }, `${pfx}B${currentRow}`)
     spreadsheet.cellFormat(
-      { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle' },
       `${pfx}B${currentRow}:E${currentRow}`
     )
     spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
     spreadsheet.updateCell({ value: 10000 }, `${pfx}F${currentRow}`)
     spreadsheet.cellFormat(
-      { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', format: '$#,##0.00' },
       `${pfx}F${currentRow}:G${currentRow}`
     )
+      applyTotalRowBorders(spreadsheet, pfx, currentRow, '#FEF2CB')
     siteworkTotalFRows.push(currentRow)
     currentRow++
 
@@ -13675,13 +14054,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
         const cpRow = civilConcretePavementSum.row
         const cpRefs = getSiteRefsFromRawData(/concrete\s+sidewalk|reinforced\s+sidewalk/i, 'C-4', 'C-11')
-        const concreteSidewalkText = `F&I new (4" thick) concrete sidewalk, reinf w/ 6x6-W1.4xW1.4 w.w.f as per ${cpRefs.main} & details on ${cpRefs.details}`
-        spreadsheet.updateCell({ value: concreteSidewalkText }, `${pfx}B${currentRow}`)
+          const concreteSidewalkText = `F&I new (4" thick) concrete sidewalk, reinf w/ 6x6-W1.4xW1.4 w.w.f as per ${cpRefs.main} & details on ${cpRefs.details}`
+          spreadsheet.updateCell({ value: concreteSidewalkText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, concreteSidewalkText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
         spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!J${cpRow}` }, `${pfx}D${currentRow}`)
         spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!L${cpRow}` }, `${pfx}F${currentRow}`)
-        fillRatesForProposalRow(currentRow, concreteSidewalkText)
+          fillRatesForProposalRow(currentRow, concreteSidewalkText)
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
       }
@@ -13695,13 +14075,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
         const apRow = civilAsphaltSum.row
         const apRefs = getSiteRefsFromRawData(/asphalt\s+pavement|full\s+depth\s+asphalt/i, 'FO-001.00', 'C-11')
-        const asphaltPavementText = `F&I new full depth asphalt pavement (1.5" thick) surface course on (3" thick) base course as per ${apRefs.main} & details on ${apRefs.details}`
-        spreadsheet.updateCell({ value: asphaltPavementText }, `${pfx}B${currentRow}`)
+          const asphaltPavementText = `F&I new full depth asphalt pavement (1.5" thick) surface course on (3" thick) base course as per ${apRefs.main} & details on ${apRefs.details}`
+          spreadsheet.updateCell({ value: asphaltPavementText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, asphaltPavementText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
         spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!J${apRow}` }, `${pfx}D${currentRow}`)
         spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!L${apRow}` }, `${pfx}F${currentRow}`)
-        fillRatesForProposalRow(currentRow, asphaltPavementText)
+          fillRatesForProposalRow(currentRow, asphaltPavementText)
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
       }
@@ -13718,7 +14099,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const getSiteSumByKey = (key) => (siteSums || []).find(s => s.siteGroupKey === key)
         const siteProposalLines = [
           { textBuilder: (qty, ref) => `F&I new (${qty ?? 2})no traffic sign w/ footing (18" Ø, H=3'-0") as per ${ref}`, qtySource: 'traffic' },
-          { textBuilder: (qty, ref) => 'Allow to relocate existing fire hydrant as per C-3', qtySource: 'sum', siteGroupKey: 'Hydrant', rateLookupKey: 'Allow to relocate existing fire hydrant as per C-3 - Site' },
+            { textBuilder: (qty, ref) => 'Allow to relocate existing fire hydrant as per C-3', qtySource: 'sum', siteGroupKey: 'Hydrant', rateLookupKey: 'Allow to relocate existing fire hydrant - Site' },
           { textBuilder: (qty, ref) => `F&I new (${qty ?? 9})no concrete wheel stop as per ${ref}`, qtySource: 'sum', siteGroupKey: 'Wheel stop' },
           { textBuilder: (qty, ref) => `F&I new (${qty ?? 11})no area drain as per ${ref}`, qtySource: 'sum', siteGroupKey: 'Area' },
           { textBuilder: (qty, ref) => `F&I new (${qty ?? 9})no floor drain as per ${ref}`, qtySource: 'sum', siteGroupKey: 'Floor' },
@@ -13750,10 +14131,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           if (!qtyFormula) return
           const text = typeof line.textBuilder === 'function' ? line.textBuilder(qtyVal, ref) : line.text
           spreadsheet.updateCell({ value: text }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, text)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: qtyFormula }, `${pfx}G${currentRow}`)
-          fillRatesForProposalRow(currentRow, line.rateLookupKey != null ? line.rateLookupKey : text)
+            fillRatesForProposalRow(currentRow, line.rateLookupKey != null ? line.rateLookupKey : text)
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         })
@@ -13776,14 +14158,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const heightStr = hIn > 0 ? `${hFt}'-${hIn}"` : `${hFt}'-0"`
         const bollardQty = getSiteQtyFromSum(civilBollardFootingSum)
         const bollardRefs = getSiteRefsFromRawData(/bollard/i, 'C-4', 'C-11')
-        const bollardText = `F&I new (${bollardQty ?? 28})no (${diaStr} Ø wide) concrete filled steel pipe bollard (Havg=${heightStr}) as per ${bollardRefs.main} & details on ${bollardRefs.details}`
-        spreadsheet.updateCell({ value: bollardText }, `${pfx}B${currentRow}`)
+          const bollardText = `F&I new (${bollardQty ?? 28})no (${diaStr} Ø wide) concrete filled steel pipe bollard (Havg=${heightStr}) as per ${bollardRefs.main} & details on ${bollardRefs.details}`
+          spreadsheet.updateCell({ value: bollardText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, bollardText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
         spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!J${bfRow}` }, `${pfx}D${currentRow}`)
         spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!L${bfRow}` }, `${pfx}F${currentRow}`)
         spreadsheet.updateCell({ formula: `='${siteFinishesCalcSheet}'!M${bfRow}` }, `${pfx}G${currentRow}`)
-        fillRatesForProposalRow(currentRow, bollardText)
+          fillRatesForProposalRow(currentRow, bollardText)
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
       }
@@ -13794,21 +14177,23 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         `${pfx}B${currentRow}`
       )
       currentRow++
-      const tempProtectionText = 'Temp Protection & Barriers'
-      spreadsheet.updateCell({ value: tempProtectionText }, `${pfx}B${currentRow}`)
+        const tempProtectionText = 'Temp Protection & Barriers'
+        spreadsheet.updateCell({ value: tempProtectionText }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, tempProtectionText)
       spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-      spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-      spreadsheet.updateCell({ value: 1 }, `${pfx}G${currentRow}`)
-      fillRatesForProposalRow(currentRow, tempProtectionText)
-      spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 1 }, `${pfx}G${currentRow}`)
+        fillRatesForProposalRow(currentRow, tempProtectionText)
+        spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
       currentRow++
-      const dotPermitsText = 'DOT Permits, Temp DOT Barriers'
-      spreadsheet.updateCell({ value: dotPermitsText }, `${pfx}B${currentRow}`)
+        const dotPermitsText = 'DOT Permits, Temp DOT Barriers'
+        spreadsheet.updateCell({ value: dotPermitsText }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, dotPermitsText)
       spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-      spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-      spreadsheet.updateCell({ value: 1 }, `${pfx}G${currentRow}`)
-      fillRatesForProposalRow(currentRow, dotPermitsText)
-      spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 1 }, `${pfx}G${currentRow}`)
+        fillRatesForProposalRow(currentRow, dotPermitsText)
+        spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
       currentRow++
 
       const siteFinishesEndRow = currentRow - 1
@@ -13816,15 +14201,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
       spreadsheet.updateCell({ value: 'Site Finishes Total:' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle' },
         `${pfx}B${currentRow}:E${currentRow}`
       )
       spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
       spreadsheet.updateCell({ formula: `=SUM(H${siteFinishesDataStartRow}:H${siteFinishesEndRow})*1000` }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', format: '$#,##0.00' },
         `${pfx}F${currentRow}:G${currentRow}`
       )
+        applyTotalRowBorders(spreadsheet, pfx, currentRow, '#FEF2CB')
       siteworkTotalFRows.push(currentRow)
       currentRow++
     }
@@ -13857,10 +14243,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const sumRow = sumInfo.row
         spreadsheet.updateCell({ value: item.proposalText }, `${pfx}B${currentRow}`)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
         spreadsheet.updateCell({ formula: `='${fenceCalcSheet}'!I${sumRow}` }, `${pfx}C${currentRow}`)
         spreadsheet.updateCell({ formula: `='${fenceCalcSheet}'!J${sumRow}` }, `${pfx}D${currentRow}`)
-        fillRatesForProposalRow(currentRow, item.proposalText)
+          fillRatesForProposalRow(currentRow, item.proposalText)
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
       })
@@ -13870,15 +14256,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
       spreadsheet.updateCell({ value: 'Construction Fence Total:' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle' },
         `${pfx}B${currentRow}:E${currentRow}`
       )
       spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
       spreadsheet.updateCell({ formula: `=SUM(H${fenceDataStartRow}:H${fenceEndRow})*1000` }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', format: '$#,##0.00' },
         `${pfx}F${currentRow}:G${currentRow}`
       )
+        applyTotalRowBorders(spreadsheet, pfx, currentRow, '#FEF2CB')
       siteworkTotalFRows.push(currentRow)
       currentRow++
     }
@@ -13903,11 +14290,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     ]
     allowancesItems.forEach((itemText) => {
       spreadsheet.updateCell({ value: itemText }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, itemText)
       spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-      spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
-      spreadsheet.updateCell({ value: 1 }, `${pfx}G${currentRow}`)
-      fillRatesForProposalRow(currentRow, itemText)
-      spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: 1 }, `${pfx}G${currentRow}`)
+        fillRatesForProposalRow(currentRow, itemText)
+        spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
       currentRow++
     })
 
@@ -13916,15 +14304,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     spreadsheet.merge(`${pfx}B${currentRow}:E${currentRow}`)
     spreadsheet.updateCell({ value: 'Allowances Total:' }, `${pfx}B${currentRow}`)
     spreadsheet.cellFormat(
-      { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle' },
       `${pfx}B${currentRow}:E${currentRow}`
     )
     spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
     spreadsheet.updateCell({ value: 225000 }, `${pfx}F${currentRow}`)
     spreadsheet.cellFormat(
-      { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', border: '1px solid #000000', format: '$#,##0.00' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', format: '$#,##0.00' },
       `${pfx}F${currentRow}:G${currentRow}`
     )
+      applyTotalRowBorders(spreadsheet, pfx, currentRow, '#FEF2CB')
     siteworkTotalFRows.push(currentRow)
     currentRow++
 
@@ -13933,15 +14322,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
       spreadsheet.updateCell({ value: 'Add Alternate #1: Sitework Total:' }, `${pfx}D${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD6EE', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD6EE' },
         `${pfx}D${currentRow}:E${currentRow}`
       )
       spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
       spreadsheet.updateCell({ formula: `=SUM(${siteworkTotalFRows.map(r => `F${r}`).join(',')})` }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD6EE', border: '1px solid #000000', format: '$#,##0.00' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD6EE', format: '$#,##0.00' },
         `${pfx}F${currentRow}:G${currentRow}`
       )
+        applyTotalRowBorders(spreadsheet, pfx, currentRow, '#BDD6EE')
       currentRow++
     }
 
@@ -14004,6 +14394,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // 1. Allow to saw-cut/demo/remove/dispose existing sidewalk - SF and CY from sidewalk
         const bppLine1 = 'Allow to saw-cut/demo/remove/dispose existing sidewalk'
         spreadsheet.updateCell({ value: bppLine1 }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, bppLine1)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
         fillRatesForProposalRow(currentRow, bppLine1)
         if (sidewalkRows.length > 0) {
@@ -14016,6 +14407,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // 2. Allow to saw-cut/demo/remove/dispose existing 7" sidewalk/driveway - SF and CY from driveway
         const bppLine2 = 'Allow to saw-cut/demo/remove/dispose existing 7" sidewalk/driveway'
         spreadsheet.updateCell({ value: bppLine2 }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, bppLine2)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
         fillRatesForProposalRow(currentRow, bppLine2)
         if (drivewayRows.length > 0) {
@@ -14028,6 +14420,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // 3. Allow to strip existing asphalt & dispose - SF and CY from asphalt
         const bppLine3 = 'Allow to strip existing asphalt & dispose'
         spreadsheet.updateCell({ value: bppLine3 }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, bppLine3)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
         fillRatesForProposalRow(currentRow, bppLine3)
         if (asphaltRows.length > 0) {
@@ -14040,6 +14433,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // 4. Allow to demo existing concrete curb & dispose - LF and CY from curb
         const bppLine4 = 'Allow to demo existing concrete curb & dispose'
         spreadsheet.updateCell({ value: bppLine4 }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, bppLine4)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
         fillRatesForProposalRow(currentRow, bppLine4)
         if (curbRows.length > 0) {
@@ -14052,6 +14446,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // 5. Allow to demo existing concrete flush curb & dispose - LF and CY from flush curb
         const bppLine5 = 'Allow to demo existing concrete flush curb & dispose'
         spreadsheet.updateCell({ value: bppLine5 }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, bppLine5)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
         fillRatesForProposalRow(currentRow, bppLine5)
         if (flushCurbRows.length > 0) {
@@ -14065,6 +14460,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // 6. F&I new (6" thick) ¾" crushed stone - SF from sidewalk+driveway+asphalt, CY = SF×6"/12/27
         const bppLine6 = 'F&I new (6" thick) ¾" crushed stone on compacted subgrade @ sidewalks & asphalt'
         spreadsheet.updateCell({ value: bppLine6 }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, bppLine6)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
         fillRatesForProposalRow(currentRow, bppLine6)
         const allSfRows = [...sidewalkRows, ...drivewayRows, ...asphaltRows]
@@ -14075,11 +14471,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
         currentRow++
 
-        // 7. F&I new (4" thick) concrete sidewalk - SF/CY from sidewalk
+        // 7. F&I new (4" thick) concrete sidewalk - SF/CY from sidewalk; use street-specific rate lookup so "concrete sidewalk, reinf w/ -Pavement replacement: [Street]" gets SF 12
         const bppLine7 = 'F&I new (4" thick) concrete sidewalk, reinf w/ 6x6-W1.4xW1.4 (NYCDOT H-1045, Type I)'
         spreadsheet.updateCell({ value: bppLine7 }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, bppLine7)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
-        fillRatesForProposalRow(currentRow, bppLine7)
+        fillRatesForProposalRow(currentRow, bppLine7, `concrete sidewalk, reinf w/ -Pavement replacement: ${streetName}`)
         if (sidewalkRows.length > 0) {
           spreadsheet.updateCell({ formula: buildSumFormula(sidewalkRows, 'J') }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: buildSumFormula(sidewalkRows, 'L') }, `${pfx}F${currentRow}`)
@@ -14090,6 +14487,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // 8. F&I new (7" thick) concrete sidewalk/driveway - SF/CY from driveway
         const bppLine8 = 'F&I new (7" thick) concrete sidewalk/driveway, reinf w/ 6x6-W1.4xW1.4 @ corners & driveways'
         spreadsheet.updateCell({ value: bppLine8 }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, bppLine8)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
         fillRatesForProposalRow(currentRow, bppLine8)
         if (drivewayRows.length > 0) {
@@ -14102,6 +14500,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // 9. F&I new (8" thick) concrete curb - LF/SF/CY from curb
         const bppLine9 = 'F&I new (8" thick) concrete curb (H=1\'-6") NYCDOT H-1010'
         spreadsheet.updateCell({ value: bppLine9 }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, bppLine9)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
         fillRatesForProposalRow(currentRow, bppLine9)
         if (curbRows.length > 0) {
@@ -14115,6 +14514,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // 10. F&I new (6" thick) flush concrete curb - LF/SF/CY from flush curb
         const bppLine10 = 'F&I new (6" thick) flush concrete curb (H=1\'-6") NYCDOT H-1010'
         spreadsheet.updateCell({ value: bppLine10 }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, bppLine10)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
         fillRatesForProposalRow(currentRow, bppLine10)
         if (flushCurbRows.length > 0) {
@@ -14128,6 +14528,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // 11. F&I new 1/2" expansion joint - LF from expansion joint
         const bppLine11 = 'F&I new 1/2" expansion joint & caulking perimeter & 20\' o.c. of new sidewalk'
         spreadsheet.updateCell({ value: bppLine11 }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, bppLine11)
         spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
         fillRatesForProposalRow(currentRow, bppLine11)
         if (expansionRows.length > 0) {
@@ -14194,19 +14595,21 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
       spreadsheet.updateCell({ value: 'Add Alternate #2 : B.P.P. Total:' }, `${pfx}D${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD6EE', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD6EE' },
         `${pfx}D${currentRow}:E${currentRow}`
       )
       spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
       spreadsheet.updateCell({ formula: `=SUM(H${bppScopeStartRow}:H${bppScopeEndRow})*1000` }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD6EE', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#BDD6EE' },
         `${pfx}F${currentRow}:G${currentRow}`
       )
       try { spreadsheet.numberFormat('$#,##0.00', `${pfx}F${currentRow}:G${currentRow}`) } catch (e) { }
-      spreadsheet.cellFormat({ backgroundColor: '#BDD6EE' }, `${pfx}B${currentRow}:G${currentRow}`)
+        applyTotalRowBorders(spreadsheet, pfx, currentRow, '#BDD6EE')
       currentRow++
     }
+
+    } // end if (hasBPPAlternate2InCalc && hasCivilSiteworkInCalc)
 
     // Two empty rows before Add Alternate sections
     currentRow++
@@ -14390,32 +14793,70 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       spreadsheet.cellFormat(thickLeft, `${pfx}B3:B${finalRow}`)
       spreadsheet.cellFormat(thickRight, `${pfx}G3:G${finalRow}`)
 
-      // Global Font Style Application (Calibri Bold 18pt)
-      // Apply to the entire content area including headers and signature
-      // EXCLUDING Row 1 (Header) which is 10pt
-      spreadsheet.cellFormat({ fontFamily: 'Calibri', fontWeight: 'bold', fontSize: '18pt' }, `${pfx}A2:N${finalRow}`)
+      // Border on each row for columns B to G (data rows from 13; row 12 has 2px border set earlier)
+      spreadsheet.cellFormat(thin, `${pfx}B13:G${finalRow}`)
+
+      // Global Font Style Application (Calibri Bold 18pt, text color black); all cells vertically centered
+      spreadsheet.cellFormat({ fontFamily: 'Calibri', fontWeight: 'bold', fontSize: '18pt', color: '#000000', verticalAlign: 'middle' }, `${pfx}A2:N${finalRow}`)
+      // Row 1 header: black text, vertically centered
+      spreadsheet.cellFormat({ color: '#000000', verticalAlign: 'middle' }, `${pfx}A1:N1`)
+
+      // $ value columns (H = $/1000, I–N = unit rates & amounts): font size 11pt, not 18pt; light padding (data rows only; H1/H12 are headers)
+      const cellPaddingIndent = '6pt'
+      spreadsheet.cellFormat({ fontSize: '11pt', textIndent: cellPaddingIndent }, `${pfx}H13:H${finalRow}`)
+      spreadsheet.cellFormat({ fontSize: '11pt', textIndent: cellPaddingIndent }, `${pfx}I2:N${finalRow}`)
+      // Row 12 header: 18pt, 2px border, semi-bold; $/1000 (H12) at 11pt, centered
+      spreadsheet.cellFormat({ fontSize: '18pt', fontColor: '#000000', fontWeight: '600' }, `${pfx}A12:N12`)
+      spreadsheet.cellFormat({ fontSize: '11pt', textAlign: 'center', verticalAlign: 'middle' }, `${pfx}H12`)
+      // Re-apply 2px border on row 12 (incl. bottom) so it is not overwritten by thin grid on row 13
+      spreadsheet.cellFormat({ border: '2px solid #000000' }, `${pfx}B12:N12`)
+      // $/1000 heading (H1) at 11pt, centered
+      spreadsheet.cellFormat({ fontSize: '11pt', textAlign: 'center', verticalAlign: 'middle' }, `${pfx}H1`)
+      // Columns C–G: center all values horizontally and vertically
+      spreadsheet.cellFormat({ textAlign: 'center', verticalAlign: 'middle' }, `${pfx}C12:G${finalRow}`)
+      // Word wrap for description column (B) so long text wraps within the cell
+      spreadsheet.cellFormat({ wrapText: true }, `${pfx}B13:B${finalRow}`)
 
       // Override Email label to be normal weight per request
       spreadsheet.cellFormat({ fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}B6`)
+      // Tel/Fax/Cell line (B5): 11pt, blue, underline
+      spreadsheet.cellFormat({ fontWeight: 'normal', fontSize: '11pt', color: '#0B76C3', textDecoration: 'underline' }, `${pfx}B5`)
 
-      // Override numerical value columns to be normal weight per request
-      // Columns C-G and I-N (H is handled separately above)
-      // Data starts at Row 13
-      spreadsheet.cellFormat({ fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}C13:G${finalRow}`)
+      // Override numerical value columns to be normal weight per request (including $/1000 column H)
+      // Data starts at Row 13; C–G stay centered
+      spreadsheet.cellFormat({ fontWeight: 'normal', fontFamily: 'Calibri (Body)', textAlign: 'center', verticalAlign: 'middle' }, `${pfx}C13:G${finalRow}`)
+      spreadsheet.cellFormat({ fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H13:H${finalRow}`)
       spreadsheet.cellFormat({ fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}I13:N${finalRow}`)
 
-      // RE-APPLY BOLD to Total Rows (which were unbolded by the range above)
+      // RE-APPLY BOLD to Total Rows (B, C-G, I-N only; keep H normal so $/1000 values are not bold)
       totalRows.forEach(row => {
-        // Apply to the specific columns or the whole row's data area
-        // Often totals are in B, but values are in C-N.
-        spreadsheet.cellFormat({ fontWeight: 'bold', fontFamily: 'Calibri' }, `${pfx}B${row}:N${row}`)
+        spreadsheet.cellFormat({ fontWeight: 'bold', fontFamily: 'Calibri' }, `${pfx}B${row}:G${row}`)
+        spreadsheet.cellFormat({ fontWeight: 'bold', fontFamily: 'Calibri' }, `${pfx}I${row}:N${row}`)
       })
+      totalSFRowsForItalic.forEach(row => {
+        spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic', fontFamily: 'Calibri' }, `${pfx}C${row}`)
+      })
+      // Note rows: single-column B with rich text (Note: bold, rest normal) – don’t apply fontWeight so rich text is preserved
+      noteRows.forEach(row => {
+        spreadsheet.cellFormat({ fontFamily: 'Calibri (Body)', textAlign: 'left' }, `${pfx}B${row}`)
+      })
+      wpNoteRow.forEach(row => {
+        spreadsheet.cellFormat({ fontWeight: 'normal', fontStyle: 'italic', textAlign: 'center', verticalAlign: 'middle', fontFamily: 'Calibri (Body)' }, `${pfx}B${row}:C${row}`)
+      })
+      // Ensure every cell on Proposal sheet is vertically centered (y-axis)
+      spreadsheet.cellFormat({ verticalAlign: 'middle' }, `${pfx}A1:N${finalRow}`)
+      // $/1000 headings (H1, H12) centered in cell (re-apply last so not overwritten)
+      spreadsheet.cellFormat({ textAlign: 'center', verticalAlign: 'middle' }, `${pfx}H1`)
+      spreadsheet.cellFormat({ textAlign: 'center', verticalAlign: 'middle' }, `${pfx}H12`)
     }
 
-    // Uniform row height for all data rows below DESCRIPTION (row 12)
-    const dataRowHeight = 30
+    // Row height for each data row based on column B content (wrap text, height fits content)
     for (let r = 13; r <= finalRow; r++) {
-      try { spreadsheet.setRowHeight(r, dataRowHeight) } catch (e) { /* ignore */ }
+      try {
+        const text = rowBContentMap.has(r) ? String(rowBContentMap.get(r)) : ''
+        const h = calculateRowHeight(text)
+        spreadsheet.setRowHeight(h, r - 1, proposalSheetIndex)
+      } catch (e) { /* ignore */ }
     }
 
     // Individual totals are now added after each subsection's misc section
@@ -14439,30 +14880,42 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       try {
         spreadsheet.numberFormat('#,##0.00;-#,##0.00;""', `${pfx}C2:G${lastDataRow}`)
       } catch (e) { /* ignore */ }
-      // Apply $ prefix format to column H ($/1000) that hides zeros
+      // Apply $ prefix format to column H ($/1000): more space between $ and value
       try {
-        spreadsheet.numberFormat('$#,##0.0;-$#,##0.0;""', `${pfx}H2:H${lastDataRow}`)
+        // Show a leading $ in every row of column H, even when the numeric value is blank/zero
+        spreadsheet.numberFormat('$          #,##0.00;-$          #,##0.00;"$"', `${pfx}H2:H${lastDataRow}`)
       } catch (e) {
-        // Fallback to cellFormat if numberFormat doesn't work
         spreadsheet.cellFormat(
-          {
-            format: '$#,##0.0;-$#,##0.0;""'
-          },
+          { format: '$          #,##0.00;-$          #,##0.00;"$"', textAlign: 'left' },
           `${pfx}H2:H${lastDataRow}`
         )
       }
-      // Apply $ prefix format to columns I-N that hides zeros
+      spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}H13:H${lastDataRow}`)
+      // Apply $ prefix format to columns I-N: space between $ and value; column width fits data
       try {
-        spreadsheet.numberFormat('$#,##0.0;-$#,##0.0;""', `${pfx}I2:N${lastDataRow}`)
+        spreadsheet.numberFormat('$   #,##0.00;-$   #,##0.00;""', `${pfx}I2:N${lastDataRow}`)
       } catch (e) {
-        // Fallback to cellFormat if numberFormat doesn't work
         spreadsheet.cellFormat(
-          {
-            format: '$#,##0.0;-$#,##0.0;""'
-          },
+          { format: '$   #,##0.00;-$   #,##0.00;""', textAlign: 'left' },
           `${pfx}I2:N${lastDataRow}`
         )
       }
+      spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}I2:N${lastDataRow}`)
+
+      // Total rows: no spaces between $ and value; total label (B:E) left-aligned; $ values (F:G, H, I-N) centered
+      const totalFormatNoSpace = '$#,##0.00;-$#,##0.00;""'
+      const totalFormatNoSpace1Dec = '$#,##0.00;-$#,##0.00;""'
+      totalRows.forEach(row => {
+        spreadsheet.cellFormat({ textAlign: 'right' }, `${pfx}B${row}:E${row}`)
+        try {
+          spreadsheet.numberFormat(totalFormatNoSpace, `${pfx}F${row}:G${row}`)
+          spreadsheet.numberFormat(totalFormatNoSpace1Dec, `${pfx}H${row}`)
+          spreadsheet.numberFormat(totalFormatNoSpace1Dec, `${pfx}I${row}:N${row}`)
+        } catch (e) { /* ignore */ }
+        spreadsheet.cellFormat({ textAlign: 'center', format: totalFormatNoSpace }, `${pfx}F${row}:G${row}`)
+        spreadsheet.cellFormat({ textAlign: 'center', format: totalFormatNoSpace1Dec }, `${pfx}H${row}`)
+        spreadsheet.cellFormat({ textAlign: 'center', format: totalFormatNoSpace1Dec }, `${pfx}I${row}:N${row}`)
+      })
     }
 
     // Force recalculation of all formulas to ensure $/1000 values display correctly
@@ -14474,5 +14927,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.goTo('Proposal Sheet!A1')
       } catch (e2) { /* ignore */ }
     }
+
+    // Auto-fit columns I–N so cells expand to fit $ and value (no overflow)
+    try {
+      spreadsheet.goTo('Proposal Sheet!A1')
+      if (typeof spreadsheet.autoFit === 'function') {
+        spreadsheet.autoFit('I:N')
+      }
+    } catch (e) { /* ignore */ }
   }
 }

@@ -1,0 +1,49 @@
+[
+  {
+    "name": "Local Proposal 1",
+    "client": "Local Client",
+    "project": "Local Project Alpha",
+    "template": "capstone",
+    "rawExcelData": {
+      "fileName": "sample-export.xlsx",
+      "sheetName": "Sheet1",
+      "headers": ["Item", "Description", "LF", "SF", "LBS", "CY", "QTY", "Unit", "Rate", "Amount"],
+      "rows": [
+        ["Demolition scope:", "", "", "", "", "", "", "", "", ""],
+        ["Allow to demo and dispose existing structure", "", "100", "0", "0", "50", "0", "LF", "10", "1000"],
+        ["Soil excavation scope:", "", "", "", "", "", "", "", "", ""],
+        ["Allow to perform soil excavation, trucking & disposal", "", "0", "500", "0", "200", "0", "CY", "25", "5000"]
+      ]
+    }
+  },
+  {
+    "name": "Local Proposal 2",
+    "client": "Demo Client",
+    "project": "Demo Project",
+    "template": "capstone",
+    "rawExcelData": {
+      "fileName": "demo-data.xlsx",
+      "sheetName": "Sheet1",
+      "headers": ["Col A", "Col B", "LF", "SF", "LBS", "CY", "QTY"],
+      "rows": [
+        ["Scope item 1", "Description here", "50", "100", "0", "10", "1"],
+        ["Scope item 2", "Another line", "0", "200", "500", "0", "2"]
+      ]
+    }
+  },
+  {
+    "name": "Pending Review Proposal",
+    "client": "Review Client",
+    "project": "Pending Project",
+    "template": "capstone",
+    "rawExcelData": {
+      "fileName": "pending-export.xlsx",
+      "sheetName": "Data",
+      "headers": ["Item", "LF", "SF", "CY", "QTY"],
+      "rows": [
+        ["Foundation work", "0", "1000", "100", "0"],
+        ["Superstructure", "500", "2000", "0", "10"]
+      ]
+    }
+  }
+]

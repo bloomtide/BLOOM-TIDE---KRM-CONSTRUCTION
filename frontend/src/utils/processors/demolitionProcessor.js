@@ -52,8 +52,8 @@ export const getDemolitionSubsection = (digitizerItem) => {
     return 'Demo isolated footing'
   }
 
-  // Demo stair on grade
-  if (itemLower.includes('demo stair')) {
+  // Demo stair on grade (e.g. "Demo stairs on grade", "Demo stair on grade", "Demo Stair slab")
+  if (itemLower.includes('demo stair') || itemLower.includes('demo stairs on grade') || itemLower.includes('demo stair on grade') || itemLower.includes('demo stair slab')) {
     return 'Demo stair on grade'
   }
 

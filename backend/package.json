@@ -7,6 +7,8 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed:admin": "node scripts/createAdmin.js",
+    "seed:proposals": "node scripts/seedProposals.js",
+    "seed": "node scripts/createAdmin.js && node scripts/seedProposals.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
@@ -14,6 +16,7 @@
   "description": "",
   "dependencies": {
     "bcryptjs": "^3.0.3",
+    "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
