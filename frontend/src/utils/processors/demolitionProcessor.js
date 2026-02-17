@@ -52,6 +52,11 @@ export const getDemolitionSubsection = (digitizerItem) => {
     return 'Demo isolated footing'
   }
 
+  // Demo stair on grade
+  if (itemLower.includes('demo stair')) {
+    return 'Demo stair on grade'
+  }
+
   return null
 }
 
@@ -75,6 +80,7 @@ export const generateDemolitionFormulas = (type, rowNum, parsedData) => {
   switch (type) {
     case 'Demo slab on grade':
     case 'Demo Ramp on grade':
+    case 'Demo stair on grade':
     case 'demo_extra_sqft':
     case 'demo_extra_rog_sqft':
       // SQ FT (J) = Takeoff, CY (L) = SQ FT * Height / 27
@@ -122,7 +128,8 @@ export const processDemolitionItems = (rawDataRows, headers, tracker = null) => 
     'Demo strip footing': [],
     'Demo foundation wall': [],
     'Demo retaining wall': [],
-    'Demo isolated footing': []
+    'Demo isolated footing': [],
+    'Demo stair on grade': []
   }
 
   // Find column indices
@@ -156,7 +163,7 @@ export const processDemolitionItems = (rawDataRows, headers, tracker = null) => 
           if (thickMatch) {
             groupKey = `THICK_${thickMatch[1]}`
           }
-        } else if ((subsection === 'Demo strip footing' || subsection === 'Demo foundation wall' || subsection === 'Demo retaining wall' || subsection === 'Demo isolated footing') && digitizerItem.includes('(')) {
+        } else if ((subsection === 'Demo strip footing' || subsection === 'Demo foundation wall' || subsection === 'Demo retaining wall' || subsection === 'Demo isolated footing' || subsection === 'Demo stair on grade') && digitizerItem.includes('(')) {
           // Group by first bracket value
           const bracketMatch = digitizerItem.match(/\(([^x)]+)/)
           if (bracketMatch) {

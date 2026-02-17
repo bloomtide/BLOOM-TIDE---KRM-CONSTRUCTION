@@ -2707,7 +2707,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const groupHeaderRow = Array(template.columns.length).fill('')
             groupHeaderRow[1] = `Stair ${group.stairIdentifier}:`
             rows.push(groupHeaderRow)
-            formulas.push({ row: rows.length, itemType: 'stairs_on_grade_group_header', section: 'foundation', stairIdentifier: group.stairIdentifier })
+            formulas.push({ row: rows.length, itemType: 'stairs_on_grade_group_header', section: 'foundation' })
 
             const groupFirstRow = rows.length + 1
             let stairsOnGradeRow = null
@@ -2847,7 +2847,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           }
           if (conduitGroup2.length > 0) {
             rows.push(Array(template.columns.length).fill(''))
-            const trenchDrainFirstRow = rows.length + 1
             conduitGroup2.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
               itemRow[1] = item.particulars
@@ -2855,17 +2854,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               itemRow[3] = item.unit || 'FT'
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'electric_conduit', parsedData: item, section: 'foundation' })
-            })
-            const trenchDrainLastRow = rows.length
-            const sumRow = Array(template.columns.length).fill('')
-            rows.push(sumRow)
-            formulas.push({
-              row: rows.length,
-              itemType: 'foundation_sum',
-              section: 'foundation',
-              firstDataRow: trenchDrainFirstRow,
-              lastDataRow: trenchDrainLastRow,
-              subsectionName: 'Trench drain'
             })
           }
         } else if (subsection.name === 'For foundation Extra line item use this') {

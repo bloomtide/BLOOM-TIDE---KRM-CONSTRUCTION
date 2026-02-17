@@ -13,6 +13,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   const label = (key) => (headerLabels[key] != null && headerLabels[key] !== '') ? String(headerLabels[key]) : key
   const L = { LF: label('LF'), SF: label('SF'), LBS: label('LBS'), CY: label('CY'), QTY: label('QTY'), LS: label('LS') }
 
+  // B = formula referencing G (same row) for proposal lines that show count from calculation sheet
+  const proposalFormulaWithQtyRef = (proposalRow, afterCount) => {
+    const escaped = (afterCount || '').replace(/"/g, '""')
+    return `=CONCATENATE("F&I new (",G${proposalRow},"${escaped}")`
+  }
+
   // Extract "whatever is after () and before as per" for rate matching (e.g. "no W12x58 walers" from "F&I new (11)no W12x58 walers as per SOE-101.00")
   const getDescriptionKeyAfterParenBeforeAsPer = (descriptionText) => {
     if (!descriptionText || typeof descriptionText !== 'string') return null
@@ -360,44 +366,82 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     const headers = rawData[0]
     const dataRows = rawData.slice(1)
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
-    if (digitizerIdx === -1) return 'DM-106.00'
+    if (digitizerIdx === -1) return '##'
+    const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
     const subsectionPatterns = {
-      'Demo slab on grade': /demo\s+sog/i, 'Demo Ramp on grade': /demo\s+rog/i,
-      'Demo strip footing': /demo\s+sf/i, 'Demo foundation wall': /demo\s+fw/i,
-      'Demo retaining wall': /demo\s+rw/i, 'Demo isolated footing': /demo\s+isolated\s+footing/i
+      'Demo slab on grade': /demo\s+sog/i,
+      'Demo strip footing': /demo\s+sf/i,
+      'Demo foundation wall': /demo\s+fw/i,
+      'Demo isolated footing': /demo\s+isolated\s+footing/i,
+      'Demo Ramp on grade': /demo\s+rog|demo\s+ramp\s+on\s+grade/i,
+      'Demo retaining wall': /demo\s+rw|demo\s+retaining\s+wall/i,
+      'Demo stair on grade': /demo\s+stair/i
     }
     const pattern = subsectionPatterns[subsectionName]
-    if (!pattern) return 'DM-106.00'
+    if (!pattern) return '##'
     for (const row of dataRows) {
       const digitizerItem = row[digitizerIdx]
-      if (digitizerItem && pattern.test(String(digitizerItem))) {
-        const dmMatch = String(digitizerItem).trim().match(/DM-[\d.]+/i)
-        if (dmMatch) return dmMatch[0]
+      if (!digitizerItem || !pattern.test(String(digitizerItem))) continue
+      if (pageIdx >= 0) {
+        const pageValue = row[pageIdx]
+        if (pageValue != null && pageValue !== '') {
+          const pageStr = String(pageValue).trim()
+          const dmMatch = pageStr.match(/DM-[\d.]+/i) || pageStr.match(/A-[\d.]+/i)
+          if (dmMatch) return dmMatch[0]
+        }
       }
+      const dmMatch = String(digitizerItem).trim().match(/DM-[\d.]+/i) || String(digitizerItem).trim().match(/A-[\d.]+/i)
+      if (dmMatch) return dmMatch[0]
     }
-    return 'DM-106.00'
+    return '##'
   }
-  const buildDemolitionTemplate = (subsectionName, itemText) => {
+  const buildDemolitionTemplate = (subsectionName, itemText, fallbackText) => {
     const slabTypeMatch = subsectionName.match(/^Demo\s+(.+)$/i)
     const slabType = slabTypeMatch ? slabTypeMatch[1].trim() : subsectionName.replace(/^Demo\s+/i, '').trim()
     const dmReference = getDMReferenceFromRawData(subsectionName)
-    const usesThickness = slabType.toLowerCase().includes('slab on grade') || slabType.toLowerCase().includes('ramp on grade')
-    if (!itemText) {
-      if (usesThickness) {
-        return `Allow to saw-cut/demo/remove/dispose existing (4" thick) ${slabType} @ existing building as per ${dmReference}`
+    const dmSuffix = ` as per ${dmReference} & details on`
+    const textToParse = (itemText ? String(itemText).trim() : '') || (fallbackText ? String(fallbackText).trim() : '')
+    if (!textToParse) {
+      if (slabType.toLowerCase().includes('slab on grade')) {
+        return `Allow to saw-cut/demo/remove/dispose existing (## thick) ${slabType} @ existing building${dmSuffix}`
       }
-      return `Allow to saw-cut/demo/remove/dispose existing ${slabType} @ existing building as per ${dmReference}`
+      if (slabType.toLowerCase().includes('ramp on grade')) {
+        return `Allow to saw-cut/demo/remove/dispose existing (4" thick) ${slabType} @ existing building${dmSuffix}`
+      }
+      if (slabType.toLowerCase().includes('retaining wall')) {
+        return `Allow to saw-cut/demo/remove/dispose existing (## wide) retaining wall (H=##) @ existing building${dmSuffix}`
+      }
+      if (slabType.toLowerCase().includes('stair on grade') || slabType.toLowerCase().includes('stairs on grade')) {
+        return `Allow to saw-cut/demo/remove/dispose existing (## wide) stairs on grade (## Riser) @ 1st FL${dmSuffix}`
+      }
+      return `Allow to saw-cut/demo/remove/dispose existing ${slabType} @ existing building${dmSuffix}`
     }
-    const text = String(itemText).trim()
+    const text = textToParse
+    if (slabType.toLowerCase().includes('stair on grade') || slabType.toLowerCase().includes('stairs on grade')) {
+      const widthMatch = text.match(/(\d+'-?\d*"?)\s*wide/i) || text.match(/\(([^)]+)\)/)
+      const width = widthMatch ? String(widthMatch[1]).replace(/^\(|\)$/g, '').trim() : '##'
+      return `Allow to saw-cut/demo/remove/dispose existing (${width} wide) stairs on grade (## Riser) @ 1st FL${dmSuffix}`
+    }
+    if (slabType.toLowerCase().includes('retaining wall')) {
+      const bracketMatch = text.match(/\(([^)]+)\)/)
+      if (bracketMatch) {
+        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
+        const width = parts[0] || '##'
+        const height = parts[1] || '##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${width} wide) retaining wall (H=${height}) @ existing building${dmSuffix}`
+      }
+      return `Allow to saw-cut/demo/remove/dispose existing (## wide) retaining wall (H=##) @ existing building${dmSuffix}`
+    }
+    const usesThickness = slabType.toLowerCase().includes('slab on grade') || slabType.toLowerCase().includes('ramp on grade')
     let thicknessPart = ''
     if (usesThickness) {
       const thicknessMatch = text.match(/(\d+["\"]?\s*thick)/i) || text.match(/(\d+["\"]?)/)
-      thicknessPart = thicknessMatch ? `(${thicknessMatch[1]})` : '(4" thick)'
+      thicknessPart = thicknessMatch ? `(${thicknessMatch[1]})` : '(## thick)'
     } else {
       const dimMatch = text.match(/\(([^)]+)\)/)
-      thicknessPart = dimMatch ? `(${dimMatch[1]})` : ''
+      thicknessPart = dimMatch ? `(${dimMatch[1]})` : '(##)'
     }
-    return `Allow to saw-cut/demo/remove/dispose existing ${thicknessPart} ${slabType} @ existing building as per ${dmReference}`
+    return `Allow to saw-cut/demo/remove/dispose existing ${thicknessPart} ${slabType} @ existing building${dmSuffix}`
   }
   const calculateRowSF = (row) => {
     if (!row || row.length === 0) return 0
@@ -1394,25 +1438,40 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       orderedSubsections.forEach((name, index) => {
         const rowCount = (rowsBySubsection.get(name) || []).length
         const originalText = linesBySubsection.get(name)
-        const templateText = buildDemolitionTemplate(name, originalText)
+        const subsectionRows = rowsBySubsection.get(name) || []
+        const firstRowWithB = subsectionRows.find(r => r[1] && String(r[1]).trim())
+        const fallbackText = originalText ? null : (firstRowWithB ? String(firstRowWithB[1]).trim() : null)
+        const templateText = buildDemolitionTemplate(name, originalText, fallbackText)
         const cellRef = `${pfx}B${currentRow}`
 
-        spreadsheet.updateCell({ value: templateText }, cellRef)
+        const lastDataIdx = lastDataRowIndexBySubsection.get(name)
+        const detectedSumRow = sumRowIndexBySubsection.get(name)
+        const sumRowIndex = detectedSumRow != null ? detectedSumRow : (lastDataIdx != null ? lastDataIdx + 2 : null)
+
+        const stairsRiserPlaceholder = '(## Riser)'
+        const useStairsRiserFormula = templateText.includes(stairsRiserPlaceholder) && sumRowIndex != null
+        if (useStairsRiserFormula) {
+          const parts = templateText.split(stairsRiserPlaceholder)
+          const prefix = (parts[0] || '').trimEnd()
+          const suffix = ' Riser)' + (parts[1] || '').trimStart()
+          const esc = (s) => (s || '').replace(/"/g, '""')
+          spreadsheet.updateCell({ formula: `=CONCATENATE("${esc(prefix)}",'${demolitionCalcSheet}'!M${sumRowIndex},"${esc(suffix)}")` }, cellRef)
+        } else {
+          spreadsheet.updateCell({ value: templateText }, cellRef)
+        }
+        spreadsheet.wrap(cellRef, true)
         spreadsheet.cellFormat(
           {
             fontWeight: 'bold',
             color: '#000000',
             textAlign: 'left',
-            verticalAlign: 'top'
+            verticalAlign: 'top',
+            wrapText: true
           },
           cellRef
         )
         fillRatesForProposalRow(currentRow, templateText)
 
-        // Sum row in Calculations Sheet: either from detection (sumRowIndexBySubsection) or last data row + 1 (sum is next row)
-        const lastDataIdx = lastDataRowIndexBySubsection.get(name)
-        const detectedSumRow = sumRowIndexBySubsection.get(name)
-        const sumRowIndex = detectedSumRow != null ? detectedSumRow : (lastDataIdx != null ? lastDataIdx + 2 : null)
         if (sumRowIndex != null) {
           // Always use formulas so the cell shows the formula and updates when calc sheet changes
           spreadsheet.updateCell({ formula: `='${demolitionCalcSheet}'!J${sumRowIndex}` }, `${pfx}D${currentRow}`)
