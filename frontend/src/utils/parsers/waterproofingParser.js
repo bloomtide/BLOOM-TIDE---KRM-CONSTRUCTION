@@ -81,21 +81,22 @@ export const getExteriorSidePitRefKey = (particulars) => {
 }
 
 /**
- * Parses dimensions for Exterior side pit items: 2nd value from bracket = height (feet), 1st = width (feet) if present.
- * Height for formula = 2nd value + H of Foundation slab row (applied in sheet).
+ * Parses dimensions for Exterior side pit items: 2nd value from bracket + 2 feet = height, 1st = width (feet) if present.
+ * Height = 2nd value + 2 FT (same as other exterior side items).
  * @param {string} particulars - Item description containing bracket dimensions e.g. (6"x8'-6"), (1'-0"x5'-0")
- * @returns {{ secondValueFeet: number, firstValueFeet: number|null, heightRefKey: string|null }}
+ * @returns {{ heightFromBracketPlus2: number, firstValueFeet: number|null, heightRefKey: string|null }}
  */
 export const parseExteriorSidePitDimensions = (particulars) => {
   const heightRefKey = getExteriorSidePitRefKey(particulars)
   const match = particulars.match(/\(([^)]+)\)/)
-  if (!match) return { secondValueFeet: 0, firstValueFeet: null, heightRefKey }
+  if (!match) return { heightFromBracketPlus2: 0, firstValueFeet: null, heightRefKey }
   const inner = match[1]
   const parts = inner.split('x').map((s) => s.trim())
-  if (parts.length < 2) return { secondValueFeet: 0, firstValueFeet: null, heightRefKey }
+  if (parts.length < 2) return { heightFromBracketPlus2: 0, firstValueFeet: null, heightRefKey }
   const secondValueFeet = convertToFeet(parts[1])
   const firstValueFeet = convertToFeet(parts[0])
-  return { secondValueFeet, firstValueFeet, heightRefKey }
+  const heightFromBracketPlus2 = secondValueFeet + 2
+  return { heightFromBracketPlus2, firstValueFeet, heightRefKey }
 }
 
 /**
@@ -107,9 +108,15 @@ export const parseExteriorSidePitDimensions = (particulars) => {
 /** Negative side wall: same patterns as Exterior pit (no slab). */
 export const isNegativeSideWallItem = (particulars) => isExteriorSidePitItem(particulars)
 
-/** Parses height for Negative side wall: 2nd value from bracket only (no Foundation add). */
+/** Parses height for Negative side wall: 2nd value from bracket only (no +2 feet). */
 export const parseNegativeSideWallHeight = (particulars) => {
-  const { secondValueFeet } = parseExteriorSidePitDimensions(particulars)
+  if (!particulars || typeof particulars !== 'string') return null
+  const match = particulars.match(/\(([^)]+)\)/)
+  if (!match) return null
+  const inner = match[1]
+  const parts = inner.split('x').map((s) => s.trim())
+  if (parts.length < 2) return null
+  const secondValueFeet = convertToFeet(parts[1])
   return secondValueFeet
 }
 
@@ -128,6 +135,38 @@ export const isNegativeSideSlabItem = (particulars) => {
   return false
 }
 
+/**
+ * Extracts grouping key for waterproofing items
+ * Groups by thickness for slab items (e.g., "Detention tank lid slab 8"" -> groups by 8")
+ * Groups by first bracket value for wall items (e.g., "FW (1'-0"x10'-0")" -> groups by 1'-0")
+ * @param {string} particulars - Item description
+ * @returns {string} - Grouping key
+ */
+export const extractWaterproofingGroupKey = (particulars) => {
+  if (!particulars || typeof particulars !== 'string') return 'OTHER'
+
+  const p = particulars.trim()
+  const pLower = p.toLowerCase()
+
+  // For slab items with thickness at the end (e.g., "Detention tank lid slab 8"")
+  if (pLower.includes('slab')) {
+    const thickMatch = p.match(/(\d+)["']?\s*$/)
+    if (thickMatch) {
+      return `THICK_${thickMatch[1]}`
+    }
+  }
+
+  // For wall items with bracket dimensions, group by first value
+  if (p.includes('(') && p.includes('x')) {
+    const bracketMatch = p.match(/\(([^x)]+)/)
+    if (bracketMatch) {
+      return `DIM_${bracketMatch[1].trim()}`
+    }
+  }
+
+  return 'OTHER'
+}
+
 export default {
   isExteriorSideItem,
   parseExteriorSideHeight,
@@ -136,5 +175,6 @@ export default {
   parseExteriorSidePitDimensions,
   isNegativeSideWallItem,
   parseNegativeSideWallHeight,
-  isNegativeSideSlabItem
+  isNegativeSideSlabItem,
+  extractWaterproofingGroupKey
 }

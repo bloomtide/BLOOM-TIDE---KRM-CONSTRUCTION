@@ -357,6 +357,67 @@ const ProposalDetail = () => {
       // ignore
     }
 
+    // Helper function to determine column B color based on takeoff value
+    const getColumnBColor = (row, parsedData) => {
+      // Check calculationData for the initial value in column C
+      const rowIndex = row - 1 // calculationData is 0-indexed
+      if (rowIndex >= 0 && rowIndex < calculationData.length) {
+        const takeoffValue = calculationData[rowIndex][2] // Column C (index 2)
+        
+        // Consider it as "has data" (RED) only if:
+        // 1. Not null/undefined
+        // 2. Not empty string or whitespace
+        // 3. Not zero (0 or '0')
+        // 4. Not a formula (starts with =)
+        // 5. Parses to a number > 0
+        
+        if (takeoffValue == null || takeoffValue === '' || takeoffValue === 0 || takeoffValue === '0') {
+          // Definitely no data - use black
+          return '#000000'
+        }
+        
+        const valueStr = String(takeoffValue).trim()
+        
+        if (valueStr === '' || valueStr.startsWith('=')) {
+          // Empty or formula reference - use black
+          return '#000000'
+        }
+        
+        const numValue = parseFloat(valueStr)
+        if (!isNaN(numValue)) {
+          // It's a number - only red if > 0
+          return numValue > 0 ? '#FF0000' : '#000000'
+        }
+        
+        // It's a non-numeric non-empty string - consider as having data
+        return '#FF0000'
+      }
+      
+      // Fallback: check parsedData.takeoff (for items coming from raw data)
+      if (parsedData && parsedData.takeoff != null) {
+        const takeoff = parsedData.takeoff
+        
+        if (takeoff === '' || takeoff === 0 || takeoff === '0') {
+          return '#000000'
+        }
+        
+        const takeoffStr = String(takeoff).trim()
+        if (takeoffStr === '' || takeoffStr.startsWith('=')) {
+          return '#000000'
+        }
+        
+        const numValue = parseFloat(takeoffStr)
+        if (!isNaN(numValue)) {
+          return numValue > 0 ? '#FF0000' : '#000000'
+        }
+        
+        // Non-numeric non-empty string
+        return '#FF0000'
+      }
+      
+      return '#000000' // Black if no data found
+    }
+
     // Deferred foundation sum formulas
     const deferredFoundationSumL = []
 
@@ -380,20 +441,20 @@ const ProposalDetail = () => {
             return
           }
 
-          if (itemType === 'demo_extra_sqft') {
+          if (itemType === 'demo_extra_sqft' || itemType === 'demo_extra_rog_sqft') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
             return
           }
 
-          if (itemType === 'demo_extra_ft') {
+          if (itemType === 'demo_extra_ft' || itemType === 'demo_extra_rw') {
             spreadsheet.updateCell({ formula: `=C${row}*G${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
@@ -404,7 +465,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}*F${row}*G${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
@@ -412,6 +473,10 @@ const ProposalDetail = () => {
           }
 
           formulas = generateDemolitionFormulas(itemType === 'demolition_item' ? subsection : itemType, row, parsedData)
+          // Apply conditional color to column B for demolition items
+          if (formulas) {
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
+          }
         } else if (section === 'excavation') {
           if (itemType === 'excavation_sum') {
             const { firstDataRow, lastDataRow } = formulaInfo
@@ -425,7 +490,7 @@ const ProposalDetail = () => {
           if (itemType === 'excavation_havg') {
             const { sumRowNumber } = formulaInfo
             spreadsheet.updateCell({ formula: `=(L${sumRowNumber}*27)/J${sumRowNumber}` }, `C${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'normal', fontStyle: 'normal' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData), fontWeight: 'normal', fontStyle: 'normal' }, `B${row}`)
             spreadsheet.cellFormat({ color: '#000000', fontWeight: 'normal' }, `C${row}`)
             return
           }
@@ -451,7 +516,7 @@ const ProposalDetail = () => {
           if (itemType === 'backfill_extra_sqft') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
@@ -461,7 +526,7 @@ const ProposalDetail = () => {
           if (itemType === 'backfill_extra_ft') {
             spreadsheet.updateCell({ formula: `=C${row}*G${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
@@ -472,7 +537,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}*F${row}*G${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
@@ -483,7 +548,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `K${row}`)
             spreadsheet.updateCell({ formula: `=K${row}*1.3` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000', textDecoration: 'line-through' }, `K${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
@@ -494,7 +559,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}*G${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `K${row}`)
             spreadsheet.updateCell({ formula: `=K${row}*1.3` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000', textDecoration: 'line-through' }, `K${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
@@ -505,7 +570,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}*F${row}*G${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `K${row}`)
             spreadsheet.updateCell({ formula: `=K${row}*1.3` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000', textDecoration: 'line-through' }, `K${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
@@ -513,6 +578,10 @@ const ProposalDetail = () => {
           }
 
           formulas = generateExcavationFormulas(itemType === 'excavation_item' ? (parsedData?.itemType || itemType) : itemType, row, parsedData)
+          // Apply conditional color to column B for excavation items
+          if (formulas) {
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
+          }
         } else if (section === 'rock_excavation') {
           if (itemType === 'rock_excavation_sum') {
             const { firstDataRow, lastDataRow } = formulaInfo
@@ -526,7 +595,7 @@ const ProposalDetail = () => {
           if (itemType === 'rock_excavation_havg') {
             const { sumRowNumber } = formulaInfo
             spreadsheet.updateCell({ formula: `=(L${sumRowNumber}*27)/J${sumRowNumber}` }, `C${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'normal', fontStyle: 'normal' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData), fontWeight: 'normal', fontStyle: 'normal' }, `B${row}`)
             spreadsheet.cellFormat({ color: '#000000', fontWeight: 'normal' }, `C${row}`)
             return
           }
@@ -547,7 +616,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ value: 'FT' }, `D${row}`)
             spreadsheet.updateCell({ formula: `=ROUNDUP(H${row}/2,0)` }, `E${row}`)
             spreadsheet.updateCell({ formula: `=E${row}*C${row}` }, `I${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
 
@@ -561,7 +630,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ value: 'FT' }, `D${row}`)
             spreadsheet.updateCell({ formula: `=ROUNDUP(H${row}/2,0)` }, `E${row}`)
             spreadsheet.updateCell({ formula: `=E${row}*C${row}` }, `I${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
 
@@ -573,7 +642,7 @@ const ProposalDetail = () => {
             }
             spreadsheet.updateCell({ value: 'FT' }, `D${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
 
@@ -581,7 +650,7 @@ const ProposalDetail = () => {
             const rockFormulas = generateRockExcavationFormulas(itemType, row, parsedData)
             if (rockFormulas.qty) spreadsheet.updateCell({ formula: `=${rockFormulas.qty}` }, `E${row}`)
             if (rockFormulas.ft) spreadsheet.updateCell({ formula: `=${rockFormulas.ft}` }, `I${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
 
@@ -595,7 +664,7 @@ const ProposalDetail = () => {
           if (itemType === 'rock_exc_extra_sqft') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             return
@@ -604,7 +673,7 @@ const ProposalDetail = () => {
           if (itemType === 'rock_exc_extra_ft') {
             spreadsheet.updateCell({ formula: `=C${row}*G${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             return
@@ -614,7 +683,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}*F${row}*G${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
@@ -672,7 +741,7 @@ const ProposalDetail = () => {
             if (soeFormulas.qtyFinal) {
               spreadsheet.updateCell({ formula: `=${soeFormulas.qtyFinal}` }, `M${row}`)
             }
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
 
             if (itemType === 'backpacking_item') {
               spreadsheet.cellFormat({ color: '#000000' }, `C${row}`)
@@ -685,7 +754,7 @@ const ProposalDetail = () => {
             return
           }
 
-          if (itemType === 'soldier_pile_group_sum' || itemType === 'soe_generic_sum') {
+          if (itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum' || itemType === 'soe_generic_sum') {
             const { firstDataRow, lastDataRow, subsectionName } = formulaInfo
             const ftSumSubsections = ['Rock anchors', 'Rock bolts', 'Anchor', 'Tie back', 'Dowel bar', 'Rock pins', 'Shotcrete', 'Permission grouting', 'Form board', 'Guide wall']
             const sqFtSubsections = ['Sheet pile', 'Timber lagging', 'Timber sheeting', 'Parging', 'Heel blocks', 'Underpinning', 'Concrete soil retention piers', 'Guide wall', 'Shotcrete', 'Permission grouting', 'Buttons', 'Form board', 'Rock stabilization']
@@ -705,7 +774,7 @@ const ProposalDetail = () => {
               spreadsheet.updateCell({ formula: `=SUM(K${firstDataRow}:K${lastDataRow})` }, `K${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `K${row}`)
             }
-            if (itemType === 'soldier_pile_group_sum' || qtySubsections.includes(subsectionName)) {
+            if ((itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum') || qtySubsections.includes(subsectionName)) {
               spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
             }
@@ -717,7 +786,10 @@ const ProposalDetail = () => {
           }
         } else if (section === 'foundation') {
           // Foundation section continues in the full Spreadsheet.jsx - copy all the logic
-          // For brevity, using generateFoundationFormulas for items
+          if (itemType === 'foundation_piles_misc') {
+            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
           if (itemType === 'foundation_sum') {
             const { firstDataRow, lastDataRow, subsectionName, isDualDiameter, excludeISum, excludeJSum, cySumOnly, lSumRange } = formulaInfo
 
@@ -783,7 +855,7 @@ const ProposalDetail = () => {
           if (itemType === 'foundation_extra_sqft') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
@@ -793,7 +865,7 @@ const ProposalDetail = () => {
           if (itemType === 'foundation_extra_ft') {
             spreadsheet.updateCell({ formula: `=C${row}*G${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
@@ -804,7 +876,20 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}*F${row}*G${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            return
+          }
+
+          // Special handling for Sump pit row (red color for J, L, M columns)
+          if (itemType === 'elevator_pit' && parsedData?.parsed?.itemSubType === 'sump_pit') {
+            const foundationFormulas = generateFoundationFormulas(itemType, row, parsedData || formulaInfo)
+            if (foundationFormulas.sqFt) spreadsheet.updateCell({ formula: `=${foundationFormulas.sqFt}` }, `J${row}`)
+            if (foundationFormulas.cy) spreadsheet.updateCell({ formula: `=${foundationFormulas.cy}` }, `L${row}`)
+            if (foundationFormulas.qtyFinal) spreadsheet.updateCell({ formula: `=${foundationFormulas.qtyFinal}` }, `M${row}`)
+            // Apply red color to J, L, M for Sump pit
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
@@ -850,11 +935,18 @@ const ProposalDetail = () => {
             if (foundationFormulas.lbs) spreadsheet.updateCell({ formula: `=${foundationFormulas.lbs}` }, `K${row}`)
             if (foundationFormulas.cy) spreadsheet.updateCell({ formula: `=${foundationFormulas.cy}` }, `L${row}`)
             if (foundationFormulas.qtyFinal) spreadsheet.updateCell({ formula: `=${foundationFormulas.qtyFinal}` }, `M${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
         } else if (section === 'waterproofing') {
           // Waterproofing formulas
+          if (itemType === 'waterproofing_exterior_side_header') {
+            spreadsheet.cellFormat(
+              { color: '#000000', fontStyle: 'italic', fontWeight: 'bold', textDecoration: 'underline', backgroundColor: '#D9E1F2' },
+              `H${row}`
+            )
+            return
+          }
           if (itemType === 'waterproofing_exterior_side_sum') {
             const { firstDataRow, lastDataRow } = formulaInfo
             spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
@@ -875,6 +967,7 @@ const ProposalDetail = () => {
 
           if (itemType === 'waterproofing_horizontal_wp') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
 
@@ -887,6 +980,7 @@ const ProposalDetail = () => {
 
           if (itemType === 'waterproofing_horizontal_insulation') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
 
@@ -923,7 +1017,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
             spreadsheet.updateCell({ formula: `=I${row}*G${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
@@ -968,24 +1062,24 @@ const ProposalDetail = () => {
             if (heightValue != null) spreadsheet.updateCell({ value: heightValue }, `H${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_slab_step') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
             spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_lw_concrete_fill') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_somd_item') {
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_somd_gen1') {
@@ -994,7 +1088,7 @@ const ProposalDetail = () => {
             if (heightFormula) spreadsheet.updateCell({ formula: `=${heightFormula}` }, `H${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=(J${row}*H${row})/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ backgroundColor: '#DDEBF7' }, `H${row}`)
             return
           }
@@ -1018,7 +1112,7 @@ const ProposalDetail = () => {
           if (itemType === 'superstructure_topping_slab') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_topping_slab_sum') {
@@ -1037,7 +1131,7 @@ const ProposalDetail = () => {
             } else {
               spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
             }
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_thermal_break_sum') {
@@ -1050,7 +1144,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
             spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
@@ -1069,7 +1163,7 @@ const ProposalDetail = () => {
           if (itemType === 'superstructure_raised_slab') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             return
@@ -1088,7 +1182,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
             spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
@@ -1107,7 +1201,7 @@ const ProposalDetail = () => {
           if (itemType === 'superstructure_builtup_slab') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             return
@@ -1126,7 +1220,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
             spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_builtup_ramps_knee_sum') {
@@ -1158,7 +1252,7 @@ const ProposalDetail = () => {
           if (itemType === 'superstructure_builtup_ramps_ramp') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_builtup_ramps_ramp_sum') {
@@ -1173,7 +1267,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
             spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
@@ -1197,7 +1291,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}*G${row}*F${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_stair_slab') {
@@ -1208,7 +1302,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
             spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_builtup_stair_sum') {
@@ -1227,7 +1321,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=G${row}*F${row}*C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_concrete_hanger_sum') {
@@ -1244,7 +1338,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
             spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_shear_walls_sum') {
@@ -1261,7 +1355,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
             spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_parapet_walls_sum') {
@@ -1276,7 +1370,7 @@ const ProposalDetail = () => {
           }
           if (itemType === 'superstructure_columns_takeoff') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000', textDecoration: 'line-through' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData), textDecoration: 'line-through' }, `B${row}`)
             spreadsheet.cellFormat({ color: '#000000', textDecoration: 'line-through' }, `C${row}`)
             spreadsheet.cellFormat({ color: '#000000', textDecoration: 'line-through' }, `D${row}`)
             spreadsheet.cellFormat({ color: '#000000', textDecoration: 'line-through' }, `M${row}`)
@@ -1286,7 +1380,7 @@ const ProposalDetail = () => {
             const { takeoffRefRow } = formulaInfo
             if (takeoffRefRow != null) spreadsheet.updateCell({ formula: `=C${takeoffRefRow}` }, `C${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'normal' }, `I${row}`)
             spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'normal' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'normal' }, `L${row}`)
@@ -1297,7 +1391,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=G${row}*H${row}*C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*F${row}/27` }, `L${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_concrete_post_sum') {
@@ -1314,7 +1408,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=G${row}*H${row}*C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*F${row}/27` }, `L${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_concrete_encasement_sum') {
@@ -1331,14 +1425,14 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=G${row}*H${row}*C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*F${row}/27` }, `L${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_drop_panel_h') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
             spreadsheet.updateCell({ formula: `=E${row}` }, `M${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_drop_panel_sum') {
@@ -1355,7 +1449,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
             spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_beams_sum') {
@@ -1372,7 +1466,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
             spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_curbs_sum') {
@@ -1386,15 +1480,24 @@ const ProposalDetail = () => {
             return
           }
           if (itemType === 'superstructure_concrete_pad') {
-            const noBracket = formulaInfo.parsedData?.parsed?.noBracket
-            if (noBracket) {
-              spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            } else {
+            // Check unit from raw data to determine formula application
+            const unit = formulaInfo.parsedData?.unit || ''
+            const unitLower = String(unit).toLowerCase().trim()
+            
+            // If unit is SQ FT, apply SQ FT formulas
+            if (unitLower.includes('sq') || unitLower === 'sf') {
               spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
               spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-              spreadsheet.updateCell({ formula: `=E${row}` }, `M${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+              // If QTY (column E) exists, M = E, otherwise leave empty
+              const hasQty = formulaInfo.parsedData?.parsed?.qty != null
+              if (hasQty) {
+                spreadsheet.updateCell({ formula: `=E${row}` }, `M${row}`)
+              }
+              spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
+            } else {
+              // If unit is EA or EACH, apply EA formulas
+              spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+              spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             }
             return
           }
@@ -1410,7 +1513,7 @@ const ProposalDetail = () => {
           }
           if (itemType === 'superstructure_non_shrink_grout') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             return
           }
           if (itemType === 'superstructure_non_shrink_grout_sum') {
@@ -1440,7 +1543,7 @@ const ProposalDetail = () => {
           if (itemType === 'superstructure_extra_sqft') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
@@ -1449,7 +1552,7 @@ const ProposalDetail = () => {
           if (itemType === 'superstructure_extra_ft') {
             spreadsheet.updateCell({ formula: `=C${row}*G${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
@@ -1459,7 +1562,7 @@ const ProposalDetail = () => {
             spreadsheet.updateCell({ formula: `=C${row}*F${row}*G${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
@@ -1809,8 +1912,8 @@ const ProposalDetail = () => {
           // Drains & Utilities and Alternate items
           if (itemType === 'civil_drains_utilities_item' || itemType === 'civil_alternate_item') {
             const unit = parsedData?.unit || 'EA'
-            // Particulars in red
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            // Particulars in conditional color based on takeoff
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
 
             if (unit === 'FT' || unit === 'LF') {
               // I = C
@@ -1836,6 +1939,7 @@ const ProposalDetail = () => {
 
             // Find the source row for takeoff
             let sourceRow = null
+            let hasFormulaInC = false
 
             if (takeoffSourceType === 'drains_conduit') {
               // Find "Proposed underground electrical conduit" in Drains & Utilities
@@ -1880,10 +1984,11 @@ const ProposalDetail = () => {
               // C = reference to source row's C column (black text)
               spreadsheet.updateCell({ formula: `=C${sourceRow}` }, `C${row}`)
               spreadsheet.cellFormat({ color: '#000000' }, `C${row}`)
+              hasFormulaInC = true
             }
 
-            // Item name in column B should be red
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            // Item name in column B - use black since C has formula or no data
+            spreadsheet.cellFormat({ color: hasFormulaInC ? '#000000' : getColumnBColor(row, parsedData) }, `B${row}`)
 
             // I = empty (no formula)
 
@@ -1943,6 +2048,7 @@ const ProposalDetail = () => {
 
             // Find the source row for takeoff
             let sourceRow = null
+            let hasFormulaInC = false
 
             if (takeoffSourceType === 'drains_gas_lateral') {
               // Find "Proposed Underground gas service lateral" in Drains & Utilities
@@ -2067,10 +2173,11 @@ const ProposalDetail = () => {
               // C = reference to source row's C column (black text)
               spreadsheet.updateCell({ formula: `=C${sourceRow}` }, `C${row}`)
               spreadsheet.cellFormat({ color: '#000000' }, `C${row}`)
+              hasFormulaInC = true
             }
 
-            // Item name in column B should be red
-            spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            // Item name in column B - use black since C has formula or no data
+            spreadsheet.cellFormat({ color: hasFormulaInC ? '#000000' : getColumnBColor(row, parsedData) }, `B${row}`)
 
             // I = empty (no formula)
 

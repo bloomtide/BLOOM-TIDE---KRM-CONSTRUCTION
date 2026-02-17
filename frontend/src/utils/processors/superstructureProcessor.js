@@ -173,8 +173,11 @@ const getUnitForSuperstructureGroup = (groupKey, unit) => {
     dropPanelH: 'SQ FT',
     beams: 'FT',
     curbs: 'FT',
-    concretePad: 'SQ FT',
     nonShrinkGrout: 'EA'
+  }
+  // For concrete pad, preserve the raw unit from data (can be SQ FT or EA)
+  if (groupKey === 'concretePad' || groupKey === 'concretePadNoBracket') {
+    return unit || 'SQ FT'
   }
   if (groupKey === 'repairScope') return (unit || 'FT')
   return unitMap[groupKey] ?? (unit || 'SQ FT')

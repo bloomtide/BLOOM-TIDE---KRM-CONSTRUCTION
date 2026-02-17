@@ -759,7 +759,7 @@ const Spreadsheet = () => {
           return
         }
 
-        if (itemType === 'soldier_pile_group_sum' || itemType === 'soe_generic_sum') {
+        if (itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum' || itemType === 'soe_generic_sum') {
           const { firstDataRow, lastDataRow, subsectionName } = formulaInfo
           try {
             // Standard sum for FT (I) for all SOE, except Heel blocks
@@ -828,7 +828,7 @@ const Spreadsheet = () => {
               'Rock pins',
               'Buttons'
             ]
-            if (itemType === 'soldier_pile_group_sum' || qtySubsections.includes(subsectionName)) {
+            if (itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum' || qtySubsections.includes(subsectionName)) {
               spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
             }

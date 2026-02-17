@@ -175,6 +175,22 @@ export const isCFAPile = (item) => {
 }
 
 /**
+ * Identifies if item is a miscellaneous pile (contains "pile" but doesn't fit
+ * Drilled/Helical/Driven/Stelcor/CFA foundation piles or SOE pile types).
+ * Excludes: drilled soldier pile, soldier pile, primary/secondary secant pile, tangent pile, sheet pile.
+ */
+export const isMiscellaneousFoundationPile = (item) => {
+    if (!item || typeof item !== 'string') return false
+    const itemLower = item.toLowerCase()
+    if (!itemLower.includes('pile')) return false
+    if (isDrilledFoundationPile(item) || isHelicalFoundationPile(item) || isDrivenFoundationPile(item) ||
+        isStelcorDrilledDisplacementPile(item) || isCFAPile(item)) return false
+    if (itemLower.includes('drilled soldier pile') || itemLower.includes('soldier pile')) return false
+    if (itemLower.includes('secant pile') || itemLower.includes('tangent pile') || itemLower.includes('sheet pile')) return false
+    return true
+}
+
+/**
  * Identifies if item is a pile cap
  */
 export const isPileCap = (item) => {
@@ -371,6 +387,8 @@ export const isHouseTrap = (item) => {
 export const isMatSlab = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    // Exclude elevator pit mat items
+    if (itemLower.includes('elevator pit') || itemLower.includes('elev. pit')) return false
     return itemLower.includes('mat') && (itemLower.includes('haunch') || itemLower.match(/mat[-\s]*\d+/i))
 }
 
@@ -753,7 +771,7 @@ export const parseStripFooting = (itemName) => {
     if (dims && dims.length >= 2) {
         result.width = dims[0]  // First value is width (goes to column G)
         result.height = dims[1]  // Second value is height (goes to column H)
-        result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        result.groupKey = `${dims[0].toFixed(2)}`
         
         // Debug logging
     }
@@ -824,7 +842,7 @@ export const parseGradeBeam = (itemName) => {
     if (dims && dims.length >= 2) {
         result.width = dims[0]
         result.height = dims[1]
-        result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        result.groupKey = `${dims[0].toFixed(2)}`
     }
 
     return result
@@ -847,7 +865,7 @@ export const parseTieBeam = (itemName) => {
         // For TB1 (20"x32"): dims[0] = 20/12 = 1.666..., dims[1] = 32/12 = 2.666...
         result.width = dims[0]
         result.height = dims[1]
-        result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        result.groupKey = `${dims[0].toFixed(2)}`
     }
 
     return result
@@ -868,7 +886,7 @@ export const parseThickenedSlab = (itemName) => {
     if (dims && dims.length >= 2) {
         result.width = dims[0]
         result.height = dims[1]
-        result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        result.groupKey = `${dims[0].toFixed(2)}`
     }
 
     return result
@@ -882,7 +900,8 @@ export const parsePier = (itemName) => {
         type: 'pier',
         length: 0,
         width: 0,
-        height: 0
+        height: 0,
+        groupKey: null
     }
 
     const dims = parseBracketDimensions(itemName)
@@ -891,6 +910,8 @@ export const parsePier = (itemName) => {
         result.length = dims[0]
         result.width = dims[1]
         result.height = dims[2]
+        // Group by first bracket value (length)
+        result.groupKey = `${dims[0].toFixed(2)}`
     }
 
     return result
@@ -912,7 +933,8 @@ export const parseCorbel = (itemName) => {
         // parseBracketDimensions already returns values in feet
         result.width = dims[0]
         result.height = dims[1]
-        result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        // Group by first value only (width)
+        result.groupKey = `${dims[0].toFixed(2)}`
     }
 
     return result
@@ -934,7 +956,8 @@ export const parseLinearWall = (itemName) => {
         // parseBracketDimensions already returns values in feet
         result.width = dims[0]
         result.height = dims[1]
-        result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        // Group by first value only (width)
+        result.groupKey = `${dims[0].toFixed(2)}`
     }
 
     return result
@@ -955,7 +978,8 @@ export const parseFoundationWall = (itemName) => {
     if (dims && dims.length >= 2) {
         result.width = dims[0]
         result.height = dims[1]
-        result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        // Group by first value only (width)
+        result.groupKey = `${dims[0].toFixed(2)}`
     }
 
     return result
@@ -1024,7 +1048,7 @@ export const parseStemWall = (itemName) => {
         // parseBracketDimensions already returns values in feet
         result.width = dims[0]  // Width (G) - first value from bracket
         result.height = dims[1] // Height (H) - second value from bracket
-        result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        result.groupKey = `${dims[0].toFixed(2)}`
     }
 
     return result
@@ -1051,12 +1075,18 @@ export const parseElevatorPit = (itemName) => {
     if (itemLower.includes('sump pit')) {
         result.itemSubType = 'sump_pit'
         return result
-    } else if (itemLower.includes('slab')) {
+    } else if (itemLower.includes('slab') || itemLower.includes('mat')) {
         result.itemSubType = 'slab'
-        // Extract height from H=3'-0" format
+        // Extract height from H=3'-0" format or thickness like "30""
         const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromH = parseDimension(hMatch[1])
+        } else {
+            // Try to extract thickness from patterns like "mat 30""
+            const thicknessMatch = itemName.match(/mat\s+(\d+)"?/i)
+            if (thicknessMatch) {
+                result.heightFromH = parseFloat(thicknessMatch[1]) / 12 // Convert inches to feet
+            }
         }
         return result
     } else if (itemLower.includes('wall')) {
@@ -1066,7 +1096,7 @@ export const parseElevatorPit = (itemName) => {
             // Two parsed values: width (G) and height (H)
             result.width = dims[0]   // Width (G)
             result.height = dims[1]  // Height (H)
-            result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+            result.groupKey = `${dims[0].toFixed(2)}`
         }
         return result
     } else if (itemLower.includes('slope transition') || itemLower.includes('haunch')) {
@@ -1076,7 +1106,7 @@ export const parseElevatorPit = (itemName) => {
             // Two parsed values: width (G) and height (H)
             result.width = dims[0]   // Width (G)
             result.height = dims[1]  // Height (H)
-            result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+            result.groupKey = `${dims[0].toFixed(2)}`
         }
         return result
     }
@@ -1122,7 +1152,7 @@ export const parseDetentionTank = (itemName) => {
             result.length = dims[0]  // Length (F)
             result.width = dims[0]  // Width (G) - same as first dimension
             result.height = dims[1] // Height (H) - second dimension
-            result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+            result.groupKey = `${dims[0].toFixed(2)}`
         }
         return result
     }

@@ -27,6 +27,11 @@ export const getDemolitionSubsection = (digitizerItem) => {
     return 'Demo slab on grade'
   }
 
+  // Demo Ramp on grade
+  if (itemLower.includes('demo rog')) {
+    return 'Demo Ramp on grade'
+  }
+
   // Demo strip footing
   if (itemLower.includes('demo sf')) {
     return 'Demo strip footing'
@@ -35,6 +40,11 @@ export const getDemolitionSubsection = (digitizerItem) => {
   // Demo foundation wall
   if (itemLower.includes('demo fw')) {
     return 'Demo foundation wall'
+  }
+
+  // Demo retaining wall
+  if (itemLower.includes('demo rw')) {
+    return 'Demo retaining wall'
   }
 
   // Demo isolated footing
@@ -64,7 +74,9 @@ export const generateDemolitionFormulas = (type, rowNum, parsedData) => {
   // Handle both subsection names and explicit item types
   switch (type) {
     case 'Demo slab on grade':
+    case 'Demo Ramp on grade':
     case 'demo_extra_sqft':
+    case 'demo_extra_rog_sqft':
       // SQ FT (J) = Takeoff, CY (L) = SQ FT * Height / 27
       formulas.sqFt = `C${rowNum}`
       formulas.cy = `J${rowNum}*H${rowNum}/27`
@@ -72,9 +84,11 @@ export const generateDemolitionFormulas = (type, rowNum, parsedData) => {
 
     case 'Demo strip footing':
     case 'Demo foundation wall':
+    case 'Demo retaining wall':
     case 'demo_extra_ft':
+    case 'demo_extra_rw':
       // SQ FT (J) = Takeoff * Width (G)
-      // Note: For Demo foundation wall, the image showed C*G, for Extra FT it shows C*G too.
+      // Note: For Demo foundation wall / Demo retaining wall, C*G for J, J*H/27 for L
       formulas.sqFt = `C${rowNum}*G${rowNum}`
       formulas.cy = `J${rowNum}*H${rowNum}/27`
       break
@@ -104,8 +118,10 @@ export const generateDemolitionFormulas = (type, rowNum, parsedData) => {
 export const processDemolitionItems = (rawDataRows, headers, tracker = null) => {
   const demolitionItemsBySubsection = {
     'Demo slab on grade': [],
+    'Demo Ramp on grade': [],
     'Demo strip footing': [],
     'Demo foundation wall': [],
+    'Demo retaining wall': [],
     'Demo isolated footing': []
   }
 
@@ -130,9 +146,28 @@ export const processDemolitionItems = (rawDataRows, headers, tracker = null) => 
       if (subsection && demolitionItemsBySubsection[subsection] !== undefined) {
         const parsed = parseDemolitionItem(digitizerItem, total, unit, subsection)
 
+        // Extract grouping key based on subsection type
+        let groupKey = 'DEFAULT'
+        const itemLower = (digitizerItem || '').toLowerCase()
+
+        if ((subsection === 'Demo slab on grade' || subsection === 'Demo Ramp on grade') && itemLower.includes('"')) {
+          // Group by thickness for Demo SOG / Demo ROG
+          const thickMatch = digitizerItem.match(/(\d+)["']?\s*thick/i)
+          if (thickMatch) {
+            groupKey = `THICK_${thickMatch[1]}`
+          }
+        } else if ((subsection === 'Demo strip footing' || subsection === 'Demo foundation wall' || subsection === 'Demo retaining wall' || subsection === 'Demo isolated footing') && digitizerItem.includes('(')) {
+          // Group by first bracket value
+          const bracketMatch = digitizerItem.match(/\(([^x)]+)/)
+          if (bracketMatch) {
+            groupKey = `DIM_${bracketMatch[1].trim()}`
+          }
+        }
+
         demolitionItemsBySubsection[subsection].push({
           ...parsed,
           subsection,
+          groupKey,
           rawRow: row,
           rawRowNumber: rowIndex + 2 // +2 because: +1 for header row, +1 for 1-based indexing
         })
@@ -142,6 +177,40 @@ export const processDemolitionItems = (rawDataRows, headers, tracker = null) => 
           tracker.markUsed(rowIndex)
         }
       }
+    }
+  })
+
+  // Group items within each subsection by their grouping key
+  Object.keys(demolitionItemsBySubsection).forEach(subsection => {
+    const items = demolitionItemsBySubsection[subsection]
+    if (items.length === 0) return
+
+    const groupMap = new Map()
+    items.forEach(item => {
+      const key = item.groupKey || 'DEFAULT'
+      if (!groupMap.has(key)) {
+        groupMap.set(key, [])
+      }
+      groupMap.get(key).push(item)
+    })
+
+    // Convert to grouped array
+    const groups = Array.from(groupMap.values())
+
+    // Merge single-item groups if there are multiple
+    const singleItemGroups = groups.filter(g => g.length === 1)
+    const multiItemGroups = groups.filter(g => g.length > 1)
+
+    if (singleItemGroups.length > 1) {
+      const mergedItems = []
+      singleItemGroups.forEach(group => {
+        mergedItems.push(...group)
+      })
+      mergedItems.forEach(item => item.groupKey = 'MERGED')
+
+      demolitionItemsBySubsection[subsection] = [...multiItemGroups.flat(), ...mergedItems]
+    } else {
+      demolitionItemsBySubsection[subsection] = groups.flat()
     }
   })
 

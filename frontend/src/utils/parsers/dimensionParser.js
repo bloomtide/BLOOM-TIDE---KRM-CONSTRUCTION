@@ -136,7 +136,8 @@ export const parseDemolitionItem = (digitizerItem, total, unit, subsection) => {
 
   switch (subsection) {
     case 'Demo slab on grade':
-      // Extract thickness from item name (e.g., "Demo SOG 4" thick")
+    case 'Demo Ramp on grade':
+      // Extract thickness from item name (e.g., "Demo SOG 4" thick", "Demo ROG 4" thick")
       // If thickness not mentioned, use 4" typ. (0.33 feet)
       const thickness = extractThickness(digitizerItem)
       result.height = thickness > 0 ? thickness : 4 / 12 // Default to 4" = 0.33 feet
@@ -153,6 +154,7 @@ export const parseDemolitionItem = (digitizerItem, total, unit, subsection) => {
       break
 
     case 'Demo foundation wall':
+    case 'Demo retaining wall':
       // Extract dimensions from brackets (e.g., "(1'-0"x3'-0")")
       // First value is width, second value is height
       const fwDimensions = extractDimensions(digitizerItem)

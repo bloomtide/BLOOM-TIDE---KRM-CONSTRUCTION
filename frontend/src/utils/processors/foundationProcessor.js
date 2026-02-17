@@ -1,9 +1,11 @@
+import { mergeSingleItemGroupsIfAll } from '../groupingUtils.js'
 import {
     isDrilledFoundationPile,
     isHelicalFoundationPile,
     isDrivenFoundationPile,
     isStelcorDrilledDisplacementPile,
     isCFAPile,
+    isMiscellaneousFoundationPile,
     isPileCap,
     isStripFooting,
     isIsolatedFooting,
@@ -214,7 +216,7 @@ export const processHelicalFoundationPileItems = (rawDataRows, headers, tracker 
         groupMap.get(groupKey).items.push(item)
     })
 
-    return Array.from(groupMap.values())
+    return mergeSingleItemGroupsIfAll(Array.from(groupMap.values()))
 }
 
 /**
@@ -236,6 +238,38 @@ export const processStelcorDrilledDisplacementPileItems = (rawDataRows, headers,
  */
 export const processCFAPileItems = (rawDataRows, headers, tracker = null) => {
     return processGenericFoundationItems(rawDataRows, headers, isCFAPile, parseCFAPile, tracker)
+}
+
+/**
+ * Processes miscellaneous pile items (pile items that don't fit other foundation or SOE subsections).
+ * Run after other foundation pile processors; only processes rows not yet used.
+ */
+export const processMiscellaneousPileItems = (rawDataRows, headers, tracker = null) => {
+    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
+    const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+
+    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
+
+    const items = []
+    rawDataRows.forEach((row, rowIndex) => {
+        if (tracker && tracker.isUsed(rowIndex)) return
+        const digitizerItem = row[digitizerIdx]
+        const total = row[totalIdx]
+        const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
+        const unit = unitIdx >= 0 ? (row[unitIdx] || '') : ''
+
+        if (isMiscellaneousFoundationPile(digitizerItem)) {
+            items.push({
+                particulars: digitizerItem || '',
+                takeoff,
+                unit: unit || '',
+                parsed: {}
+            })
+            if (tracker) tracker.markUsed(rowIndex)
+        }
+    })
+    return items
 }
 
 /**
@@ -265,7 +299,7 @@ export const processStripFootingItems = (rawDataRows, headers, tracker = null) =
         groupMap.get(groupKey).items.push(item)
     })
 
-    return Array.from(groupMap.values())
+    return mergeSingleItemGroupsIfAll(Array.from(groupMap.values()))
 }
 
 /**
@@ -311,7 +345,7 @@ export const processTieBeamItems = (rawDataRows, headers, tracker = null) => {
         groupMap.get(groupKey).items.push(item)
     })
 
-    return Array.from(groupMap.values())
+    return mergeSingleItemGroupsIfAll(Array.from(groupMap.values()))
 }
 
 /**
@@ -334,7 +368,7 @@ export const processThickenedSlabItems = (rawDataRows, headers, tracker = null) 
         groupMap.get(groupKey).items.push(item)
     })
 
-    return Array.from(groupMap.values())
+    return mergeSingleItemGroupsIfAll(Array.from(groupMap.values()))
 }
 
 /**
@@ -371,34 +405,95 @@ export const processButtressItems = (rawDataRows, headers, tracker = null) => {
 }
 
 /**
- * Processes pier items
+ * Processes pier items and groups them by size (first bracket value)
  */
 export const processPierItems = (rawDataRows, headers, tracker = null) => {
-    return processGenericFoundationItems(rawDataRows, headers, isPier, parsePier, tracker)
+    const items = processGenericFoundationItems(rawDataRows, headers, isPier, parsePier, tracker)
+
+    // Group by groupKey (first dimension - length)
+    const groupMap = new Map()
+    items.forEach(item => {
+        const groupKey = item.parsed.groupKey || 'OTHER'
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    return mergeSingleItemGroupsIfAll(Array.from(groupMap.values()))
 }
 
 /**
- * Processes corbel items and groups them by size
+ * Processes corbel items and groups them by size (first bracket value)
  */
 export const processCorbelItems = (rawDataRows, headers, tracker = null) => {
-    // For Corbel subsection, keep all items in a single group (no size grouping)
-    return processGenericFoundationItems(rawDataRows, headers, isCorbel, parseCorbel, tracker)
+    const items = processGenericFoundationItems(rawDataRows, headers, isCorbel, parseCorbel, tracker)
+
+    // Group by groupKey (width x height)
+    const groupMap = new Map()
+    items.forEach(item => {
+        const groupKey = item.parsed.groupKey || 'OTHER'
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    return mergeSingleItemGroupsIfAll(Array.from(groupMap.values()))
 }
 
 /**
- * Processes linear wall items and groups them by size
+ * Processes linear wall items and groups them by size (first bracket value)
  */
 export const processLinearWallItems = (rawDataRows, headers, tracker = null) => {
-    // For Linear Wall subsection, keep all items in a single group
-    return processGenericFoundationItems(rawDataRows, headers, isLinearWall, parseLinearWall, tracker)
+    const items = processGenericFoundationItems(rawDataRows, headers, isLinearWall, parseLinearWall, tracker)
+
+    // Group by groupKey (width x height)
+    const groupMap = new Map()
+    items.forEach(item => {
+        const groupKey = item.parsed.groupKey || 'OTHER'
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    return mergeSingleItemGroupsIfAll(Array.from(groupMap.values()))
 }
 
 /**
- * Processes foundation wall items and groups them by size
+ * Processes foundation wall items and groups them by size (first bracket value - width)
  */
 export const processFoundationWallItems = (rawDataRows, headers, tracker = null) => {
-    // For Foundation Wall subsection, keep all items together (no grouping by size)
-    return processGenericFoundationItems(rawDataRows, headers, isFoundationWall, parseFoundationWall, tracker)
+    const items = processGenericFoundationItems(rawDataRows, headers, isFoundationWall, parseFoundationWall, tracker)
+
+    // Group by groupKey (width x height)
+    const groupMap = new Map()
+    items.forEach(item => {
+        const groupKey = item.parsed.groupKey || 'OTHER'
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    return mergeSingleItemGroupsIfAll(Array.from(groupMap.values()))
 }
 
 /**
@@ -421,7 +516,7 @@ export const processRetainingWallItems = (rawDataRows, headers, tracker = null) 
         groupMap.get(groupKey).items.push(item)
     })
 
-    return Array.from(groupMap.values())
+    return mergeSingleItemGroupsIfAll(Array.from(groupMap.values()))
 }
 
 /**
@@ -444,7 +539,7 @@ export const processBarrierWallItems = (rawDataRows, headers, tracker = null) =>
         groupMap.get(groupKey).items.push(item)
     })
 
-    return Array.from(groupMap.values())
+    return mergeSingleItemGroupsIfAll(Array.from(groupMap.values()))
 }
 
 /**

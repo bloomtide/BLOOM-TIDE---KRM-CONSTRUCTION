@@ -10,6 +10,7 @@ import {
   processSheetPileItems,
   processTimberLaggingItems,
   processTimberSheetingItems,
+  processTimberSoldierPileItems,
   processWalerItems,
   processRakerItems,
   processUpperRakerItems,
@@ -46,6 +47,7 @@ import {
   processDrivenFoundationPileItems,
   processStelcorDrilledDisplacementPileItems,
   processCFAPileItems,
+  processMiscellaneousPileItems,
   processPileCapItems,
   processStripFootingItems,
   processIsolatedFootingItems,
@@ -79,6 +81,14 @@ import { processSuperstructureItems } from './processors/superstructureProcessor
 import { processBPPAlternateItems } from './processors/bppAlternateProcessor'
 import { processCivilDemoItems, processCivilOtherItems } from './processors/civilSiteworkProcessor'
 import UsedRowTracker from './usedRowTracker'
+import { mergeSingleItemGroupsIfAll } from './groupingUtils'
+
+/** Convert Map<key, items[]> to groups, merging into one if all groups have a single item */
+const getMergedGroupsIfNeeded = (groupMap) => {
+  if (!groupMap || groupMap.size === 0) return []
+  const groups = Array.from(groupMap.entries()).map(([key, items]) => ({ groupKey: key, items }))
+  return mergeSingleItemGroupsIfAll(groups)
+}
 
 /**
  * Generates the Calculations Sheet structure based on the selected template
@@ -126,6 +136,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let sheetPileItems = []
   let timberLaggingItems = []
   let timberSheetingItems = []
+  let timberSoldierPileGroups = []
   let walerItems = []
   let rakerItems = []
   let upperRakerItems = []
@@ -161,6 +172,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let drivenFoundationPileItems = []
   let stelcorDrilledDisplacementPileItems = []
   let cfaPileItems = []
+  let miscellaneousPileItems = []
   let pileCapItems = []
   let stripFootingGroups = []
   let isolatedFootingItems = []
@@ -250,6 +262,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     sheetPileItems = processSheetPileItems(dataRows, headers, tracker)
     timberLaggingItems = processTimberLaggingItems(dataRows, headers, tracker)
     timberSheetingItems = processTimberSheetingItems(dataRows, headers, tracker)
+    timberSoldierPileGroups = processTimberSoldierPileItems(dataRows, headers, tracker)
     walerItems = processWalerItems(dataRows, headers, tracker)
     rakerItems = processRakerItems(dataRows, headers, tracker)
     upperRakerItems = processUpperRakerItems(dataRows, headers, tracker)
@@ -289,6 +302,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     drivenFoundationPileItems = processDrivenFoundationPileItems(dataRows, headers, tracker)
     stelcorDrilledDisplacementPileItems = processStelcorDrilledDisplacementPileItems(dataRows, headers, tracker)
     cfaPileItems = processCFAPileItems(dataRows, headers, tracker)
+    miscellaneousPileItems = processMiscellaneousPileItems(dataRows, headers, tracker)
     pileCapItems = processPileCapItems(dataRows, headers, tracker)
     stripFootingGroups = processStripFootingItems(dataRows, headers, tracker)
     isolatedFootingItems = processIsolatedFootingItems(dataRows, headers, tracker)
@@ -368,7 +382,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
       hasSectionData = rockExcavationItems.length > 0 || lineDrillItems.length > 0 || section.subsections.some(sub => sub.name.includes('Extra line item'))
     } else if (section.section === 'SOE') {
       hasSectionData = [
-        soldierPileGroups, primarySecantItems, secondarySecantItems, tangentPileItems, sheetPileItems,
+        soldierPileGroups, timberSoldierPileGroups, primarySecantItems, secondarySecantItems, tangentPileItems, sheetPileItems,
         timberLaggingItems, timberSheetingItems, walerItems, rakerItems, upperRakerItems, lowerRakerItems,
         standOffItems, kickerItems, channelItems, rollChockItems, studBeamItems, innerCornerBraceItems,
         kneeBraceItems, supportingAngleGroups, pargingItems, heelBlockItems, underpinningItems,
@@ -378,7 +392,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
       ].some(arr => arr && arr.length > 0) || hasBackpacking
     } else if (section.section === 'Foundation') {
       hasSectionData = [
-        drilledFoundationPileGroups, helicalFoundationPileGroups, drivenFoundationPileItems,
+        miscellaneousPileItems, drilledFoundationPileGroups, helicalFoundationPileGroups, drivenFoundationPileItems,
         stelcorDrilledDisplacementPileItems, cfaPileItems, pileCapItems, stripFootingGroups,
         isolatedFootingItems, pilasterItems, gradeBeamGroups, tieBeamGroups, thickenedSlabGroups,
         pierItems, corbelGroups, linearWallGroups, foundationWallGroups, retainingWallGroups,
@@ -458,6 +472,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 type: 'demo_extra_sqft'
               },
               {
+                name: 'Demo ROG 4\" thick',
+                unit: 'SQ FT',
+                h: 1,
+                type: 'demo_extra_rog_sqft'
+              },
+              {
                 name: 'Demo SF (2\'-0\"x1\'-0\")',
                 unit: 'SQ FT',
                 g: 1,
@@ -470,6 +490,13 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 g: 1,
                 h: 1,
                 type: 'demo_extra_ft'
+              },
+              {
+                name: 'Demo RW (1\'-0\"x3\'-0\")',
+                unit: 'SQ FT',
+                g: 1,
+                h: 1,
+                type: 'demo_extra_rw'
               },
               {
                 name: 'Demo isolated footing (2\'-0\"x3\'-0\"x1\'-6\")',
@@ -748,6 +775,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         // Determine if subsection has items
         let headerCheckItems = []
         if (subsection.name === 'Drilled soldier pile') headerCheckItems = soldierPileGroups // Group check
+        else if (subsection.name === 'Timber soldier piles') headerCheckItems = timberSoldierPileGroups // Group check
         else if (subsection.name === 'Primary secant piles') headerCheckItems = primarySecantItems
         else if (subsection.name === 'Secondary secant piles') headerCheckItems = secondarySecantItems
         else if (subsection.name === 'Tangent piles') headerCheckItems = tangentPileItems
@@ -818,6 +846,24 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             rows.push(sumRow)
             formulas.push({ row: rows.length, itemType: 'soldier_pile_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
             if (groupIndex < soldierPileGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
+          })
+        } else if (subsection.name === 'Timber soldier piles' && timberSoldierPileGroups.length > 0) {
+          // Process each group for timber soldier piles (same structure as Drilled soldier pile, but no column K)
+          timberSoldierPileGroups.forEach((group, groupIndex) => {
+            const firstGroupRow = rows.length + 1
+            group.items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.calculatedHeight || ''
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'soldier_pile_item', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'timber_soldier_pile_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
+            if (groupIndex < timberSoldierPileGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
           })
         } else {
           // Other SOE subsections
@@ -1189,7 +1235,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
       section.subsections.forEach((subsection) => {
         // Check if subsection has data
         let hasSubsectionData = false
-        if (subsection.name === 'Drilled foundation pile') hasSubsectionData = drilledFoundationPileGroups.length > 0
+        if (subsection.name === 'Piles') hasSubsectionData = miscellaneousPileItems.length > 0
+        else if (subsection.name === 'Drilled foundation pile') hasSubsectionData = drilledFoundationPileGroups.length > 0
         else if (subsection.name === 'Helical foundation pile') hasSubsectionData = helicalFoundationPileGroups.length > 0
         else if (subsection.name === 'Driven foundation pile') hasSubsectionData = drivenFoundationPileItems.length > 0
         else if (subsection.name === 'Stelcor drilled displacement pile') hasSubsectionData = stelcorDrilledDisplacementPileItems.length > 0
@@ -1209,7 +1256,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Retaining walls') hasSubsectionData = retainingWallGroups.length > 0
         else if (subsection.name === 'Barrier wall') hasSubsectionData = barrierWallGroups.length > 0
         else if (subsection.name === 'Stem wall') hasSubsectionData = stemWallItems.length > 0
-        else if (subsection.name === 'Elevator pit') hasSubsectionData = elevatorPitItems.length > 0
+        else if (subsection.name === 'Elevator Pit') hasSubsectionData = elevatorPitItems.length > 0
         else if (subsection.name === 'Detention tank') hasSubsectionData = detentionTankItems.length > 0
         else if (subsection.name === 'Duplex sewage ejector pit') hasSubsectionData = duplexSewageEjectorPitItems.length > 0
         else if (subsection.name === 'Deep sewage ejector pit') hasSubsectionData = deepSewageEjectorPitItems.length > 0
@@ -1229,7 +1276,17 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           rows.push(subsectionRow)
         }
 
-        if (subsection.name === 'Drilled foundation pile' && drilledFoundationPileGroups.length > 0) {
+        if (subsection.name === 'Piles' && miscellaneousPileItems.length > 0) {
+          miscellaneousPileItems.forEach(item => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit || ''
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'foundation_piles_misc', parsedData: item, section: 'foundation', subsectionName: subsection.name })
+          })
+          rows.push(Array(template.columns.length).fill(''))
+        } else if (subsection.name === 'Drilled foundation pile' && drilledFoundationPileGroups.length > 0) {
           // Process each group for drilled foundation piles.
           // - Identical items are merged into one data row per group (C column).
           // - Each group gets its own sum row (separated).
@@ -1567,100 +1624,122 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           rows.push(finalRow)
           formulas.push({ row: rows.length, itemType: 'buttress_final', section: 'foundation', buttressRow: buttressRow, foundationCySumRow: true })
         } else if (subsection.name === 'Pier' && pierItems.length > 0) {
-          const firstItemRow = rows.length + 1
-          pierItems.forEach(item => {
-            const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
-            itemRow[2] = item.takeoff
-            itemRow[3] = item.unit
-            itemRow[4] = 1 // QTY (E) = 1
-            itemRow[5] = item.parsed.length || '' // Length (F)
-            itemRow[7] = item.parsed.height || '' // Height (H)
-            rows.push(itemRow)
-            formulas.push({ row: rows.length, itemType: 'pier', parsedData: item, section: 'foundation' })
-          })
-          const sumRow = Array(template.columns.length).fill('')
-          rows.push(sumRow)
-          formulas.push({
-            row: rows.length,
-            itemType: 'foundation_sum',
-            section: 'foundation',
-            firstDataRow: firstItemRow,
-            lastDataRow: rows.length - 1,
-            subsectionName: subsection.name,
-            foundationCySumRow: true
+          // Process each group for pier items
+          pierItems.forEach((group, groupIndex) => {
+            const firstGroupRow = rows.length + 1
+            group.items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[4] = 1 // QTY (E) = 1
+              itemRow[5] = item.parsed.length || '' // Length (F)
+              itemRow[6] = item.parsed.width || '' // Width (G)
+              itemRow[7] = item.parsed.height || '' // Height (H)
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'pier', parsedData: item, section: 'foundation' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: firstGroupRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name,
+              foundationCySumRow: true
+            })
+            if (groupIndex < pierItems.length - 1) {
+              rows.push(Array(template.columns.length).fill(''))
+            }
           })
         } else if (subsection.name === 'Corbel' && corbelGroups.length > 0) {
-          // All Corbel items in a single group
-          const firstItemRow = rows.length + 1
-          corbelGroups.forEach(item => {
-            const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
-            itemRow[2] = item.takeoff
-            itemRow[3] = item.unit
-            itemRow[6] = item.parsed.width || '' // Width (G)
-            itemRow[7] = item.parsed.height || '' // Height (H)
-            rows.push(itemRow)
-            formulas.push({ row: rows.length, itemType: 'corbel', parsedData: item, section: 'foundation' })
-          })
-          const sumRow = Array(template.columns.length).fill('')
-          rows.push(sumRow)
-          formulas.push({
-            row: rows.length,
-            itemType: 'foundation_sum',
-            section: 'foundation',
-            firstDataRow: firstItemRow,
-            lastDataRow: rows.length - 1,
-            subsectionName: subsection.name,
-            foundationCySumRow: true
+          // Process each group for corbel items
+          corbelGroups.forEach((group, groupIndex) => {
+            const firstGroupRow = rows.length + 1
+            group.items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[6] = item.parsed.width || '' // Width (G)
+              itemRow[7] = item.parsed.height || '' // Height (H)
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'corbel', parsedData: item, section: 'foundation' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: firstGroupRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name,
+              foundationCySumRow: true
+            })
+            if (groupIndex < corbelGroups.length - 1) {
+              rows.push(Array(template.columns.length).fill(''))
+            }
           })
         } else if (subsection.name === 'Linear Wall' && linearWallGroups.length > 0) {
-          // All Linear Wall items in a single group
-          const firstItemRow = rows.length + 1
-          linearWallGroups.forEach(item => {
-            const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
-            itemRow[2] = item.takeoff
-            itemRow[3] = item.unit
-            itemRow[6] = item.parsed.width || '' // Width (G)
-            itemRow[7] = item.parsed.height || '' // Height (H)
-            rows.push(itemRow)
-            formulas.push({ row: rows.length, itemType: 'linear_wall', parsedData: item, section: 'foundation' })
-          })
-          const sumRow = Array(template.columns.length).fill('')
-          rows.push(sumRow)
-          formulas.push({
-            row: rows.length,
-            itemType: 'foundation_sum',
-            section: 'foundation',
-            firstDataRow: firstItemRow,
-            lastDataRow: rows.length - 1,
-            subsectionName: subsection.name,
-            foundationCySumRow: true
+          // Process each group for linear wall items
+          linearWallGroups.forEach((group, groupIndex) => {
+            const firstGroupRow = rows.length + 1
+            group.items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[6] = item.parsed.width || '' // Width (G)
+              itemRow[7] = item.parsed.height || '' // Height (H)
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'linear_wall', parsedData: item, section: 'foundation' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: firstGroupRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name,
+              foundationCySumRow: true
+            })
+            if (groupIndex < linearWallGroups.length - 1) {
+              rows.push(Array(template.columns.length).fill(''))
+            }
           })
         } else if (subsection.name === 'Foundation Wall' && foundationWallGroups.length > 0) {
-          // All Foundation Wall items in a single group
-          const firstItemRow = rows.length + 1
-          foundationWallGroups.forEach(item => {
-            const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
-            itemRow[2] = item.takeoff
-            itemRow[3] = item.unit
-            itemRow[6] = item.parsed.width || '' // Width (G)
-            itemRow[7] = item.parsed.height || '' // Height (H)
-            rows.push(itemRow)
-            formulas.push({ row: rows.length, itemType: 'foundation_wall', parsedData: item, section: 'foundation' })
-          })
-          const sumRow = Array(template.columns.length).fill('')
-          rows.push(sumRow)
-          formulas.push({
-            row: rows.length,
-            itemType: 'foundation_sum',
-            section: 'foundation',
-            firstDataRow: firstItemRow,
-            lastDataRow: rows.length - 1,
-            subsectionName: subsection.name,
-            foundationCySumRow: true
+          // Process each group for foundation wall items
+          foundationWallGroups.forEach((group, groupIndex) => {
+            const firstGroupRow = rows.length + 1
+            group.items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[6] = item.parsed.width || '' // Width (G)
+              itemRow[7] = item.parsed.height || '' // Height (H)
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'foundation_wall', parsedData: item, section: 'foundation' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: firstGroupRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name,
+              foundationCySumRow: true
+            })
+            if (groupIndex < foundationWallGroups.length - 1) {
+              rows.push(Array(template.columns.length).fill(''))
+            }
           })
         } else if (subsection.name === 'Retaining walls' && retainingWallGroups.length > 0) {
           // Process each group for retaining walls
@@ -1821,7 +1900,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
 
           // Add wall items grouped by size
-          Array.from(wallGroups.entries()).forEach(([groupKey, items], groupIndex) => {
+          const wallGroupsToIterate = getMergedGroupsIfNeeded(wallGroups)
+          wallGroupsToIterate.forEach((group, groupIndex) => {
+            const { items } = group
             const wallGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
@@ -1846,7 +1927,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               foundationCySumRow: true
             })
             // Add empty row between wall groups
-            if (groupIndex < wallGroups.size - 1 || slopeItems.length > 0) {
+            if (groupIndex < wallGroupsToIterate.length - 1 || slopeItems.length > 0) {
               rows.push(Array(template.columns.length).fill(''))
             }
           })
@@ -1867,7 +1948,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
 
           // Add slope items grouped by size
-          Array.from(slopeGroups.entries()).forEach(([groupKey, items], groupIndex) => {
+          getMergedGroupsIfNeeded(slopeGroups).forEach((group) => {
+            const { items } = group
             const slopeGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
@@ -1975,7 +2057,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               wallGroups.get(groupKey).push(item)
             })
 
-            Array.from(wallGroups.entries()).forEach(([groupKey, items], groupIndex) => {
+            getMergedGroupsIfNeeded(wallGroups).forEach((group) => {
+              const { items } = group
               const wallGroupFirstRow = rows.length + 1
               items.forEach(item => {
                 const itemRow = Array(template.columns.length).fill('')
@@ -2054,7 +2137,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               wallGroups.get(groupKey).push(item)
             })
 
-            Array.from(wallGroups.entries()).forEach(([groupKey, items]) => {
+            getMergedGroupsIfNeeded(wallGroups).forEach((group) => {
+              const { items } = group
               const wallGroupFirstRow = rows.length + 1
               items.forEach(item => {
                 const itemRow = Array(template.columns.length).fill('')
@@ -2132,7 +2216,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               wallGroups.get(groupKey).push(item)
             })
 
-            Array.from(wallGroups.entries()).forEach(([groupKey, items]) => {
+            getMergedGroupsIfNeeded(wallGroups).forEach((group) => {
+              const { items } = group
               const wallGroupFirstRow = rows.length + 1
               items.forEach(item => {
                 const itemRow = Array(template.columns.length).fill('')
@@ -2210,7 +2295,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               wallGroups.get(groupKey).push(item)
             })
 
-            Array.from(wallGroups.entries()).forEach(([groupKey, items]) => {
+            getMergedGroupsIfNeeded(wallGroups).forEach((group) => {
+              const { items } = group
               const wallGroupFirstRow = rows.length + 1
               items.forEach(item => {
                 const itemRow = Array(template.columns.length).fill('')
@@ -2289,7 +2375,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               wallGroups.get(groupKey).push(item)
             })
 
-            Array.from(wallGroups.entries()).forEach(([groupKey, items]) => {
+            getMergedGroupsIfNeeded(wallGroups).forEach((group) => {
+              const { items } = group
               const wallGroupFirstRow = rows.length + 1
               items.forEach(item => {
                 const itemRow = Array(template.columns.length).fill('')
@@ -2339,7 +2426,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
 
           // Process each mat group with its associated haunch
-          Array.from(matGroups.entries()).forEach(([groupKey, matGroupItems], groupIndex) => {
+          const matGroupsToIterate = getMergedGroupsIfNeeded(matGroups)
+          matGroupsToIterate.forEach((group, groupIndex) => {
+            const matGroupItems = group.items
             // Add mat items for this group
             const matFirstRow = rows.length + 1
             matGroupItems.forEach(item => {
@@ -2353,20 +2442,23 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
             const lastMatRow = rows.length
 
-            // Add haunch item for this group (if available)
+            // Add haunch item(s) for this group (if available) - when merged, add all corresponding haunch items
             let lastDataRow = lastMatRow
-            if (haunchItems.length > groupIndex) {
-              const haunchItem = haunchItems[groupIndex]
-              const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = haunchItem.particulars
-              itemRow[2] = haunchItem.takeoff
-              itemRow[3] = haunchItem.unit
-              itemRow[6] = haunchItem.parsed.width || '' // Width (G)
-              itemRow[7] = haunchItem.parsed.height || '' // Height (H)
-              rows.push(itemRow)
-              formulas.push({ row: rows.length, itemType: 'mat_slab', parsedData: haunchItem, section: 'foundation' })
-              lastDataRow = rows.length // Update to include haunch item
-            }
+            const haunchIndices = matGroupItems.length === 1 ? [groupIndex] : Array.from({ length: matGroupItems.length }, (_, i) => i)
+            haunchIndices.forEach((idx) => {
+              if (haunchItems.length > idx) {
+                const haunchItem = haunchItems[idx]
+                const itemRow = Array(template.columns.length).fill('')
+                itemRow[1] = haunchItem.particulars
+                itemRow[2] = haunchItem.takeoff
+                itemRow[3] = haunchItem.unit
+                itemRow[6] = haunchItem.parsed.width || '' // Width (G)
+                itemRow[7] = haunchItem.parsed.height || '' // Height (H)
+                rows.push(itemRow)
+                formulas.push({ row: rows.length, itemType: 'mat_slab', parsedData: haunchItem, section: 'foundation' })
+                lastDataRow = rows.length // Update to include haunch item
+              }
+            })
 
             // Add sum row for mat items (J only, no I, no L)
             const matSumRow = Array(template.columns.length).fill('')
@@ -2401,7 +2493,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
 
             // Add empty row between groups
-            if (groupIndex < matGroups.size - 1) {
+            if (groupIndex < matGroupsToIterate.length - 1) {
               rows.push(Array(template.columns.length).fill(''))
             }
           })
@@ -2540,7 +2632,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
 
           // Add SOG slab groups
-          Array.from(sogSlabGroups.entries()).forEach(([groupKey, items], groupIndex) => {
+          const sogSlabGroupsToIterate = getMergedGroupsIfNeeded(sogSlabGroups)
+          sogSlabGroupsToIterate.forEach((group, groupIndex) => {
+            const { items } = group
             const slabGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
@@ -2564,7 +2658,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               foundationCySumRow: true
             })
             // Add empty row between groups
-            if (groupIndex < sogSlabGroups.size - 1 || sogStepItems.length > 0) {
+            if (groupIndex < sogSlabGroupsToIterate.length - 1 || sogStepItems.length > 0) {
               rows.push(Array(template.columns.length).fill(''))
             }
           })
@@ -2580,7 +2674,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               sogStepGroups.get(groupKey).push(item)
             })
 
-            Array.from(sogStepGroups.entries()).forEach(([groupKey, items]) => {
+            getMergedGroupsIfNeeded(sogStepGroups).forEach((group) => {
+              const { items } = group
               const stepGroupFirstRow = rows.length + 1
               items.forEach(item => {
                 const itemRow = Array(template.columns.length).fill('')
@@ -2806,7 +2901,11 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         if (hasSubsectionData) {
           const subsectionRow = Array(template.columns.length).fill('')
           subsectionRow[1] = subsection.name + ':'
+          if (subsection.name === 'Exterior side') subsectionRow[7] = 'add +2'
           rows.push(subsectionRow)
+          if (subsection.name === 'Exterior side') {
+            formulas.push({ row: rows.length, itemType: 'waterproofing_exterior_side_header', section: 'waterproofing' })
+          }
         }
 
         if (subsection.name === 'Exterior side' && (exteriorSideItems.length > 0 || exteriorSidePitItems.length > 0)) {
@@ -3413,8 +3512,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstItem = superstructureItems.columnsTakeoff?.[0]
           const takeoffRow = rows.length + 1
           const row1 = Array(template.columns.length).fill('')
-          row1[1] = 'As per Takeoff count'
-          row1[2] = 160
+          row1[1] = 'Columns'
+          row1[2] = firstItem?.takeoff || 0
           row1[3] = 'EA'
           rows.push(row1)
           formulas.push({ row: rows.length, itemType: 'superstructure_columns_takeoff', parsedData: firstItem, section: 'superstructure', subsectionName: subsection.name })
@@ -3545,9 +3644,13 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               const itemRow = Array(template.columns.length).fill('')
               itemRow[1] = item.particulars
               itemRow[2] = item.takeoff
-              itemRow[3] = item.parsed?.noBracket ? 'EA' : (item.unit || 'SQ FT')
+              itemRow[3] = item.unit || 'SQ FT'
               if (item.parsed?.qty != null) itemRow[4] = item.parsed.qty
-              if (!item.parsed?.noBracket && item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
+              // Set height (H column) for SQ FT items
+              const unitLower = String(item.unit || '').toLowerCase().trim()
+              if ((unitLower.includes('sq') || unitLower === 'sf') && item.parsed?.heightValue != null) {
+                itemRow[7] = item.parsed.heightValue
+              }
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'superstructure_concrete_pad', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
             })

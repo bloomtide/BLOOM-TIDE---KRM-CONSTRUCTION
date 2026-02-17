@@ -262,8 +262,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
     if (digitizerIdx === -1) return 'DM-106.00'
     const subsectionPatterns = {
-      'Demo slab on grade': /demo\s+sog/i, 'Demo strip footing': /demo\s+sf/i,
-      'Demo foundation wall': /demo\s+fw/i, 'Demo isolated footing': /demo\s+isolated\s+footing/i
+      'Demo slab on grade': /demo\s+sog/i, 'Demo Ramp on grade': /demo\s+rog/i,
+      'Demo strip footing': /demo\s+sf/i, 'Demo foundation wall': /demo\s+fw/i,
+      'Demo retaining wall': /demo\s+rw/i, 'Demo isolated footing': /demo\s+isolated\s+footing/i
     }
     const pattern = subsectionPatterns[subsectionName]
     if (!pattern) return 'DM-106.00'
@@ -280,15 +281,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     const slabTypeMatch = subsectionName.match(/^Demo\s+(.+)$/i)
     const slabType = slabTypeMatch ? slabTypeMatch[1].trim() : subsectionName.replace(/^Demo\s+/i, '').trim()
     const dmReference = getDMReferenceFromRawData(subsectionName)
+    const usesThickness = slabType.toLowerCase().includes('slab on grade') || slabType.toLowerCase().includes('ramp on grade')
     if (!itemText) {
-      if (slabType.toLowerCase().includes('slab on grade')) {
+      if (usesThickness) {
         return `Allow to saw-cut/demo/remove/dispose existing (4" thick) ${slabType} @ existing building as per ${dmReference}`
       }
       return `Allow to saw-cut/demo/remove/dispose existing ${slabType} @ existing building as per ${dmReference}`
     }
     const text = String(itemText).trim()
     let thicknessPart = ''
-    if (slabType.toLowerCase().includes('slab on grade')) {
+    if (usesThickness) {
       const thicknessMatch = text.match(/(\d+["\"]?\s*thick)/i) || text.match(/(\d+["\"]?)/)
       thicknessPart = thicknessMatch ? `(${thicknessMatch[1]})` : '(4" thick)'
     } else {
@@ -1197,8 +1199,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     // Render specific demolition lines into rows B15–B18 (row 14 is Demolition scope heading)
     const orderedSubsections = [
       'Demo slab on grade',
+      'Demo Ramp on grade',
       'Demo strip footing',
       'Demo foundation wall',
+      'Demo retaining wall',
       'Demo isolated footing'
     ]
     const demolitionGroupsFromCalc = Object.fromEntries(
