@@ -67,6 +67,15 @@ export const capstoneTemplate = {
         { name: 'Timber lagging', items: [] },
         { name: 'Backpacking', items: [] },
         { name: 'Timber sheeting', items: [] },
+        { name: 'Timber soldier piles', items: [] },
+        { name: 'Timber planks', items: [] },
+        { name: 'Timber waler', items: [] },
+        { name: 'Timber raker', items: [] },
+        { name: 'Timber brace', items: [] },
+        { name: 'Timber post', items: [] },
+        { name: 'Vertical timber sheets', items: [] },
+        { name: 'Horizontal timber sheets', items: [] },
+        { name: 'Timber stringer', items: [] },
         { name: 'Waler', items: [] },
         { name: 'Raker', items: [] },
         { name: 'Upper Raker', items: [] },
@@ -94,7 +103,8 @@ export const capstoneTemplate = {
         { name: 'Permission grouting', items: [] },
         { name: 'Buttons', items: [] },
         { name: 'Rock stabilization', items: [] },
-        { name: 'Form board', items: [] }
+        { name: 'Form board', items: [] },
+        { name: 'Drilled hole grout', items: [] }
       ]
     },
     {

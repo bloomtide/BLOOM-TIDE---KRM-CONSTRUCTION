@@ -272,6 +272,100 @@ export const parseTimberPost = (itemName) => {
 }
 
 /**
+ * Identifies if item is a vertical timber sheet
+ * e.g. 3"x10" Vertical timber sheets H=6'-0", E=4'-0"
+ */
+export const isVerticalTimberSheets = (digitizerItem) => {
+    if (!digitizerItem || typeof digitizerItem !== 'string') return false
+    const itemLower = digitizerItem.toLowerCase()
+    return itemLower.includes('vertical timber sheets')
+}
+
+/**
+ * Parses vertical timber sheets parameters
+ * e.g. 3"x10" Vertical timber sheets H=6'-0", E=4'-0" or H=7'-9" (E optional)
+ * Same grouping as Drilled soldier pile (size, H, E). Height from H, no rounding.
+ * Formulas same as Timber sheeting: FT(I)=C, SQ FT(J)=I*H
+ */
+export const parseVerticalTimberSheets = (itemName) => {
+    const result = {
+        type: 'vertical_timber_sheets',
+        size: null,
+        heightRaw: 0,
+        embedment: null,
+        calculatedHeight: 0,
+        groupKey: null
+    }
+
+    const sizeMatch = itemName.match(/(\d+)"\s*x\s*(\d+)"/i)
+    if (sizeMatch) {
+        result.size = `${sizeMatch[1]}x${sizeMatch[2]}`
+    }
+
+    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
+    const eMatch = itemName.match(/E=([0-9'"\-]+)/)
+
+    if (hMatch) result.heightRaw = parseDimension(hMatch[1])
+    if (eMatch) result.embedment = parseDimension(eMatch[1])
+
+    // Use H from bracket directly, do NOT round up
+    result.calculatedHeight = result.heightRaw
+
+    const hValue = Math.round(result.heightRaw * 12)
+    const eValue = result.embedment ? Math.round(result.embedment * 12) : 0
+    result.groupKey = `vertical-timber-sheets-${result.size || 'other'}-${hValue}-${eValue}`
+
+    return result
+}
+
+/**
+ * Identifies if item is a horizontal timber sheet
+ * e.g. 3"x10" Horizontal timber sheets H=6'-0", E=4'-0"
+ */
+export const isHorizontalTimberSheets = (digitizerItem) => {
+    if (!digitizerItem || typeof digitizerItem !== 'string') return false
+    const itemLower = digitizerItem.toLowerCase()
+    return itemLower.includes('horizontal timber sheets')
+}
+
+/**
+ * Parses horizontal timber sheets parameters
+ * e.g. 3"x10" Horizontal timber sheets H=6'-0", E=4'-0" or H=7'-9" (E optional)
+ * Same grouping as Vertical timber sheets (size, H, E). Height from H, no rounding.
+ * Formulas same as Vertical timber sheets: FT(I)=C, SQ FT(J)=I*H
+ */
+export const parseHorizontalTimberSheets = (itemName) => {
+    const result = {
+        type: 'horizontal_timber_sheets',
+        size: null,
+        heightRaw: 0,
+        embedment: null,
+        calculatedHeight: 0,
+        groupKey: null
+    }
+
+    const sizeMatch = itemName.match(/(\d+)"\s*x\s*(\d+)"/i)
+    if (sizeMatch) {
+        result.size = `${sizeMatch[1]}x${sizeMatch[2]}`
+    }
+
+    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
+    const eMatch = itemName.match(/E=([0-9'"\-]+)/)
+
+    if (hMatch) result.heightRaw = parseDimension(hMatch[1])
+    if (eMatch) result.embedment = parseDimension(eMatch[1])
+
+    // Use H from bracket directly, do NOT round up
+    result.calculatedHeight = result.heightRaw
+
+    const hValue = Math.round(result.heightRaw * 12)
+    const eValue = result.embedment ? Math.round(result.embedment * 12) : 0
+    result.groupKey = `horizontal-timber-sheets-${result.size || 'other'}-${hValue}-${eValue}`
+
+    return result
+}
+
+/**
  * Identifies if item is a timber raker (wood raker)
  * e.g. 4"x4" Wood raker (H=2'-1" typ.)
  */
@@ -401,6 +495,43 @@ export const parseTimberWaler = (itemName) => {
 }
 
 /**
+ * Identifies if item is a timber stringer
+ * e.g. (2) 6"x6" Timber stringer
+ */
+export const isTimberStringer = (digitizerItem) => {
+    if (!digitizerItem || typeof digitizerItem !== 'string') return false
+    const itemLower = digitizerItem.toLowerCase()
+    return itemLower.includes('timber stringer')
+}
+
+/**
+ * Parses timber stringer parameters
+ * e.g. (2) 6"x6" Timber stringer - qty from (N) at start, or 1 if not present
+ */
+export const parseTimberStringer = (itemName) => {
+    const result = {
+        type: 'timber_stringer',
+        size: null,
+        qty: 1,
+        groupKey: null
+    }
+
+    const sizeMatch = itemName.match(/(\d+)"\s*x\s*(\d+)"/i)
+    if (sizeMatch) {
+        result.size = `${sizeMatch[1]}x${sizeMatch[2]}`
+    }
+
+    const qtyMatch = itemName.match(/^\((\d+)\)/)
+    if (qtyMatch) {
+        result.qty = parseInt(qtyMatch[1], 10) || 1
+    }
+
+    result.groupKey = `timber-stringer-${result.size || 'other'}`
+
+    return result
+}
+
+/**
  * Identifies if item is a primary secant pile
  */
 export const isPrimarySecantPile = (digitizerItem) => {
@@ -489,6 +620,57 @@ export const isPermissionGrouting = (item) => item?.toLowerCase().includes('perm
 export const isButton = (item) => item?.toLowerCase().includes('concrete button')
 export const isRockStabilization = (item) => item?.toLowerCase().includes('rock stabilization')
 export const isFormBoard = (item) => item?.toLowerCase().includes('form board')
+export const isDrilledHoleGrout = (item) => item?.toLowerCase().includes('drilled hole grout')
+
+/**
+ * Parses diameter in inches from string like "5-5/8" Ø" or "6" Ø"
+ * @param {string} str - String containing diameter
+ * @returns {number} - Diameter in inches
+ */
+const parseDiameterInches = (str) => {
+    if (!str || typeof str !== 'string') return 0
+    // Match 5-5/8 or 5-5/8" format (a + b/c inches)
+    const fracMatch = str.match(/(\d+)-(\d+)\/(\d+)["']?\s*Ø/i)
+    if (fracMatch) {
+        const a = parseInt(fracMatch[1], 10) || 0
+        const b = parseInt(fracMatch[2], 10) || 0
+        const c = parseInt(fracMatch[3], 10) || 1
+        return a + (b / c)
+    }
+    // Match 6" Ø or 5.625" Ø
+    const decMatch = str.match(/(\d+\.?\d*)["']?\s*Ø/i)
+    if (decMatch) {
+        return parseFloat(decMatch[1]) || 0
+    }
+    return 0
+}
+
+/**
+ * Parses drilled hole grout parameters
+ * e.g. 5-5/8" Ø Drilled hole grout H=22'-6", typ.
+ * Grouping by H. F=G=SQRT((d/12)^2*3.14/4), H=height, I=C*H, J=G*F*C, L=J*H/27, M=C
+ */
+export const parseDrilledHoleGrout = (itemName) => {
+    const result = {
+        type: 'drilled_hole_grout',
+        diameter: 0,
+        heightRaw: 0,
+        calculatedHeight: 0,
+        groupKey: null
+    }
+
+    result.diameter = parseDiameterInches(itemName)
+
+    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
+    if (hMatch) result.heightRaw = parseDimension(hMatch[1])
+
+    result.calculatedHeight = result.heightRaw
+
+    const hValue = Math.round(result.heightRaw * 12)
+    result.groupKey = `drilled-hole-grout-H${hValue}`
+
+    return result
+}
 
 /**
  * Universal SOE parser for Secant, Tangent, Sheet piles and Timber lagging
@@ -846,15 +1028,21 @@ export default {
     parseTimberRaker,
     parseTimberBrace,
     parseTimberWaler,
+    parseTimberStringer,
     parseTimberPost,
+    parseVerticalTimberSheets,
+    parseHorizontalTimberSheets,
     calculatePileWeight,
     isSoldierPile,
     isTimberSoldierPile,
+    isVerticalTimberSheets,
+    isHorizontalTimberSheets,
     isTimberPlank,
     isTimberRaker,
     isTimberPost,
     isTimberBrace,
     isTimberWaler,
+    isTimberStringer,
     isPrimarySecantPile,
     isSecondarySecantPile,
     isTangentPile,
@@ -889,6 +1077,8 @@ export default {
     isButton,
     isRockStabilization,
     isFormBoard,
+    isDrilledHoleGrout,
+    parseDrilledHoleGrout,
     parseSoeItem,
     parseDimension,
     roundToMultipleOf5

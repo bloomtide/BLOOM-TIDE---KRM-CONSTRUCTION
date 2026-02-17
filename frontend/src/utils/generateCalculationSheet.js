@@ -16,6 +16,9 @@ import {
   processTimberRakerItems,
   processTimberBraceItems,
   processTimberPostItems,
+  processVerticalTimberSheetsItems,
+  processHorizontalTimberSheetsItems,
+  processTimberStringerItems,
   processWalerItems,
   processRakerItems,
   processUpperRakerItems,
@@ -44,6 +47,7 @@ import {
   processButtonItems,
   processRockStabilizationItems,
   processFormBoardItems,
+  processDrilledHoleGroutItems,
   generateSoeFormulas
 } from './processors/soeProcessor'
 import {
@@ -147,6 +151,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let timberRakerGroups = []
   let timberBraceGroups = []
   let timberPostGroups = []
+  let verticalTimberSheetsGroups = []
+  let horizontalTimberSheetsGroups = []
+  let timberStringerGroups = []
   let walerItems = []
   let rakerItems = []
   let upperRakerItems = []
@@ -175,6 +182,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let buttonItems = []
   let rockStabilizationItems = []
   let formBoardItems = []
+  let drilledHoleGroutGroups = []
   let hasBackpacking = false
   let rockExcavationRowRefs = {} // To store row references for line drill
   let drilledFoundationPileGroups = []
@@ -278,6 +286,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     timberRakerGroups = processTimberRakerItems(dataRows, headers, tracker)
     timberBraceGroups = processTimberBraceItems(dataRows, headers, tracker)
     timberPostGroups = processTimberPostItems(dataRows, headers, tracker)
+    verticalTimberSheetsGroups = processVerticalTimberSheetsItems(dataRows, headers, tracker)
+    horizontalTimberSheetsGroups = processHorizontalTimberSheetsItems(dataRows, headers, tracker)
+    timberStringerGroups = processTimberStringerItems(dataRows, headers, tracker)
     walerItems = processWalerItems(dataRows, headers, tracker)
     rakerItems = processRakerItems(dataRows, headers, tracker)
     upperRakerItems = processUpperRakerItems(dataRows, headers, tracker)
@@ -306,6 +317,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     buttonItems = processButtonItems(dataRows, headers, tracker)
     rockStabilizationItems = processRockStabilizationItems(dataRows, headers, tracker)
     formBoardItems = processFormBoardItems(dataRows, headers, tracker)
+    drilledHoleGroutGroups = processDrilledHoleGroutItems(dataRows, headers, tracker)
 
     hasBackpacking = timberLaggingItems.some(item =>
       item.particulars.toLowerCase().includes('w/backpacking')
@@ -397,13 +409,13 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
       hasSectionData = rockExcavationItems.length > 0 || lineDrillItems.length > 0 || section.subsections.some(sub => sub.name.includes('Extra line item'))
     } else if (section.section === 'SOE') {
       hasSectionData = [
-        soldierPileGroups, timberSoldierPileGroups, timberPlankGroups, timberWalerGroups, timberRakerGroups, timberBraceGroups, timberPostGroups, primarySecantItems, secondarySecantItems, tangentPileItems, sheetPileItems,
+        soldierPileGroups, timberSoldierPileGroups, timberPlankGroups, timberWalerGroups, timberRakerGroups, timberBraceGroups, timberPostGroups, verticalTimberSheetsGroups, horizontalTimberSheetsGroups, timberStringerGroups, primarySecantItems, secondarySecantItems, tangentPileItems, sheetPileItems,
         timberLaggingItems, timberSheetingItems, walerItems, rakerItems, upperRakerItems, lowerRakerItems,
         standOffItems, kickerItems, channelItems, rollChockItems, studBeamItems, innerCornerBraceItems,
         kneeBraceItems, supportingAngleGroups, pargingItems, heelBlockItems, underpinningItems,
         rockAnchorItems, rockBoltItems, anchorItems, tieBackItems, concreteSoilRetentionPierItems,
         guideWallItems, dowelBarItems, rockPinItems, shotcreteItems, permissionGroutingItems,
-        buttonItems, rockStabilizationItems, formBoardItems
+        buttonItems, rockStabilizationItems, formBoardItems, drilledHoleGroutGroups
       ].some(arr => arr && arr.length > 0) || hasBackpacking
     } else if (section.section === 'Foundation') {
       hasSectionData = [
@@ -796,6 +808,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Timber raker') headerCheckItems = timberRakerGroups // Group check
         else if (subsection.name === 'Timber brace') headerCheckItems = timberBraceGroups // Group check
         else if (subsection.name === 'Timber post') headerCheckItems = timberPostGroups // Group check
+        else if (subsection.name === 'Vertical timber sheets') headerCheckItems = verticalTimberSheetsGroups // Group check
+        else if (subsection.name === 'Horizontal timber sheets') headerCheckItems = horizontalTimberSheetsGroups // Group check
+        else if (subsection.name === 'Timber stringer') headerCheckItems = timberStringerGroups // Group check
         else if (subsection.name === 'Primary secant piles') headerCheckItems = primarySecantItems
         else if (subsection.name === 'Secondary secant piles') headerCheckItems = secondarySecantItems
         else if (subsection.name === 'Tangent piles') headerCheckItems = tangentPileItems
@@ -830,6 +845,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Buttons') headerCheckItems = buttonItems
         else if (subsection.name === 'Rock stabilization') headerCheckItems = rockStabilizationItems
         else if (subsection.name === 'Form board') headerCheckItems = formBoardItems
+        else if (subsection.name === 'Drilled hole grout') headerCheckItems = drilledHoleGroutGroups
 
         let hasSubsectionData = headerCheckItems.length > 0
         if (subsection.name === 'Backpacking' && hasBackpacking) hasSubsectionData = true
@@ -1010,6 +1026,63 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'timber_post_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
             if (groupIndex < timberPostGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
           })
+        } else if (subsection.name === 'Vertical timber sheets' && verticalTimberSheetsGroups.length > 0) {
+          // Process each group for vertical timber sheets (same grouping as drilled soldier pile, formulas like Timber sheeting: FT=C, SQ FT=I*H)
+          verticalTimberSheetsGroups.forEach((group, groupIndex) => {
+            const firstGroupRow = rows.length + 1
+            group.items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.calculatedHeight || ''
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'soldier_pile_item', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'vertical_timber_sheets_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1, subsectionName: 'Vertical timber sheets' })
+            if (groupIndex < verticalTimberSheetsGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
+          })
+        } else if (subsection.name === 'Horizontal timber sheets' && horizontalTimberSheetsGroups.length > 0) {
+          // Process each group for horizontal timber sheets (same as vertical timber sheets)
+          horizontalTimberSheetsGroups.forEach((group, groupIndex) => {
+            const firstGroupRow = rows.length + 1
+            group.items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.calculatedHeight || ''
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'soldier_pile_item', parsedData: item, section: 'soe' })
+            })
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'horizontal_timber_sheets_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1, subsectionName: 'Horizontal timber sheets' })
+            if (groupIndex < horizontalTimberSheetsGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
+          })
+        } else if (subsection.name === 'Timber stringer' && timberStringerGroups.length > 0) {
+          // Timber stringer: E=qty from (N) or 1, I=C*E. Per-group: multiple items -> sum I, items black; single item -> no sum, item row red
+          timberStringerGroups.forEach((group, groupIndex) => {
+            const firstGroupRow = rows.length + 1
+            const hasMultipleItemsInGroup = group.items.length > 1 && !group.isMerged
+            group.items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[4] = item.parsed.qty ?? 1
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'timber_stringer_item', parsedData: item, section: 'soe', hasMultipleItems: hasMultipleItemsInGroup })
+            })
+            if (hasMultipleItemsInGroup) {
+              const sumRow = Array(template.columns.length).fill('')
+              rows.push(sumRow)
+              formulas.push({ row: rows.length, itemType: 'timber_stringer_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
+            }
+            if (groupIndex < timberStringerGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
+          })
         } else {
           // Other SOE subsections
           if (subsection.name === 'Primary secant piles') subsectionItems = primarySecantItems
@@ -1046,6 +1119,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           else if (subsection.name === 'Buttons') subsectionItems = [] // Handled specially below
           else if (subsection.name === 'Rock stabilization') subsectionItems = [] // Handled specially below
           else if (subsection.name === 'Form board') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Drilled hole grout') subsectionItems = [] // Handled specially below
 
           if (subsectionItems.length > 0) {
             const firstItemRow = rows.length + 1
@@ -1349,6 +1423,28 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
             formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
+          } else if (subsection.name === 'Drilled hole grout' && drilledHoleGroutGroups.length > 0) {
+            // Drilled hole grout: F=G=SQRT((d/12)^2*3.14/4), H=height, I=C*H, J=G*F*C, L=J*H/27, M=C
+            // Per-group: multiple items -> sum row, items black; single item -> no sum, item row red
+            drilledHoleGroutGroups.forEach((group, groupIndex) => {
+              const firstGroupRow = rows.length + 1
+              const hasMultipleItemsInGroup = group.items.length > 1 && !group.isMerged
+              group.items.forEach(item => {
+                const itemRow = Array(template.columns.length).fill('')
+                itemRow[1] = item.particulars
+                itemRow[2] = item.takeoff
+                itemRow[3] = item.unit
+                itemRow[7] = item.parsed.heightRaw || item.parsed.calculatedHeight || ''
+                rows.push(itemRow)
+                formulas.push({ row: rows.length, itemType: 'drilled_hole_grout_item', parsedData: item, section: 'soe', hasMultipleItems: hasMultipleItemsInGroup })
+              })
+              if (hasMultipleItemsInGroup) {
+                const sumRow = Array(template.columns.length).fill('')
+                rows.push(sumRow)
+                formulas.push({ row: rows.length, itemType: 'drilled_hole_grout_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
+              }
+              if (groupIndex < drilledHoleGroutGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
+            })
           } else if (subsection.name === 'Backpacking' && hasBackpacking) {
             // Add Backpacking item
             const itemRow = Array(template.columns.length).fill('')
