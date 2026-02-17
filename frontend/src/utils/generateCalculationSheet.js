@@ -849,19 +849,10 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
 
         let hasSubsectionData = headerCheckItems.length > 0
         if (subsection.name === 'Backpacking' && hasBackpacking) hasSubsectionData = true
+        // Always show Drilled hole grout subsection header so the section is visible even with no data
+        if (subsection.name === 'Drilled hole grout') hasSubsectionData = true
 
-        // Always show these timber subsections (header + empty row if no data) so they are generated in the calculation sheet
-        const alwaysShowTimberSubsections = [
-          'Timber soldier piles',
-          'Timber planks',
-          'Timber waler',
-          'Timber raker',
-          'Timber brace',
-          'Timber post'
-        ]
-        const alwaysShowThis = alwaysShowTimberSubsections.includes(subsection.name)
-
-        if (hasSubsectionData || alwaysShowThis) {
+        if (hasSubsectionData) {
           // Add subsection header (indented)
           const subsectionRow = Array(template.columns.length).fill('')
           subsectionRow[1] = subsection.name + ':'
@@ -870,11 +861,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
 
         // Add space row after Underpinning heading
         if (subsection.name === 'Underpinning') {
-          rows.push(Array(template.columns.length).fill(''))
-        }
-
-        // When timber subsection is shown but has no data, add one empty row so user can enter data
-        if (alwaysShowThis && !hasSubsectionData) {
           rows.push(Array(template.columns.length).fill(''))
         }
 
@@ -909,9 +895,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.calculatedHeight || ''
-              // Proposal template format (built in buildProposalSheet): F&I new (QTY)no [size] timber soldier piles (Havg=..., embedment) as per SOE-101.00 & details on SOE-201.00
-              const timberSoldierPileTemplateText = `F&I new (##)no [4"x4"] timber soldier piles (Havg=15'-0", 3'-10" & 5'-0" embedment) as per SOE-101.00 & details on SOE-201.00`
-              console.log('Timber soldier piles row:', itemRow, 'template text (subsection):', subsection.name, '| proposal template:', timberSoldierPileTemplateText)
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'soldier_pile_item', parsedData: item, section: 'soe' })
             })
@@ -1423,28 +1406,36 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
             formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
-          } else if (subsection.name === 'Drilled hole grout' && drilledHoleGroutGroups.length > 0) {
+          } else if (subsection.name === 'Drilled hole grout') {
             // Drilled hole grout: F=G=SQRT((d/12)^2*3.14/4), H=height, I=C*H, J=G*F*C, L=J*H/27, M=C
             // Per-group: multiple items -> sum row, items black; single item -> no sum, item row red
-            drilledHoleGroutGroups.forEach((group, groupIndex) => {
-              const firstGroupRow = rows.length + 1
-              const hasMultipleItemsInGroup = group.items.length > 1 && !group.isMerged
-              group.items.forEach(item => {
-                const itemRow = Array(template.columns.length).fill('')
-                itemRow[1] = item.particulars
-                itemRow[2] = item.takeoff
-                itemRow[3] = item.unit
-                itemRow[7] = item.parsed.heightRaw || item.parsed.calculatedHeight || ''
-                rows.push(itemRow)
-                formulas.push({ row: rows.length, itemType: 'drilled_hole_grout_item', parsedData: item, section: 'soe', hasMultipleItems: hasMultipleItemsInGroup })
+            if (drilledHoleGroutGroups.length > 0) {
+              drilledHoleGroutGroups.forEach((group, groupIndex) => {
+                const firstGroupRow = rows.length + 1
+                const hasMultipleItemsInGroup = group.items.length > 1 && !group.isMerged
+                group.items.forEach(item => {
+                  const itemRow = Array(template.columns.length).fill('')
+                  itemRow[1] = item.particulars
+                  itemRow[2] = item.takeoff
+                  itemRow[3] = item.unit
+                  itemRow[7] = item.parsed.heightRaw || item.parsed.calculatedHeight || ''
+                  rows.push(itemRow)
+                  formulas.push({ row: rows.length, itemType: 'drilled_hole_grout_item', parsedData: item, section: 'soe', hasMultipleItems: hasMultipleItemsInGroup })
+                })
+                if (hasMultipleItemsInGroup) {
+                  const sumRow = Array(template.columns.length).fill('')
+                  rows.push(sumRow)
+                  formulas.push({ row: rows.length, itemType: 'drilled_hole_grout_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
+                }
+                if (groupIndex < drilledHoleGroutGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
               })
-              if (hasMultipleItemsInGroup) {
-                const sumRow = Array(template.columns.length).fill('')
-                rows.push(sumRow)
-                formulas.push({ row: rows.length, itemType: 'drilled_hole_grout_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
-              }
-              if (groupIndex < drilledHoleGroutGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
-            })
+            } else {
+              // No data: add one placeholder row so subsection is visible
+              const placeholderRow = Array(template.columns.length).fill('')
+              placeholderRow[1] = '5-5/8" Ø Drilled hole grout H=22\'-6", typ.'
+              rows.push(placeholderRow)
+              formulas.push({ row: rows.length, itemType: 'drilled_hole_grout_item', parsedData: { particulars: placeholderRow[1], takeoff: 0, unit: 'EA', parsed: { type: 'drilled_hole_grout', diameter: 5.625, heightRaw: 22.5, calculatedHeight: 22.5, groupKey: 'drilled-hole-grout-H270' } }, section: 'soe', hasMultipleItems: false })
+            }
           } else if (subsection.name === 'Backpacking' && hasBackpacking) {
             // Add Backpacking item
             const itemRow = Array(template.columns.length).fill('')

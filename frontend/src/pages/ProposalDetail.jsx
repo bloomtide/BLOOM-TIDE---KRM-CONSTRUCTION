@@ -343,7 +343,7 @@ const ProposalDetail = () => {
     const columns = generateColumnConfigs().map(config => ({ width: config.width }))
 
     // Build the complete workbook model (no formulas - they're applied after loading)
-    // Sheet order: Proposal first, Calculations second (must match buildProposalSheet: Proposal = 0, Calculations = 1)
+    // Sheet order: Proposal Sheet first, then Calculations Sheet (names must match buildProposalSheet)
     const workbookModel = {
       Workbook: {
         sheets: [

@@ -48,18 +48,8 @@ export const capstoneTemplate = {
     },
     {
       section: 'SOE',
-      // Proposal template text (buildProposalSheet fills dynamic parts from calculation data and raw data):
-      // Timber soldier piles: F&I new (15)no [4"x4"] timber soldier piles (Havg=15'-0", 3'-10" & 5'-0" embedment) as per SOE-101.00 & details on SOE-201.00
-      // Timber planks: F&I new 3"x12" timber planks (H=3'-0") as per SOE-100.00 & details on SOE-002.00
-      // Timber post: F&I new 6"x6" timber post (Havg=7'-10", 4'-0" to 5'-8" embedment) as per SOE-101.00 & details on SOE-201.00 to SOE-205.00
       subsections: [
         { name: 'Drilled soldier pile', items: [] },
-        { name: 'Timber soldier piles', items: [] },
-        { name: 'Timber planks', items: [] },
-        { name: 'Timber waler', items: [] },
-        { name: 'Timber raker', items: [] },
-        { name: 'Timber brace', items: [] },
-        { name: 'Timber post', items: [] },
         { name: 'Primary secant piles', items: [] },
         { name: 'Secondary secant piles', items: [] },
         { name: 'Tangent piles', items: [] },

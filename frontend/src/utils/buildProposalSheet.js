@@ -266,7 +266,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   const headerGray = { backgroundColor: '#D9D9D9', fontWeight: 'bold', fontFamily: 'Calibri', fontSize: '10pt', textAlign: 'center', verticalAlign: 'middle' }
   const boxGray = { backgroundColor: '#D9D9D9', fontWeight: 'bold', fontFamily: 'Calibri', fontSize: '18pt', verticalAlign: 'middle' }
   const thick = { border: '2px solid #000000' }
-  const thickTop = { borderTop: '2px solid #000000' }
+  const thickTop = { borderTop: '4px solid #000000' }
   const thickBottom = { borderBottom: '2px solid #000000' }
   const thickLeft = { borderLeft: '2px solid #000000' }
   const thickRight = { borderRight: '2px solid #000000' }
@@ -312,9 +312,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   spreadsheet.updateCell({ value: '37-24 24th Street, Suite 132, Long Island City, NY 11101' }, `${pfx}B4`)
   spreadsheet.updateCell({ value: 'Tel: 718 726-1525 | Fax: 718 726-1601 | Cell: 917 600-3958' }, `${pfx}B5`)
   spreadsheet.updateCell({ value: 'Email:' }, `${pfx}B6`)
-  spreadsheet.cellFormat({ fontWeight: 'bold' }, `${pfx}B4`)
-  spreadsheet.cellFormat({ fontWeight: 'normal', fontSize: '11pt', color: '#0B76C3', textDecoration: 'underline' }, `${pfx}B5`)
-  spreadsheet.cellFormat({ color: '#0B76C3', textDecoration: 'underline' }, `${pfx}B6`)
   spreadsheet.cellFormat(thin, `${pfx}F4:G6`)
   // Remove borders from B4:E8 - ensure no border color
   try {
@@ -325,7 +322,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   // Reapply formatting without borders
   spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', fontFamily: 'Calibri (Body)' }, `${pfx}B4:E8`)
   spreadsheet.cellFormat({ fontWeight: 'bold' }, `${pfx}B4`)
-  spreadsheet.cellFormat({ fontWeight: 'normal', fontSize: '11pt', color: '#0B76C3', textDecoration: 'underline' }, `${pfx}B5`)
+  // Tel/Fax/Cell line: bold, black, 18pt
+  spreadsheet.cellFormat({ fontWeight: 'bold', fontSize: '18pt', color: '#000000' }, `${pfx}B5`)
   spreadsheet.cellFormat({ color: '#0B76C3', textDecoration: 'underline' }, `${pfx}B6`)
 
   // Logo (image) in B4 – deferred so the sheet is rendered first (fixes “sometimes appears, sometimes not”)
@@ -343,6 +341,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
   // Date/Project/Client block
   const proposalDate = createdAt ? new Date(createdAt).toLocaleDateString() : "Today's date"
+  const estimateYearFull = createdAt ? new Date(createdAt).getFullYear() : new Date().getFullYear()
+  const estimateYearSuffix = String(estimateYearFull).slice(-2)
+  const estimateLabel = `Estimate #${estimateYearSuffix}-`
 
   spreadsheet.updateCell({ value: `Date: ${proposalDate}` }, `${pfx}B9`)
   spreadsheet.updateCell({ value: `Project: ${project || '###'}` }, `${pfx}B10`)
@@ -353,11 +354,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   // Right grey box (Estimate / Drawings Dated / lines) - start from column F
   // Individual cell styling - customize each cell separately
 
-  // Row 3: Estimate #25-1150
+  // Row 3: Estimate #YY-2 (centered); row 3 top border 2px
   spreadsheet.merge(`${pfx}F3:G3`)
-  spreadsheet.updateCell({ value: 'Estimate #2' }, `${pfx}F3`)
-  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontSize: '11pt', fontWeight: 'bold', borderTop: '1px solid #000000', borderLeft: '2px solid #000000', borderBottom: '2px solid #000000', borderRight: '1px solid #000000' }, `${pfx}F3`)
-  spreadsheet.cellFormat({ backgroundColor: 'white', fontSize: '11pt', fontWeight: 'bold', borderTop: '1px solid #000000', borderRight: '1px solid #000000', borderBottom: '2px solid #000000' }, `${pfx}G3`)
+  spreadsheet.updateCell({ value: estimateLabel }, `${pfx}F3`)
+  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontSize: '11pt', fontWeight: 'bold', textAlign: 'center', borderTop: '4px solid #000000', borderLeft: '2px solid #000000', borderBottom: '2px solid #000000', borderRight: '1px solid #000000' }, `${pfx}F3`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', fontSize: '11pt', fontWeight: 'bold', textAlign: 'center', borderTop: '4px solid #000000', borderRight: '1px solid #000000', borderBottom: '2px solid #000000' }, `${pfx}G3`)
   spreadsheet.cellFormat({ backgroundColor: 'white', fontSize: '11pt', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H3`)
 
   // Row 4: Empty row
@@ -508,13 +509,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         if (pageValue != null && pageValue !== '') {
           const pageStr = String(pageValue).trim()
           const dmMatch = pageStr.match(/DM-[\d.]+/i) || pageStr.match(/A-[\d.]+/i)
-          if (dmMatch) return dmMatch[0]
-        }
+        if (dmMatch) return dmMatch[0]
       }
+    }
       // Fallback: parse DM-xxx or A-xxx from digitizer item text
       const dmMatch = String(digitizerItem).trim().match(/DM-[\d.]+/i) || String(digitizerItem).trim().match(/A-[\d.]+/i)
       if (dmMatch) return dmMatch[0]
-    }
+  }
     return '##'
   }
   const buildDemolitionTemplate = (subsectionName, itemText, fallbackText) => {
@@ -1706,7 +1707,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
         if (typeof valueOrFormulaForB === 'object' && valueOrFormulaForB.formula) {
           spreadsheet.updateCell(valueOrFormulaForB, cellRef)
-          rowBContentMap.set(currentRow, templateText)
+        rowBContentMap.set(currentRow, templateText)
         } else {
           spreadsheet.updateCell({ value: valueOrFormulaForB }, cellRef)
           rowBContentMap.set(currentRow, valueOrFormulaForB)
@@ -3359,7 +3360,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         if (sumRowIndex > 0) {
           spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
         } else {
-          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
         }
           rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -3696,7 +3697,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         if (sumRowIndex > 0) {
           spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
         } else {
-          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
         }
           rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -4033,7 +4034,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         if (sumRowIndex > 0) {
           spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
         } else {
-          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
         }
           rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -4212,6 +4213,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       'Timber post',
       'Timber lagging',
       'Timber sheeting',
+      'Vertical timber sheets',
+      'Horizontal timber sheets',
+      'Timber stringer',
       'Bracing',
       'Tie back',
       'Tie back anchor',
@@ -4230,8 +4234,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       'Shotcrete',
       'Permission grouting',
       'Form board',
-      'Drilled hole grout',
       'Mud slab',
+      'Drilled hole grout',
       'Misc.'
     ]
 
@@ -4490,6 +4494,30 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       }
     }
 
+    // Check if Vertical timber sheets, Horizontal timber sheets, Timber stringer are in soeSubsectionItems (display above Bracing)
+    const verticalTimberSheetsGroups = soeSubsectionItems.get('Vertical timber sheets') || []
+    const horizontalTimberSheetsGroups = soeSubsectionItems.get('Horizontal timber sheets') || []
+    const timberStringerGroups = soeSubsectionItems.get('Timber stringer') || []
+    const hasVerticalTimberSheetsItems = verticalTimberSheetsGroups.length > 0 && verticalTimberSheetsGroups.some(g => g.length > 0)
+    const hasHorizontalTimberSheetsItems = horizontalTimberSheetsGroups.length > 0 && horizontalTimberSheetsGroups.some(g => g.length > 0)
+    const hasTimberStringerItems = timberStringerGroups.length > 0 && timberStringerGroups.some(g => g.length > 0)
+    if (hasVerticalTimberSheetsItems && !collectedSubsections.has('Vertical timber sheets')) collectedSubsections.add('Vertical timber sheets')
+    if (hasHorizontalTimberSheetsItems && !collectedSubsections.has('Horizontal timber sheets')) collectedSubsections.add('Horizontal timber sheets')
+    if (hasTimberStringerItems && !collectedSubsections.has('Timber stringer')) collectedSubsections.add('Timber stringer')
+
+    // Also check calculationData for these subsections
+    if (calculationData && calculationData.length > 0) {
+      for (const row of calculationData) {
+        const colB = row[1]
+        if (colB && typeof colB === 'string') {
+          const bText = colB.trim().toLowerCase()
+          if (bText.includes('vertical timber sheets') && bText.endsWith(':') && !collectedSubsections.has('Vertical timber sheets')) collectedSubsections.add('Vertical timber sheets')
+          if (bText.includes('horizontal timber sheets') && bText.endsWith(':') && !collectedSubsections.has('Horizontal timber sheets')) collectedSubsections.add('Horizontal timber sheets')
+          if (bText.includes('timber stringer') && bText.endsWith(':') && !collectedSubsections.has('Timber stringer')) collectedSubsections.add('Timber stringer')
+        }
+      }
+    }
+
     // Check if Timber soldier piles, Timber planks, Timber post are in soeSubsectionItems
     const timberSoldierPileGroups = soeSubsectionItems.get('Timber soldier piles') || []
     const hasTimberSoldierPileItems = timberSoldierPileGroups.length > 0 && timberSoldierPileGroups.some(g => g.length > 0)
@@ -4735,8 +4763,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // Special handling for Form board - show it if any items exist
         subsectionsToDisplay.push(name)
         collectedSubsections.delete(name)
-      } else if (name === 'Drilled hole grout' && hasDrilledHoleGroutItems) {
-        // Special handling for Drilled hole grout - show it if any items exist
+      } else if (name === 'Drilled hole grout') {
+        // Always show Drilled hole grout (with template text when empty, like Vertical/Horizontal timber sheets)
         subsectionsToDisplay.push(name)
         collectedSubsections.delete(name)
       } else if ((name === 'Guide wall' || name === 'Guilde wall') && hasGuideWallItems) {
@@ -4775,6 +4803,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         collectedSubsections.delete(name)
       } else if (name === 'Timber sheeting' && hasTimberSheetingItems) {
         // Special handling for Timber sheeting - show it if any items exist
+        subsectionsToDisplay.push(name)
+        collectedSubsections.delete(name)
+      } else if (name === 'Vertical timber sheets' || name === 'Horizontal timber sheets' || name === 'Timber stringer') {
+        // Always show these three above Bracing (with template text when empty)
         subsectionsToDisplay.push(name)
         collectedSubsections.delete(name)
       } else if (name === 'Timber soldier piles' && hasTimberSoldierPileItems) {
@@ -4964,8 +4996,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       }
     }
 
-    // If drilled hole grout items exist but Drilled hole grout wasn't added yet, add it now (right after Form board)
-    if (hasDrilledHoleGroutItems && !subsectionsToDisplay.includes('Drilled hole grout')) {
+    // If drilled hole grout wasn't added yet, add it now (right after Mud slab)
+    if (!subsectionsToDisplay.includes('Drilled hole grout')) {
       const drilledHoleGroutIndex = subsectionOrder.indexOf('Drilled hole grout')
       if (drilledHoleGroutIndex !== -1) {
         let insertIndex = subsectionsToDisplay.length
@@ -4978,9 +5010,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
         subsectionsToDisplay.splice(insertIndex, 0, 'Drilled hole grout')
       } else {
-        const formBoardPos = subsectionsToDisplay.indexOf('Form board')
-        if (formBoardPos !== -1) {
-          subsectionsToDisplay.splice(formBoardPos + 1, 0, 'Drilled hole grout')
+        const mudSlabPos = subsectionsToDisplay.indexOf('Mud slab')
+        if (mudSlabPos !== -1) {
+          subsectionsToDisplay.splice(mudSlabPos + 1, 0, 'Drilled hole grout')
         } else {
           subsectionsToDisplay.push('Drilled hole grout')
         }
@@ -5128,6 +5160,28 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
       }
     }
+
+    // If Vertical timber sheets, Horizontal timber sheets, or Timber stringer exist but weren't added, insert before Bracing
+    const beforeBracingSubsections = [
+      { name: 'Vertical timber sheets', has: hasVerticalTimberSheetsItems },
+      { name: 'Horizontal timber sheets', has: hasHorizontalTimberSheetsItems },
+      { name: 'Timber stringer', has: hasTimberStringerItems }
+    ]
+    beforeBracingSubsections.forEach(({ name, has }) => {
+      if (!subsectionsToDisplay.includes(name)) {
+        const idx = subsectionOrder.indexOf(name)
+        const bracingIdx = subsectionOrder.indexOf('Bracing')
+        let insertIndex = subsectionsToDisplay.length
+        for (let i = 0; i < subsectionsToDisplay.length; i++) {
+          const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+          if (currentIndex !== -1 && (idx !== -1 && currentIndex > idx || currentIndex >= bracingIdx)) {
+            insertIndex = i
+            break
+          }
+        }
+        subsectionsToDisplay.splice(insertIndex, 0, name)
+      }
+    })
 
     // Add any remaining subsections (but skip bracing items if Bracing header was added, and skip excluded ones)
     if (hasBracingItems && subsectionsToDisplay.includes('Bracing')) {
@@ -5505,7 +5559,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               if (sumRowIndex > 0) {
                 spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
               } else {
-                spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
               }
                 rowBContentMap.set(currentRow, proposalText)
               spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -5682,7 +5736,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             if (sumRowIndex > 0 && afterCount) {
               spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
             } else {
-              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
             }
               rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -5982,7 +6036,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             if (sumRowIndex > 0 && afterCount) {
               spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
             } else {
-              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
             }
               rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -6231,7 +6285,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             if (sumRowIndex > 0 && afterCount) {
               spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
             } else {
-              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
             }
               rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -6474,7 +6528,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             if (sumRowIndex > 0 && afterCount) {
               spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
             } else {
-              spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
             }
               rowBContentMap.set(currentRow, proposalText)
             spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -7159,8 +7213,193 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
       }
 
-      // If no groups found but subsection is in display list, skip processing
-      if (groups.length === 0 || groups.every(g => g.length === 0)) {
+      // If no groups found but subsection is in display list, skip processing (except Vertical/Horizontal timber sheets, Timber stringer, Drilled hole grout - show template text when empty)
+      const isEmpty = groups.length === 0 || groups.every(g => g.length === 0)
+      const isVerticalTimberSheets = subsectionName.toLowerCase() === 'vertical timber sheets'
+      const isHorizontalTimberSheets = subsectionName.toLowerCase() === 'horizontal timber sheets'
+      const isTimberStringer = subsectionName.toLowerCase() === 'timber stringer'
+      const isDrilledHoleGrout = subsectionName.toLowerCase() === 'drilled hole grout'
+      const emptyTemplateSubsections = isVerticalTimberSheets || isHorizontalTimberSheets || isTimberStringer || isDrilledHoleGrout
+
+      if (isEmpty && emptyTemplateSubsections) {
+        // Fill template text; pull dimensions/Havg/embedment from Calculation sheet data when present
+        let proposalText = ''
+        let calcRefSubsectionName = ''
+        let dimensions = '##'
+        let heightText = '##'
+        let embedmentText = '## embedment'
+        let sizeStr = '##'
+        let diameterStr = '##'
+        let soeRefDrilled = 'SOE-101.01'
+        if (calculationData && calculationData.length > 0) {
+          let inSubsection = false
+          let subsectionHeaderRow = -1
+          const dataRows = []
+          const targetHeader = isVerticalTimberSheets ? 'vertical timber sheets' : isHorizontalTimberSheets ? 'horizontal timber sheets' : isTimberStringer ? 'timber stringer' : 'drilled hole grout'
+          for (let i = 0; i < calculationData.length; i++) {
+            const colB = calculationData[i][1]
+            if (colB && typeof colB === 'string') {
+              const bText = colB.trim().toLowerCase()
+              const isHeader = bText.endsWith(':') && bText.slice(0, -1).trim() === targetHeader
+              if (isHeader) {
+                inSubsection = true
+                subsectionHeaderRow = i
+                continue
+              }
+              if (inSubsection && bText.endsWith(':')) {
+                break
+              }
+              if (inSubsection && bText && !bText.endsWith(':')) {
+                const takeoff = parseFloat(calculationData[i][2]) || 0
+                if (bText.includes(targetHeader) || takeoff > 0) {
+                  dataRows.push({ particulars: calculationData[i][1], row: calculationData[i], index: i })
+                }
+              }
+            }
+          }
+          const parseDimToFeet = (dimStr) => {
+            if (!dimStr) return 0
+            const m = String(dimStr).match(/(\d+)(?:'-?)?(\d+)?/)
+            if (!m) return 0
+            return (parseInt(m[1], 10) || 0) + ((parseInt(m[2], 10) || 0) / 12)
+          }
+          const feetToFtIn = (feet) => {
+            const f = Math.floor(feet)
+            const i = Math.round((feet - f) * 12)
+            return i === 0 ? `${f}'-0"` : `${f}'-${i}"`
+          }
+          if (isVerticalTimberSheets || isHorizontalTimberSheets) {
+            if (dataRows.length > 0) {
+              const first = dataRows[0].particulars || ''
+              const dimMatch = first.match(/(\d+(?:\/\d+)?)["']?\s*x\s*(\d+(?:\/\d+)?)["']?/i)
+              if (dimMatch) dimensions = `${dimMatch[1]}"x${dimMatch[2]}"`
+              const heightVals = []
+              const embedmentVals = []
+              dataRows.forEach(({ particulars, index }) => {
+                const p = String(particulars || '')
+                const hMatch = p.match(/H=([0-9'"\-]+)/i)
+                if (hMatch) heightVals.push(parseDimToFeet(hMatch[1]))
+                const eMatch = p.match(/E=([0-9'"\-]+)/i)
+                if (eMatch) embedmentVals.push(parseDimToFeet(eMatch[1]))
+                const rowH = parseFloat(calculationData[index]?.[7]) || 0
+                if (rowH > 0) heightVals.push(rowH)
+              })
+              if (heightVals.length > 0) {
+                const avg = heightVals.reduce((a, b) => a + b, 0) / heightVals.length
+                heightText = feetToFtIn(avg)
+              }
+              if (embedmentVals.length > 0) {
+                const avgE = embedmentVals.reduce((a, b) => a + b, 0) / embedmentVals.length
+                embedmentText = `${feetToFtIn(avgE)} embedment`
+              }
+            }
+          } else if (isTimberStringer && dataRows.length > 0) {
+            const first = dataRows[0].particulars || ''
+            const m = first.match(/(\d+)"\s*x\s*(\d+)"?/i) || first.match(/(\d+)\s*"\s*x\s*(\d+)/i)
+            if (m) sizeStr = `${m[1]}"x${m[2]}"`
+          } else if (isDrilledHoleGrout && dataRows.length > 0) {
+            const first = dataRows[0].particulars || ''
+            const fracMatch = first.match(/(\d+-\d+\/\d+)["']?\s*Ø/i)
+            const decMatch = first.match(/(\d+\.?\d*)["']?\s*Ø/i)
+            if (fracMatch) diameterStr = `${fracMatch[1]}" Ø`
+            else if (decMatch) diameterStr = `${decMatch[1]}" Ø`
+            const heightVals = []
+            dataRows.forEach(({ particulars, index }) => {
+              const p = String(particulars || '')
+              const hMatch = p.match(/H=([0-9'"\-]+)/i)
+              if (hMatch) heightVals.push(parseDimToFeet(hMatch[1]))
+              const rowH = parseFloat(calculationData[index]?.[7]) || 0
+              if (rowH > 0) heightVals.push(rowH)
+            })
+            if (heightVals.length > 0) {
+              const avg = heightVals.reduce((a, b) => a + b, 0) / heightVals.length
+              heightText = feetToFtIn(avg)
+            }
+            if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+              const headers = rawData[0]
+              const dataRowsRaw = rawData.slice(1)
+              const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+              const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+              if (digitizerIdx !== -1 && pageIdx >= 0) {
+                for (let r = 0; r < dataRowsRaw.length; r++) {
+                  const d = String(dataRowsRaw[r][digitizerIdx] || '').toLowerCase()
+                  if (d.includes('drilled hole grout')) {
+                    const pageStr = String(dataRowsRaw[r][pageIdx] || '').trim()
+                    const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                    if (soeMatches && soeMatches.length > 0) soeRefDrilled = soeMatches[0]
+                    break
+                  }
+                }
+              }
+            }
+          }
+        }
+        if (isVerticalTimberSheets) {
+          proposalText = `F&I new ${dimensions} vertical timber sheets (Havg=${heightText}, ${embedmentText}) as per SOE-101.00 & details on SOE-201.00 to SOE-205.00`
+          calcRefSubsectionName = 'Vertical timber sheets'
+        } else if (isHorizontalTimberSheets) {
+          proposalText = `F&I new ${dimensions} horizontal timber sheets (Havg=${heightText}, ${embedmentText}) as per SOE-101.00 & details on SOE-201.00 to SOE-205.00`
+          calcRefSubsectionName = 'Horizontal timber sheets'
+        } else if (isDrilledHoleGrout) {
+          proposalText = `F&I new (${diameterStr}) drilled hole grout @ tangent pile (H=${heightText}, typ.) as per ${soeRefDrilled} & details on above misc`
+          calcRefSubsectionName = 'Drilled hole grout'
+        } else {
+          proposalText = `F&I new ${sizeStr} timber stringer as per SOE-101.00 & details on SOE-201.00 to SOE-205.00`
+          calcRefSubsectionName = 'Timber stringer'
+        }
+        spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, proposalText)
+        spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+        spreadsheet.cellFormat(
+          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' },
+          `${pfx}B${currentRow}`
+        )
+        fillRatesForProposalRow(currentRow, proposalText)
+        // C–G: reference the row on Calculation sheet where this subsection lives (header row + 1 = first data/sum row); 1-based sheet row
+        const calcSheetName = 'Calculations Sheet'
+        let refRow = 0
+        if (calculationData && calculationData.length > 0 && calcRefSubsectionName) {
+          for (let i = 0; i < calculationData.length; i++) {
+            const colB = calculationData[i][1]
+            if (colB && typeof colB === 'string') {
+              const bText = colB.trim()
+              const headerMatch = bText.endsWith(':') && bText.slice(0, -1).trim().toLowerCase() === calcRefSubsectionName.toLowerCase()
+              if (headerMatch) {
+                refRow = i + 2
+                break
+              }
+            }
+          }
+        }
+        if (refRow > 0) {
+          spreadsheet.updateCell({ formula: `=IFERROR('${calcSheetName}'!I${refRow},"")` }, `${pfx}C${currentRow}`)
+          spreadsheet.updateCell({ formula: `=IFERROR('${calcSheetName}'!J${refRow},"")` }, `${pfx}D${currentRow}`)
+          spreadsheet.updateCell({ formula: `=IFERROR('${calcSheetName}'!K${refRow},"")` }, `${pfx}E${currentRow}`)
+          spreadsheet.updateCell({ formula: `=IFERROR('${calcSheetName}'!L${refRow},"")` }, `${pfx}F${currentRow}`)
+          spreadsheet.updateCell({ formula: `=IFERROR('${calcSheetName}'!M${refRow},"")` }, `${pfx}G${currentRow}`)
+        } else {
+          const blankFormula = '=IFERROR(1/0,"")'
+          spreadsheet.updateCell({ formula: blankFormula }, `${pfx}C${currentRow}`)
+          spreadsheet.updateCell({ formula: blankFormula }, `${pfx}D${currentRow}`)
+          spreadsheet.updateCell({ formula: blankFormula }, `${pfx}E${currentRow}`)
+          spreadsheet.updateCell({ formula: blankFormula }, `${pfx}F${currentRow}`)
+          spreadsheet.updateCell({ formula: blankFormula }, `${pfx}G${currentRow}`)
+        }
+        const sumCellFormat = { fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' }
+        spreadsheet.cellFormat(sumCellFormat, `${pfx}C${currentRow}`)
+        spreadsheet.cellFormat(sumCellFormat, `${pfx}D${currentRow}`)
+        spreadsheet.cellFormat(sumCellFormat, `${pfx}E${currentRow}`)
+        spreadsheet.cellFormat(sumCellFormat, `${pfx}F${currentRow}`)
+        spreadsheet.cellFormat(sumCellFormat, `${pfx}G${currentRow}`)
+        const dollarFormula = `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")`
+        spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
+        spreadsheet.cellFormat({ fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.00' }, `${pfx}H${currentRow}`)
+        const dynamicHeight = calculateRowHeight(proposalText)
+        try { spreadsheet.setRowHeight(dynamicHeight, currentRow - 1, proposalSheetIndex) } catch (e) { }
+        currentRow++
+        return
+      }
+      if (isEmpty) {
         return
       }
 
@@ -7376,7 +7615,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             sumRowIndex = (sumFormula.lastDataRow != null ? sumFormula.lastDataRow + 1 : sumFormula.row)
           }
         }
-        // For Timber soldier piles, Timber planks, Timber post: sum row is same as last data row (I170 not I171)
+        // Sum row is the row after last data row for subsections that have a sum row per group
         if (sumRowIndex === lastRowNumber && (subsectionLower === 'parging' ||
           subsectionLower === 'heel blocks' ||
           subsectionLower === 'underpinning' ||
@@ -7394,7 +7633,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           subsectionLower === 'rock stabilization' ||
           subsectionLower === 'shotcrete' ||
           subsectionLower === 'permission grouting' ||
-          subsectionLower === 'mud slab')) {
+          subsectionLower === 'mud slab' ||
+          subsectionLower === 'vertical timber sheets' ||
+          subsectionLower === 'horizontal timber sheets' ||
+          subsectionLower === 'timber stringer' ||
+          subsectionLower === 'timber sheeting')) {
           sumRowIndex = lastRowNumber + 1
         }
         const calcSheetName = 'Calculations Sheet'
@@ -8489,6 +8732,157 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
           // Format: F&I new 3"x10" timber sheeting (Havg=10'-6") as per SOE-101.00
           proposalText = `F&I new ${dimensions || '##'} timber sheeting (Havg=${heightText || '##'}) as per ${soePageMain} & details on`
+        } else if (subsectionName.toLowerCase() === 'vertical timber sheets') {
+          // Format: F&I new 3"x10" vertical timber sheets (Havg=7'-2", 4'-0" embedment) as per SOE-101.00 & details on SOE-201.00 to SOE-205.00
+          let dimensions = ''
+          const heightVals = []
+          const embedmentVals = []
+          const parseDimToFeet = (dimStr) => {
+            if (!dimStr) return 0
+            const m = String(dimStr).match(/(\d+)(?:'-?)?(\d+)?/)
+            if (!m) return 0
+            return (parseInt(m[1]) || 0) + ((parseInt(m[2]) || 0) / 12)
+          }
+          const feetToFtIn = (feet) => {
+            const f = Math.floor(feet)
+            const i = Math.round((feet - f) * 12)
+            return i === 0 ? `${f}'-0"` : `${f}'-${i}"`
+          }
+          group.forEach(item => {
+            const p = (item.particulars || '').trim()
+            const dimMatch = p.match(/(\d+(?:\/\d+)?)["']?\s*x\s*(\d+(?:\/\d+)?)["']?/i)
+            if (dimMatch && !dimensions) dimensions = `${dimMatch[1]}"x${dimMatch[2]}"`
+            const hMatch = p.match(/H=([0-9'"\-]+)/i)
+            if (hMatch) heightVals.push(parseDimToFeet(hMatch[1]))
+            const eMatch = p.match(/E=([0-9'"\-]+)/i)
+            if (eMatch) embedmentVals.push(parseDimToFeet(eMatch[1]))
+            const rowH = item.height || item.parsed?.heightRaw || 0
+            if (rowH > 0) heightVals.push(rowH)
+          })
+          let heightText = '##'
+          if (heightVals.length > 0) {
+            const avg = heightVals.reduce((a, b) => a + b, 0) / heightVals.length
+            heightText = feetToFtIn(avg)
+          }
+          let embedmentText = ''
+          if (embedmentVals.length > 0) {
+            const avgE = embedmentVals.reduce((a, b) => a + b, 0) / embedmentVals.length
+            embedmentText = `${feetToFtIn(avgE)} embedment`
+          }
+          let soePageMain = 'SOE-101.00'
+          let soePageDetails = 'SOE-201.00'
+          if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+            const headers = rawData[0]
+            const dataRows = rawData.slice(1)
+            const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+            const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+            if (digitizerIdx !== -1 && pageIdx !== -1) {
+              for (let r = 0; r < dataRows.length; r++) {
+                const d = String(dataRows[r][digitizerIdx] || '').toLowerCase()
+                if (d.includes('vertical timber sheets')) {
+                  const pageStr = String(dataRows[r][pageIdx] || '').trim()
+                  const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                  if (soeMatches && soeMatches.length > 0) {
+                    soePageMain = soeMatches[0]
+                    if (soeMatches.length > 1) soePageDetails = soeMatches[1]
+                  }
+                  break
+                }
+              }
+            }
+          }
+          proposalText = `F&I new ${dimensions || '##'} vertical timber sheets (Havg=${heightText}, ${embedmentText || '## embedment'}) as per ${soePageMain} & details on ${soePageDetails} to SOE-205.00`
+        } else if (subsectionName.toLowerCase() === 'horizontal timber sheets') {
+          // Format: F&I new 3"x10" horizontal timber sheets (Havg=7'-2", 4'-0" embedment) as per SOE-101.00 & details on SOE-201.00 to SOE-205.00
+          let dimensions = ''
+          const heightVals = []
+          const embedmentVals = []
+          const parseDimToFeet = (dimStr) => {
+            if (!dimStr) return 0
+            const m = String(dimStr).match(/(\d+)(?:'-?)?(\d+)?/)
+            if (!m) return 0
+            return (parseInt(m[1]) || 0) + ((parseInt(m[2]) || 0) / 12)
+          }
+          const feetToFtIn = (feet) => {
+            const f = Math.floor(feet)
+            const i = Math.round((feet - f) * 12)
+            return i === 0 ? `${f}'-0"` : `${f}'-${i}"`
+          }
+          group.forEach(item => {
+            const p = (item.particulars || '').trim()
+            const dimMatch = p.match(/(\d+(?:\/\d+)?)["']?\s*x\s*(\d+(?:\/\d+)?)["']?/i)
+            if (dimMatch && !dimensions) dimensions = `${dimMatch[1]}"x${dimMatch[2]}"`
+            const hMatch = p.match(/H=([0-9'"\-]+)/i)
+            if (hMatch) heightVals.push(parseDimToFeet(hMatch[1]))
+            const eMatch = p.match(/E=([0-9'"\-]+)/i)
+            if (eMatch) embedmentVals.push(parseDimToFeet(eMatch[1]))
+            const rowH = item.height || item.parsed?.heightRaw || 0
+            if (rowH > 0) heightVals.push(rowH)
+          })
+          let heightText = '##'
+          if (heightVals.length > 0) {
+            const avg = heightVals.reduce((a, b) => a + b, 0) / heightVals.length
+            heightText = feetToFtIn(avg)
+          }
+          let embedmentText = ''
+          if (embedmentVals.length > 0) {
+            const avgE = embedmentVals.reduce((a, b) => a + b, 0) / embedmentVals.length
+            embedmentText = `${feetToFtIn(avgE)} embedment`
+          }
+          let soePageMain = 'SOE-101.00'
+          let soePageDetails = 'SOE-201.00'
+          if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+            const headers = rawData[0]
+            const dataRows = rawData.slice(1)
+            const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+            const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+            if (digitizerIdx !== -1 && pageIdx !== -1) {
+              for (let r = 0; r < dataRows.length; r++) {
+                const d = String(dataRows[r][digitizerIdx] || '').toLowerCase()
+                if (d.includes('horizontal timber sheets')) {
+                  const pageStr = String(dataRows[r][pageIdx] || '').trim()
+                  const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                  if (soeMatches && soeMatches.length > 0) {
+                    soePageMain = soeMatches[0]
+                    if (soeMatches.length > 1) soePageDetails = soeMatches[1]
+                  }
+                  break
+                }
+              }
+            }
+          }
+          proposalText = `F&I new ${dimensions || '##'} horizontal timber sheets (Havg=${heightText}, ${embedmentText || '## embedment'}) as per ${soePageMain} & details on ${soePageDetails} to SOE-205.00`
+        } else if (subsectionName.toLowerCase() === 'timber stringer') {
+          // Format: F&I new 6"x6" timber stringer as per SOE-101.00 & details on SOE-201.00 to SOE-205.00
+          let sizeStr = ''
+          group.forEach(item => {
+            const p = (item.particulars || '').trim()
+            const m = p.match(/(\d+)"\s*x\s*(\d+)"?/i) || p.match(/(\d+)\s*"\s*x\s*(\d+)/i)
+            if (m && !sizeStr) sizeStr = `${m[1]}"x${m[2]}"`
+          })
+          let soePageMain = 'SOE-101.00'
+          let soePageDetails = 'SOE-201.00'
+          if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+            const headers = rawData[0]
+            const dataRows = rawData.slice(1)
+            const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+            const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+            if (digitizerIdx !== -1 && pageIdx !== -1) {
+              for (let r = 0; r < dataRows.length; r++) {
+                const d = String(dataRows[r][digitizerIdx] || '').toLowerCase()
+                if (d.includes('timber stringer')) {
+                  const pageStr = String(dataRows[r][pageIdx] || '').trim()
+                  const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                  if (soeMatches && soeMatches.length > 0) {
+                    soePageMain = soeMatches[0]
+                    if (soeMatches.length > 1) soePageDetails = soeMatches[1]
+                  }
+                  break
+                }
+              }
+            }
+          }
+          proposalText = `F&I new ${sizeStr || '##'} timber stringer as per ${soePageMain} & details on ${soePageDetails} to SOE-205.00`
         } else if (subsectionName.toLowerCase() === 'timber soldier piles') {
           // Template text: F&I new (15)no [4"x4"] timber soldier piles (Havg=15'-0", 3'-10" & 5'-0" embedment) as per SOE-101.00 & details on SOE-201.00
           // (qty from G, size/Havg/embedment from group items, SOE refs from raw data)
@@ -8680,6 +9074,58 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
           proposalText = `F&I new ${sizeStr || '##'} timber post (Havg=${havgText}, ${embedmentText || '## embedment'}) as per ${soePageMain} & details on ${soePageDetails}${soePageRange}`
           console.log('Template text (Timber post):', proposalText)
+        } else if (subsectionName.toLowerCase() === 'drilled hole grout') {
+          // Dynamic from Calculation sheet: e.g. "5-5/8" Ø Drilled hole grout H=22'-6", typ." -> F&I new (5-5/8" Ø) drilled hole grout @ tangent pile (H=22'-6", typ.)
+          let diameterStr = '##'
+          const heightVals = []
+          const parseDimToFeet = (dimStr) => {
+            if (!dimStr) return 0
+            const m = String(dimStr).match(/(\d+)(?:'-?)?(\d+)?/)
+            if (!m) return 0
+            return (parseInt(m[1], 10) || 0) + ((parseInt(m[2], 10) || 0) / 12)
+          }
+          const feetToFtIn = (feet) => {
+            const f = Math.floor(feet)
+            const i = Math.round((feet - f) * 12)
+            return i === 0 ? `${f}'-0"` : `${f}'-${i}"`
+          }
+          group.forEach(item => {
+            const p = (item.particulars || '').trim()
+            if (diameterStr === '##') {
+              const fracMatch = p.match(/(\d+-\d+\/\d+)["']?\s*Ø/i)
+              const decMatch = p.match(/(\d+\.?\d*)["']?\s*Ø/i)
+              if (fracMatch) diameterStr = `${fracMatch[1]}" Ø`
+              else if (decMatch) diameterStr = `${decMatch[1]}" Ø`
+            }
+            const hMatch = p.match(/H=([0-9'"\-]+)/i)
+            if (hMatch) heightVals.push(parseDimToFeet(hMatch[1]))
+            const rowH = item.height || item.parsed?.heightRaw || 0
+            if (rowH > 0) heightVals.push(rowH)
+          })
+          let heightText = '##'
+          if (heightVals.length > 0) {
+            const avg = heightVals.reduce((a, b) => a + b, 0) / heightVals.length
+            heightText = feetToFtIn(avg)
+          }
+          let soeRef = 'SOE-101.01'
+          if (rawData && Array.isArray(rawData) && rawData.length > 1) {
+            const headers = rawData[0]
+            const dataRows = rawData.slice(1)
+            const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+            const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
+            if (digitizerIdx !== -1 && pageIdx >= 0) {
+              for (let r = 0; r < dataRows.length; r++) {
+                const d = String(dataRows[r][digitizerIdx] || '').toLowerCase()
+                if (d.includes('drilled hole grout')) {
+                  const pageStr = String(dataRows[r][pageIdx] || '').trim()
+                  const soeMatches = pageStr.match(/(SOE|SOESK)-[\d.]+/gi)
+                  if (soeMatches && soeMatches.length > 0) soeRef = soeMatches[0]
+                  break
+                }
+              }
+            }
+          }
+          proposalText = `F&I new (${diameterStr}) drilled hole grout @ tangent pile (H=${heightText}, typ.) as per ${soeRef} & details on above misc`
         } else {
           // Default proposal text for other subsections
           proposalText = `${subsectionName} item: ${Math.round(totalQty)} nos`
@@ -8689,9 +9135,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         if (useFormulaForB && sumRowIndex > 0) {
           spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCountForB) }, `${pfx}B${currentRow}`)
         } else {
-          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
         }
-        rowBContentMap.set(currentRow, proposalText)
+          rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
         spreadsheet.cellFormat(
           {
@@ -8712,7 +9158,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // Add FT (LF) to column C - reference to calculation sheet sum row if available
         // For parging, sheet pile, guide wall, dowels: FT(I) from sum row
         const subsectionLowerForC = subsectionName.toLowerCase()
-        if ((subsectionLowerForC === 'parging' || subsectionLowerForC === 'sheet pile' || subsectionLowerForC === 'sheet piles' || subsectionLowerForC === 'guide wall' || subsectionLowerForC === 'guilde wall' || subsectionLowerForC === 'dowels' || subsectionLowerForC === 'dowel bar' || subsectionLowerForC === 'rock pins' || subsectionLowerForC === 'rock pin' || subsectionLowerForC === 'shotcrete' || subsectionLowerForC === 'permission grouting' || subsectionLowerForC === 'mud slab') && sumRowIndex > 0) {
+        if ((subsectionLowerForC === 'parging' || subsectionLowerForC === 'sheet pile' || subsectionLowerForC === 'sheet piles' || subsectionLowerForC === 'guide wall' || subsectionLowerForC === 'guilde wall' || subsectionLowerForC === 'dowels' || subsectionLowerForC === 'dowel bar' || subsectionLowerForC === 'rock pins' || subsectionLowerForC === 'rock pin' || subsectionLowerForC === 'shotcrete' || subsectionLowerForC === 'permission grouting' || subsectionLowerForC === 'mud slab' || subsectionLowerForC === 'drilled hole grout') && sumRowIndex > 0) {
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!I${sumRowIndex}` }, `${pfx}C${currentRow}`)
           spreadsheet.cellFormat(
             {
@@ -8749,6 +9195,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           subsectionLowerName2 === 'timber post' ||
           subsectionLowerName2 === 'timber lagging' ||
           subsectionLowerName2 === 'timber sheeting' ||
+          subsectionLowerName2 === 'vertical timber sheets' ||
+          subsectionLowerName2 === 'horizontal timber sheets' ||
+          subsectionLowerName2 === 'timber stringer' ||
+          subsectionLowerName2 === 'drilled hole grout' ||
           subsectionLowerName2 === 'guide wall' ||
           subsectionLowerName2 === 'guilde wall' ||
           subsectionLowerName2 === 'concrete buttons' ||
@@ -8768,7 +9218,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           )
         }
 
-        // Add CY to column F for Heel blocks, Underpinning, Concrete soil retention piers, Guide wall, Concrete buttons - reference to calculation sheet sum row
+        // Add CY to column F for Heel blocks, Underpinning, Concrete soil retention piers, Guide wall, Concrete buttons, Vertical/Horizontal timber sheets, Timber stringer - reference to calculation sheet sum row
         if ((subsectionLowerName2 === 'heel blocks' ||
           subsectionLowerName2 === 'underpinning' ||
           subsectionLowerName2 === 'concrete soil retention piers' ||
@@ -8779,7 +9229,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           subsectionLowerName2 === 'buttons' ||
           subsectionLowerName2 === 'rock stabilization' ||
           subsectionLowerName2 === 'shotcrete' ||
-          subsectionLowerName2 === 'mud slab') && sumRowIndex > 0) {
+          subsectionLowerName2 === 'mud slab' ||
+          subsectionLowerName2 === 'vertical timber sheets' ||
+          subsectionLowerName2 === 'horizontal timber sheets' ||
+          subsectionLowerName2 === 'timber stringer' ||
+          subsectionLowerName2 === 'drilled hole grout') && sumRowIndex > 0) {
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!L${sumRowIndex}` }, `${pfx}F${currentRow}`)
           spreadsheet.cellFormat(
             {
@@ -8804,7 +9258,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           subsectionLowerName2 === 'rock pin' ||
           subsectionLowerName2 === 'timber soldier piles' ||
           subsectionLowerName2 === 'timber planks' ||
-          subsectionLowerName2 === 'timber post') && sumRowIndex > 0) {
+          subsectionLowerName2 === 'timber post' ||
+          subsectionLowerName2 === 'vertical timber sheets' ||
+          subsectionLowerName2 === 'horizontal timber sheets' ||
+          subsectionLowerName2 === 'timber stringer' ||
+          subsectionLowerName2 === 'drilled hole grout') && sumRowIndex > 0) {
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${sumRowIndex}` }, `${pfx}G${currentRow}`)
           spreadsheet.cellFormat(
             {
@@ -8817,8 +9275,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
 
         // Add LBS to column E - reference to calculation sheet sum row if available
-        // For Sheet pile, always add LBS reference when sum row exists (calculation sheet has J*Wt formula)
-        if ((totalLBS > 0 || subsectionLowerName2 === 'sheet pile' || subsectionLowerName2 === 'sheet piles') && sumRowIndex > 0) {
+        // For Sheet pile, Vertical/Horizontal timber sheets, Timber stringer: add when sum row exists
+        if ((totalLBS > 0 || subsectionLowerName2 === 'sheet pile' || subsectionLowerName2 === 'sheet piles' ||
+          subsectionLowerName2 === 'vertical timber sheets' || subsectionLowerName2 === 'horizontal timber sheets' || subsectionLowerName2 === 'timber stringer') && sumRowIndex > 0) {
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!K${sumRowIndex}` }, `${pfx}E${currentRow}`)
           spreadsheet.cellFormat(
             {
@@ -9056,7 +9515,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           if (afterCountShims) {
             spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCountShims) }, `${pfx}B${currentRow}`)
           } else {
-            spreadsheet.updateCell({ value: shimsProposalText }, `${pfx}B${currentRow}`)
+          spreadsheet.updateCell({ value: shimsProposalText }, `${pfx}B${currentRow}`)
           }
             rowBContentMap.set(currentRow, shimsProposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -9325,7 +9784,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         if (afterCount) {
           spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCount) }, `${pfx}B${currentRow}`)
         } else {
-          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
         }
           rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -9546,7 +10005,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         if (afterCountRB) {
           spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCountRB) }, `${pfx}B${currentRow}`)
         } else {
-          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
         }
           rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -9948,7 +10407,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           if (afterCountDC) {
             spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCountDC) }, `${pfx}B${currentRow}`)
           } else {
-            spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
           }
           rowBContentMap.set(currentRow, proposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -10278,7 +10737,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         if (afterCountFP) {
           spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCountFP) }, `${pfx}B${currentRow}`)
         } else {
-          spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
+        spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
         }
         rowBContentMap.set(currentRow, proposalText)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -11137,7 +11596,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           if (afterCountSub) {
             spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCountSub) }, `${pfx}B${currentRow}`)
           } else {
-            spreadsheet.updateCell({ value: displayText }, `${pfx}B${currentRow}`)
+          spreadsheet.updateCell({ value: displayText }, `${pfx}B${currentRow}`)
           }
           rowBContentMap.set(currentRow, displayText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
@@ -15639,20 +16098,24 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     const finalRow = currentRow - 1
     if (finalRow >= 3) {
       // Top edge
-      spreadsheet.cellFormat(thickTop, `${pfx}B3:G3`)
+      spreadsheet.cellFormat({ borderTop: '3px solid #000000' }, `${pfx}B3:G3`)
 
       // Bottom edge
-      spreadsheet.cellFormat(thickBottom, `${pfx}B${finalRow}:G${finalRow}`)
+      spreadsheet.cellFormat({ borderBottom: '3px solid #000000' }, `${pfx}B${finalRow}:G${finalRow}`)
 
       // Left edge (iterate to force application likely)
       // Applying to range usually works but if background color logic overrides it, we might need to be specific
       // Or simply re-applying it here at the end should work if it's the last operation.
       // But to be safe vs background color cells:
-      spreadsheet.cellFormat(thickLeft, `${pfx}B3:B${finalRow}`)
-      spreadsheet.cellFormat(thickRight, `${pfx}G3:G${finalRow}`)
+      spreadsheet.cellFormat({ borderLeft: '3px solid #000000' }, `${pfx}B3:B${finalRow}`)
+      spreadsheet.cellFormat({ borderRight: '3px solid #000000' }, `${pfx}G3:G${finalRow}`)
 
-      // Border on each row for columns B to G (data rows from 13; row 12 has 2px border set earlier)
+      // Border on each row for columns B to G (1px internal grid); then re-apply 2px outer perimeter so it is not overwritten
       spreadsheet.cellFormat(thin, `${pfx}B13:G${finalRow}`)
+      spreadsheet.cellFormat(thickLeft, `${pfx}B13:B${finalRow}`)
+      spreadsheet.cellFormat(thickRight, `${pfx}G13:G${finalRow}`)
+      spreadsheet.cellFormat(thickTop, `${pfx}B13:G13`)
+      spreadsheet.cellFormat(thickBottom, `${pfx}B${finalRow}:G${finalRow}`)
 
       // Global Font Style Application (Calibri Bold 18pt, text color black); all cells vertically centered
       spreadsheet.cellFormat({ fontFamily: 'Calibri', fontWeight: 'bold', fontSize: '18pt', color: '#000000', verticalAlign: 'middle' }, `${pfx}A2:N${finalRow}`)
@@ -15675,10 +16138,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       // Word wrap for description column (B) so long text wraps within the cell
       spreadsheet.cellFormat({ wrapText: true }, `${pfx}B13:B${finalRow}`)
 
-      // Override Email label to be normal weight per request
-      spreadsheet.cellFormat({ fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}B6`)
-      // Tel/Fax/Cell line (B5): 11pt, blue, underline
-      spreadsheet.cellFormat({ fontWeight: 'normal', fontSize: '11pt', color: '#0B76C3', textDecoration: 'underline' }, `${pfx}B5`)
+      // Email label (B6): normal weight, blue, underline
+      spreadsheet.cellFormat({ fontWeight: 'normal', fontFamily: 'Calibri (Body)', color: '#0B76C3', textDecoration: 'underline' }, `${pfx}B6`)
+      // Tel/Fax/Cell line (B5): bold, black, 18pt
+      spreadsheet.cellFormat({ fontWeight: 'bold', fontSize: '18pt', color: '#000000' }, `${pfx}B5`)
 
       // Override numerical value columns to be normal weight per request (including $/1000 column H)
       // Data starts at Row 13; C–G stay centered
@@ -15706,6 +16169,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       // $/1000 headings (H1, H12) centered in cell (re-apply last so not overwritten)
       spreadsheet.cellFormat({ textAlign: 'center', verticalAlign: 'middle' }, `${pfx}H1`)
       spreadsheet.cellFormat({ textAlign: 'center', verticalAlign: 'middle' }, `${pfx}H12`)
+
+      // Re-apply 3px outer border B–G last so it overrides all other border styles
+      spreadsheet.cellFormat({ borderTop: '3px solid #000000' }, `${pfx}B3:G3`)
+      spreadsheet.cellFormat({ borderBottom: '3px solid #000000' }, `${pfx}B${finalRow}:G${finalRow}`)
+      spreadsheet.cellFormat({ borderLeft: '3px solid #000000' }, `${pfx}B3:B${finalRow}`)
+      spreadsheet.cellFormat({ borderRight: '3px solid #000000' }, `${pfx}G3:G${finalRow}`)
     }
 
     // Row height for each data row based on column B content (wrap text, height fits content)

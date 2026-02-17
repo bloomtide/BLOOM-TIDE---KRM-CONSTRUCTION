@@ -1494,7 +1494,7 @@ const Spreadsheet = () => {
 
   const applyProposalFirstRow = (spreadsheet) => {
     // Full Proposal template (match screenshot layout).
-    const proposalSheetIndex = 1
+    const proposalSheetIndex = 0
     const pfx = 'Proposal Sheet!'
 
     // Clear everything (values + formats) on Proposal sheet so it never retains other sheet data.
@@ -1603,7 +1603,9 @@ const Spreadsheet = () => {
     }
     // Reapply formatting without borders
     spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000' }, `${pfx}B4:E8`)
-    spreadsheet.cellFormat({ fontWeight: 'bold' }, `${pfx}B4:B5`)
+    spreadsheet.cellFormat({ fontWeight: 'bold' }, `${pfx}B4`)
+    // Tel/Fax/Cell line: bold, black, 18pt
+    spreadsheet.cellFormat({ fontWeight: 'bold', fontSize: '18pt', color: '#000000' }, `${pfx}B5`)
     spreadsheet.cellFormat({ color: '#0B76C3', textDecoration: 'underline' }, `${pfx}B6`)
 
     // Logo (image) near center top-left; uses production URL for server-side save compatibility
@@ -1633,7 +1635,7 @@ const Spreadsheet = () => {
 
     // Row 3: Estimate #25-1150
     spreadsheet.merge(`${pfx}F3:G3`)
-    spreadsheet.updateCell({ value: 'Estimate #2' }, `${pfx}F3`)
+    spreadsheet.updateCell({ value: 'Estimate #25-1150' }, `${pfx}F3`)
     spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontSize: '11pt', fontWeight: 'bold', borderTop: '1px solid #000000', borderLeft: '1px solid #000000', borderRight: '1px solid #000000' }, `${pfx}F3`)
     spreadsheet.cellFormat({ backgroundColor: 'white', fontSize: '11pt', fontWeight: 'bold', borderTop: '1px solid #000000', borderRight: '1px solid #000000' }, `${pfx}G3`)
     spreadsheet.cellFormat({ backgroundColor: 'white', fontSize: '11pt', fontWeight: 'normal' }, `${pfx}H3`)
@@ -1762,7 +1764,7 @@ const Spreadsheet = () => {
 
       // Initialize workbook early so we can read evaluated formula values
       let workbook = null
-      let calcSheetIndex = 0
+      let calcSheetIndex = 1
       try {
         workbook = spreadsheet.getWorkbook()
       } catch (e) {
@@ -11354,8 +11356,8 @@ const Spreadsheet = () => {
               'The Entire Length of each driven pile is charged including any cut off length',
               'Single mobilization & demobilization of drilling equipment included',
               'Surveying, stakeout, pile numbering plan & as-built plan included',
-              'One compression reactionary load tests included',
-              'One lateral reactionary load tests included',
+              'Single compression reactionary load tests included',
+              'Single lateral reactionary load tests included',
               'Engineering & Shop drawings included'
             ],
             additional: [
@@ -11377,7 +11379,7 @@ const Spreadsheet = () => {
               'Plates & locking nuts included',
               'Single mobilization & demobilization of drilling equipment included',
               'Surveying, stakeout, pile numbering plan & as-built plan included',
-              'One compression reactionary load test included',
+              'Single compression reactionary load test included',
               'Engineering & Shop drawings included'
             ],
             additional: [
@@ -11392,7 +11394,7 @@ const Spreadsheet = () => {
               'Plates & locking nuts included',
               'Single mobilization & demobilization of drilling equipment included',
               'Surveying, stakeout, pile numbering plan & as-built plan included',
-              'One compression reactionary load test included',
+              'Single compression reactionary load test included',
               'Engineering & Shop drawings included'
             ],
             additional: [
@@ -11960,7 +11962,6 @@ const Spreadsheet = () => {
       spreadsheet.cellFormat(
         {
           fontWeight: 'normal',
-          fontStyle: 'italic',
           color: '#000000',
           textAlign: 'center',
           backgroundColor: 'white',
@@ -12104,16 +12105,16 @@ const Spreadsheet = () => {
           height="100%"
         >
           <SheetsDirective>
+            <SheetDirective name="Proposal Sheet" rowCount={500}>
+              <ColumnsDirective>
+                <ColumnDirective width={150}></ColumnDirective>
+              </ColumnsDirective>
+            </SheetDirective>
             <SheetDirective name="Calculations Sheet" rowCount={1000}>
               <ColumnsDirective>
                 {columnConfigs.map((config, index) => (
                   <ColumnDirective key={index} width={config.width}></ColumnDirective>
                 ))}
-              </ColumnsDirective>
-            </SheetDirective>
-            <SheetDirective name="Proposal Sheet" rowCount={500}>
-              <ColumnsDirective>
-                <ColumnDirective width={150}></ColumnDirective>
               </ColumnsDirective>
             </SheetDirective>
           </SheetsDirective>

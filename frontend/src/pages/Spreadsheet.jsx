@@ -1494,7 +1494,7 @@ const Spreadsheet = () => {
 
   const applyProposalFirstRow = (spreadsheet) => {
     // Full Proposal template (match screenshot layout).
-    const proposalSheetIndex = 1
+    const proposalSheetIndex = 0
     const pfx = 'Proposal Sheet!'
 
     // Clear everything (values + formats) on Proposal sheet so it never retains other sheet data.
@@ -1603,7 +1603,9 @@ const Spreadsheet = () => {
     }
     // Reapply formatting without borders
     spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000' }, `${pfx}B4:E8`)
-    spreadsheet.cellFormat({ fontWeight: 'bold' }, `${pfx}B4:B5`)
+    spreadsheet.cellFormat({ fontWeight: 'bold' }, `${pfx}B4`)
+    // Tel/Fax/Cell line: bold, black, 18pt
+    spreadsheet.cellFormat({ fontWeight: 'bold', fontSize: '18pt', color: '#000000' }, `${pfx}B5`)
     spreadsheet.cellFormat({ color: '#0B76C3', textDecoration: 'underline' }, `${pfx}B6`)
 
     // Logo (image) near center top-left; uses public path
@@ -1760,7 +1762,7 @@ const Spreadsheet = () => {
 
       // Initialize workbook early so we can read evaluated formula values
       let workbook = null
-      let calcSheetIndex = 0
+      let calcSheetIndex = 1
       try {
         workbook = spreadsheet.getWorkbook()
       } catch (e) {
@@ -12101,16 +12103,16 @@ const Spreadsheet = () => {
           height="100%"
         >
           <SheetsDirective>
+            <SheetDirective name="Proposal Sheet" rowCount={500}>
+              <ColumnsDirective>
+                <ColumnDirective width={150}></ColumnDirective>
+              </ColumnsDirective>
+            </SheetDirective>
             <SheetDirective name="Calculations Sheet" rowCount={1000}>
               <ColumnsDirective>
                 {columnConfigs.map((config, index) => (
                   <ColumnDirective key={index} width={config.width}></ColumnDirective>
                 ))}
-              </ColumnsDirective>
-            </SheetDirective>
-            <SheetDirective name="Proposal Sheet" rowCount={500}>
-              <ColumnsDirective>
-                <ColumnDirective width={150}></ColumnDirective>
               </ColumnsDirective>
             </SheetDirective>
           </SheetsDirective>

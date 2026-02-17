@@ -677,8 +677,10 @@ export const processTimberStringerItems = (rawDataRows, headers, tracker = null)
  */
 export const processDrilledHoleGroutItems = (rawDataRows, headers, tracker = null) => {
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
-    const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
-    const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+    let totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
+    if (totalIdx === -1) totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'takeoff')
+    let unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+    if (unitIdx === -1) unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'unit')
 
     if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
 
@@ -1616,7 +1618,8 @@ export const generateSoeFormulas = (itemType, rowNum, itemData) => {
         takeoff: null
     }
 
-    const type = itemData.parsed?.type || itemType
+    // Use parsed.type for formula logic (e.g. drilled_hole_grout_item -> parsed.type is drilled_hole_grout)
+    const type = itemData.parsed?.type || (itemType === 'drilled_hole_grout_item' ? 'drilled_hole_grout' : itemType)
 
     switch (type) {
         case 'hp':

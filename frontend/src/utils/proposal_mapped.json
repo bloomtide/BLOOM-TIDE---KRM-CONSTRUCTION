@@ -562,6 +562,42 @@
   "values": { "SF": 15 }
 },
 {
+  "description": "drilled hole grout ",
+  "values": { "LF": 60 }
+},
+{
+  "description": "timber sheeting",
+  "values": { "SF": 20 }
+},
+{
+  "description": "vertical timber sheets",
+  "values": { "SF": 20 }
+},
+{
+  "description": "horizontal timber sheets",
+  "values": { "SF": 20 }
+},
+{
+  "description": "timber stringer",
+  "values": { "SF": 20 }
+},
+{
+  "description": "timber walers",
+  "values": { "LF": 85 }
+},
+{
+  "description": "timber rakers",
+  "values": { "LF": 80 }
+},
+{
+"description": "timber horizontal braces",
+  "values": { "LF": 80 }
+},
+{
+  "description": "timber corner brace",
+  "values": { "LF": 85 }
+},
+{
   "description": "LW concrete fill",
   "values": { "SF": 20 }
 },{
