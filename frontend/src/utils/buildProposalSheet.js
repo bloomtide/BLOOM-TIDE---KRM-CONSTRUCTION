@@ -11185,11 +11185,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
         return []
       }
-      // Extract height (col H = 7), thickness, width, dimensions (from Particulars col 1) from group rows for dynamic proposal text
+      // Extract qty (col M = 12), height (col H = 7), thickness, width, dimensions (from Particulars col 1) from group rows for dynamic proposal text
       const getDynamicValuesFromGroupRows = (source, sub, isFormulaItem) => {
         const rows = getGroupDataRows(source, sub, isFormulaItem)
         const heightValues = rows.map(r => parseFloat(r[7])).filter(v => !Number.isNaN(v) && v > 0)
         const heightText = formatHeightAsFeetInches(heightValues)
+        let qty = 0
+        for (const r of rows) {
+          qty += Math.round(parseFloat(r[12]) || 0) || Math.round(parseFloat(r[2]) || 0) // M then C (takeoff)
+        }
+        const qtyText = qty > 0 ? String(qty) : '##'
         let thicknessText = ''
         let widthText = ''
         let dimensionsText = ''
@@ -11203,6 +11208,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               if (!/"/.test(thicknessText)) thicknessText += '"'
             } else if (inchOnly) {
               thicknessText = inchOnly[1] + (inchOnly[1].includes('"') ? '' : '"')
+            } else {
+              const hMatch = p.match(/H\s*=\s*(\d+'\s*-\s*\d+"?)/i)
+              if (hMatch && (p.toLowerCase().includes('mat') || p.toLowerCase().includes('slab'))) {
+                thicknessText = hMatch[1].trim()
+                if (!/"/.test(thicknessText)) thicknessText += '"'
+              }
             }
           }
           if (!widthText) {
@@ -11224,13 +11235,17 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             if (dim3) dimensionsText = dim3[1].replace(/\s/g, '').trim()
           }
         }
-        return { heightText: heightText || '##', thicknessText, widthText, dimensionsText }
+        return { qtyText, heightText: heightText || '##', thicknessText, widthText, dimensionsText }
       }
-      // Replace (H=...), (Havg=...), thickness, width, dimensions in template with values from group data (template wording unchanged)
+      // Replace (X)no./no, (H=...), (Havg=...), thickness, width, dimensions in template with values from group data (template wording unchanged)
       const applyDynamicValuesToTemplate = (text, vals) => {
         if (!text || typeof text !== 'string') return text
         if (!vals) return text
         let out = text
+        if (vals.qtyText && vals.qtyText !== '##') {
+          out = out.replace(/\s*\(\d+\)\s*no\./gi, ` (${vals.qtyText})no.`)
+          out = out.replace(/\s*\(\d+\)\s*no\s/gi, ` (${vals.qtyText})no `)
+        }
         if (vals.heightText) {
           out = out.replace(/\s*\(H(avg)?\s*=\s*[^)]*\)/gi, (full, avg) => {
             const withTyp = /,\s*typ\.?\s*\)$/.test(full)
@@ -11263,11 +11278,32 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         },
         {
           heading: 'Elevator pit', items: [
-            { text: `F&I new (2)no. (1'-0" thick) sump pit (2'-0"x2'-0"x2'-0") reinf w/ #4@12"O.C., T&B/E.F., E.W. typ`, sub: 'Elevator Pit', match: p => p.includes('sump'), formulaItem: { itemType: 'elevator_pit', match: p => (p || '').toLowerCase().includes('sump') } },
-            { text: `F&I new (3'-0" thick) elevator pit slab, reinf w/#5@12"O.C. & #5@12"O.C., as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => p.includes('elev') && p.includes('slab') && !p.includes('sump') },
-            { text: `F&I new (1'-0" thick) elevator pit walls (H=5'-0") as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => p.includes('elev') && p.includes('wall') && (p.includes("1'-0") || p.includes('1-0"')) },
-            { text: `F&I new (1'-2" thick) elevator pit walls (H=5'-0") as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => p.includes('elev') && p.includes('wall') && (p.includes("1'-2") || p.includes('1-2"') || p.includes('1.17')) },
-            { text: `F&I new (1'-2" thick) elevator pit slope transition/haunch (H=2'-3") as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => p.includes('slope') || p.includes('haunch') }
+            { text: `F&I new (2)no. (1'-0" thick) sump pit (2'-0"x2'-0"x2'-0") reinf w/ #4@12"O.C., T&B/E.F., E.W. typ`, sub: 'Elevator Pit', match: p => (p || '').toLowerCase().includes('sump pit') && !(p || '').toLowerCase().includes('service elevator'), formulaItem: { itemType: 'elevator_pit', match: p => (p || '').toLowerCase().includes('sump') } },
+            { text: `F&I new (3'-0" thick) elevator pit slab, reinf w/#5@12"O.C. & #5@12"O.C., as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => (p || '').toLowerCase().includes('elev') && (p || '').toLowerCase().includes('pit slab') && !(p || '').toLowerCase().includes('service') },
+            { text: `F&I new (3'-0" thick) elevator pit mat, reinf w/#5@12"O.C. & #5@12"O.C., as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => (p || '').toLowerCase().includes('elev') && (p || '').toLowerCase().includes('pit mat') && !(p || '').toLowerCase().includes('service') },
+            { text: `F&I new (1'-0" thick) elevator pit walls (H=5'-0") as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => (p || '').toLowerCase().includes('elev') && (p || '').toLowerCase().includes('pit wall') && (p.includes("1'-0") || p.includes('1-0"')) && !(p || '').toLowerCase().includes('service') },
+            { text: `F&I new (1'-2" thick) elevator pit walls (H=5'-0") as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => (p || '').toLowerCase().includes('elev') && (p || '').toLowerCase().includes('pit wall') && (p.includes("1'-2") || p.includes('1-2"') || p.includes('1.17')) && !(p || '').toLowerCase().includes('service') },
+            { text: `F&I new (1'-2" thick) elevator pit slope transition/haunch (H=2'-3") as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => ((p || '').toLowerCase().includes('slope') || (p || '').toLowerCase().includes('haunch')) && !(p || '').toLowerCase().includes('service') }
+          ]
+        },
+        {
+          heading: 'Service elevator pit', items: [
+            {
+              text: `F&I new (2)no. (1'-0" thick) sump pit (2'-0"x2'-0"x2'-0") reinf w/ #4@12"O.C., T&B/E.F., E.W. typ`,
+              sub: 'Service elevator pit',
+              match: p => (p || '').toLowerCase().includes('sump pit @ service elevator') || (p || '').toLowerCase().includes('sump pit @ service elevator pit'),
+              formulaItem: { itemType: 'service_elevator_pit', match: p => (p || '').toLowerCase().includes('sump') }
+            },
+            {
+              text: `F&I new (3'-0" thick) service elevator pit slab, reinf w/#5@12"O.C. & #5@12"O.C., as per FO-101.00 & details on FO-203.00`,
+              sub: 'Service elevator pit',
+              match: p => (p || '').toLowerCase().includes('service elev. pit slab') || (p || '').toLowerCase().includes('service elevator pit slab')
+            },
+            {
+              text: `F&I new (1'-0" thick) service elevator pit walls (H=5'-0") as per FO-101.00 & details on FO-203.00`,
+              sub: 'Service elevator pit',
+              match: p => (p || '').toLowerCase().includes('service elev. pit wall') || (p || '').toLowerCase().includes('service elevator pit wall')
+            }
           ]
         },
         {
