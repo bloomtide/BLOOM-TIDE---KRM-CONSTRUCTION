@@ -122,6 +122,7 @@ export const capstoneTemplate = {
         { name: 'Barrier wall', items: [] },
         { name: 'Stem wall', items: [] },
         { name: 'Elevator Pit', items: [] },
+        { name: 'Service elevator pit', items: [] },
         { name: 'Detention tank', items: [] },
         { name: 'Duplex sewage ejector pit', items: [] },
         { name: 'Deep sewage ejector pit', items: [] },

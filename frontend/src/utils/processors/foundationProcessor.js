@@ -22,6 +22,7 @@ import {
     isBarrierWall,
     isStemWall,
     isElevatorPit,
+    isServiceElevatorPit,
     isDetentionTank,
     isDuplexSewageEjectorPit,
     isDeepSewageEjectorPit,
@@ -52,6 +53,7 @@ import {
     parseBarrierWall,
     parseStemWall,
     parseElevatorPit,
+    parseServiceElevatorPit,
     parseDetentionTank,
     parseDuplexSewageEjectorPit,
     parseDeepSewageEjectorPit,
@@ -70,14 +72,16 @@ import {
  */
 const processGenericFoundationItems = (rawDataRows, headers, identifierFn, parserFn, tracker = null) => {
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const particularsIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'particulars')
+    const itemNameIdx = digitizerIdx >= 0 ? digitizerIdx : particularsIdx
     const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
     const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
 
-    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
+    if (itemNameIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
 
     const items = []
     rawDataRows.forEach((row, rowIndex) => {
-        const digitizerItem = row[digitizerIdx]
+        const digitizerItem = row[itemNameIdx]
         const total = parseFloat(row[totalIdx]) || 0
         const unit = row[unitIdx]
 
@@ -557,6 +561,13 @@ export const processElevatorPitItems = (rawDataRows, headers, tracker = null) =>
 }
 
 /**
+ * Processes service elevator pit items
+ */
+export const processServiceElevatorPitItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isServiceElevatorPit, parseServiceElevatorPit, tracker)
+}
+
+/**
  * Processes detention tank items
  */
 export const processDetentionTankItems = (rawDataRows, headers, tracker = null) => {
@@ -916,14 +927,15 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
             break
 
         case 'elevator_pit':
+        case 'service_elevator_pit':
             const subType = itemData.parsed?.itemSubType
             if (subType === 'sump_pit') {
                 // Sump pit: J=16*C, L=C*1.3, M=C
                 formulas.sqFt = `16*C${rowNum}`
                 formulas.cy = `C${rowNum}*1.3`
                 formulas.qtyFinal = `C${rowNum}`
-            } else if (subType === 'slab') {
-                // Elev. pit slab: I empty, J=C, L=J*H/27
+            } else if (subType === 'slab' || subType === 'mat') {
+                // Elev. pit slab / Elev. pit mat: I empty, J=C, L=J*H/27
                 formulas.sqFt = `C${rowNum}` // J = C
                 if (itemData.parsed?.heightFromH !== undefined) {
                     formulas.height = itemData.parsed.heightFromH
