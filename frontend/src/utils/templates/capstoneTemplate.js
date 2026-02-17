@@ -24,8 +24,10 @@ export const capstoneTemplate = {
       section: 'Demolition',
       subsections: [
         { name: 'Demo slab on grade', items: [] },
+        { name: 'Demo Ramp on grade', items: [] },
         { name: 'Demo strip footing', items: [] },
         { name: 'Demo foundation wall', items: [] },
+        { name: 'Demo retaining wall', items: [] },
         { name: 'Demo isolated footing', items: [] }
       ]
     },
@@ -55,6 +57,7 @@ export const capstoneTemplate = {
         { name: 'Timber lagging', items: [] },
         { name: 'Backpacking', items: [] },
         { name: 'Timber sheeting', items: [] },
+        { name: 'Timber soldier piles', items: [] },
         { name: 'Waler', items: [] },
         { name: 'Raker', items: [] },
         { name: 'Upper Raker', items: [] },
@@ -88,6 +91,7 @@ export const capstoneTemplate = {
     {
       section: 'Foundation',
       subsections: [
+        { name: 'Piles', items: [] },
         { name: 'Drilled foundation pile', items: [] },
         { name: 'Helical foundation pile', items: [] },
         { name: 'Driven foundation pile', items: [] },

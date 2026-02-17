@@ -1,7 +1,10 @@
+import { mergeSingleItemGroupsIfAll } from '../groupingUtils.js'
 import {
     parseSoldierPile,
+    parseTimberSoldierPile,
     calculatePileWeight,
     isSoldierPile,
+    isTimberSoldierPile,
     isPrimarySecantPile,
     isSecondarySecantPile,
     isTangentPile,
@@ -140,7 +143,63 @@ export const processSoldierPileItems = (rawDataRows, headers, tracker = null) =>
         }
     })
 
-    return groups
+    return mergeSingleItemGroupsIfAll(groups)
+}
+
+/**
+ * Processes timber soldier pile items and groups them (same structure as drilled soldier piles)
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
+ */
+export const processTimberSoldierPileItems = (rawDataRows, headers, tracker = null) => {
+    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
+    const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+
+    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
+
+    const allItems = []
+    rawDataRows.forEach((row, rowIndex) => {
+        const digitizerItem = row[digitizerIdx]
+        const total = parseFloat(row[totalIdx]) || 0
+        const unit = row[unitIdx]
+
+        if (isTimberSoldierPile(digitizerItem)) {
+            const parsed = parseTimberSoldierPile(digitizerItem)
+
+            allItems.push({
+                particulars: digitizerItem,
+                takeoff: total,
+                unit: unit,
+                parsed: parsed,
+                weight: 0,
+                rawRowNumber: rowIndex + 2
+            })
+
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
+        }
+    })
+
+    const groupMap = new Map()
+    allItems.forEach(item => {
+        const groupKey = item.parsed.groupKey
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                type: 'timber',
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    let groups = Array.from(groupMap.values()).sort((a, b) => {
+        if (a.parsed.heightRaw !== b.parsed.heightRaw) return a.parsed.heightRaw - b.parsed.heightRaw
+        return (a.parsed.embedment || 0) - (b.parsed.embedment || 0)
+    })
+    return mergeSingleItemGroupsIfAll(groups)
 }
 
 /**
@@ -306,7 +365,45 @@ export const processPargingItems = (rawDataRows, headers, tracker = null) => pro
 export const processHeelBlockItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isHeelBlock, tracker)
 export const processUnderpinningItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isUnderpinning, tracker)
 export const processRockAnchorItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isRockAnchor, tracker)
-export const processRockBoltItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isRockBolt, tracker)
+export const processRockBoltItems = (rawDataRows, headers, tracker = null) => {
+    const items = processGenericSoeItems(rawDataRows, headers, isRockBolt, tracker)
+
+    // Group by groupKey (spacing value)
+    const groupMap = new Map()
+    items.forEach(item => {
+        const groupKey = item.parsed?.groupKey || 'OTHER'
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    let groups = Array.from(groupMap.values())
+
+    // Merge single-item groups if there are multiple
+    const singleItemGroups = groups.filter(g => g.items.length === 1)
+    const multiItemGroups = groups.filter(g => g.items.length > 1)
+
+    if (singleItemGroups.length > 1) {
+        const mergedItems = []
+        singleItemGroups.forEach(group => {
+            mergedItems.push(...group.items)
+        })
+
+        return [...multiItemGroups, {
+            groupKey: 'MERGED',
+            items: mergedItems,
+            parsed: mergedItems[0].parsed,
+            isMerged: true
+        }]
+    }
+
+    return groups.length > 0 ? groups : items
+}
 export const processAnchorItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isAnchor, tracker)
 export const processTieBackItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isTieBack, tracker)
 export const processConcreteSoilRetentionPierItems = (rawDataRows, headers, tracker = null) => {
@@ -526,13 +623,49 @@ export const processRockPinItems = (rawDataRows, headers, tracker = null) => {
 export const processShotcreteItems = (rawDataRows, headers, tracker = null) => {
     const items = processGenericSoeItems(rawDataRows, headers, isShotcrete, tracker)
 
+    // Group by groupKey (H value)
+    const groupMap = new Map()
+    items.forEach(item => {
+        const groupKey = item.parsed?.groupKey || 'OTHER'
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    let groups = Array.from(groupMap.values())
+
+    // Merge single-item groups if there are multiple
+    const singleItemGroups = groups.filter(g => g.items.length === 1)
+    const multiItemGroups = groups.filter(g => g.items.length > 1)
+
+    if (singleItemGroups.length > 1) {
+        const mergedItems = []
+        singleItemGroups.forEach(group => {
+            mergedItems.push(...group.items)
+        })
+
+        groups = [...multiItemGroups, {
+            groupKey: 'MERGED',
+            items: mergedItems,
+            parsed: mergedItems[0].parsed,
+            isMerged: true
+        }]
+    }
+
+    const allItems = groups.length > 0 ? groups.flatMap(g => g.items) : items
+
     // Generate proposal text template
-    if (items.length > 0) {
+    if (allItems.length > 0) {
 
         // Extract thickness and wire mesh
         let thickness = ''
         let wireMesh = ''
-        items.forEach(item => {
+        allItems.forEach(item => {
             const particulars = item.particulars || ''
             // Extract thickness: "6" thick"
             const thickMatch = particulars.match(/(\d+(?:\/\d+)?)"?\s*thick/i)
@@ -598,13 +731,49 @@ export const processShotcreteItems = (rawDataRows, headers, tracker = null) => {
 export const processPermissionGroutingItems = (rawDataRows, headers, tracker = null) => {
     const items = processGenericSoeItems(rawDataRows, headers, isPermissionGrouting, tracker)
 
+    // Group by groupKey (H value)
+    const groupMap = new Map()
+    items.forEach(item => {
+        const groupKey = item.parsed?.groupKey || 'OTHER'
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    let groups = Array.from(groupMap.values())
+
+    // Merge single-item groups if there are multiple
+    const singleItemGroups = groups.filter(g => g.items.length === 1)
+    const multiItemGroups = groups.filter(g => g.items.length > 1)
+
+    if (singleItemGroups.length > 1) {
+        const mergedItems = []
+        singleItemGroups.forEach(group => {
+            mergedItems.push(...group.items)
+        })
+
+        groups = [...multiItemGroups, {
+            groupKey: 'MERGED',
+            items: mergedItems,
+            parsed: mergedItems[0].parsed,
+            isMerged: true
+        }]
+    }
+
+    const allItems = groups.length > 0 ? groups.flatMap(g => g.items) : items
+
     // Generate proposal text template
-    if (items.length > 0) {
+    if (allItems.length > 0) {
 
         // Calculate average height
         let totalHeight = 0
         let heightCount = 0
-        items.forEach(item => {
+        allItems.forEach(item => {
             const height = item.parsed?.heightRaw || 0
             if (height > 0) {
                 totalHeight += height * (item.takeoff || 0)
@@ -748,8 +917,44 @@ export const processButtonItems = (rawDataRows, headers, tracker = null) => {
 export const processRockStabilizationItems = (rawDataRows, headers, tracker = null) => {
     const items = processGenericSoeItems(rawDataRows, headers, isRockStabilization, tracker)
 
+    // Group by groupKey (H value)
+    const groupMap = new Map()
+    items.forEach(item => {
+        const groupKey = item.parsed?.groupKey || 'OTHER'
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    let groups = Array.from(groupMap.values())
+
+    // Merge single-item groups if there are multiple
+    const singleItemGroups = groups.filter(g => g.items.length === 1)
+    const multiItemGroups = groups.filter(g => g.items.length > 1)
+
+    if (singleItemGroups.length > 1) {
+        const mergedItems = []
+        singleItemGroups.forEach(group => {
+            mergedItems.push(...group.items)
+        })
+
+        groups = [...multiItemGroups, {
+            groupKey: 'MERGED',
+            items: mergedItems,
+            parsed: mergedItems[0].parsed,
+            isMerged: true
+        }]
+    }
+
+    const allItems = groups.length > 0 ? groups.flatMap(g => g.items) : items
+
     // Generate proposal text template
-    if (items.length > 0) {
+    if (allItems.length > 0) {
 
         // Get SOE page references
         let soePageMain = 'SOE-100.00'
@@ -787,18 +992,54 @@ export const processRockStabilizationItems = (rawDataRows, headers, tracker = nu
 export const processFormBoardItems = (rawDataRows, headers, tracker = null) => {
     const items = processGenericSoeItems(rawDataRows, headers, isFormBoard, tracker)
 
+    // Group by groupKey (thickness at start)
+    const groupMap = new Map()
+    items.forEach(item => {
+        const groupKey = item.parsed?.groupKey || 'OTHER'
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    let groups = Array.from(groupMap.values())
+
+    // Merge single-item groups if there are multiple
+    const singleItemGroups = groups.filter(g => g.items.length === 1)
+    const multiItemGroups = groups.filter(g => g.items.length > 1)
+
+    if (singleItemGroups.length > 1) {
+        const mergedItems = []
+        singleItemGroups.forEach(group => {
+            mergedItems.push(...group.items)
+        })
+
+        groups = [...multiItemGroups, {
+            groupKey: 'MERGED',
+            items: mergedItems,
+            parsed: mergedItems[0].parsed,
+            isMerged: true
+        }]
+    }
+
+    const allItems = groups.length > 0 ? groups.flatMap(g => g.items) : items
+
     // Generate proposal text template
-    if (items.length > 0) {
+    if (allItems.length > 0) {
 
         // Calculate totals for proposal text
-        const totalQty = items.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0)
-        const totalTakeoff = items.reduce((sum, item) => sum + (item.takeoff || 0), 0)
+        const totalQty = allItems.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0)
+        const totalTakeoff = allItems.reduce((sum, item) => sum + (item.takeoff || 0), 0)
         const totalQtyValue = Math.round(totalQty || totalTakeoff || 0)
 
         // Extract thickness from items (e.g., "1" form board" -> "1"")
         let thickness = '1"' // Default thickness
-        if (items.length > 0) {
-            const firstItem = items[0]
+        if (allItems.length > 0) {
+            const firstItem = allItems[0]
             const particulars = (firstItem.particulars || '').trim()
             // Match pattern like "1" form board" or "1\" form board"
             const thicknessMatch = particulars.match(/(\d+(?:\/\d+)?)"?\s*form\s*board/i)
@@ -859,6 +1100,11 @@ export const generateSoeFormulas = (itemType, rowNum, itemData) => {
         case 'soldier_pile':
             formulas.ft = `H${rowNum}*C${rowNum}`
             formulas.lbs = `I${rowNum}*${(itemData.weight || 0).toFixed(3)}`
+            formulas.qtyFinal = `C${rowNum}`
+            break
+        case 'timber':
+            // Timber soldier piles: no column K (LBS)
+            formulas.ft = `H${rowNum}*C${rowNum}`
             formulas.qtyFinal = `C${rowNum}`
             break
 

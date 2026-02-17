@@ -1,4 +1,4 @@
-import { isExteriorSideItem, parseExteriorSideHeight, isExteriorSidePitItem, parseExteriorSidePitDimensions, isNegativeSideWallItem, isNegativeSideSlabItem } from '../parsers/waterproofingParser.js'
+import { isExteriorSideItem, parseExteriorSideHeight, isExteriorSidePitItem, parseExteriorSidePitDimensions, isNegativeSideWallItem, parseNegativeSideWallHeight, getExteriorSidePitRefKey, isNegativeSideSlabItem, extractWaterproofingGroupKey } from '../parsers/waterproofingParser.js'
 
 /**
  * Processes Waterproofing - Exterior side items from raw data
@@ -32,10 +32,13 @@ export const processExteriorSideItems = (rawDataRows, headers, tracker = null) =
     if (!isExteriorSideItem(particulars)) return
 
     const heightFromBracketPlus2 = parseExteriorSideHeight(particulars)
+    const groupKey = extractWaterproofingGroupKey(particulars)
+
     items.push({
       particulars: particulars || '',
       takeoff,
       unit,
+      groupKey,
       parsed: {
         heightFromBracketPlus2: heightFromBracketPlus2 != null ? heightFromBracketPlus2 : ''
       }
@@ -47,15 +50,41 @@ export const processExteriorSideItems = (rawDataRows, headers, tracker = null) =
     }
   })
 
-  return items
+  // Group items by their grouping key
+  const groupMap = new Map()
+  items.forEach(item => {
+    const key = item.groupKey || 'OTHER'
+    if (!groupMap.has(key)) {
+      groupMap.set(key, [])
+    }
+    groupMap.get(key).push(item)
+  })
+
+  let groups = Array.from(groupMap.values())
+
+  // Merge single-item groups if there are multiple
+  const singleItemGroups = groups.filter(g => g.length === 1)
+  const multiItemGroups = groups.filter(g => g.length > 1)
+
+  if (singleItemGroups.length > 1) {
+    const mergedItems = []
+    singleItemGroups.forEach(group => {
+      mergedItems.push(...group)
+    })
+    mergedItems.forEach(item => item.groupKey = 'MERGED')
+
+    return [...multiItemGroups.flat(), ...mergedItems]
+  }
+
+  return groups.flat()
 }
 
 /**
- * Processes Waterproofing - Exterior side pit/wall items (height = 2nd value from bracket + Foundation slab H).
+ * Processes Waterproofing - Exterior side pit/wall items (height = 2nd value from bracket + 2 FT).
  * @param {Array} rawDataRows - Rows from raw Excel (excluding header)
  * @param {Array} headers - Column headers
  * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
- * @returns {Array} - Items with { particulars, takeoff, unit, parsed: { secondValueFeet, firstValueFeet, heightRefKey } }
+ * @returns {Array} - Items with { particulars, takeoff, unit, parsed: { heightFromBracketPlus2, firstValueFeet, heightRefKey } }
  */
 export const processExteriorSidePitItems = (rawDataRows, headers, tracker = null) => {
   const items = []
@@ -79,13 +108,13 @@ export const processExteriorSidePitItems = (rawDataRows, headers, tracker = null
 
     if (!isExteriorSidePitItem(particulars)) return
 
-    const { secondValueFeet, firstValueFeet, heightRefKey } = parseExteriorSidePitDimensions(particulars)
+    const { heightFromBracketPlus2, firstValueFeet, heightRefKey } = parseExteriorSidePitDimensions(particulars)
     items.push({
       particulars: particulars || '',
       takeoff,
       unit,
       parsed: {
-        secondValueFeet,
+        heightFromBracketPlus2,
         firstValueFeet: firstValueFeet != null && firstValueFeet > 0 ? firstValueFeet : null,
         heightRefKey
       }
@@ -129,7 +158,8 @@ export const processNegativeSideWallItems = (rawDataRows, headers, tracker = nul
 
     if (!isNegativeSideWallItem(particulars)) return
 
-    const { secondValueFeet, heightRefKey } = parseExteriorSidePitDimensions(particulars)
+    const secondValueFeet = parseNegativeSideWallHeight(particulars)
+    const heightRefKey = getExteriorSidePitRefKey(particulars)
     items.push({
       particulars: particulars || '',
       takeoff,
@@ -175,10 +205,13 @@ export const processNegativeSideSlabItems = (rawDataRows, headers, tracker = nul
 
     if (!isNegativeSideSlabItem(particulars)) return
 
+    const groupKey = extractWaterproofingGroupKey(particulars)
+
     items.push({
       particulars: particulars || '',
       takeoff,
-      unit: unit || 'SQ FT'
+      unit: unit || 'SQ FT',
+      groupKey
     })
 
     // Mark this row as used
@@ -187,17 +220,43 @@ export const processNegativeSideSlabItems = (rawDataRows, headers, tracker = nul
     }
   })
 
-  return items
+  // Group items by their grouping key
+  const groupMap = new Map()
+  items.forEach(item => {
+    const key = item.groupKey || 'OTHER'
+    if (!groupMap.has(key)) {
+      groupMap.set(key, [])
+    }
+    groupMap.get(key).push(item)
+  })
+
+  let groups = Array.from(groupMap.values())
+
+  // Merge single-item groups if there are multiple
+  const singleItemGroups = groups.filter(g => g.length === 1)
+  const multiItemGroups = groups.filter(g => g.length > 1)
+
+  if (singleItemGroups.length > 1) {
+    const mergedItems = []
+    singleItemGroups.forEach(group => {
+      mergedItems.push(...group)
+    })
+    mergedItems.forEach(item => item.groupKey = 'MERGED')
+
+    return [...multiItemGroups.flat(), ...mergedItems]
+  }
+
+  return groups.flat()
 }
 
 /**
  * Formulas for Exterior side: I = C, J = H * I (SQ FT)
- * For pit items: height formula = secondValueFeet + H{foundationSlabRow}; no width (G).
+ * For pit items: height = secondValueFeet + 2; no width (G).
  * Column CY (L) only for Elev. pit wall and Detention tank wall: L = J*G/27 (G left empty).
  * @param {string} itemType - e.g. 'waterproofing_exterior_side', 'waterproofing_exterior_side_pit'
  * @param {number} rowNum - 1-based row number
  * @param {object} itemData - Item with parsed data
- * @param {object} [options] - { foundationSlabRow } for pit items
+ * @param {object} [options] - Not used anymore (kept for compatibility)
  * @returns {object} - { ft, sqFt, height, heightFormula, cy }
  */
 export const generateWaterproofingFormulas = (itemType, rowNum, itemData, options = {}) => {
@@ -217,11 +276,8 @@ export const generateWaterproofingFormulas = (itemType, rowNum, itemData, option
 
   if (itemType === 'waterproofing_exterior_side_pit') {
     formulas.ft = `C${rowNum}`
-    const slabRow = options.foundationSlabRow
-    const secondVal = itemData?.parsed?.secondValueFeet
-    if (slabRow != null && secondVal != null) {
-      formulas.heightFormula = `${secondVal}+H${slabRow}`
-    }
+    // Height is now static: 2nd bracket value + 2 feet
+    formulas.height = itemData?.parsed?.heightFromBracketPlus2
     formulas.sqFt = `H${rowNum}*I${rowNum}`
     const heightRefKey = itemData?.parsed?.heightRefKey
     if (heightRefKey === 'elevatorPit' || heightRefKey === 'detentionTank') {

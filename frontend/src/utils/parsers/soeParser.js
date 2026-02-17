@@ -113,6 +113,7 @@ export const calculatePileWeight = (parsed) => {
         // (Diameter - Thickness) * Thickness * 10.69
         return (parsed.diameter - parsed.thickness) * parsed.thickness * 10.69
     }
+    // Timber has no weight
     return 0
 }
 
@@ -122,10 +123,57 @@ export const isSoldierPile = (digitizerItem) => {
 
     // Exclude supporting angle items
     if (itemLower.includes('supporting angle')) return false
+    // Exclude timber soldier piles (handled in separate subsection)
+    if (itemLower.includes('timber soldier pile')) return false
 
     return (itemLower.includes('drilled soldier pile') || itemLower.includes('soldier pile')) &&
         !itemLower.includes('secant') &&
         !itemLower.includes('tangent')
+}
+
+/**
+ * Identifies if item is a timber soldier pile
+ * e.g. 4"x4" Timber soldier piles (H=11'-2", E=5'-0)
+ */
+export const isTimberSoldierPile = (digitizerItem) => {
+    if (!digitizerItem || typeof digitizerItem !== 'string') return false
+    const itemLower = digitizerItem.toLowerCase()
+    return itemLower.includes('timber soldier pile')
+}
+
+/**
+ * Parses timber soldier pile parameters
+ * e.g. 4"x4" Timber soldier piles (H=11'-2", E=5'-0)
+ * Same structure as drilled: H, E, calculatedHeight, groupKey
+ */
+export const parseTimberSoldierPile = (itemName) => {
+    const result = {
+        type: 'timber',
+        size: null,
+        heightRaw: 0,
+        embedment: null,
+        calculatedHeight: 0,
+        groupKey: null
+    }
+
+    const sizeMatch = itemName.match(/(\d+)"\s*x\s*(\d+)"/i)
+    if (sizeMatch) {
+        result.size = `${sizeMatch[1]}x${sizeMatch[2]}`
+    }
+
+    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
+    const eMatch = itemName.match(/E=([0-9'"\-]+)/)
+
+    if (hMatch) result.heightRaw = parseDimension(hMatch[1])
+    if (eMatch) result.embedment = parseDimension(eMatch[1])
+
+    result.calculatedHeight = result.heightRaw > 0 ? roundToMultipleOf5(result.heightRaw) : 0
+
+    const hValue = Math.round(result.heightRaw * 12)
+    const eValue = result.embedment ? Math.round(result.embedment * 12) : 0
+    result.groupKey = `timber-${result.size || 'other'}-${hValue}-${eValue}`
+
+    return result
 }
 
 /**
@@ -503,12 +551,20 @@ export const parseSoeItem = (itemName) => {
         result.type = 'shotcrete'
         // Shotcrete w/ wire mesh H=15'-0"
         const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
-        if (hMatch) result.heightRaw = parseDimension(hMatch[1])
+        if (hMatch) {
+            result.heightRaw = parseDimension(hMatch[1])
+            // Group by H value
+            result.groupKey = `H_${hMatch[1].trim()}`
+        }
     } else if (itemLower.includes('permission grouting')) {
         result.type = 'permission_grouting'
         // Permission grouting H=18'-0"
         const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
-        if (hMatch) result.heightRaw = parseDimension(hMatch[1])
+        if (hMatch) {
+            result.heightRaw = parseDimension(hMatch[1])
+            // Group by H value
+            result.groupKey = `H_${hMatch[1].trim()}`
+        }
     } else if (itemLower.includes('concrete button')) {
         result.type = 'button'
         // Concrete button (3'-0"x3'-0"x1'-0")
@@ -525,12 +581,35 @@ export const parseSoeItem = (itemName) => {
         result.type = 'rock_stabilization'
         // Rock stabilization (H=2'-4")
         const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
-        if (hMatch) result.heightRaw = parseDimension(hMatch[1])
+        if (hMatch) {
+            result.heightRaw = parseDimension(hMatch[1])
+            // Group by H value
+            result.groupKey = `H_${hMatch[1].trim()}`
+        }
     } else if (itemLower.includes('form board')) {
         result.type = 'form_board'
         // 1" form board (H=14'-2")
+        const thickMatch = itemName.match(/^(\d+["'])/)
         const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
+        if (thickMatch) {
+            // Group by thickness at start
+            result.thickness = thickMatch[1]
+            result.groupKey = `THICK_${thickMatch[1]}`
+        }
         if (hMatch) result.heightRaw = parseDimension(hMatch[1])
+    } else if (itemLower.includes('rock bolt')) {
+        result.type = 'rock_bolt'
+        // Rock bolt @ 7'-0" O.C. (Bond length=10'-0")
+        const spacingMatch = itemName.match(/@\s*([0-9'\-"]+)\s*o\.?c/i)
+        const bondLengthMatch = itemName.match(/Bond length=([0-9'"\-]+)/i)
+        if (spacingMatch) {
+            result.spacing = parseDimension(spacingMatch[1])
+            // Group by spacing value
+            result.groupKey = `SPACING_${spacingMatch[1].trim()}`
+        }
+        if (bondLengthMatch) {
+            result.bondLength = parseDimension(bondLengthMatch[1])
+        }
     }
 
     return result
@@ -538,8 +617,10 @@ export const parseSoeItem = (itemName) => {
 
 export default {
     parseSoldierPile,
+    parseTimberSoldierPile,
     calculatePileWeight,
     isSoldierPile,
+    isTimberSoldierPile,
     isPrimarySecantPile,
     isSecondarySecantPile,
     isTangentPile,
