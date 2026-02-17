@@ -3891,6 +3891,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       'Rock stabilization',
       'Shotcrete',
       'Permission grouting',
+      'Form board',
+      'Drilled hole grout',
       'Mud slab',
       'Misc.'
     ]
@@ -4241,6 +4243,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       collectedSubsections.add('Form board')
     }
 
+    // Check if drilled hole grout is in soeSubsectionItems
+    const drilledHoleGroutGroups = soeSubsectionItems.get('Drilled hole grout') || []
+    const hasDrilledHoleGroutItems = drilledHoleGroutGroups.length > 0 && drilledHoleGroutGroups.some(g => g.length > 0)
+
+    // If drilled hole grout items exist but not in collectedSubsections, add it
+    if (hasDrilledHoleGroutItems && !collectedSubsections.has('Drilled hole grout')) {
+      collectedSubsections.add('Drilled hole grout')
+    }
+
     // Also check calculationData directly for form board
     if (!hasFormBoardItems && calculationData && calculationData.length > 0) {
       let foundFormBoard = false
@@ -4373,6 +4384,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         collectedSubsections.delete('Concrete soil retention piers')
       } else if (name === 'Form board' && hasFormBoardItems) {
         // Special handling for Form board - show it if any items exist
+        subsectionsToDisplay.push(name)
+        collectedSubsections.delete(name)
+      } else if (name === 'Drilled hole grout' && hasDrilledHoleGroutItems) {
+        // Special handling for Drilled hole grout - show it if any items exist
         subsectionsToDisplay.push(name)
         collectedSubsections.delete(name)
       } else if ((name === 'Guide wall' || name === 'Guilde wall') && hasGuideWallItems) {
@@ -4587,6 +4602,29 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           subsectionsToDisplay.splice(concreteSoilRetentionPos + 1, 0, 'Form board')
         } else {
           subsectionsToDisplay.push('Form board')
+        }
+      }
+    }
+
+    // If drilled hole grout items exist but Drilled hole grout wasn't added yet, add it now (right after Form board)
+    if (hasDrilledHoleGroutItems && !subsectionsToDisplay.includes('Drilled hole grout')) {
+      const drilledHoleGroutIndex = subsectionOrder.indexOf('Drilled hole grout')
+      if (drilledHoleGroutIndex !== -1) {
+        let insertIndex = subsectionsToDisplay.length
+        for (let i = 0; i < subsectionsToDisplay.length; i++) {
+          const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+          if (currentIndex !== -1 && currentIndex > drilledHoleGroutIndex) {
+            insertIndex = i
+            break
+          }
+        }
+        subsectionsToDisplay.splice(insertIndex, 0, 'Drilled hole grout')
+      } else {
+        const formBoardPos = subsectionsToDisplay.indexOf('Form board')
+        if (formBoardPos !== -1) {
+          subsectionsToDisplay.splice(formBoardPos + 1, 0, 'Drilled hole grout')
+        } else {
+          subsectionsToDisplay.push('Drilled hole grout')
         }
       }
     }

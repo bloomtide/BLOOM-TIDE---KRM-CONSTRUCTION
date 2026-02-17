@@ -1,4 +1,4 @@
-import { mergeSingleItemGroupsIfAll } from '../groupingUtils.js'
+import { mergeSingleItemGroups } from '../groupingUtils.js'
 import {
     parseSoldierPile,
     parseTimberSoldierPile,
@@ -6,7 +6,10 @@ import {
     parseTimberRaker,
     parseTimberBrace,
     parseTimberWaler,
+    parseTimberStringer,
     parseTimberPost,
+    parseVerticalTimberSheets,
+    parseHorizontalTimberSheets,
     calculatePileWeight,
     isSoldierPile,
     isTimberSoldierPile,
@@ -14,7 +17,10 @@ import {
     isTimberRaker,
     isTimberBrace,
     isTimberWaler,
+    isTimberStringer,
     isTimberPost,
+    isVerticalTimberSheets,
+    isHorizontalTimberSheets,
     isPrimarySecantPile,
     isSecondarySecantPile,
     isTangentPile,
@@ -49,6 +55,8 @@ import {
     isButton,
     isRockStabilization,
     isFormBoard,
+    isDrilledHoleGrout,
+    parseDrilledHoleGrout,
     parseSoeItem
 } from '../parsers/soeParser'
 import { SHEET_PILE_WEIGHTS } from '../constants/sheetPileWeight'
@@ -153,7 +161,7 @@ export const processSoldierPileItems = (rawDataRows, headers, tracker = null) =>
         }
     })
 
-    return mergeSingleItemGroupsIfAll(groups)
+    return mergeSingleItemGroups(groups)
 }
 
 /**
@@ -209,7 +217,7 @@ export const processTimberSoldierPileItems = (rawDataRows, headers, tracker = nu
         if (a.parsed.heightRaw !== b.parsed.heightRaw) return a.parsed.heightRaw - b.parsed.heightRaw
         return (a.parsed.embedment || 0) - (b.parsed.embedment || 0)
     })
-    return mergeSingleItemGroupsIfAll(groups)
+    return mergeSingleItemGroups(groups)
 }
 
 /**
@@ -264,7 +272,7 @@ export const processTimberPlankItems = (rawDataRows, headers, tracker = null) =>
     let groups = Array.from(groupMap.values()).sort((a, b) => {
         return (a.parsed.heightRaw || 0) - (b.parsed.heightRaw || 0)
     })
-    return mergeSingleItemGroupsIfAll(groups)
+    return mergeSingleItemGroups(groups)
 }
 
 /**
@@ -319,7 +327,7 @@ export const processTimberRakerItems = (rawDataRows, headers, tracker = null) =>
     let groups = Array.from(groupMap.values()).sort((a, b) => {
         return (a.parsed.heightRaw || 0) - (b.parsed.heightRaw || 0)
     })
-    return mergeSingleItemGroupsIfAll(groups)
+    return mergeSingleItemGroups(groups)
 }
 
 /**
@@ -377,7 +385,7 @@ export const processTimberBraceItems = (rawDataRows, headers, tracker = null) =>
         if (aH !== bH) return aH - bH
         return (a.parsed.qty || 0) - (b.parsed.qty || 0)
     })
-    return mergeSingleItemGroupsIfAll(groups)
+    return mergeSingleItemGroups(groups)
 }
 
 /**
@@ -433,7 +441,121 @@ export const processTimberPostItems = (rawDataRows, headers, tracker = null) => 
         if (a.parsed.heightRaw !== b.parsed.heightRaw) return a.parsed.heightRaw - b.parsed.heightRaw
         return (a.parsed.embedment || 0) - (b.parsed.embedment || 0)
     })
-    return mergeSingleItemGroupsIfAll(groups)
+    return mergeSingleItemGroups(groups)
+}
+
+/**
+ * Processes vertical timber sheets items and groups them (same structure as timber post / drilled soldier pile)
+ * Formulas same as Timber sheeting: FT(I)=C, SQ FT(J)=I*H, no column K
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
+ */
+export const processVerticalTimberSheetsItems = (rawDataRows, headers, tracker = null) => {
+    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
+    const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+
+    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
+
+    const allItems = []
+    rawDataRows.forEach((row, rowIndex) => {
+        const digitizerItem = row[digitizerIdx]
+        const total = parseFloat(row[totalIdx]) || 0
+        const unit = row[unitIdx]
+
+        if (isVerticalTimberSheets(digitizerItem)) {
+            const parsed = parseVerticalTimberSheets(digitizerItem)
+
+            allItems.push({
+                particulars: digitizerItem,
+                takeoff: total,
+                unit: unit,
+                parsed: parsed,
+                weight: 0,
+                rawRowNumber: rowIndex + 2
+            })
+
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
+        }
+    })
+
+    const groupMap = new Map()
+    allItems.forEach(item => {
+        const groupKey = item.parsed.groupKey
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                type: 'vertical_timber_sheets',
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    let groups = Array.from(groupMap.values()).sort((a, b) => {
+        if (a.parsed.heightRaw !== b.parsed.heightRaw) return a.parsed.heightRaw - b.parsed.heightRaw
+        return (a.parsed.embedment || 0) - (b.parsed.embedment || 0)
+    })
+    return mergeSingleItemGroups(groups)
+}
+
+/**
+ * Processes horizontal timber sheets items and groups them (same structure as vertical timber sheets)
+ * Formulas same as Vertical timber sheets: FT(I)=C, SQ FT(J)=I*H, no column K
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
+ */
+export const processHorizontalTimberSheetsItems = (rawDataRows, headers, tracker = null) => {
+    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
+    const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+
+    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
+
+    const allItems = []
+    rawDataRows.forEach((row, rowIndex) => {
+        const digitizerItem = row[digitizerIdx]
+        const total = parseFloat(row[totalIdx]) || 0
+        const unit = row[unitIdx]
+
+        if (isHorizontalTimberSheets(digitizerItem)) {
+            const parsed = parseHorizontalTimberSheets(digitizerItem)
+
+            allItems.push({
+                particulars: digitizerItem,
+                takeoff: total,
+                unit: unit,
+                parsed: parsed,
+                weight: 0,
+                rawRowNumber: rowIndex + 2
+            })
+
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
+        }
+    })
+
+    const groupMap = new Map()
+    allItems.forEach(item => {
+        const groupKey = item.parsed.groupKey
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                type: 'horizontal_timber_sheets',
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    let groups = Array.from(groupMap.values()).sort((a, b) => {
+        if (a.parsed.heightRaw !== b.parsed.heightRaw) return a.parsed.heightRaw - b.parsed.heightRaw
+        return (a.parsed.embedment || 0) - (b.parsed.embedment || 0)
+    })
+    return mergeSingleItemGroups(groups)
 }
 
 /**
@@ -488,7 +610,120 @@ export const processTimberWalerItems = (rawDataRows, headers, tracker = null) =>
     let groups = Array.from(groupMap.values()).sort((a, b) => {
         return (a.parsed.qty || 0) - (b.parsed.qty || 0)
     })
-    return mergeSingleItemGroupsIfAll(groups)
+    return mergeSingleItemGroups(groups)
+}
+
+/**
+ * Processes timber stringer items and groups them by size
+ * E=qty from (N) or 1, I=C*E. Per-group: multiple items -> sum I, items black; single item -> no sum, item row red
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
+ */
+export const processTimberStringerItems = (rawDataRows, headers, tracker = null) => {
+    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
+    const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+
+    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
+
+    const allItems = []
+    rawDataRows.forEach((row, rowIndex) => {
+        const digitizerItem = row[digitizerIdx]
+        const total = parseFloat(row[totalIdx]) || 0
+        const unit = row[unitIdx]
+
+        if (isTimberStringer(digitizerItem)) {
+            const parsed = parseTimberStringer(digitizerItem)
+
+            allItems.push({
+                particulars: digitizerItem,
+                takeoff: total,
+                unit: unit,
+                parsed: parsed,
+                weight: 0,
+                rawRowNumber: rowIndex + 2
+            })
+
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
+        }
+    })
+
+    const groupMap = new Map()
+    allItems.forEach(item => {
+        const groupKey = item.parsed.groupKey
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                type: 'timber_stringer',
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    let groups = Array.from(groupMap.values()).sort((a, b) => {
+        return (a.parsed.qty || 0) - (b.parsed.qty || 0)
+    })
+    return mergeSingleItemGroups(groups)
+}
+
+/**
+ * Processes drilled hole grout items and groups them by H (height)
+ * F=G=SQRT((d/12)^2*3.14/4), H=height, I=C*H, J=G*F*C, L=J*H/27, M=C
+ * Per-group: multiple items -> sum row, items black; single item -> no sum, item row red
+ * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
+ */
+export const processDrilledHoleGroutItems = (rawDataRows, headers, tracker = null) => {
+    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
+    const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+
+    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
+
+    const allItems = []
+    rawDataRows.forEach((row, rowIndex) => {
+        const digitizerItem = row[digitizerIdx]
+        const total = parseFloat(row[totalIdx]) || 0
+        const unit = row[unitIdx]
+
+        if (isDrilledHoleGrout(digitizerItem)) {
+            const parsed = parseDrilledHoleGrout(digitizerItem)
+
+            allItems.push({
+                particulars: digitizerItem,
+                takeoff: total,
+                unit: unit,
+                parsed: parsed,
+                weight: 0,
+                rawRowNumber: rowIndex + 2
+            })
+
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
+        }
+    })
+
+    const groupMap = new Map()
+    allItems.forEach(item => {
+        const groupKey = item.parsed.groupKey
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                type: 'drilled_hole_grout',
+                items: [],
+                parsed: item.parsed
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    let groups = Array.from(groupMap.values()).sort((a, b) => {
+        return (a.parsed.heightRaw || 0) - (b.parsed.heightRaw || 0)
+    })
+    return mergeSingleItemGroups(groups)
 }
 
 /**
@@ -1430,6 +1665,23 @@ export const generateSoeFormulas = (itemType, rowNum, itemData) => {
             formulas.ft = `E${rowNum}*C${rowNum}`
             formulas.qtyFinal = `E${rowNum}*F${rowNum}`
             break
+        case 'timber_stringer':
+            // (2) 6"x6" Timber stringer: E=qty from (N) or 1, I=C*E
+            formulas.qty = itemData.parsed?.qty ?? 1
+            formulas.ft = `C${rowNum}*E${rowNum}`
+            break
+        case 'drilled_hole_grout':
+            // 5-5/8" Ø Drilled hole grout H=22'-6": F=G=SQRT((d/12)^2*3.14/4), H=height, I=C*H, J=G*F*C, L=J*H/27, M=C
+            const diam = itemData.parsed?.diameter || 5.625
+            const fgFormula = `SQRT((${diam}/12)^2*3.14/4)`
+            formulas.length = fgFormula
+            formulas.width = fgFormula
+            formulas.height = itemData.parsed?.heightRaw
+            formulas.ft = `C${rowNum}*H${rowNum}`
+            formulas.sqFt = `G${rowNum}*F${rowNum}*C${rowNum}`
+            formulas.cy = `J${rowNum}*H${rowNum}/27`
+            formulas.qtyFinal = `C${rowNum}`
+            break
         case 'timber_post':
             // Timber post: no column K (LBS), same as timber soldier piles
             formulas.ft = `H${rowNum}*C${rowNum}`
@@ -1459,7 +1711,9 @@ export const generateSoeFormulas = (itemType, rowNum, itemData) => {
         case 'timber_logging':
         case 'timber_lagging':
         case 'timber_sheeting':
-            // Timber lagging/sheeting: FT(I)=C, SQ FT(J)=I*H
+        case 'vertical_timber_sheets':
+        case 'horizontal_timber_sheets':
+            // Timber lagging/sheeting/vertical/horizontal timber sheets: FT(I)=C, SQ FT(J)=I*H
             formulas.ft = `C${rowNum}`
             formulas.sqFt = `I${rowNum}*H${rowNum}`
             break

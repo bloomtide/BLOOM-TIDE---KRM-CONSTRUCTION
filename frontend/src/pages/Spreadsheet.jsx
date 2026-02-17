@@ -685,7 +685,7 @@ const Spreadsheet = () => {
 
         formulas = generateRockExcavationFormulas(itemType === 'rock_excavation_item' ? parsedData.itemType : itemType, row, parsedData)
       } else if (section === 'soe') {
-        if (['soldier_pile_item', 'timber_brace_item', 'timber_waler_item', 'soe_generic_item', 'backpacking_item', 'supporting_angle', 'parging', 'heel_block', 'underpinning', 'shims', 'rock_anchor', 'rock_bolt', 'anchor', 'tie_back', 'concrete_soil_retention_pier', 'guide_wall', 'dowel_bar', 'rock_pin', 'shotcrete', 'permission_grouting', 'button', 'rock_stabilization', 'form_board'].includes(itemType)) {
+        if (['soldier_pile_item', 'timber_brace_item', 'timber_waler_item', 'timber_stringer_item', 'drilled_hole_grout_item', 'soe_generic_item', 'backpacking_item', 'supporting_angle', 'parging', 'heel_block', 'underpinning', 'shims', 'rock_anchor', 'rock_bolt', 'anchor', 'tie_back', 'concrete_soil_retention_pier', 'guide_wall', 'dowel_bar', 'rock_pin', 'shotcrete', 'permission_grouting', 'button', 'rock_stabilization', 'form_board'].includes(itemType)) {
           try {
             const soeFormulas = generateSoeFormulas(itemType, row, parsedData || formulaInfo)
             if (soeFormulas.takeoff) spreadsheet.updateCell({ formula: `=${soeFormulas.takeoff}` }, `C${row}`)
@@ -763,25 +763,36 @@ const Spreadsheet = () => {
               spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
             }
+            // Timber stringer - column I in red only when single item (no sum row)
+            if (itemType === 'timber_stringer_item' && !formulaInfo?.hasMultipleItems) {
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            }
+            // Drilled hole grout - columns I, J, L, M in red only when single item (no sum row)
+            if (itemType === 'drilled_hole_grout_item' && !formulaInfo?.hasMultipleItems) {
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            }
           } catch (error) {
             // Ignore errors
           }
           return
         }
 
-        if (itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum' || itemType === 'timber_plank_group_sum' || itemType === 'timber_raker_group_sum' || itemType === 'timber_brace_group_sum' || itemType === 'timber_waler_group_sum' || itemType === 'timber_post_group_sum' || itemType === 'soe_generic_sum') {
+        if (itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum' || itemType === 'timber_plank_group_sum' || itemType === 'timber_raker_group_sum' || itemType === 'timber_brace_group_sum' || itemType === 'timber_waler_group_sum' || itemType === 'timber_stringer_group_sum' || itemType === 'timber_post_group_sum' || itemType === 'vertical_timber_sheets_group_sum' || itemType === 'horizontal_timber_sheets_group_sum' || itemType === 'drilled_hole_grout_group_sum' || itemType === 'soe_generic_sum') {
           const { firstDataRow, lastDataRow, subsectionName } = formulaInfo
           try {
             // Standard sum for FT (I) for all SOE, except Heel blocks
             const ftSumSubsections = ['Rock anchors', 'Rock bolts', 'Anchor', 'Tie back', 'Dowel bar', 'Rock pins', 'Shotcrete', 'Permission grouting', 'Form board', 'Guide wall']
-            if ((itemType === 'timber_waler_group_sum' || itemType === 'timber_brace_group_sum') || (itemType !== 'timber_brace_group_sum' && subsectionName !== 'Heel blocks' && (ftSumSubsections.includes(subsectionName) || !['Concrete soil retention piers', 'Buttons', 'Rock stabilization'].includes(subsectionName)))) {
+            if ((itemType === 'timber_waler_group_sum' || itemType === 'timber_brace_group_sum' || itemType === 'timber_stringer_group_sum' || itemType === 'drilled_hole_grout_group_sum') || (itemType !== 'timber_brace_group_sum' && itemType !== 'timber_stringer_group_sum' && itemType !== 'drilled_hole_grout_group_sum' && subsectionName !== 'Heel blocks' && (ftSumSubsections.includes(subsectionName) || !['Concrete soil retention piers', 'Buttons', 'Rock stabilization'].includes(subsectionName)))) {
               spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
             }
 
             // Sum for SQ FT (J)
-            const sqFtSubsections = ['Sheet pile', 'Timber lagging', 'Timber sheeting', 'Parging', 'Heel blocks', 'Underpinning', 'Concrete soil retention piers', 'Guide wall', 'Shotcrete', 'Permission grouting', 'Buttons', 'Form board', 'Rock stabilization']
-            if (sqFtSubsections.includes(subsectionName)) {
+            const sqFtSubsections = ['Sheet pile', 'Timber lagging', 'Timber sheeting', 'Vertical timber sheets', 'Horizontal timber sheets', 'Parging', 'Heel blocks', 'Underpinning', 'Concrete soil retention piers', 'Guide wall', 'Shotcrete', 'Permission grouting', 'Buttons', 'Form board', 'Rock stabilization']
+            if (sqFtSubsections.includes(subsectionName) || itemType === 'drilled_hole_grout_group_sum') {
               spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
             }
@@ -838,14 +849,14 @@ const Spreadsheet = () => {
               'Rock pins',
               'Buttons'
             ]
-            if (itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum' || itemType === 'timber_plank_group_sum' || itemType === 'timber_raker_group_sum' || itemType === 'timber_waler_group_sum' || itemType === 'timber_brace_group_sum' || itemType === 'timber_post_group_sum' || qtySubsections.includes(subsectionName)) {
+            if ((itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum' || itemType === 'timber_plank_group_sum' || itemType === 'timber_raker_group_sum' || itemType === 'timber_waler_group_sum' || itemType === 'timber_brace_group_sum' || itemType === 'timber_post_group_sum' || itemType === 'drilled_hole_grout_group_sum') || qtySubsections.includes(subsectionName)) {
               spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
             }
 
             // Sum for CY (L)
             const cySubsections = ['Heel blocks', 'Underpinning', 'Concrete soil retention piers', 'Guide wall', 'Shotcrete', 'Buttons', 'Rock stabilization']
-            if (cySubsections.includes(subsectionName)) {
+            if (cySubsections.includes(subsectionName) || itemType === 'drilled_hole_grout_group_sum') {
               spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
               spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
             }
@@ -5565,6 +5576,9 @@ const Spreadsheet = () => {
         'Sheet piles',
         'Timber lagging',
         'Timber sheeting',
+        'Vertical timber sheets',
+        'Horizontal timber sheets',
+        'Timber stringer',
         'Bracing',
         'Tie back',
         'Tie back anchor',
@@ -5582,6 +5596,8 @@ const Spreadsheet = () => {
         'Rock stabilization',
         'Shotcrete',
         'Permission grouting',
+        'Form board',
+        'Drilled hole grout',
         'Mud slab',
         'Misc.'
       ]
@@ -5840,6 +5856,87 @@ const Spreadsheet = () => {
           collectedSubsections.add('Timber sheeting')
         }
       }
+
+      // Check if vertical timber sheets is in soeSubsectionItems
+      const verticalTimberSheetsGroups = soeSubsectionItems.get('Vertical timber sheets') || []
+      const hasVerticalTimberSheetsItems = verticalTimberSheetsGroups.length > 0 && verticalTimberSheetsGroups.some(g => g.length > 0)
+
+      // If vertical timber sheets items exist but Vertical timber sheets is not in collectedSubsections, add it
+      if (hasVerticalTimberSheetsItems && !collectedSubsections.has('Vertical timber sheets')) {
+        collectedSubsections.add('Vertical timber sheets')
+      }
+
+      // Also check calculationData directly for vertical timber sheets
+      if (!hasVerticalTimberSheetsItems && calculationData && calculationData.length > 0) {
+        let foundVerticalTimberSheets = false
+        for (const row of calculationData) {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('vertical timber sheets') && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
+              foundVerticalTimberSheets = true
+              break
+            }
+          }
+        }
+        if (foundVerticalTimberSheets && !collectedSubsections.has('Vertical timber sheets')) {
+          collectedSubsections.add('Vertical timber sheets')
+        }
+      }
+
+      // Check if horizontal timber sheets is in soeSubsectionItems
+      const horizontalTimberSheetsGroups = soeSubsectionItems.get('Horizontal timber sheets') || []
+      const hasHorizontalTimberSheetsItems = horizontalTimberSheetsGroups.length > 0 && horizontalTimberSheetsGroups.some(g => g.length > 0)
+
+      // If horizontal timber sheets items exist but Horizontal timber sheets is not in collectedSubsections, add it
+      if (hasHorizontalTimberSheetsItems && !collectedSubsections.has('Horizontal timber sheets')) {
+        collectedSubsections.add('Horizontal timber sheets')
+      }
+
+      // Also check calculationData directly for horizontal timber sheets
+      if (!hasHorizontalTimberSheetsItems && calculationData && calculationData.length > 0) {
+        let foundHorizontalTimberSheets = false
+        for (const row of calculationData) {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('horizontal timber sheets') && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
+              foundHorizontalTimberSheets = true
+              break
+            }
+          }
+        }
+        if (foundHorizontalTimberSheets && !collectedSubsections.has('Horizontal timber sheets')) {
+          collectedSubsections.add('Horizontal timber sheets')
+        }
+      }
+
+      // Check if timber stringer is in soeSubsectionItems
+      const timberStringerGroupsFromMap = soeSubsectionItems.get('Timber stringer') || []
+      const hasTimberStringerItems = timberStringerGroupsFromMap.length > 0 && timberStringerGroupsFromMap.some(g => g.length > 0)
+
+      // If timber stringer items exist but Timber stringer is not in collectedSubsections, add it
+      if (hasTimberStringerItems && !collectedSubsections.has('Timber stringer')) {
+        collectedSubsections.add('Timber stringer')
+      }
+
+      // Also check calculationData directly for timber stringer
+      if (!hasTimberStringerItems && calculationData && calculationData.length > 0) {
+        let foundTimberStringer = false
+        for (const row of calculationData) {
+          const colB = row[1]
+          if (colB && typeof colB === 'string') {
+            const bText = colB.trim().toLowerCase()
+            if (bText.includes('timber stringer') && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
+              foundTimberStringer = true
+              break
+            }
+          }
+        }
+        if (foundTimberStringer && !collectedSubsections.has('Timber stringer')) {
+          collectedSubsections.add('Timber stringer')
+        }
+      }
       
       // Check if heel blocks are in soeSubsectionItems
       const heelBlockGroups = soeSubsectionItems.get('Heel blocks') || []
@@ -5930,6 +6027,15 @@ const Spreadsheet = () => {
       // If form board items exist but not in collectedSubsections, add it
       if (hasFormBoardItems && !collectedSubsections.has('Form board')) {
         collectedSubsections.add('Form board')
+      }
+      
+      // Check if drilled hole grout is in soeSubsectionItems
+      const drilledHoleGroutGroups = soeSubsectionItems.get('Drilled hole grout') || []
+      const hasDrilledHoleGroutItems = drilledHoleGroutGroups.length > 0 && drilledHoleGroutGroups.some(g => g.length > 0)
+      
+      // If drilled hole grout items exist but not in collectedSubsections, add it
+      if (hasDrilledHoleGroutItems && !collectedSubsections.has('Drilled hole grout')) {
+        collectedSubsections.add('Drilled hole grout')
       }
       
       // Also check calculationData directly for form board
@@ -6066,6 +6172,10 @@ const Spreadsheet = () => {
           // Special handling for Form board - show it if any items exist
           subsectionsToDisplay.push(name)
           collectedSubsections.delete(name)
+        } else if (name === 'Drilled hole grout' && hasDrilledHoleGroutItems) {
+          // Special handling for Drilled hole grout - show it if any items exist
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
         } else if ((name === 'Guide wall' || name === 'Guilde wall') && hasGuideWallItems) {
           // Special handling for Guide wall - show it if any items exist
           subsectionsToDisplay.push(name)
@@ -6102,6 +6212,18 @@ const Spreadsheet = () => {
           collectedSubsections.delete(name)
         } else if (name === 'Timber sheeting' && hasTimberSheetingItems) {
           // Special handling for Timber sheeting - show it if any items exist
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
+        } else if (name === 'Vertical timber sheets' && hasVerticalTimberSheetsItems) {
+          // Special handling for Vertical timber sheets - show it if any items exist
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
+        } else if (name === 'Horizontal timber sheets' && hasHorizontalTimberSheetsItems) {
+          // Special handling for Horizontal timber sheets - show it if any items exist
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
+        } else if (name === 'Timber stringer' && hasTimberStringerItems) {
+          // Special handling for Timber stringer - show it if any items exist
           subsectionsToDisplay.push(name)
           collectedSubsections.delete(name)
         } else if (collectedSubsections.has(name)) {
@@ -6282,6 +6404,29 @@ const Spreadsheet = () => {
         }
       }
       
+      // If drilled hole grout items exist but Drilled hole grout wasn't added yet, add it now (right after Form board)
+      if (hasDrilledHoleGroutItems && !subsectionsToDisplay.includes('Drilled hole grout')) {
+        const drilledHoleGroutIndex = subsectionOrder.indexOf('Drilled hole grout')
+        if (drilledHoleGroutIndex !== -1) {
+          let insertIndex = subsectionsToDisplay.length
+          for (let i = 0; i < subsectionsToDisplay.length; i++) {
+            const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+            if (currentIndex !== -1 && currentIndex > drilledHoleGroutIndex) {
+              insertIndex = i
+              break
+            }
+          }
+          subsectionsToDisplay.splice(insertIndex, 0, 'Drilled hole grout')
+        } else {
+          const formBoardPos = subsectionsToDisplay.indexOf('Form board')
+          if (formBoardPos !== -1) {
+            subsectionsToDisplay.splice(formBoardPos + 1, 0, 'Drilled hole grout')
+          } else {
+            subsectionsToDisplay.push('Drilled hole grout')
+          }
+        }
+      }
+      
       // If rock stabilization items exist but Rock stabilization wasn't added yet, add it now
       if (hasRockStabilizationItems && !subsectionsToDisplay.includes('Rock stabilization')) {
         // Find the right position to insert Rock stabilization (after Rock pins, before Shotcrete)
@@ -6423,7 +6568,86 @@ const Spreadsheet = () => {
           }
         }
       }
-      
+
+      // If vertical timber sheets items exist but Vertical timber sheets wasn't added yet, add it now (right after Timber sheeting)
+      if (hasVerticalTimberSheetsItems && !subsectionsToDisplay.includes('Vertical timber sheets')) {
+        const verticalTimberSheetsIndex = subsectionOrder.indexOf('Vertical timber sheets')
+        if (verticalTimberSheetsIndex !== -1) {
+          let insertIndex = subsectionsToDisplay.length
+          for (let i = 0; i < subsectionsToDisplay.length; i++) {
+            const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+            if (currentIndex !== -1 && currentIndex > verticalTimberSheetsIndex) {
+              insertIndex = i
+              break
+            }
+          }
+          subsectionsToDisplay.splice(insertIndex, 0, 'Vertical timber sheets')
+        } else {
+          const timberSheetingPos = subsectionsToDisplay.indexOf('Timber sheeting')
+          if (timberSheetingPos !== -1) {
+            subsectionsToDisplay.splice(timberSheetingPos + 1, 0, 'Vertical timber sheets')
+          } else {
+            const timberLaggingPos = subsectionsToDisplay.indexOf('Timber lagging')
+            if (timberLaggingPos !== -1) {
+              subsectionsToDisplay.splice(timberLaggingPos + 1, 0, 'Vertical timber sheets')
+            } else {
+              subsectionsToDisplay.push('Vertical timber sheets')
+            }
+          }
+        }
+      }
+
+      // If horizontal timber sheets items exist but Horizontal timber sheets wasn't added yet, add it now (right after Vertical timber sheets)
+      if (hasHorizontalTimberSheetsItems && !subsectionsToDisplay.includes('Horizontal timber sheets')) {
+        const horizontalTimberSheetsIndex = subsectionOrder.indexOf('Horizontal timber sheets')
+        if (horizontalTimberSheetsIndex !== -1) {
+          let insertIndex = subsectionsToDisplay.length
+          for (let i = 0; i < subsectionsToDisplay.length; i++) {
+            const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+            if (currentIndex !== -1 && currentIndex > horizontalTimberSheetsIndex) {
+              insertIndex = i
+              break
+            }
+          }
+          subsectionsToDisplay.splice(insertIndex, 0, 'Horizontal timber sheets')
+        } else {
+          const verticalTimberSheetsPos = subsectionsToDisplay.indexOf('Vertical timber sheets')
+          if (verticalTimberSheetsPos !== -1) {
+            subsectionsToDisplay.splice(verticalTimberSheetsPos + 1, 0, 'Horizontal timber sheets')
+          } else {
+            const timberSheetingPos = subsectionsToDisplay.indexOf('Timber sheeting')
+            if (timberSheetingPos !== -1) {
+              subsectionsToDisplay.splice(timberSheetingPos + 1, 0, 'Horizontal timber sheets')
+            } else {
+              subsectionsToDisplay.push('Horizontal timber sheets')
+            }
+          }
+        }
+      }
+
+      // If timber stringer items exist but Timber stringer wasn't added yet, add it now (right after Horizontal timber sheets)
+      if (hasTimberStringerItems && !subsectionsToDisplay.includes('Timber stringer')) {
+        const timberStringerIndex = subsectionOrder.indexOf('Timber stringer')
+        if (timberStringerIndex !== -1) {
+          let insertIndex = subsectionsToDisplay.length
+          for (let i = 0; i < subsectionsToDisplay.length; i++) {
+            const currentIndex = subsectionOrder.indexOf(subsectionsToDisplay[i])
+            if (currentIndex !== -1 && currentIndex > timberStringerIndex) {
+              insertIndex = i
+              break
+            }
+          }
+          subsectionsToDisplay.splice(insertIndex, 0, 'Timber stringer')
+        } else {
+          const horizontalTimberSheetsPos = subsectionsToDisplay.indexOf('Horizontal timber sheets')
+          if (horizontalTimberSheetsPos !== -1) {
+            subsectionsToDisplay.splice(horizontalTimberSheetsPos + 1, 0, 'Timber stringer')
+          } else {
+            subsectionsToDisplay.push('Timber stringer')
+          }
+        }
+      }
+
       // Add any remaining subsections (but skip bracing items if Bracing header was added, and skip excluded ones)
       if (hasBracingItems && subsectionsToDisplay.includes('Bracing')) {
         // Remove bracing subsections from collectedSubsections so they don't appear twice

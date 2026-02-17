@@ -201,6 +201,24 @@ export const mergeSingleItemGroupsIfAll = (groups) => {
 }
 
 /**
+ * Groups items by key, then merges single-item groups into one.
+ * Multi-item groups (items that matched) stay as separate groups.
+ * Single-item groups (items that couldn't match) are merged via mergeSingleItemGroupsIfAll.
+ * @param {Array} groups - Array of groups with .items array
+ * @returns {Array} - Groups with single-item groups merged
+ */
+export const mergeSingleItemGroups = (groups) => {
+  if (!groups || groups.length === 0) return groups
+  const singleItemGroups = groups.filter(g => g.items && g.items.length === 1)
+  const multiItemGroups = groups.filter(g => g.items && g.items.length > 1)
+
+  if (singleItemGroups.length <= 1) return groups
+
+  const mergedSingles = mergeSingleItemGroupsIfAll(singleItemGroups)
+  return [...multiItemGroups, ...mergedSingles]
+}
+
+/**
  * Checks if items should be merged based on similar characteristics
  * Used for merging single-item groups with same parameters but different secondary values
  * @param {Array} groups - Array of groups
@@ -264,5 +282,6 @@ export default {
   extractGroupingKey,
   groupItemsByKey,
   mergeSingleItemGroupsIfAll,
+  mergeSingleItemGroups,
   mergeSimilarSingleItemGroups
 }
