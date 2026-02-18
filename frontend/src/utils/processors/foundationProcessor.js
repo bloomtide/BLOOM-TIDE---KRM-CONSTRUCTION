@@ -411,16 +411,18 @@ export const processThickenedSlabItems = (rawDataRows, headers, tracker = null) 
 }
 
 /**
- * Processes buttress items
+ * Processes buttress items - returns takeoff from Buttress raw data, or { takeoff: 0, unit: 'EA' } if not available (matches Columns subsection logic)
  */
 export const processButtressItems = (rawDataRows, headers, tracker = null) => {
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
     const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
     const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
 
-    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return null
+    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) {
+        return { particulars: 'Buttress', takeoff: 0, unit: 'EA' }
+    }
 
-    let buttressItem = null
+    let buttressItem = { particulars: 'Buttress', takeoff: 0, unit: 'EA' }
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
@@ -430,7 +432,7 @@ export const processButtressItems = (rawDataRows, headers, tracker = null) => {
             buttressItem = {
                 particulars: digitizerItem,
                 takeoff: total,
-                unit: unit,
+                unit: unit || 'EA',
                 rawRowNumber: rowIndex + 2
             }
             // Mark this row as used
@@ -939,12 +941,7 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
             break
 
         case 'buttress_takeoff':
-            // As per Takeoff count row:
-            // F=1, G=1, H=1 are set in generateCalculationSheet.
-            // I = H*C, J = C*H*G, L = J*F/27, M = C
-            formulas.ft = `H${rowNum}*C${rowNum}`                    // Column I
-            formulas.sqFt = `C${rowNum}*H${rowNum}*G${rowNum}`       // Column J
-            formulas.cy = `J${rowNum}*F${rowNum}/27`                 // Column L
+            // As per Takeoff count row: F, G, H, I, J, L empty; M = C
             formulas.qtyFinal = `C${rowNum}`                         // Column M
             break
 

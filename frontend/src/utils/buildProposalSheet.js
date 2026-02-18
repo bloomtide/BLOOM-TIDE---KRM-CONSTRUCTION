@@ -3163,18 +3163,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           )
         }
 
-        // Add LBS to column E - reference to calculation sheet sum row (column K)
-        if (sumRowIndex > 0) {
-          spreadsheet.updateCell({ formula: `='${calcSheetName}'!K${sumRowIndex}` }, `${pfx}E${currentRow}`)
-          spreadsheet.cellFormat(
-            {
-              fontWeight: 'bold',
-              textAlign: 'right',
-              backgroundColor: 'white'
-            },
-            `${pfx}E${currentRow}`
-          )
-        }
+        // Primary secant piles: column K is empty in calculation sheet, so no LBS in column E
 
         // Add QTY to column G - reference to calculation sheet sum row (column M)
         if (sumRowIndex > 0) {
@@ -3808,18 +3797,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           )
         }
 
-        // Add LBS to column E - reference to calculation sheet sum row (column K)
-        if (sumRowIndex > 0) {
-          spreadsheet.updateCell({ formula: `='${calcSheetName}'!K${sumRowIndex}` }, `${pfx}E${currentRow}`)
-          spreadsheet.cellFormat(
-            {
-              fontWeight: 'bold',
-              textAlign: 'right',
-              backgroundColor: 'white'
-            },
-            `${pfx}E${currentRow}`
-          )
-        }
+        // Tangent piles: column K is empty in calculation sheet, so no LBS in column E
 
         // Add QTY to column G - reference to calculation sheet sum row (column M)
         if (sumRowIndex > 0) {
@@ -12605,7 +12583,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     const excGradingCalcSheet = 'Calculations Sheet'
     const civilExcSum = (formulaData || []).find(f => f.itemType === 'civil_exc_sum' && f.section === 'civil_sitework')
     const civilGravelSum = (formulaData || []).find(f => f.itemType === 'civil_gravel_sum' && f.section === 'civil_sitework')
-    const gravelItems = { transformer_pad: [], reinforced_sidewalk: [], asphalt: [] }
+    const gravelItems = { transformer_pad: [], transformer_pad_8: [], reinforced_sidewalk: [], asphalt: [] }
     if (calculationData && calculationData.length > 0) {
       let inExcavation = false
       let inGravel = false
@@ -12631,7 +12609,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
           if (inGravel) {
             if (bText.includes('transformer') && bText.includes('pad')) {
-              gravelItems.transformer_pad.push({ rowNum })
+              if (bText.includes('8" thick')) {
+                gravelItems.transformer_pad_8.push({ rowNum })
+              } else {
+                gravelItems.transformer_pad.push({ rowNum })
+              }
             } else if (bText.includes('reinforced') && bText.includes('sidewalk')) {
               gravelItems.reinforced_sidewalk.push({ rowNum })
             } else if (bText.includes('full depth asphalt') || bText.includes('asphalt pavement')) {
@@ -12642,7 +12624,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       })
     }
 
-    const hasExcOrGravel = civilExcSum || civilGravelSum || gravelItems.transformer_pad.length > 0 || gravelItems.reinforced_sidewalk.length > 0 || gravelItems.asphalt.length > 0
+    const hasExcOrGravel = civilExcSum || civilGravelSum || gravelItems.transformer_pad.length > 0 || gravelItems.transformer_pad_8.length > 0 || gravelItems.reinforced_sidewalk.length > 0 || gravelItems.asphalt.length > 0
     if (hasExcOrGravel) {
       spreadsheet.updateCell({ value: 'Excavation, backfill & grading scope:' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat(
@@ -12669,7 +12651,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
       }
 
-      if (gravelItems.transformer_pad.length > 0 || gravelItems.reinforced_sidewalk.length > 0 || gravelItems.asphalt.length > 0) {
+      if (gravelItems.transformer_pad.length > 0 || gravelItems.transformer_pad_8.length > 0 || gravelItems.reinforced_sidewalk.length > 0 || gravelItems.asphalt.length > 0) {
         spreadsheet.updateCell({ value: 'Compacted gravel:' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
           { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#D0CECE', textDecoration: 'underline', border: '1px solid #000000' },
@@ -12682,6 +12664,19 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const sumFormulaJ = tpRows.length === 1 ? `='${excGradingCalcSheet}'!J${tpRows[0].rowNum}` : `=SUM(${tpRows.map(r => `'${excGradingCalcSheet}'!J${r.rowNum}`).join(',')})`
           const sumFormulaL = tpRows.length === 1 ? `='${excGradingCalcSheet}'!L${tpRows[0].rowNum}` : `=SUM(${tpRows.map(r => `'${excGradingCalcSheet}'!L${r.rowNum}`).join(',')})`
           spreadsheet.updateCell({ value: `F&I new (4" thick) gravel/crushed stone @ transformer concrete pad as per A-100.00` }, `${pfx}B${currentRow}`)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
+          spreadsheet.updateCell({ formula: sumFormulaJ }, `${pfx}D${currentRow}`)
+          spreadsheet.updateCell({ formula: sumFormulaL }, `${pfx}F${currentRow}`)
+          spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+          currentRow++
+        }
+
+        if (gravelItems.transformer_pad_8.length > 0) {
+          const tp8Rows = gravelItems.transformer_pad_8
+          const sumFormulaJ = tp8Rows.length === 1 ? `='${excGradingCalcSheet}'!J${tp8Rows[0].rowNum}` : `=SUM(${tp8Rows.map(r => `'${excGradingCalcSheet}'!J${r.rowNum}`).join(',')})`
+          const sumFormulaL = tp8Rows.length === 1 ? `='${excGradingCalcSheet}'!L${tp8Rows[0].rowNum}` : `=SUM(${tp8Rows.map(r => `'${excGradingCalcSheet}'!L${r.rowNum}`).join(',')})`
+          spreadsheet.updateCell({ value: `F&I new (8" thick) gravel/crushed stone @ transformer concrete pad as per A-100.00` }, `${pfx}B${currentRow}`)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: sumFormulaJ }, `${pfx}D${currentRow}`)

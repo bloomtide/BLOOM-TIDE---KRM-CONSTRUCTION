@@ -555,6 +555,7 @@ export const processCivilOtherItems = (rawDataRows, headers, tracker = null) => 
     },
     'Gravel': {
       'transformer_pad': [],
+      'transformer_pad_8': [],
       'reinforced_sidewalk': [],
       'asphalt': []
     },
@@ -707,23 +708,25 @@ export const processCivilOtherItems = (rawDataRows, headers, tracker = null) => 
           qty: qty
         }
       })
-      // Also add to Excavation and Gravel
+      const gravelItem = {
+        particulars: digitizerItem,
+        takeoff,
+        unit: unit || 'SQ FT',
+        parsed: { qty: qty }
+      }
+      // Also add to Excavation
       items['Excavation']['transformer_pad'].push({
         particulars: digitizerItem,
         takeoff,
         unit: unit || 'SQ FT',
-        parsed: {
-          qty: qty
-        }
+        parsed: { qty: qty }
       })
-      items['Gravel']['transformer_pad'].push({
-        particulars: digitizerItem,
-        takeoff,
-        unit: unit || 'SQ FT',
-        parsed: {
-          qty: qty
-        }
-      })
+      // Gravel: 8" thick items (e.g. "Proposed transformer concrete pad 8" thick (2 No.)") go to transformer_pad_8, others to transformer_pad
+      if (itemLower.includes('8" thick') || thickness === 8) {
+        items['Gravel']['transformer_pad_8'].push(gravelItem)
+      } else {
+        items['Gravel']['transformer_pad'].push(gravelItem)
+      }
       if (tracker) tracker.markUsed(rowIndex)
       return
     }
