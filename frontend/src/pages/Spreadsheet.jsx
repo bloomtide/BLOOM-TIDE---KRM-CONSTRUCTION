@@ -62,9 +62,10 @@ const Spreadsheet = () => {
       window.drivenFoundationPileItems = result.drivenFoundationPileItems || []
       window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileItems || []
       window.cfaPileItems = result.cfaPileItems || []
+      window.miscellaneousPileItems = result.miscellaneousPileItems || []
       // Store Foundation subsection items
       window.foundationSubsectionItems = new Map()
-      
+
       // Check which waterproofing items are present
       if (rawData && rawData.length > 1) {
         const headers = rawData[0]
@@ -171,6 +172,7 @@ const Spreadsheet = () => {
       window.drivenFoundationPileItems = result.drivenFoundationPileItems || []
       window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileItems || []
       window.cfaPileItems = result.cfaPileItems || []
+      window.miscellaneousPileItems = result.miscellaneousPileItems || []
       // Store Foundation subsection items
       window.foundationSubsectionItems = new Map()
     }

@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 import Modal from './Modal'
-import { FiDownload, FiSave, FiRefreshCw, FiTrash2 } from 'react-icons/fi'
+import { FiDownload, FiSave, FiTrash2 } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
 import { proposalAPI } from '../services/proposalService'
 
-const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData, proposalId, onSaveSuccess, onRebuildWithRawData }) => {
+const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData, proposalId, onSaveSuccess }) => {
     const [editableHeaders, setEditableHeaders] = useState([])
     const [editableRows, setEditableRows] = useState([])
     const [saving, setSaving] = useState(false)
@@ -28,7 +28,6 @@ const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData, proposalId, onSave
 
     const { fileName, sheetName } = rawExcelData
     const canSave = !!proposalId && !!onSaveSuccess
-    const canRebuild = !!onRebuildWithRawData
 
     const handleDownload = () => {
         const wb = XLSX.utils.book_new()
@@ -111,19 +110,6 @@ const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData, proposalId, onSave
         return s
     }
 
-    const getEditedRawExcelData = () => ({
-        fileName: fileName || 'raw_data.xlsx',
-        sheetName: sheetName || 'Sheet1',
-        headers: editableHeaders.map(h => (h != null && h !== '') ? String(h) : ''),
-        rows: editableRows.map(row => (row || []).map(cell => normalizeValue(cell))),
-    })
-
-    const handleRebuild = () => {
-        if (!onRebuildWithRawData) return
-        onRebuildWithRawData(getEditedRawExcelData())
-        onClose()
-    }
-
     const handleSave = async () => {
         if (!proposalId || !onSaveSuccess) return
         setSaving(true)
@@ -161,17 +147,6 @@ const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData, proposalId, onSave
             subtitle={`${fileName}${sheetName ? ` • ${sheetName}` : ''} • ${editableRows?.length || 0} rows • Editable`}
             headerActions={
                 <div className="flex items-center gap-2">
-                    {canRebuild && (
-                        <button
-                            type="button"
-                            onClick={handleRebuild}
-                            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-amber-600 rounded-md hover:bg-amber-700 transition-colors"
-                            title="Rebuild calculation sheet from this edited raw data (not from DB)"
-                        >
-                            <FiRefreshCw size={16} />
-                            <span className="hidden sm:inline">Rebuild calculation sheet</span>
-                        </button>
-                    )}
                     <button
                         type="button"
                         onClick={handleDownload}
@@ -304,29 +279,7 @@ const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData, proposalId, onSave
                 <p className="mt-3 text-sm text-red-600">{saveError}</p>
             )}
 
-            <div className="mt-6 flex justify-end gap-2 flex-wrap">
-                {canRebuild && (
-                    <button
-                        type="button"
-                        onClick={handleRebuild}
-                        className="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors flex items-center gap-2"
-                        title="Rebuild from the edited raw data above (not from DB)"
-                    >
-                        <FiRefreshCw size={16} />
-                        Rebuild calculation sheet
-                    </button>
-                )}
-                {canSave && (
-                    <button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
-                    >
-                        <FiSave size={16} />
-                        {saving ? 'Saving…' : 'Save to proposal'}
-                    </button>
-                )}
+            <div className="mt-6 flex justify-end">
                 <button
                     type="button"
                     onClick={onClose}

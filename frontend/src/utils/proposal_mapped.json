@@ -304,6 +304,10 @@
     "values": { "LS": 0 }
   },
   {
+    "description": "One mobilization & demobilization of drilling equipment included - Piles scope",
+    "values": { "LS": 10000 }
+  },
+  {
     "description": "compression reactionary load tests included",
     "values": { "QTY": 30000 }
   },
@@ -687,6 +691,10 @@
 {
   "description":"sump pump pit",
   "values": { "CY": 950 }
+},
+{
+  "description": "titan pile",
+  "values": { "LF": 150 }
 },
 {
   "description": "strap beams",

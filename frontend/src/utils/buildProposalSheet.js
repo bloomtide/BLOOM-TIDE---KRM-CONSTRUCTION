@@ -335,18 +335,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   spreadsheet.cellFormat({ fontWeight: 'bold', fontSize: '18pt', color: '#000000' }, `${pfx}B5`)
   spreadsheet.cellFormat({ color: '#0B76C3', textDecoration: 'underline' }, `${pfx}B6`)
 
-  // Logo (image) in B4 – deferred so the sheet is rendered first (fixes “sometimes appears, sometimes not”)
-    const imgSrc = encodeURI('/images/templateimage.png')
-  const logoSpec = [{ src: imgSrc, width: 528, height: 128, left: 760, top: 10 }]
-  setTimeout(() => {
-    try {
-      if (spreadsheet && typeof spreadsheet.insertImage === 'function') {
-        spreadsheet.insertImage(logoSpec, `${pfx}B4`)
-      }
-  } catch (e) {
-    // ignore
-  }
-  }, 250)
 
   // Date/Project/Client block
   const proposalDate = createdAt ? new Date(createdAt).toLocaleDateString() : "Today's date"
@@ -539,6 +527,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     const slabType = slabTypeMatch ? slabTypeMatch[1].trim() : subsectionName.replace(/^Demo\s+/i, '').trim()
     const dmReference = getDMReferenceFromRawData(subsectionName)
     const dmSuffix = ` as per ${dmReference} & details on`
+    const dmSuffixStripFooting = ` as per ${dmReference} & details on `
     const textToParse = (itemText ? String(itemText).trim() : '') || (fallbackText ? String(fallbackText).trim() : '')
     if (!textToParse) {
       if (slabType.toLowerCase().includes('slab on grade')) {
@@ -549,6 +538,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       }
       if (slabType.toLowerCase().includes('retaining wall')) {
         return `Allow to saw-cut/demo/remove/dispose existing (## wide) retaining wall (H=##) @ existing building${dmSuffix}`
+      }
+      if (slabType.toLowerCase().includes('foundation wall')) {
+        return `Allow to saw-cut/demo/remove/dispose existing (## wide) foundation wall (H=##) @ existing building${dmSuffix}`
+      }
+      if (slabType.toLowerCase().includes('strip footing')) {
+        return `Allow to saw-cut/demo/remove/dispose existing (## wide) strip footing (H=##) @ existing building${dmSuffixStripFooting}`
+      }
+      if (slabType.toLowerCase().includes('isolated footing')) {
+        return `Allow to saw-cut/demo/remove/dispose existing (##x## wide) isolated footing (H=##) @ existing building${dmSuffix}`
       }
       if (slabType.toLowerCase().includes('stair on grade') || slabType.toLowerCase().includes('stairs on grade')) {
         return `Allow to saw-cut/demo/remove/dispose existing (## wide) stairs on grade (## Riser) @ 1st FL${dmSuffix}`
@@ -572,6 +570,39 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         return `Allow to saw-cut/demo/remove/dispose existing (${width} wide) retaining wall (H=${height}) @ existing building${dmSuffix}`
       }
       return `Allow to saw-cut/demo/remove/dispose existing (## wide) retaining wall (H=##) @ existing building${dmSuffix}`
+    }
+    // Demo strip footing: calculation has "(2'-0"x1'-0")" -> proposal "(2'-0" wide) strip footing (H=1'-0") @ existing building as per DM-106.00 & details on DM-107.00"
+    if (slabType.toLowerCase().includes('strip footing')) {
+      const bracketMatch = text.match(/\(([^)]+)\)/)
+      if (bracketMatch) {
+        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
+        const width = parts[0] || '##'
+        const height = parts[1] || '##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${width} wide) strip footing (H=${height}) @ existing building${dmSuffixStripFooting}`
+      }
+      return `Allow to saw-cut/demo/remove/dispose existing (## wide) strip footing (H=##) @ existing building${dmSuffixStripFooting}`
+    }
+    // Demo foundation wall: (1'-0"x3'-0") -> "(1'-0" wide) foundation wall (H=3'-0")"
+    if (slabType.toLowerCase().includes('foundation wall')) {
+      const bracketMatch = text.match(/\(([^)]+)\)/)
+      if (bracketMatch) {
+        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
+        const width = parts[0] || '##'
+        const height = parts[1] || '##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${width} wide) foundation wall (H=${height}) @ existing building${dmSuffix}`
+      }
+      return `Allow to saw-cut/demo/remove/dispose existing (## wide) foundation wall (H=##) @ existing building${dmSuffix}`
+    }
+    // Demo isolated footing: (2'-0"x3'-0"x1'-6") -> "(2'-0"x3'-0" wide) isolated footing (H=1'-6")"
+    if (slabType.toLowerCase().includes('isolated footing')) {
+      const bracketMatch = text.match(/\(([^)]+)\)/)
+      if (bracketMatch) {
+        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
+        const widthPart = parts.length >= 2 ? `${parts[0]}x${parts[1]}` : (parts[0] || '##')
+        const height = parts.length >= 3 ? parts[2] : '##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${widthPart} wide) isolated footing (H=${height}) @ existing building${dmSuffix}`
+      }
+      return `Allow to saw-cut/demo/remove/dispose existing (##x## wide) isolated footing (H=##) @ existing building${dmSuffix}`
     }
     let thicknessPart = ''
     if (slabType.toLowerCase().includes('slab on grade') || slabType.toLowerCase().includes('ramp on grade')) {
@@ -1100,18 +1131,27 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
         }
 
-        // Track Foundation subsections
+        // Track Foundation subsections (use canonical name so Map keys match foundationSubsectionOrder)
         if (inFoundationSection) {
+          const foundationDisplayToCanonical = {
+            'Foundation drilled piles': 'Drilled foundation pile',
+            'Foundation driven piles': 'Driven foundation pile',
+            'Foundation helical piles': 'Helical foundation pile',
+            'Stelcor piles': 'Stelcor drilled displacement pile',
+            'CAF piles': 'CFA pile'
+          }
+          const displayName = currentSubsection.replace(/\s*scope\s*$/i, '').trim()
+          const canonicalName = foundationDisplayToCanonical[displayName] || currentSubsection
           // Save previous subsection items if any
-          if (currentFoundationSubsectionName && currentFoundationSubsectionName !== currentSubsection && currentFoundationSubsectionItems.length > 0) {
+          if (currentFoundationSubsectionName && currentFoundationSubsectionName !== canonicalName && currentFoundationSubsectionItems.length > 0) {
             if (!window.foundationSubsectionItems.has(currentFoundationSubsectionName)) {
               window.foundationSubsectionItems.set(currentFoundationSubsectionName, [])
             }
             window.foundationSubsectionItems.get(currentFoundationSubsectionName).push([...currentFoundationSubsectionItems])
             currentFoundationSubsectionItems = []
           }
-          // Start collecting for new subsection
-          currentFoundationSubsectionName = currentSubsection
+          // Start collecting for new subsection (store under canonical name)
+          currentFoundationSubsectionName = canonicalName
           currentFoundationSubsectionItems = []
         }
 
@@ -1707,7 +1747,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const firstRowWithB = subsectionRows.find(r => r[1] && String(r[1]).trim())
         const fallbackText = originalText ? null : (firstRowWithB ? String(firstRowWithB[1]).trim() : null)
         const templateText = buildDemolitionTemplate(name, originalText, fallbackText)
-        console.log('Proposal row:', currentRow, 'subsection:', name, 'templateText:', templateText)
         const cellRef = `${pfx}B${currentRow}`
 
         // Sum row in Calculations Sheet: either from detection (sumRowIndexBySubsection) or last data row + 1 (sum is next row)
@@ -8767,12 +8806,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             }
           }
 
-          // Timber lagging line: main reference only (e.g. SOE-101.00), no details page
+          // Timber lagging line: main reference + details on SOE-201.01 to SOE-204.00
           const timberLaggingMainRef = (soePageMain && !String(soePageMain).includes('301')) ? soePageMain : 'SOE-101.00'
-          // Format: F&I new 3"x10" timber lagging for the exposed depths (Havg=10'-6") as per SOE-101.00
-          proposalText = `F&I new ${dimensions || '##'} timber lagging for the exposed depths (Havg=${heightText || '##'}) as per ${timberLaggingMainRef} & details on`
+          // Format: F&I new 3"x10" timber lagging for the exposed depths (Havg=10'-6") as per SOE-101.00 & details on SOE-201.01 to SOE-204.00
+          proposalText = `F&I new ${dimensions || '##'} timber lagging for the exposed depths (Havg=${heightText || '##'}) as per ${timberLaggingMainRef} & details on `
 
-          // Store main ref for backpacking line (backpacking uses main + details on SOE-301.00)
+          // Store main ref for backpacking line when shown under Sheet pile (backpacking uses main + details on SOE-301.00)
           window.timberLaggingSoePage = timberLaggingMainRef
         } else if (subsectionName.toLowerCase() === 'timber sheeting') {
           // Extract dimensions from items (e.g., "3"x10"" from "Timber sheeting 3"x10"")
@@ -9059,7 +9098,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const qtyVal = Math.round(totalQty || totalTakeoff || 0)
           afterCountForB = `)no [${sizeStr || '##'}] timber soldier piles (Havg=${havgText}, ${embedmentText || '## embedment'}) as per ${soePageMain} & details on ${soePageDetails}`
           proposalText = `F&I new (${qtyVal})no [${sizeStr || '##'}] timber soldier piles (Havg=${havgText}, ${embedmentText || '## embedment'}) as per ${soePageMain} & details on ${soePageDetails}`
-          console.log('Template text (Timber soldier piles):', proposalText)
           if (sumRowIndex > 0) useFormulaForB = true
         } else if (subsectionName.toLowerCase() === 'timber planks') {
           // Template text: F&I new 3"x12" timber planks (H=3'-0") as per SOE-100.00 & details on SOE-002.00
@@ -9110,7 +9148,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             }
           }
           proposalText = `F&I new ${dimensions || '##'} timber planks (H=${heightText || '##'}) as per ${soePageMain} & details on ${soePageDetails}`
-          console.log('Template text (Timber planks):', proposalText)
         } else if (subsectionName.toLowerCase() === 'timber post') {
           // Template text: F&I new 6"x6" timber post (Havg=7'-10", 4'-0" to 5'-8" embedment) as per SOE-101.00 & details on SOE-201.00 to SOE-205.00
           // (size/Havg/embedment from group items, SOE refs from raw data; " to SOE-205.00" when page has range)
@@ -9176,7 +9213,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             }
           }
           proposalText = `F&I new ${sizeStr || '##'} timber post (Havg=${havgText}, ${embedmentText || '## embedment'}) as per ${soePageMain} & details on ${soePageDetails}${soePageRange}`
-          console.log('Template text (Timber post):', proposalText)
         } else if (subsectionName.toLowerCase() === 'drilled hole grout') {
           // Dynamic from Calculation sheet: e.g. "5-5/8" Ø Drilled hole grout H=22'-6", typ." -> F&I new (5-5/8" Ø) drilled hole grout @ tangent pile (H=22'-6", typ.)
           let diameterStr = '##'
@@ -9428,29 +9464,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
         // Row height already set above based on proposal text
 
-        // For Timber lagging, add second line for backpacking (after timber lagging row has C, D, E, H)
+        // For Timber lagging, add Backpacking line after it (under Sheet piles section order: Sheet pile → Timber lagging last → Backpacking after it)
         if (subsectionName.toLowerCase() === 'timber lagging') {
-          currentRow++
-          const timberLaggingSoePage = window.timberLaggingSoePage || 'SOE-101.00'
-          const mainSoeMatch = timberLaggingSoePage.match(/(SOE[-\d.]+)/i)
-          const mainSoePage = mainSoeMatch ? mainSoeMatch[1] : 'SOE-101.00'
-          // Backpacking has its own reference: main SOE + details on SOE-301.00 (different from timber lagging line)
-          const backpackingText = `F&I new backpacking @ timber lagging ${mainSoePage} & details on`
-          spreadsheet.updateCell({ value: backpackingText }, `${pfx}B${currentRow}`)
-            rowBContentMap.set(currentRow, backpackingText)
-          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          spreadsheet.cellFormat(
-            {
-              fontWeight: 'bold',
-              color: '#000000',
-              textAlign: 'left',
-              backgroundColor: 'white',
-              verticalAlign: 'top'
-            },
-            `${pfx}B${currentRow}`
-          )
-          fillRatesForProposalRow(currentRow, backpackingText)
-          // Backpacking SF from calculation sheet: find the row with "Backpacking" in column B and reference its J (SF). J is filled by formula at render time so we don't require a value in calculationData.
           let backpackingSumRowIndex = null
           if (calculationData && Array.isArray(calculationData)) {
             let fallbackRow = null
@@ -9468,6 +9483,25 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             if (backpackingSumRowIndex == null && fallbackRow != null) backpackingSumRowIndex = fallbackRow
           }
           if (backpackingSumRowIndex > 0) {
+            currentRow++
+            const timberLaggingSoePage = window.timberLaggingSoePage || 'SOE-101.00'
+            const mainSoeMatch = timberLaggingSoePage.match(/(SOE[-\d.]+)/i)
+            const mainSoePage = mainSoeMatch ? mainSoeMatch[1] : 'SOE-101.00'
+            const backpackingText = `F&I new backpacking @ timber lagging ${mainSoePage} & details on SOE-301.00`
+            spreadsheet.updateCell({ value: backpackingText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, backpackingText)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat(
+              {
+                fontWeight: 'bold',
+                color: '#000000',
+                textAlign: 'left',
+                backgroundColor: 'white',
+                verticalAlign: 'top'
+              },
+              `${pfx}B${currentRow}`
+            )
+            fillRatesForProposalRow(currentRow, backpackingText)
             spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${backpackingSumRowIndex}` }, `${pfx}D${currentRow}`)
             spreadsheet.cellFormat(
               {
@@ -9477,23 +9511,22 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               },
               `${pfx}D${currentRow}`
             )
-          }
-          // Add $/1000 formula for backpacking row
-          const backpackingDollarFormula = `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")`
-          spreadsheet.updateCell({ formula: backpackingDollarFormula }, `${pfx}H${currentRow}`)
-          spreadsheet.cellFormat(
-            {
-              fontWeight: 'bold',
-              color: '#000000',
-              textAlign: 'right',
-              backgroundColor: 'white',
+            const backpackingDollarFormula = `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")`
+            spreadsheet.updateCell({ formula: backpackingDollarFormula }, `${pfx}H${currentRow}`)
+            spreadsheet.cellFormat(
+              {
+                fontWeight: 'bold',
+                color: '#000000',
+                textAlign: 'right',
+                backgroundColor: 'white',
                 format: '$#,##0.00'
-            },
-            `${pfx}H${currentRow}`
-          )
-          try {
+              },
+              `${pfx}H${currentRow}`
+            )
+            try {
               spreadsheet.numberFormat('$#,##0.00', `${pfx}H${currentRow}:N${currentRow}`)
-          } catch (e) { /* ignore */ }
+            } catch (e) { /* ignore */ }
+          }
         }
 
         currentRow++ // Move to next row
@@ -10228,6 +10261,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     // Add Foundation subsection headers (similar to SOE subsections)
     const foundationSubsectionItems = window.foundationSubsectionItems || new Map()
     const foundationSubsectionOrder = [
+      'Piles',                    // From calculation sheet "Piles" subsection (miscellaneousPileItems)
       'Drilled foundation pile',  // Will display as "Foundation drilled piles scope:"
       'Driven foundation pile',   // Will display as "Foundation driven piles scope:"
       'Helical foundation pile',  // Will display as "Foundation helical piles scope:"
@@ -10238,42 +10272,68 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     // Get all unique foundation subsection names from collected items
     // Map new format names to old format for display
     const foundationSubsectionDisplayMap = {
+      'Piles': 'Piles',
       'Drilled foundation pile': 'Foundation drilled piles',
       'Driven foundation pile': 'Foundation driven piles',
       'Helical foundation pile': 'Foundation helical piles',
       'Stelcor drilled displacement pile': 'Stelcor piles',
       'CFA pile': 'CAF piles'
     }
+    // Map header text (e.g. "Foundation drilled piles scope") to canonical for matching
+    const foundationHeaderToCanonical = {
+      'Piles': 'Piles',
+      'Piles scope': 'Piles',
+      'Foundation drilled piles': 'Drilled foundation pile',
+      'Foundation drilled piles scope': 'Drilled foundation pile',
+      'Foundation driven piles': 'Driven foundation pile',
+      'Foundation driven piles scope': 'Driven foundation pile',
+      'Foundation helical piles': 'Helical foundation pile',
+      'Foundation helical piles scope': 'Helical foundation pile',
+      'Stelcor piles': 'Stelcor drilled displacement pile',
+      'Stelcor piles scope': 'Stelcor drilled displacement pile',
+      'CAF piles': 'CFA pile',
+      'CAF piles scope': 'CFA pile'
+    }
 
     const collectedFoundationSubsections = new Set()
     foundationSubsectionItems.forEach((groups, name) => {
       if (groups.length > 0) {
-        collectedFoundationSubsections.add(name)
+        const canonical = foundationHeaderToCanonical[name] || name
+        collectedFoundationSubsections.add(canonical)
       }
     })
 
     // Display foundation subsections in order (only up to CFA pile)
+    // Include subsection if we have collected items OR if we have processor groups (e.g. from calculation sheet)
+    const processorGroupsMapForDisplay = {
+      'Piles': window.miscellaneousPileItems || [],
+      'Drilled foundation pile': window.drilledFoundationPileGroups || [],
+      'Driven foundation pile': window.drivenFoundationPileItems || [],
+      'Helical foundation pile': window.helicalFoundationPileGroups || [],
+      'Stelcor drilled displacement pile': window.stelcorDrilledDisplacementPileItems || [],
+      'CFA pile': window.cfaPileItems || []
+    }
     const foundationSubsectionsToDisplay = []
     foundationSubsectionOrder.forEach(name => {
-      if (collectedFoundationSubsections.has(name)) {
+      const hasCollected = collectedFoundationSubsections.has(name)
+      const processorGroupsForName = processorGroupsMapForDisplay[name]
+      // Piles uses flat array of items (miscellaneousPileItems); others use groups with .items or .takeoff
+      const hasProcessorData = Array.isArray(processorGroupsForName) && processorGroupsForName.length > 0 && (
+        name === 'Piles'
+          ? true
+          : (processorGroupsForName[0].items?.length > 0 || processorGroupsForName[0].takeoff !== undefined)
+      )
+      if (hasCollected || hasProcessorData) {
         foundationSubsectionsToDisplay.push(name)
         collectedFoundationSubsections.delete(name)
       }
     })
     // Do not add any remaining subsections - only show up to CFA pile
 
-    foundationSubsectionsToDisplay.forEach((subsectionName) => {
-      // Map new format names to old format for display
-      let displayName = subsectionName
-      if (foundationSubsectionDisplayMap[subsectionName]) {
-        displayName = foundationSubsectionDisplayMap[subsectionName]
-      }
-
-      // Add subsection header with blue background and "scope:" suffix
-      const subsectionText = `${displayName} scope:`
-
-      spreadsheet.updateCell({ value: subsectionText }, `${pfx}B${currentRow}`)
-      rowBContentMap.set(currentRow, subsectionText)
+    // Add "Piles scope:" parent header above all pile subsections (Foundation drilled piles, etc.)
+    if (foundationSubsectionsToDisplay.length > 0) {
+      spreadsheet.updateCell({ value: 'Piles scope:' }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, 'Piles scope:')
       spreadsheet.cellFormat(
         {
           fontWeight: 'bold',
@@ -10284,10 +10344,33 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         },
         `${pfx}B${currentRow}`
       )
+      currentRow++
+    }
 
-      // Increase row height
+    foundationSubsectionsToDisplay.forEach((subsectionName) => {
+      // Map new format names to old format for display
+      let displayName = subsectionName
+      if (foundationSubsectionDisplayMap[subsectionName]) {
+        displayName = foundationSubsectionDisplayMap[subsectionName]
+      }
 
-      currentRow++ // Move to next row
+      // Add subsection header with blue background and "scope:" suffix (skip for "Piles" – parent row is already "Piles scope:")
+      if (subsectionName !== 'Piles') {
+        const subsectionText = `${displayName} scope:`
+        spreadsheet.updateCell({ value: subsectionText }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, subsectionText)
+        spreadsheet.cellFormat(
+          {
+            fontWeight: 'bold',
+            color: '#000000',
+            textAlign: 'center',
+            backgroundColor: '#BDD7EE',
+            border: '1px solid #000000'
+          },
+          `${pfx}B${currentRow}`
+        )
+        currentRow++
+      }
 
       // Track the start row for this subsection (for total calculation)
       // This is the first row where proposal text will be written
@@ -10300,8 +10383,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       let diameter = null
       let thickness = null
 
-      // Map subsection names to processor group arrays
+      // Map subsection names to processor group arrays (Piles: wrap miscellaneousPileItems as one group)
+      const miscPileItems = window.miscellaneousPileItems || []
       const processorGroupsMap = {
+        'Piles': miscPileItems.length > 0 ? [{ items: miscPileItems }] : [],
         'Drilled foundation pile': window.drilledFoundationPileGroups || [],
         'Foundation drilled piles': window.drilledFoundationPileGroups || [],
         'Driven foundation pile': window.drivenFoundationPileItems || [],
@@ -10495,17 +10580,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             currentRow++
           }
 
-          // Generate proposal text for this group
-          let proposalText = `F&I new (${groupQty})no drilled cassion pile`
-          proposalText += ` (# tons design compression, # tons design tension & # ton design lateral load)`
-          if (diameterThicknessText) {
-            proposalText += `, ${diameterThicknessText}`
+          // Generate proposal text for this group: use particulars (e.g. "52/26 Titan pile w/Ø115 mm (H=22'-4", E=12'-0")") when present
+          const pileDescriptionFromParticulars = (firstItem?.particulars || '').toString().trim()
+          const useParticularsAsDescription = pileDescriptionFromParticulars.length > 3 && (pileDescriptionFromParticulars.toLowerCase().includes('pile') || /[\d]+\/[\d]+/.test(pileDescriptionFromParticulars))
+          let proposalText
+          if (useParticularsAsDescription) {
+            proposalText = `F&I new (${groupQty})no ${pileDescriptionFromParticulars} as per ${foReference}, ${soeReference} & details on`
+          } else {
+            proposalText = `F&I new (${groupQty})no pile (## tons design compression, ## tons design tension & ## ton design lateral load), ${diameterThicknessText || '(## thick)'}, (##-KSI grout infilled) with (##)qty ###" ## Ksi full length reinforcement (H=${heightText}) as per ${foReference}, ${soeReference} & details on`
           }
-          proposalText += `, (#-KSI grout infilled)`
-          proposalText += ` with (#)qty #00-#" ## Ksi full length reinforcement`
-          proposalText += ` (H=${heightText}, ${rockSocketText} rock socket)`
-          proposalText += ` as per ${foReference}, ${soeReference} & details on`
-
           const afterCountDC = afterCountFromProposalText(proposalText)
           if (afterCountDC) {
             spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCountDC) }, `${pfx}B${currentRow}`)
@@ -10514,7 +10597,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
           rowBContentMap.set(currentRow, proposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          fillRatesForProposalRow(currentRow, proposalText)
+          // Use proposal_mapped "titan pile" (LF 150) for Titan pile lines – matches CONCATENATE formula in B
+          const pileRateKey = useParticularsAsDescription && /titan\s+pile/i.test(pileDescriptionFromParticulars) ? 'titan pile' : null
+          fillRatesForProposalRow(currentRow, proposalText, pileRateKey)
 
           // Apply color if group has Influ
           const cellFormat = {
@@ -10619,8 +10704,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         })
       } else if (qtySumValue > 0) {
         // For non-drilled piles, generate single proposal text (existing logic)
-        // Get height and other details from groups if available
-        const groups = foundationSubsectionItems.get(subsectionName) || []
+        // Get height and other details from groups if available (try canonical key then display header key)
+        const displayKey = (foundationSubsectionDisplayMap[subsectionName] || subsectionName) + ' scope'
+        const groups = foundationSubsectionItems.get(subsectionName) || foundationSubsectionItems.get(displayKey) || []
         let avgHeight = 0
         let heightCount = 0
         let lastRowNumber = 0
@@ -10811,31 +10897,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           diameterThicknessText = `(${formattedDiam}" ØX${thickness}" thick)`
         }
 
-        // Generate proposal text
-        // Format: F&I new (8)no drilled cassion pile (140 tons design compression, 70 tons design tension & 1 ton design lateral load), (9-5/8" ØX0.545" thick), (6-KSI grout infilled) with (1)qty #24" 80 Ksi full length reinforcement (H=40'-0", 7'-0" rock socket) as per FO-101.00, SOE-101.00
-        let pileTypeText = pileType === 'drilled' ? 'drilled cassion pile' : `${pileType} mini-piles`
-        let proposalText = `F&I new (${qtySumValue})no ${pileTypeText}`
-
-        // Add capacity (keep as placeholders # with "design" prefix)
-        proposalText += ` (# tons design compression, # tons design tension & # ton design lateral load)`
-
-        // Add steel casing if diameter and thickness available
-        if (diameterThicknessText) {
-          proposalText += `, ${diameterThicknessText}`
+        // Generate proposal text: use first group's particulars (e.g. "52/26 Titan pile w/Ø115 mm (H=22'-4", E=12'-0")") when present
+        const firstGroupFirstItem = processorGroups[0]?.items?.[0]
+        const pileDescFromParticulars = (firstGroupFirstItem?.particulars || '').toString().trim()
+        const useParticularsAsDesc = pileDescFromParticulars.length > 3 && (pileDescFromParticulars.toLowerCase().includes('pile') || /[\d]+\/[\d]+/.test(pileDescFromParticulars))
+        let proposalText
+        if (useParticularsAsDesc) {
+          proposalText = `F&I new (${qtySumValue})no ${pileDescFromParticulars} as per ${foReference}, ${soeReference} & details on`
+        } else {
+          proposalText = `F&I new (${qtySumValue})no pile (## tons design compression, ## tons design tension & ## ton design lateral load), ${diameterThicknessText || '(## thick)'}, (##-KSI grout infilled) with (##)qty ###" ## Ksi full length reinforcement (H=${heightText}) as per ${foReference}, ${soeReference} & details on`
         }
-
-        // Add grout (keep 6 as #)
-        proposalText += `, (#-KSI grout infilled)`
-
-        // Add reinforcement (placeholder)
-        proposalText += ` with (#)qty #00-#" ## Ksi full length reinforcement`
-
-        // Add height and rock socket (comma separated, not +)
-        proposalText += ` (H=${heightText}, ${rockSocketText} rock socket)`
-
-        // Add reference codes
-        proposalText += ` as per ${foReference}, ${soeReference} & details on`
-
         const afterCountFP = afterCountFromProposalText(proposalText)
         if (afterCountFP) {
           spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCountFP) }, `${pfx}B${currentRow}`)
@@ -10855,7 +10926,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           },
           `${pfx}B${currentRow}`
         )
-        fillRatesForProposalRow(currentRow, proposalText)
+        // Use proposal_mapped "titan pile" (LF 150) for Titan pile lines – matches CONCATENATE formula in B
+        const pileRateKey = useParticularsAsDesc && /titan\s+pile/i.test(pileDescFromParticulars) ? 'titan pile' : null
+        fillRatesForProposalRow(currentRow, proposalText, pileRateKey)
 
         // Calculate and set row height based on content
         const foundationPileDynamicHeight = calculateRowHeight(proposalText)
@@ -10920,25 +10993,27 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       const pileDataEndRow = currentRow - 1
 
       // Add misc. section for this foundation subsection (after all proposal text items)
+      // Same "Drilled pile misc." content used under Drilled foundation pile and under Piles scope
+      const drilledPileMisc = {
+        title: 'Drilled pile misc.:',
+        included: [
+          'Plates & locking nuts included',
+          'Pilings will be threaded at both ends and installed in 5\' or 10\' increments',
+          'Single mobilization & demobilization of drilling equipment included',
+          'Surveying, stakeout, pile numbering plan & as-built plan included',
+          'Two lateral reactionary load tests included',
+          'Video inspections included',
+          'Engineering & Shop drawings included'
+        ],
+        additional: [
+          'Additional linear foot of pile: $155/LF additional if required',
+          'Reactionary load test (using production piles as reactionary piles): $15,000 additional if required',
+          'Obstruction removal drilling per hour: $995/hour additional if required'
+        ]
+      }
       const miscSections = {
-        'Drilled foundation pile': {
-          title: 'Drilled pile misc.:',
-          included: [
-            'Plates & locking nuts included',
-            'Pilings will be threaded at both ends and installed in 5\' or 10\' increments',
-            'One mobilization & demobilization of drilling equipment included',
-            'Surveying, stakeout, pile numbering plan & as-built plan included',
-            'One compression reactionary load tests included',
-            'Two lateral reactionary load tests included',
-            'Video inspections included',
-            'Engineering & Shop drawings included'
-          ],
-          additional: [
-            'Additional linear foot of pile: $155/LF additional if required',
-            'Reactionary load test (using production piles as reactionary piles): $15,000 additional if required',
-            'Obstruction removal drilling per hour: $995/hour additional if required'
-          ]
-        },
+        'Drilled foundation pile': drilledPileMisc,
+        'Piles': drilledPileMisc,
         'Driven foundation pile': {
           title: 'Driven piles misc.:',
           included: [
@@ -11033,11 +11108,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const needsScopeForRates = item.includes('compression reactionary load test') ||
             item.includes('Engineering & Shop drawings included') ||
             item.includes('mobilization & demobilization of drilling equipment')
-          const rateLookupKey = needsScopeForRates ? `${item} - ${scopeKey} scope` : item
+          let rateLookupKey = needsScopeForRates ? `${item} - ${scopeKey} scope` : item
+          // proposal_mapped uses "One mobilization..." – normalize "Single mobilization..." for lookup
+          if (item.includes('Single mobilization & demobilization of drilling equipment')) {
+            rateLookupKey = needsScopeForRates ? `One mobilization & demobilization of drilling equipment included - ${scopeKey} scope` : 'One mobilization & demobilization of drilling equipment included'
+          }
           fillRatesForProposalRow(currentRow, rateLookupKey)
 
           // Add special formulas for certain items
-          if (item.includes('Plates & locking nuts') && (subsectionName === 'Drilled foundation pile' || subsectionName === 'CFA pile')) {
+          if (item.includes('Plates & locking nuts') && (subsectionName === 'Drilled foundation pile' || subsectionName === 'Piles' || subsectionName === 'CFA pile')) {
             // Add SUM formula for QTY column (G) - sum all drilled pile QTY values
             if (subsectionStartRow && pileDataEndRow >= subsectionStartRow) {
               spreadsheet.updateCell({ formula: `=SUM(G${subsectionStartRow}:G${pileDataEndRow})` }, `${pfx}G${currentRow}`)
@@ -11070,7 +11149,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 // Fallback already applied in cellFormat
               }
             }
-          } else if (item.includes('Video inspections included') && (subsectionName === 'Drilled foundation pile')) {
+          } else if (item.includes('Video inspections included') && (subsectionName === 'Drilled foundation pile' || subsectionName === 'Piles')) {
             // Add SUM formula for QTY column (G) - same as "Plates & locking nuts"
             if (subsectionStartRow && pileDataEndRow >= subsectionStartRow) {
               spreadsheet.updateCell({ formula: `=SUM(G${subsectionStartRow}:G${pileDataEndRow})` }, `${pfx}G${currentRow}`)
@@ -11106,11 +11185,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
 
           // Override QTY rate for "Plates & locking nuts included" by pile type:
-          // - Drilled pile misc.: 250
+          // - Drilled pile misc. and Piles scope: 250
           // - Stelcor pile misc. and CFA pile misc.: 100
           if (item.includes('Plates & locking nuts')) {
             let qtyRate = null
-            if (subsectionName === 'Drilled foundation pile') qtyRate = 250
+            if (subsectionName === 'Drilled foundation pile' || subsectionName === 'Piles') qtyRate = 250
             else if (subsectionName === 'Stelcor drilled displacement pile' || subsectionName === 'CFA pile') qtyRate = 100
             if (qtyRate != null) {
               spreadsheet.updateCell({ value: qtyRate }, `${pfx}M${currentRow}`)
@@ -11179,6 +11258,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         // Determine the total label based on subsection
         const totalLabels = {
           'Drilled foundation pile': 'Foundation Piles Total:',
+          'Piles': 'Piles Total:',
           'Helical foundation pile': 'Helical Pile Total:',
           'Stelcor drilled displacement pile': 'Stelcor Piles Total:',
           'CFA pile': 'CFA Piles Total:',
@@ -11333,6 +11413,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         let thicknessText = ''
         let widthText = ''
         let dimensionsText = ''
+        let wireMeshText = ''
         for (const r of rows) {
           const p = (r && r[1] || '').toString()
           if (!thicknessText) {
@@ -11373,9 +11454,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             const dim3 = p.match(/(\d+'\s*-\s*\d+"?\s*x\s*\d+'\s*-\s*\d+"?\s*x\s*\d+'\s*-\s*\d+"?)/i) || p.match(/(\d+'\s*-\s*\d+"?x\d+'\s*-\s*\d+"?x\d+'\s*-\s*\d+"?)/i)
             if (dim3) dimensionsText = dim3[1].replace(/\s/g, '').trim()
           }
+          // Wire mesh for SOG/ROG: #x#-#/# e.g. 6x6-10/10 W.W.M.
+          if (!wireMeshText) {
+            const wwmMatch = p.match(/\b(\d+x\d+-\d+\/\d+)\s*W\.?W\.?M\.?/i) || p.match(/\b(\d+x\d+-\d+\/\d+)\b/i)
+            if (wwmMatch) wireMeshText = wwmMatch[1]
+          }
         }
         const pageRef = getPageRefForSubsection(sub)
-        return { qtyText, heightText: heightText || '##', thicknessText, widthText, dimensionsText, pageRef }
+        return { qtyText, heightText: heightText || '##', thicknessText, widthText, dimensionsText, wireMeshText: wireMeshText || '', pageRef }
       }
       // Replace (X)no./no, (H=...), (Havg=...), thickness, width, dimensions, "as per X" in template with values from group data (template wording unchanged)
       const applyDynamicValuesToTemplate = (text, vals) => {
@@ -11409,6 +11495,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
         if (vals.dimensionsText) {
           out = out.replace(/\s*\(\d+'\s*-\s*\d+"?x\d+'\s*-\s*\d+"?x\d+'\s*-\s*\d+"?\)/gi, () => ` (${vals.dimensionsText})`)
+        }
+        // Wire mesh for SOG/ROG: w/#x#-#/# W.W.M. – dynamic or omit if not found
+        if (vals.wireMeshText) {
+          out = out.replace(/\bw\/\s*\d+x\d+-\d+\/\d+\s*W\.?W\.?M\.?/gi, `w/${vals.wireMeshText} W.W.M.`)
+        } else {
+          out = out.replace(/\s+reinforced\s+w\/\s*\d+x\d+-\d+\/\d+\s*W\.?W\.?M\.?/gi, ' reinforced')
         }
         return out
       }
@@ -11500,10 +11592,17 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             { text: `F&I new (24" thick) mat slab reinforced as per FO-101.00 & details on`, sub: 'Mat slab', match: p => p.includes('2\'') || p.includes('24') },
             { text: `F&I new (36" thick) mat slab reinforced as per FO-101.00 & details on`, sub: 'Mat slab', match: p => p.includes('3\'') || p.includes('36') },
             { text: `F&I new (3" thick) mud/rat slab as per FO-101.00 & details on`, sub: 'Mud Slab', match: () => true },
-            { text: `F&I new (4" thick) slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00 & details on`, sub: 'SOG', match: p => (p.includes('sog 4') || (p.includes('sog') && p.includes('4"') && !p.includes('patch') && !p.includes('5"'))) },
-            { text: `F&I new (6" thick) slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00 & details on`, sub: 'SOG', match: p => (p.includes('sog 6') || (p.includes('sog') && p.includes('6"') && !p.includes('patio') && !p.includes('step'))) },
+            { text: `F&I new (4" thick) slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00 & details on`, sub: 'SOG', match: p => {
+              const pl = (p || '').toLowerCase()
+              return pl.includes('sog') && !pl.includes('patio') && !pl.includes('patch') && !pl.includes('step') && !pl.includes('pressure')
+            } },
+            { text: `F&I new (6" thick) slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00 & details on`, sub: 'SOG', match: p => {
+              const pl = (p || '').toLowerCase()
+              return pl.includes('sog') && !pl.includes('patio') && !pl.includes('patch') && !pl.includes('step') && !pl.includes('pressure')
+            } },
             { text: `F&I new (6" thick) patio slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00 & details on`, sub: 'SOG', match: p => p.includes('patio') },
             { text: `Allow to (5" thick) patch slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00 & details on`, sub: 'SOG', match: p => p.includes('patch') },
+            { text: `Allow to (5" thick) pressure slab reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00 & details on`, sub: 'SOG', match: p => (p || '').toLowerCase().includes('pressure') && (p || '').toLowerCase().includes('sog') },
             { text: `F&I new (6" thick) slab on grade step (H=1'-2") as per FO-101.00 & details on`, sub: 'SOG', match: p => p.includes('step') },
           {
             formulaItem: { itemType: 'buttress_final', match: () => true },
@@ -11582,7 +11681,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         },
         {
           heading: 'Trench drain', items: [
-            { text: 'F&I new trench drain as per FO-102.00 & details on', formulaItem: { itemType: 'electric_conduit', match: p => (p || '').toLowerCase().includes('trench drain') } }
+            { text: 'F&I new concrete @ trench drain as per FO-102.00 & details on', sub: 'Trench drain', formulaItem: { itemType: 'electric_conduit', match: p => (p || '').toLowerCase().includes('trench drain') } }
           ]
         },
         {
@@ -11775,9 +11874,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             const dynVals = getDynamicValuesFromGroupRows(source, sub, !!formulaItem)
             displayText = applyDynamicValuesToTemplate(text, dynVals)
           }
-          if (getTextResult?.data) {
-            console.log('Final as per schedule count', getTextResult.data, getTextResult.line)
-          }
           const afterCountSub = afterCountFromProposalText(displayText)
           if (afterCountSub) {
             spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCountSub) }, `${pfx}B${currentRow}`)
@@ -11797,6 +11893,39 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
           currentRow++
         })
+        // One proposal row per Ramp on grade sum (thickness/wire mesh from data)
+        if (heading === 'Foundation elements') {
+          const rogTemplate = `F&I new (6" thick) ramp on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00 & details on`
+          const rogSums = allFoundationSums.filter(f =>
+            (f.subsectionName || '').toLowerCase() === 'ramp on grade' && !usedSumIds.has(f.row) && hasNonZeroTakeoff(f, false)
+          )
+          rogSums.forEach((source) => {
+            usedSumIds.add(source.row)
+            if (!headingAdded) {
+              headingAdded = true
+              lastSubstructureHeading = heading
+              spreadsheet.updateCell({ value: `${heading}:` }, `${pfx}B${currentRow}`)
+              spreadsheet.cellFormat(
+                { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#D0CECE', textDecoration: 'underline', border: '1px solid #000000' },
+                `${pfx}B${currentRow}`
+              )
+              currentRow++
+            }
+            const dynVals = getDynamicValuesFromGroupRows(source, 'Ramp on grade', false)
+            const displayText = applyDynamicValuesToTemplate(rogTemplate, dynVals)
+            spreadsheet.updateCell({ value: displayText }, `${pfx}B${currentRow}`)
+            rowBContentMap.set(currentRow, displayText)
+            spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+            spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
+            spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!I${source.row}` }, `${pfx}C${currentRow}`)
+            spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!J${source.row}` }, `${pfx}D${currentRow}`)
+            spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!L${source.row}` }, `${pfx}F${currentRow}`)
+            spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!M${source.row}` }, `${pfx}G${currentRow}`)
+            fillRatesForProposalRow(currentRow, displayText)
+            spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
+            currentRow++
+          })
+        }
       })
       const substructureDataEndRow = currentRow - 1
       // Add Misc. fixed lines (DOB washout, Engineering) when substructure has content
@@ -16437,13 +16566,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     } catch (e) {
       // Fallback: try to trigger recalculation by touching a cell
       try {
-        spreadsheet.goTo('Proposal Sheet!A1')
+        spreadsheet.goTo('Calculations Sheet!A1')
       } catch (e2) { /* ignore */ }
     }
 
-    // Auto-fit columns I–N so cells expand to fit $ and value (no overflow)
+    // Auto-fit columns I–N so cells expand to fit $ and value (no overflow); then show Calculation sheet first (not Proposal)
     try {
-      spreadsheet.goTo('Proposal Sheet!A1')
+      spreadsheet.goTo('Calculations Sheet!A1')
       if (typeof spreadsheet.autoFit === 'function') {
         spreadsheet.autoFit('I:N')
       }

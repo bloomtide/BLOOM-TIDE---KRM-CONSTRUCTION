@@ -62,6 +62,7 @@ const Spreadsheet = () => {
       window.drivenFoundationPileItems = result.drivenFoundationPileItems || []
       window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileItems || []
       window.cfaPileItems = result.cfaPileItems || []
+      window.miscellaneousPileItems = result.miscellaneousPileItems || []
       // Store Foundation subsection items
       window.foundationSubsectionItems = new Map()
 
@@ -171,6 +172,7 @@ const Spreadsheet = () => {
       window.drivenFoundationPileItems = result.drivenFoundationPileItems || []
       window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileItems || []
       window.cfaPileItems = result.cfaPileItems || []
+      window.miscellaneousPileItems = result.miscellaneousPileItems || []
       // Store Foundation subsection items
       window.foundationSubsectionItems = new Map()
     }

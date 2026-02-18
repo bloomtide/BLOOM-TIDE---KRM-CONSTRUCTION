@@ -5900,6 +5900,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     drivenFoundationPileItems,
     stelcorDrilledDisplacementPileItems,
     cfaPileItems,
+    miscellaneousPileItems,
     unusedRawDataRows // Return unused data rows
   }
 }
