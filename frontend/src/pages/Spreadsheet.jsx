@@ -786,11 +786,9 @@ const Spreadsheet = () => {
               spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
             }
 
-            // Sum for LBS (K)
+            // Sum for LBS (K) - Primary secant and Tangent piles have empty K
             const lbsSubsections = [
-              'Primary secant piles',
               'Secondary secant piles',
-              'Tangent piles',
               'Sheet pile',
               'Waler',
               'Raker',
@@ -1002,15 +1000,17 @@ const Spreadsheet = () => {
             // Apply red color to item names
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
 
-            // Special formatting for buttress takeoff row - strikethrough
+            // Special formatting for buttress takeoff row - strikethrough in all columns (same as Columns subsection)
             if (itemType === 'buttress_takeoff') {
-              spreadsheet.cellFormat({ textDecoration: 'line-through' }, `B${row}:M${row}`)
+              spreadsheet.cellFormat({ textDecoration: 'line-through' }, `A${row}:M${row}`)
             }
 
-            // Special formatting for buttress final row - reference M to C of takeoff row; I, J, L, M red
+            // Special formatting for buttress final row - C and M ref takeoff row (same as columns); I, J, L, M red
             if (itemType === 'buttress_final') {
-              if (formulaInfo.buttressRow) {
-                spreadsheet.updateCell({ formula: `=C${formulaInfo.buttressRow}` }, `M${row}`)
+              const refRow = formulaInfo.buttressRow || formulaInfo.takeoffRefRow
+              if (refRow) {
+                spreadsheet.updateCell({ formula: `=C${refRow}` }, `C${row}`)
+                spreadsheet.updateCell({ formula: `=C${refRow}` }, `M${row}`)
               }
               spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `I${row}`)
               spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)

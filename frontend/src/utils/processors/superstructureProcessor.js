@@ -220,6 +220,10 @@ export const getSuperstructureItemType = (particulars) => {
   if (p.includes('terrace slab 8"') || p.includes('terrace slab 8\"')) {
     return { subsection: 'Terrace slab', groupKey: 'terrace', heightFormula: '8/12', heightValue: null, widthValue: null, qty: null }
   }
+  // Exclude Sump pump pit slab 8" from CIP Slabs
+  if (p.includes('sump pump pit slab 8')) {
+    return null
+  }
   if (p.includes('slab 8"') || p.includes('slab 8\"')) {
     return { subsection: 'CIP Slabs', groupKey: 'slab8', heightFormula: '8/12', heightValue: null, widthValue: null, qty: null }
   }

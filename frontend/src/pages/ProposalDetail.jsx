@@ -838,7 +838,7 @@ const ProposalDetail = () => {
             const { firstDataRow, lastDataRow, subsectionName } = formulaInfo
             const ftSumSubsections = ['Rock anchors', 'Rock bolts', 'Tie back anchor', 'Tie down anchor', 'Dowel bar', 'Rock pins', 'Shotcrete', 'Permission grouting', 'Form board', 'Guide wall']
             const sqFtSubsections = ['Sheet pile', 'Timber lagging', 'Timber sheeting', 'Vertical timber sheets', 'Horizontal timber sheets', 'Parging', 'Heel blocks', 'Underpinning', 'Concrete soil retention piers', 'Guide wall', 'Shotcrete', 'Permission grouting', 'Buttons', 'Form board', 'Rock stabilization']
-            const lbsSubsections = ['Primary secant piles', 'Secondary secant piles', 'Tangent piles', 'Sheet pile', 'Waler', 'Raker', 'Upper Raker', 'Lower Raker', 'Stand off', 'Kicker', 'Channel', 'Roll chock', 'Stud beam', 'Inner corner brace', 'Knee brace', 'Supporting angle']
+            const lbsSubsections = ['Secondary secant piles', 'Sheet pile', 'Waler', 'Raker', 'Upper Raker', 'Lower Raker', 'Stand off', 'Kicker', 'Channel', 'Roll chock', 'Stud beam', 'Inner corner brace', 'Knee brace', 'Supporting angle']
             const qtySubsections = ['Primary secant piles', 'Secondary secant piles', 'Tangent piles', 'Waler', 'Raker', 'Upper Raker', 'Lower Raker', 'Stand off', 'Kicker', 'Channel', 'Roll chock', 'Stud beam', 'Inner corner brace', 'Knee brace', 'Supporting angle', 'Heel blocks', 'Underpinning', 'Rock anchors', 'Rock bolts', 'Tie back anchor', 'Tie down anchor', 'Concrete soil retention piers', 'Dowel bar', 'Rock pins', 'Buttons']
             const cySubsections = ['Heel blocks', 'Underpinning', 'Concrete soil retention piers', 'Guide wall', 'Shotcrete', 'Buttons', 'Rock stabilization']
 
@@ -985,6 +985,18 @@ const ProposalDetail = () => {
             spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
             return
           }
+          // Buttress final row - same logic as superstructure_columns_final: C and M ref takeoff row, I/J/L/M red
+          if (itemType === 'buttress_final') {
+            const refRow = formulaInfo.buttressRow ?? formulaInfo.takeoffRefRow
+            if (refRow != null) spreadsheet.updateCell({ formula: `=C${refRow}` }, `C${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
+            return
+          }
 
           // Foundation items using generateFoundationFormulas
           const foundationItemTypes = ['drilled_foundation_pile', 'helical_foundation_pile', 'driven_foundation_pile', 'stelcor_drilled_displacement_pile', 'cfa_pile', 'pile_cap', 'strip_footing', 'isolated_footing', 'pilaster', 'grade_beam', 'tie_beam', 'strap_beam', 'thickened_slab', 'buttress_takeoff', 'buttress_final', 'pier', 'corbel', 'linear_wall', 'foundation_wall', 'retaining_wall', 'barrier_wall', 'stem_wall', 'elevator_pit', 'service_elevator_pit', 'detention_tank', 'duplex_sewage_ejector_pit', 'deep_sewage_ejector_pit', 'sump_pump_pit', 'grease_trap', 'house_trap', 'mat_slab', 'mud_slab_foundation', 'sog', 'rog', 'stairs_on_grade', 'electric_conduit']
@@ -1026,6 +1038,10 @@ const ProposalDetail = () => {
             if (foundationFormulas.cy) spreadsheet.updateCell({ formula: `=${foundationFormulas.cy}` }, `L${row}`)
             if (foundationFormulas.qtyFinal) spreadsheet.updateCell({ formula: `=${foundationFormulas.qtyFinal}` }, `M${row}`)
             spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
+            // Buttress takeoff row - strikethrough in all columns (same as Columns subsection)
+            if (itemType === 'buttress_takeoff') {
+              spreadsheet.cellFormat({ textDecoration: 'line-through' }, `A${row}:M${row}`)
+            }
             // Electric conduit - Trench drain and Perforated pipe column I red
             if (itemType === 'electric_conduit') {
               const particulars = (parsedData || formulaInfo)?.particulars || ''
@@ -1829,21 +1845,27 @@ const ProposalDetail = () => {
             spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
             return
           }
-          // Gravel items
+          // Gravel items - formulas only, no red (only sum row has red J and L)
           if (itemType === 'civil_gravel_item') {
-            // I empty, J = C (red), L = J*H/27 (red with yellow background)
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000', backgroundColor: '#FFF2CC', fontWeight: 'bold' }, `L${row}`)
             return
           }
           if (itemType === 'civil_gravel_sum') {
-            const { firstDataRow, lastDataRow } = formulaInfo
-            spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
+            const { firstDataRow, lastDataRow, sumRanges } = formulaInfo
+            let formulaJ, formulaL
+            if (sumRanges && sumRanges.length > 0) {
+              const sumParts = sumRanges.map(([f, l]) => `SUM(J${f}:J${l})`).join('+')
+              formulaJ = `=${sumParts}`
+              formulaL = `=${sumRanges.map(([f, l]) => `SUM(L${f}:L${l})`).join('+')}`
+            } else {
+              formulaJ = `=SUM(J${firstDataRow}:J${lastDataRow})`
+              formulaL = `=SUM(L${firstDataRow}:L${lastDataRow})`
+            }
+            spreadsheet.updateCell({ formula: formulaJ }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
-            spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000', backgroundColor: '#FFF2CC', fontWeight: 'bold' }, `L${row}`)
+            spreadsheet.updateCell({ formula: formulaL }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
             return
           }
           // Concrete Pavement items

@@ -249,7 +249,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   }
   let civilOtherItems = {
     'Excavation': { 'transformer_pad': [], 'reinforced_sidewalk': [], 'bollard': [] },
-    'Gravel': { 'transformer_pad': [], 'reinforced_sidewalk': [], 'asphalt': [] },
+    'Gravel': { 'transformer_pad': [], 'transformer_pad_8': [], 'reinforced_sidewalk': [], 'asphalt': [] },
     'Concrete Pavement': [],
     'Asphalt': [],
     'Pads': [],
@@ -1493,7 +1493,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Tie beam') hasSubsectionData = tieBeamGroups.length > 0
         else if (subsection.name === 'Strap beams') hasSubsectionData = strapBeamItems.length > 0
         else if (subsection.name === 'Thickened slab') hasSubsectionData = thickenedSlabGroups.length > 0
-        else if (subsection.name === 'Buttresses') hasSubsectionData = !!buttressItem
+        else if (subsection.name === 'Buttresses') hasSubsectionData = true // Always show - same as Columns subsection
         else if (subsection.name === 'Pier') hasSubsectionData = pierItems.length > 0
         else if (subsection.name === 'Corbel') hasSubsectionData = corbelGroups.length > 0
         else if (subsection.name === 'Linear Wall') hasSubsectionData = linearWallGroups.length > 0
@@ -1897,16 +1897,15 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               rows.push(Array(template.columns.length).fill(''))
             }
           })
-        } else if (subsection.name === 'Buttresses' && buttressItem) {
-          // Add "As per Takeoff count" row
+        } else if (subsection.name === 'Buttresses') {
+          // Same structure as Columns subsection: As per Takeoff count (takeoff from Buttress raw data, 0 if not available) + Final as per schedule count
+          const takeoffRow = rows.length + 1
           const itemRow = Array(template.columns.length).fill('')
           itemRow[1] = 'As per Takeoff count'
-          itemRow[2] = buttressItem.takeoff
-          itemRow[3] = buttressItem.unit
+          itemRow[2] = buttressItem?.takeoff ?? 0
+          itemRow[3] = buttressItem?.unit || 'EA'
           itemRow[4] = 1
-          itemRow[5] = 1
-          itemRow[6] = 1
-          itemRow[7] = 1
+          // F, G, H, I, J, L empty for As per Takeoff count row
           rows.push(itemRow)
           const buttressRow = rows.length
           formulas.push({ row: rows.length, itemType: 'buttress_takeoff', parsedData: buttressItem, section: 'foundation' })
@@ -1914,16 +1913,13 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           // Add empty row
           rows.push(Array(template.columns.length).fill(''))
 
-          // Add "Final as per schedule count" row (manual entry)
+          // Add "Final as per schedule count" row (same structure as columns - C refs takeoff row, M=C)
           const finalRow = Array(template.columns.length).fill('')
           finalRow[1] = 'Final as per schedule count'
           finalRow[3] = 'EA'
-          finalRow[8] = 144 // FT (I) - manual
-          finalRow[9] = 148.5 // SQ FT (J) - manual
-          finalRow[11] = 12.1204 // CY (L) - manual
-          finalRow[12] = 14 // QTY (M) - manual, but should reference buttress count
+          // I, J, L empty for Final as per schedule count row
           rows.push(finalRow)
-          formulas.push({ row: rows.length, itemType: 'buttress_final', section: 'foundation', buttressRow: buttressRow, foundationCySumRow: true })
+          formulas.push({ row: rows.length, itemType: 'buttress_final', section: 'foundation', buttressRow: buttressRow, takeoffRefRow: takeoffRow, foundationCySumRow: true })
         } else if (subsection.name === 'Pier' && pierItems.length > 0) {
           // Process each group for pier items
           pierItems.forEach((group, groupIndex) => {
@@ -4718,7 +4714,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         let hasSubsectionData = false
         if (subsection.name === 'Demo') hasSubsectionData = Object.values(civilDemoItems).some(val => Array.isArray(val) ? val.length > 0 : Object.values(val).some(v => Array.isArray(v) && v.length > 0))
         else if (subsection.name === 'Excavation') hasSubsectionData = Object.values(civilOtherItems['Excavation']).some(arr => arr.length > 0)
-        else if (subsection.name === 'Gravel') hasSubsectionData = Object.values(civilOtherItems['Gravel']).some(arr => arr.length > 0)
+        else if (subsection.name === 'Gravel') hasSubsectionData = Object.values(civilOtherItems['Gravel']).some(arr => Array.isArray(arr) && arr.length > 0)
         else if (subsection.name === 'Concrete Pavement') hasSubsectionData = civilOtherItems['Concrete Pavement'].length > 0
         else if (subsection.name === 'Asphalt') hasSubsectionData = civilOtherItems['Asphalt'].length > 0
         else if (subsection.name === 'Pads') hasSubsectionData = civilOtherItems['Pads'].length > 0
@@ -5145,10 +5141,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const gravelItems = civilOtherItems['Gravel']
           let hasItems = false
           const firstDataRow = rows.length + 1
+          const sumRanges = [] // Ranges for bottom sum (excludes transformer_pad_8)
 
-          // Transformer pad items
+          // Transformer pad items (excluding 8" thick)
           if (gravelItems['transformer_pad'].length > 0) {
             hasItems = true
+            const tpFirst = rows.length + 1
             gravelItems['transformer_pad'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
               itemRow[1] = item.particulars
@@ -5157,11 +5155,30 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'civil_gravel_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Gravel' })
             })
+            sumRanges.push([tpFirst, rows.length])
+          }
+
+          // Transformer pad 8" thick items (grouped separately with their own sum, excluded from bottom sum)
+          if (gravelItems['transformer_pad_8']?.length > 0) {
+            hasItems = true
+            const transformerPad8FirstRow = rows.length + 1
+            gravelItems['transformer_pad_8'].forEach((item) => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[3] = item.unit || 'SQ FT'
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'civil_gravel_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Gravel' })
+            })
+            const transformerPad8LastRow = rows.length
+            const tp8SumRow = Array(template.columns.length).fill('')
+            rows.push(tp8SumRow)
+            formulas.push({ row: rows.length, itemType: 'civil_gravel_sum', section: 'civil_sitework', subsectionName: 'Gravel', firstDataRow: transformerPad8FirstRow, lastDataRow: transformerPad8LastRow })
           }
 
           // Reinforced sidewalk items
           if (gravelItems['reinforced_sidewalk'].length > 0) {
             hasItems = true
+            const rwFirst = rows.length + 1
             gravelItems['reinforced_sidewalk'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
               itemRow[1] = item.particulars
@@ -5169,11 +5186,13 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'civil_gravel_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Gravel' })
             })
+            sumRanges.push([rwFirst, rows.length])
           }
 
           // Asphalt items (Full depth asphalt pavement - non-BPP)
           if (gravelItems['asphalt'].length > 0) {
             hasItems = true
+            const aspFirst = rows.length + 1
             gravelItems['asphalt'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
               itemRow[1] = item.particulars
@@ -5181,16 +5200,24 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'civil_gravel_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Gravel' })
             })
+            sumRanges.push([aspFirst, rows.length])
           }
 
-          // Sum row for all gravel items
-          if (hasItems) {
-            const lastDataRow = rows.length
+          // Sum row at bottom (excludes transformer_pad_8 items - only when there are items to sum)
+          if (hasItems && sumRanges.length > 0) {
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
-            formulas.push({ row: rows.length, itemType: 'civil_gravel_sum', section: 'civil_sitework', subsectionName: 'Gravel', firstDataRow: firstDataRow, lastDataRow: lastDataRow })
+            formulas.push({
+              row: rows.length,
+              itemType: 'civil_gravel_sum',
+              section: 'civil_sitework',
+              subsectionName: 'Gravel',
+              firstDataRow: sumRanges[0][0],
+              lastDataRow: sumRanges[sumRanges.length - 1][1],
+              sumRanges
+            })
             rows.push(Array(template.columns.length).fill(''))
-          } else {
+          } else if (hasItems) {
             rows.push(Array(template.columns.length).fill(''))
           }
         } else if (subsection.name === 'Concrete Pavement') {

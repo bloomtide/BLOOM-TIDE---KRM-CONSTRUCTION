@@ -1693,8 +1693,8 @@ export const generateSoeFormulas = (itemType, rowNum, itemData) => {
 
         case 'primary_secant':
         case 'tangent':
+            // No column K (LBS) for Primary secant piles and Tangent piles
             formulas.ft = `H${rowNum}*C${rowNum}`
-            formulas.lbs = `I${rowNum}*${(itemData.weight || itemData.parsed?.weight || 0).toFixed(3)}`
             formulas.qtyFinal = `C${rowNum}`
             break
 
