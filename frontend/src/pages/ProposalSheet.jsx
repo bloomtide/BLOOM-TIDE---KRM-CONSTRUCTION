@@ -62,6 +62,7 @@ const Spreadsheet = () => {
       window.drivenFoundationPileItems = result.drivenFoundationPileItems || []
       window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileItems || []
       window.cfaPileItems = result.cfaPileItems || []
+      window.miscellaneousPileItems = result.miscellaneousPileItems || []
       // Store Foundation subsection items
       window.foundationSubsectionItems = new Map()
 
@@ -171,6 +172,7 @@ const Spreadsheet = () => {
       window.drivenFoundationPileItems = result.drivenFoundationPileItems || []
       window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileItems || []
       window.cfaPileItems = result.cfaPileItems || []
+      window.miscellaneousPileItems = result.miscellaneousPileItems || []
       // Store Foundation subsection items
       window.foundationSubsectionItems = new Map()
     }
@@ -3398,41 +3400,7 @@ const Spreadsheet = () => {
         `${pfx}H27`
       )
 
-      // Row 28: Note 1
-      spreadsheet.updateCell({ value: 'Note: Backfill SOE voids by others' }, `${pfx}B28`)
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'left',
-          backgroundColor: 'white'
-        },
-        `${pfx}B28`
-      )
-
-      // Row 29: Note 2
-      spreadsheet.updateCell({ value: 'Note: NJ Res Soil included, contaminated, mixed, hazardous, petroleum impacted not incl.' }, `${pfx}B29`)
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'left',
-          backgroundColor: 'white'
-        },
-        `${pfx}B29`
-      )
-
-      // Row 30: Note 3
-      spreadsheet.updateCell({ value: 'Note: Bedrock not included, see add alt unit rate if required' }, `${pfx}B30`)
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'left',
-          backgroundColor: 'white'
-        },
-        `${pfx}B30`
-      )
+      // Notes (B28, B29, B30) are written only by buildProposalSheet and are conditional on scope (backfill, soil, rock). Do not overwrite here.
 
       // Row 31: Soil Excavation Total
       spreadsheet.merge(`${pfx}D31:E31`)

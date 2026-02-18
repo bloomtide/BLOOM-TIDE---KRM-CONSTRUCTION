@@ -36,8 +36,19 @@ export const AuthProvider = ({ children }) => {
                 localStorage.setItem('user', JSON.stringify(response.user));
             }
         } catch (error) {
-            console.error('Token verification failed:', error);
-            handleLogout();
+            const isNetworkError = error.code === 'ERR_NETWORK' || !error.response;
+            const isUnauthorized = error.response?.status === 401;
+            if (isNetworkError) {
+                console.warn('Backend unreachable (is the server running on port 3001?). Showing login.');
+                setUser(null);
+                setIsAuthenticated(false);
+            } else if (isUnauthorized) {
+                // No valid session (expired cookie or not logged in) – expected, just show login
+                handleLogout();
+            } else {
+                console.error('Token verification failed:', error);
+                handleLogout();
+            }
         } finally {
             setLoading(false);
         }

@@ -53,10 +53,47 @@ const ProposalDetail = () => {
   const saveTimeoutRef = useRef(null)
   const maxWaitTimeoutRef = useRef(null)
   const hasLoadedFromJson = useRef(false)
+  const needReapplyAfterRawSave = useRef(false)
   const isSavingRef = useRef(false)
   const pendingSaveRef = useRef(false)
   const retryCountRef = useRef(0)
   const lastSaveTimeRef = useRef(null)
+  const scrollSyncCleanupRef = useRef(null)
+
+  // Sync spreadsheet overlay images (e.g. logo) with scroll – they stay stuck because virtual scroll moves only .e-virtualable via transform
+  const attachScrollSyncForOverlays = useCallback(() => {
+    if (!spreadsheetRef.current?.element) return
+    scrollSyncCleanupRef.current?.()
+    scrollSyncCleanupRef.current = null
+    const el = spreadsheetRef.current.element
+    const mainPanel = el.querySelector('.e-main-panel')
+    if (!mainPanel) return
+    let rafId = null
+    const syncOverlays = () => {
+      const overlays = mainPanel.querySelectorAll('.e-ss-overlay')
+      if (overlays.length === 0) {
+        rafId = requestAnimationFrame(syncOverlays)
+        return
+      }
+      // Use .e-virtualable's translateY so overlay moves exactly with the table (virtual scroll)
+      let offsetY = 0
+      const virtualable = mainPanel.querySelector('.e-virtualable')
+      if (virtualable?.style?.transform) {
+        const m = virtualable.style.transform.match(/translate\([^,]*,?\s*([-\d.]+)px\)/)
+        if (m) offsetY = parseFloat(m[1]) || 0
+      } else {
+        offsetY = mainPanel.scrollTop || 0
+      }
+      overlays.forEach(overlay => {
+        overlay.style.transform = `translate(0px, ${offsetY}px)`
+      })
+      rafId = requestAnimationFrame(syncOverlays)
+    }
+    rafId = requestAnimationFrame(syncOverlays)
+    scrollSyncCleanupRef.current = () => {
+      if (rafId != null) cancelAnimationFrame(rafId)
+    }
+  }, [])
 
   // Load proposal data
   useEffect(() => {
@@ -143,6 +180,7 @@ const ProposalDetail = () => {
     window.drivenFoundationPileItems = result.drivenFoundationPileItems || []
     window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileItems || []
     window.cfaPileItems = result.cfaPileItems || []
+    window.miscellaneousPileItems = result.miscellaneousPileItems || []
     window.foundationSubsectionItems = new Map()
     window.shotcreteItems = result.shotcreteItems || []
     window.permissionGroutingItems = result.permissionGroutingItems || []
@@ -196,25 +234,41 @@ const ProposalDetail = () => {
   useEffect(() => {
     if (!spreadsheetRef.current || !proposal) return
 
-    // If we have saved JSON and haven't loaded it yet, load it
+    // When we have rawExcelData, ONLY ever build from raw (never load spreadsheet from DB)
+    if (proposal.rawExcelData) {
+      if (needReapplyAfterRawSave.current && hasLoadedFromJson.current) {
+        // Use freshly generated data from ref (generate effect already ran this cycle) so we don't use stale state
+        const override = generatedDataRef.current
+        if (override?.rows?.length > 0) {
+          needReapplyAfterRawSave.current = false
+          applyDataToSpreadsheet(override).then(() => {
+            setTimeout(() => {
+              try { spreadsheetRef.current?.goTo('Calculations Sheet!A1') } catch (e) { }
+            }, 100)
+          })
+        }
+        return
+      }
+      if (calculationData.length > 0 && !hasLoadedFromJson.current) {
+        applyDataToSpreadsheet()
+      }
+      return
+    }
+
+    // Load from saved JSON only when there is no rawExcelData (e.g. legacy proposals)
     if (proposal.spreadsheetJson && !hasLoadedFromJson.current) {
       setIsSpreadsheetLoading(true)
         ; (async () => {
           try {
-            // Handle both old format (just Workbook) and new format (full jsonObject with Workbook property)
             const jsonData = proposal.spreadsheetJson.Workbook
-              ? proposal.spreadsheetJson  // New format: full jsonObject
-              : { Workbook: proposal.spreadsheetJson }  // Old format: just Workbook, wrap it
+              ? proposal.spreadsheetJson
+              : { Workbook: proposal.spreadsheetJson }
             spreadsheetRef.current.openFromJson({ file: jsonData })
             hasLoadedFromJson.current = true
             setLastSaved(new Date(proposal.updatedAt))
-
-            // Restore images after loading the spreadsheet JSON
             if (proposal.images && proposal.images.length > 0) {
               restoreImages(proposal.images)
             }
-
-            // Use saved state - do NOT rebuild Proposal Sheet (preserves user edits, updates DB only on changes)
           } catch (error) {
             toast.error('Error loading saved spreadsheet')
           } finally {
@@ -222,14 +276,24 @@ const ProposalDetail = () => {
           }
         })()
     }
-    // Otherwise, apply generated data if we have it
-    else if (calculationData.length > 0 && !hasLoadedFromJson.current) {
-      applyDataToSpreadsheet()
+    // Re-apply after save/rebuild when there is no rawExcelData (legacy path)
+    else if (needReapplyAfterRawSave.current && calculationData.length > 0 && hasLoadedFromJson.current && spreadsheetRef.current) {
+      needReapplyAfterRawSave.current = false
+      applyDataToSpreadsheet().then(() => {
+        setTimeout(() => {
+          try { spreadsheetRef.current?.goTo('Calculations Sheet!A1') } catch (e) { }
+        }, 100)
+      })
     }
   }, [calculationData, formulaData, proposal])
 
-  const applyDataToSpreadsheet = async () => {
+  const applyDataToSpreadsheet = async (override) => {
     if (!spreadsheetRef.current) return
+
+    const rows = override?.rows ?? calculationData
+    const formulas = override?.formulas ?? formulaData
+    const rockTotals = override?.rockExcavationTotals ?? rockExcavationTotals
+    const lineDrill = override?.lineDrillTotalFT ?? lineDrillTotalFT
 
     setIsSpreadsheetLoading(true)
     // Use setTimeout to allow React to update the UI with loading state
@@ -237,7 +301,7 @@ const ProposalDetail = () => {
 
     try {
       // Build complete spreadsheet model as JSON for batch loading
-      const spreadsheetModel = buildSpreadsheetModel()
+      const spreadsheetModel = buildSpreadsheetModel(rows)
 
       // Load the entire spreadsheet at once - much faster than individual cell updates
       spreadsheetRef.current.openFromJson({ file: spreadsheetModel })
@@ -246,21 +310,26 @@ const ProposalDetail = () => {
       // Apply all formulas and styles after data is loaded
       // Small delay to ensure spreadsheet is fully rendered
       await new Promise(resolve => setTimeout(resolve, 100))
-      applyFormulasAndStyles()
+      applyFormulasAndStyles(formulas, rows)
 
       // Build the Proposal sheet from calculation data
       try {
         buildProposalSheet(spreadsheetRef.current, {
-          calculationData,
-          formulaData,
-          rockExcavationTotals,
-          lineDrillTotalFT,
-          rawData: rawDataRef.current
+          calculationData: rows,
+          formulaData: formulas,
+          rockExcavationTotals: rockTotals,
+          lineDrillTotalFT: lineDrill,
+          rawData: rawDataRef.current,
+          project: proposal?.project,
+          client: proposal?.client,
+          createdAt: proposal?.createdAt
         })
         proposalBuiltRef.current = true
       } catch (e) {
         console.error('Error building proposal sheet:', e)
       }
+      // Sync overlay (logo) with scroll after it is inserted by buildProposalSheet (setTimeout 250ms)
+      setTimeout(attachScrollSyncForOverlays, 600)
 
       // Trigger initial save to persist both Calculations and Proposal sheets
       markDirtyAndScheduleSave()
@@ -280,11 +349,12 @@ const ProposalDetail = () => {
   }
 
   // Build spreadsheet model with raw data only (formulas and styles applied after loading)
-  const buildSpreadsheetModel = () => {
+  const buildSpreadsheetModel = (rowsOverride) => {
+    const dataRows = rowsOverride ?? calculationData
     const calculationsRows = []
 
     // Build rows for Calculations sheet - raw data only
-    calculationData.forEach((row, rowIndex) => {
+    dataRows.forEach((row, rowIndex) => {
       const cells = []
 
       row.forEach((cellValue, colIndex) => {
@@ -314,22 +384,22 @@ const ProposalDetail = () => {
     const columns = generateColumnConfigs().map(config => ({ width: config.width }))
 
     // Build the complete workbook model (no formulas - they're applied after loading)
-    // Sheet names must match buildProposalSheet expectations: "Calculations Sheet", "Proposal Sheet"
+    // Sheet order: Proposal Sheet first, then Calculations Sheet (names must match buildProposalSheet)
     const workbookModel = {
       Workbook: {
         sheets: [
           {
-            name: 'Calculations Sheet',
-            rows: calculationsRows,
-            columns: columns
-          },
-          {
             name: 'Proposal Sheet',
             rows: [],
             columns: []
+          },
+          {
+            name: 'Calculations Sheet',
+            rows: calculationsRows,
+            columns: columns
           }
         ],
-        activeSheetIndex: 0
+        activeSheetIndex: 1  // Open Calculations Sheet first (0=Proposal, 1=Calculations)
       }
     }
 
@@ -346,9 +416,11 @@ const ProposalDetail = () => {
   // 3. Handle all sections: demolition, excavation, rock_excavation, soe, foundation, waterproofing, superstructure, trenching
   // 
   // For now, using a simplified version - copy the full logic from Spreadsheet.jsx for production
-  const applyFormulasAndStyles = () => {
+  const applyFormulasAndStyles = (formulasOverride, rowsOverride) => {
     if (!spreadsheetRef.current) return
     const spreadsheet = spreadsheetRef.current
+    const formulasToApply = formulasOverride ?? formulaData
+    const rowsToApply = rowsOverride ?? calculationData
 
     // Ensure we're on the Calculations Sheet when applying formulas
     try {
@@ -361,8 +433,8 @@ const ProposalDetail = () => {
     const getColumnBColor = (row, parsedData) => {
       // Check calculationData for the initial value in column C
       const rowIndex = row - 1 // calculationData is 0-indexed
-      if (rowIndex >= 0 && rowIndex < calculationData.length) {
-        const takeoffValue = calculationData[rowIndex][2] // Column C (index 2)
+      if (rowIndex >= 0 && rowIndex < rowsToApply.length) {
+        const takeoffValue = rowsToApply[rowIndex][2] // Column C (index 2)
         
         // Consider it as "has data" (RED) only if:
         // 1. Not null/undefined
@@ -422,7 +494,7 @@ const ProposalDetail = () => {
     const deferredFoundationSumL = []
 
     // Apply formulas from formulaData
-    formulaData.forEach((formulaInfo) => {
+    formulasToApply.forEach((formulaInfo) => {
       const { row, itemType, parsedData, section, subsection } = formulaInfo
 
       let formulas
@@ -2688,11 +2760,12 @@ const ProposalDetail = () => {
     }
   }, [saveSpreadsheet])
 
-  // Cleanup timeouts on unmount and save any pending changes
+  // Cleanup timeouts and scroll-sync listener on unmount
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
       if (maxWaitTimeoutRef.current) clearTimeout(maxWaitTimeoutRef.current)
+      scrollSyncCleanupRef.current?.()
     }
   }, [])
 
@@ -3051,16 +3124,23 @@ const ProposalDetail = () => {
                     formulaData: formulaDataRef.current,
                     rockExcavationTotals: rockExcavationTotalsRef.current,
                     lineDrillTotalFT: lineDrillTotalFTRef.current,
-                    rawData: rawDataRef.current
+                    rawData: rawDataRef.current,
+                    project: proposal?.project,
+                    client: proposal?.client,
+                    createdAt: proposal?.createdAt
                   })
                   proposalBuiltRef.current = true
                 } catch (e) {
                   console.error('Error building proposal sheet (onCreated):', e)
                 }
               }
+              // Sync overlay images (e.g. logo) with scroll so they scroll with the sheet instead of staying stuck at top
+              attachScrollSyncForOverlays()
+              setTimeout(attachScrollSyncForOverlays, 500)
             }}
           >
             <SheetsDirective>
+              <SheetDirective name="Proposal Sheet" />
               <SheetDirective name="Calculations Sheet">
                 <ColumnsDirective>
                   {generateColumnConfigs().map((config, idx) => (
@@ -3068,7 +3148,6 @@ const ProposalDetail = () => {
                   ))}
                 </ColumnsDirective>
               </SheetDirective>
-              <SheetDirective name="Proposal Sheet" />
             </SheetsDirective>
           </SpreadsheetComponent>
         </div>
@@ -3079,6 +3158,19 @@ const ProposalDetail = () => {
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
         rawExcelData={proposal.rawExcelData}
+        proposalId={proposal?._id}
+        onSaveSuccess={async () => {
+          if (!proposal?._id) return
+          try {
+            const response = await proposalAPI.getById(proposal._id)
+            setProposal(response.proposal)
+            needReapplyAfterRawSave.current = true
+            setIsPreviewModalOpen(false)
+            toast.success('Raw data saved. Rebuilding sheets…')
+          } catch (e) {
+            toast.error('Failed to refresh after save')
+          }
+        }}
       />
 
       <UnusedRawDataModal

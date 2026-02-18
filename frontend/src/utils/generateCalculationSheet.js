@@ -1,3 +1,4 @@
+
 import capstoneTemplate from './templates/capstoneTemplate'
 import { processDemolitionItems } from './processors/demolitionProcessor'
 import { processExcavationItems, processBackfillItems, processMudSlabItems } from './processors/excavationProcessor'
@@ -254,7 +255,17 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     'Pads': [],
     'Soil Erosion': { 'stabilized_entrance': [], 'silt_fence': [], 'inlet_filter': [] },
     'Fence': { 'construction_fence': [], 'proposed_fence': [], 'guiderail': [] },
-    'Concrete filled steel pipe bollard': []
+    'Concrete filled steel pipe bollard': { 'footing': [], 'simple': [] },
+    'Site': {
+      'Hydrant': [],
+      'Wheel stop': [],
+      'Drain': { 'Area': [], 'Floor': [] },
+      'Protection': [],
+      'Signages': [],
+      'Main line': { 'Gas': [], 'Sanitary': [], 'Water': [] }
+    },
+    'Drains & Utilities': [],
+    'Alternate': []
   }
   const foundationSlabRows = {} // Populated when building Foundation section; used by Waterproofing Exterior side pit items
   let rockExcavationTotals = { totalSQFT: 0, totalCY: 0 } // Initialize rock excavation totals
@@ -5916,6 +5927,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     drivenFoundationPileItems,
     stelcorDrilledDisplacementPileItems,
     cfaPileItems,
+    miscellaneousPileItems,
     unusedRawDataRows // Return unused data rows
   }
 }
