@@ -291,14 +291,14 @@ const ProposalDetail = () => {
         const cell = {}
 
         if (cellValue !== '' && cellValue !== null && cellValue !== undefined) {
-          // For Particulars column (B), prevent date conversion
+          // For Particulars column (B), prevent date conversion - only set format '@' when needed (avoids storing formulas as text in line drill cells)
           if (colIndex === 1 && typeof cellValue === 'string') {
             if (/^[A-Z]+-\d+/.test(cellValue) || /^\d+-\d+/.test(cellValue)) {
               cell.value = "'" + cellValue
+              cell.format = '@'
             } else {
               cell.value = cellValue
             }
-            cell.format = '@' // Text format
           } else {
             cell.value = cellValue
           }
@@ -601,14 +601,17 @@ const ProposalDetail = () => {
           }
 
           if (itemType === 'line_drill_sub_header') {
-            spreadsheet.cellFormat({ color: '#000000', fontStyle: 'italic', fontWeight: 'normal' }, `E${row}`)
-            spreadsheet.cellFormat({ color: '#000000', fontStyle: 'italic', fontWeight: 'normal' }, `H${row}`)
+            spreadsheet.cellFormat({ color: '#000000', fontStyle: 'italic', fontWeight: 'bold' }, `E${row}`)
+            spreadsheet.cellFormat({ color: '#000000', fontStyle: 'italic', fontWeight: 'bold' }, `H${row}`)
             return
           }
 
           if (itemType === 'line_drill_concrete_pier') {
             const { refRow } = formulaInfo
             if (refRow) {
+              spreadsheet.cellFormat({ format: 'General' }, `B${row}`)
+              spreadsheet.cellFormat({ format: 'General' }, `C${row}`)
+              spreadsheet.cellFormat({ format: 'General' }, `H${row}`)
               spreadsheet.updateCell({ formula: `=B${refRow}` }, `B${row}`)
               spreadsheet.updateCell({ formula: `=((G${refRow}+F${refRow})*2)*C${refRow}` }, `C${row}`)
               spreadsheet.updateCell({ formula: `=H${refRow}` }, `H${row}`)
@@ -623,6 +626,9 @@ const ProposalDetail = () => {
           if (itemType === 'line_drill_sewage_pit') {
             const { refRow } = formulaInfo
             if (refRow) {
+              spreadsheet.cellFormat({ format: 'General' }, `B${row}`)
+              spreadsheet.cellFormat({ format: 'General' }, `C${row}`)
+              spreadsheet.cellFormat({ format: 'General' }, `H${row}`)
               spreadsheet.updateCell({ formula: `=B${refRow}` }, `B${row}`)
               spreadsheet.updateCell({ formula: `=SQRT(C${refRow})*4` }, `C${row}`)
               spreadsheet.updateCell({ formula: `=H${refRow}` }, `H${row}`)
@@ -637,6 +643,8 @@ const ProposalDetail = () => {
           if (itemType === 'line_drill_sump_pit') {
             const { refRow } = formulaInfo
             if (refRow) {
+              spreadsheet.cellFormat({ format: 'General' }, `B${row}`)
+              spreadsheet.cellFormat({ format: 'General' }, `C${row}`)
               spreadsheet.updateCell({ formula: `=B${refRow}` }, `B${row}`)
               spreadsheet.updateCell({ formula: `=C${refRow}*8` }, `C${row}`)
             }
@@ -2439,6 +2447,8 @@ const ProposalDetail = () => {
           if (bContent.endsWith(':') || bContent.startsWith('  ')) {
             if (bContent.includes('For demo Extra line item use this') || bContent.includes('For Backfill Extra line item use this') || bContent.includes('For soil excavation Extra line item use this') || bContent.includes('For rock excavation Extra line item use this') || bContent.includes('For foundation Extra line item use this') || bContent.includes('For Superstructure Extra line item use this')) {
               spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic', backgroundColor: '#FFFF00' }, `B${rowNum}`)
+            } else if (bContent.includes('Backfill:')) {
+              spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic', backgroundColor: '#E2EFDA' }, `B${rowNum}`)
             } else if (bContent.includes('Line drill:') || bContent.includes('Underpinning:')) {
               spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic', backgroundColor: '#E2EFDA' }, `B${rowNum}`)
             } else {

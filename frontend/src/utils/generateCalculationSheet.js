@@ -600,6 +600,11 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           subsectionRow[1] = subsection.name + ':'
           rows.push(subsectionRow)
 
+          // Backfill subsection: add extra empty row under heading
+          if (subsection.name === 'Backfill') {
+            rows.push(Array(template.columns.length).fill(''))
+          }
+
           if (subsection.name === 'For soil excavation Extra line item use this') {
             const extraItems = [
               { name: 'In SQ FT', unit: 'SQ FT', h: 1, type: 'soil_exc_extra_sqft' },

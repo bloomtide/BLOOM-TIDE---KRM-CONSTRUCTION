@@ -207,12 +207,12 @@ const Spreadsheet = () => {
           if (cellValue !== '' && cellValue !== null && cellValue !== undefined) {
             let valueToSet = cellValue
 
-            // For Particulars column (B), prevent date conversion
+            // For Particulars column (B), prevent date conversion - only apply format '@' when needed (avoids storing formulas as text in line drill cells)
             if (colIndex === 1 && typeof cellValue === 'string') {
               if (/^[A-Z]+-\d+/.test(cellValue) || /^\d+-\d+/.test(cellValue)) {
                 valueToSet = "'" + cellValue
+                spreadsheet.cellFormat({ format: '@' }, cellAddress)
               }
-              spreadsheet.cellFormat({ format: '@' }, cellAddress)
             }
 
             spreadsheet.updateCell({ value: valueToSet }, cellAddress)
@@ -524,10 +524,10 @@ const Spreadsheet = () => {
         formulas = generateExcavationFormulas(itemType === 'excavation_item' ? parsedData.itemType : itemType, row, parsedData)
       } else if (section === 'rock_excavation') {
         if (itemType === 'line_drill_sub_header') {
-          // Lifts and Height header row - black and italic
+          // Lifts and Height header row - bold and italic
           try {
-            spreadsheet.cellFormat({ color: '#000000', fontStyle: 'italic', fontWeight: 'normal' }, `E${row}`)
-            spreadsheet.cellFormat({ color: '#000000', fontStyle: 'italic', fontWeight: 'normal' }, `H${row}`)
+            spreadsheet.cellFormat({ color: '#000000', fontStyle: 'italic', fontWeight: 'bold' }, `E${row}`)
+            spreadsheet.cellFormat({ color: '#000000', fontStyle: 'italic', fontWeight: 'bold' }, `H${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -538,6 +538,9 @@ const Spreadsheet = () => {
           const { refRow } = formulaInfo
           try {
             if (refRow) {
+              spreadsheet.cellFormat({ format: 'General' }, `B${row}`)
+              spreadsheet.cellFormat({ format: 'General' }, `C${row}`)
+              spreadsheet.cellFormat({ format: 'General' }, `H${row}`)
               spreadsheet.updateCell({ formula: `=B${refRow}` }, `B${row}`)
               spreadsheet.updateCell({ formula: `=((G${refRow}+F${refRow})*2)*C${refRow}` }, `C${row}`)
               spreadsheet.updateCell({ formula: `=H${refRow}` }, `H${row}`)
@@ -556,6 +559,9 @@ const Spreadsheet = () => {
           const { refRow } = formulaInfo
           try {
             if (refRow) {
+              spreadsheet.cellFormat({ format: 'General' }, `B${row}`)
+              spreadsheet.cellFormat({ format: 'General' }, `C${row}`)
+              spreadsheet.cellFormat({ format: 'General' }, `H${row}`)
               spreadsheet.updateCell({ formula: `=B${refRow}` }, `B${row}`)
               spreadsheet.updateCell({ formula: `=SQRT(C${refRow})*4` }, `C${row}`)
               spreadsheet.updateCell({ formula: `=H${refRow}` }, `H${row}`)
@@ -574,6 +580,8 @@ const Spreadsheet = () => {
           const { refRow } = formulaInfo
           try {
             if (refRow) {
+              spreadsheet.cellFormat({ format: 'General' }, `B${row}`)
+              spreadsheet.cellFormat({ format: 'General' }, `C${row}`)
               spreadsheet.updateCell({ formula: `=B${refRow}` }, `B${row}`)
               spreadsheet.updateCell({ formula: `=C${refRow}*8` }, `C${row}`)
             }
@@ -1426,6 +1434,16 @@ const Spreadsheet = () => {
                   fontWeight: 'bold',
                   fontStyle: 'italic',
                   backgroundColor: '#FFFF00'
+                },
+                `B${rowNum}`
+              )
+            } else if (bContent.includes('Backfill:')) {
+              // Backfill subsection header color
+              spreadsheet.cellFormat(
+                {
+                  fontWeight: 'bold',
+                  fontStyle: 'italic',
+                  backgroundColor: '#E2EFDA'
                 },
                 `B${rowNum}`
               )
