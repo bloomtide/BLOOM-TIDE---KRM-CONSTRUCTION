@@ -1010,11 +1010,13 @@ export const parseSoeItem = (itemName) => {
         const bondLengthMatch = itemName.match(/Bond length=([0-9'"\-]+)/i)
         if (spacingMatch) {
             result.spacing = parseDimension(spacingMatch[1])
+            result.ocSpacing = result.spacing // For QTY formula: ROUNDUP(C/OC,0)+1
             // Group by spacing value
             result.groupKey = `SPACING_${spacingMatch[1].trim()}`
         }
         if (bondLengthMatch) {
             result.bondLength = parseDimension(bondLengthMatch[1])
+            result.calculatedLength = result.bondLength + 5 // Length(F)=bond length+5
         }
     }
 

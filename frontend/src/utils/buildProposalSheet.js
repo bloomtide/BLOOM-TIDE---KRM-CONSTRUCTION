@@ -3911,7 +3911,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       'Stub beam',
       'Rock anchors',
       'Rock bolts',
-      'Anchor'
+      'Tie down anchor'
     ])
 
     // Get all unique subsection names from collected items
@@ -5763,7 +5763,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
         // Add Tie down anchor section right after Tie back anchor (only if items exist)
         // Get tie down anchor groups first to check if any exist
-        let tieDownGroups = soeSubsectionItems.get('Tie down') || []
+        let tieDownGroups = soeSubsectionItems.get('Tie down') || soeSubsectionItems.get('Anchor') || []
         const tieDownAnchorGroups = soeSubsectionItems.get('Tie down anchor') || []
         tieDownGroups = [...tieDownGroups, ...tieDownAnchorGroups]
 
@@ -8940,7 +8940,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         processorGroups.forEach((itemOrGroup, groupIndex) => {
           if (!itemOrGroup.items || !Array.isArray(itemOrGroup.items) || itemOrGroup.items.length === 0) return
 
-          const groupTakeoff = itemOrGroup.items[0]?.takeoff || 0
+          const groupTakeoff = itemOrGroup.items.reduce((sum, item) => sum + (item.takeoff || 0), 0)
           if (groupTakeoff === 0) return
 
           const groupQty = Math.round(groupTakeoff)
@@ -9126,13 +9126,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               .sort((a, b) => a.firstDataRow - b.firstDataRow) // Sort by firstDataRow to match group order
 
             // Use groupIndex to get the corresponding sum row
-            // The sum row is at formula.row, and firstDataRow is the data row
-            // So the sum row is at firstDataRow + 1 (data row + 1 = sum row)
             if (drilledFoundationSumFormulas[groupIndex]) {
               const formulaInfo = drilledFoundationSumFormulas[groupIndex]
-              // The sum row should be firstDataRow + 1 (data row + 1 = sum row)
-              // Use firstDataRow + 1 directly to ensure we get the correct sum row
-              groupSumRowIndex = formulaInfo.firstDataRow + 1
+              groupSumRowIndex = formulaInfo.row
 
 
               // Reference the FT sum from column I of the sum row

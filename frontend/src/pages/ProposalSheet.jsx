@@ -236,16 +236,16 @@ const Spreadsheet = () => {
           try {
             // Sum for SQ FT (column J) - sum all items in subsection
             spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
 
             // Sum for CY (column L) - sum all items in subsection
             spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
 
             // For Demo isolated footing, also sum column M (QTY)
             if (subsection === 'Demo isolated footing') {
               spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
             }
           } catch (error) {
             // Ignore errors
@@ -261,9 +261,9 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`) // Col L: J*H/27
             // Apply red color to B, J, L, M
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -277,9 +277,9 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`) // Col L: J*H/27
             // Apply red color to B, J, L, M
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -294,9 +294,9 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`) // Col M: =C
             // Apply red color to B, J, L, M
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -310,8 +310,8 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`) // Col L: J*H/27
             // Apply red color to B, J, L
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -325,8 +325,8 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`) // Col L: J*H/27
             // Apply red color to B, J, L
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -341,9 +341,9 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`) // Col M: =C
             // Apply red color to B, J, L, M
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -359,11 +359,11 @@ const Spreadsheet = () => {
           try {
             // Sum for SQ FT (column J) - sum all items
             spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
 
             // Sum for 1.3*CY (column L) - sum all items
             spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -392,11 +392,11 @@ const Spreadsheet = () => {
           try {
             // Sum for SQ FT (column J) - sum all backfill items
             spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
 
             // Sum for CY (column L) - sum all backfill items
             spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -409,11 +409,11 @@ const Spreadsheet = () => {
           try {
             // Sum for SQ FT (column J) - sum all mud slab items
             spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
 
             // Sum for CY (column L) - sum all mud slab items
             spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -427,9 +427,9 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`) // Col L: J*H/27
             // Apply red color to B, J, L, M
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -443,9 +443,9 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`) // Col L: J*H/27
             // Apply red color to B, J, L, M
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -460,9 +460,9 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`) // Col M: =C
             // Apply red color to B, J, L, M
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -477,9 +477,9 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=K${row}*1.3` }, `L${row}`) // Col L: 1.3*CY
             // Apply red color to B, J, K, L
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000', textDecoration: 'line-through' }, `K${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', textDecoration: 'line-through', fontWeight: 'bold' }, `K${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -494,9 +494,9 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=K${row}*1.3` }, `L${row}`) // Col L: 1.3*CY
             // Apply red color to B, J, K, L
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000', textDecoration: 'line-through' }, `K${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', textDecoration: 'line-through', fontWeight: 'bold' }, `K${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -512,9 +512,9 @@ const Spreadsheet = () => {
             // Column M is empty as requested
             // Apply red color to B, J, K, L
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000', textDecoration: 'line-through' }, `K${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', textDecoration: 'line-through', fontWeight: 'bold' }, `K${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -602,7 +602,7 @@ const Spreadsheet = () => {
           const { firstDataRow, lastDataRow } = formulaInfo
           try {
             spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})*2` }, `I${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `I${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -613,9 +613,9 @@ const Spreadsheet = () => {
           const { firstDataRow, lastDataRow } = formulaInfo
           try {
             spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
             spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -643,8 +643,8 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`) // Col L: J*H/27
             // Apply red color to B, J, L
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -658,8 +658,8 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`) // Col L: J*H/27
             // Apply red color to B, J, L
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -674,9 +674,9 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`) // Col M: =C
             // Apply red color to B, J, L, M
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
           } catch (error) {
             // Ignore errors
           }
@@ -745,34 +745,13 @@ const Spreadsheet = () => {
             // Special formatting for Backpacking
             if (itemType === 'backpacking_item') {
               spreadsheet.cellFormat({ color: '#000000' }, `C${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
             }
 
             // Special formatting for Shims - columns I and J in red
             if (itemType === 'shims') {
-              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            }
-            // Timber brace - columns I and M in red only when single item in group (no sum row)
-            if (itemType === 'timber_brace_item' && !formulaInfo?.hasMultipleItems) {
-              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
-            }
-            // Timber waler - columns I and M in red only when single item (no sum row)
-            if (itemType === 'timber_waler_item' && !formulaInfo?.hasMultipleItems) {
-              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
-            }
-            // Timber stringer - column I in red only when single item (no sum row)
-            if (itemType === 'timber_stringer_item' && !formulaInfo?.hasMultipleItems) {
-              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
-            }
-            // Drilled hole grout - columns I, J, L, M in red only when single item (no sum row)
-            if (itemType === 'drilled_hole_grout_item' && !formulaInfo?.hasMultipleItems) {
-              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
             }
           } catch (error) {
             // Ignore errors
@@ -784,17 +763,17 @@ const Spreadsheet = () => {
           const { firstDataRow, lastDataRow, subsectionName } = formulaInfo
           try {
             // Standard sum for FT (I) for all SOE, except Heel blocks
-            const ftSumSubsections = ['Rock anchors', 'Rock bolts', 'Anchor', 'Tie back', 'Dowel bar', 'Rock pins', 'Shotcrete', 'Permission grouting', 'Form board', 'Guide wall']
+            const ftSumSubsections = ['Rock anchors', 'Rock bolts', 'Tie back anchor', 'Tie down anchor', 'Dowel bar', 'Rock pins', 'Shotcrete', 'Permission grouting', 'Form board', 'Guide wall']
             if ((itemType === 'timber_waler_group_sum' || itemType === 'timber_brace_group_sum' || itemType === 'timber_stringer_group_sum' || itemType === 'drilled_hole_grout_group_sum') || (itemType !== 'timber_brace_group_sum' && itemType !== 'timber_stringer_group_sum' && itemType !== 'drilled_hole_grout_group_sum' && subsectionName !== 'Heel blocks' && (ftSumSubsections.includes(subsectionName) || !['Concrete soil retention piers', 'Buttons', 'Rock stabilization'].includes(subsectionName)))) {
               spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `I${row}`)
             }
 
             // Sum for SQ FT (J)
             const sqFtSubsections = ['Sheet pile', 'Timber lagging', 'Timber sheeting', 'Vertical timber sheets', 'Horizontal timber sheets', 'Parging', 'Heel blocks', 'Underpinning', 'Concrete soil retention piers', 'Guide wall', 'Shotcrete', 'Permission grouting', 'Buttons', 'Form board', 'Rock stabilization']
             if (sqFtSubsections.includes(subsectionName) || itemType === 'drilled_hole_grout_group_sum') {
               spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
             }
 
             // Sum for LBS (K)
@@ -818,7 +797,7 @@ const Spreadsheet = () => {
             ]
             if (itemType === 'soldier_pile_group_sum' || lbsSubsections.includes(subsectionName)) {
               spreadsheet.updateCell({ formula: `=SUM(K${firstDataRow}:K${lastDataRow})` }, `K${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `K${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `K${row}`)
             }
 
             // Sum for QTY (M)
@@ -842,8 +821,8 @@ const Spreadsheet = () => {
               'Underpinning',
               'Rock anchors',
               'Rock bolts',
-              'Anchor',
-              'Tie back',
+              'Tie back anchor',
+              'Tie down anchor',
               'Concrete soil retention piers',
               'Dowel bar',
               'Rock pins',
@@ -851,14 +830,14 @@ const Spreadsheet = () => {
             ]
             if ((itemType === 'soldier_pile_group_sum' || itemType === 'timber_soldier_pile_group_sum' || itemType === 'timber_plank_group_sum' || itemType === 'timber_raker_group_sum' || itemType === 'timber_waler_group_sum' || itemType === 'timber_brace_group_sum' || itemType === 'timber_post_group_sum' || itemType === 'drilled_hole_grout_group_sum') || qtySubsections.includes(subsectionName)) {
               spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
             }
 
             // Sum for CY (L)
             const cySubsections = ['Heel blocks', 'Underpinning', 'Concrete soil retention piers', 'Guide wall', 'Shotcrete', 'Buttons', 'Rock stabilization']
             if (cySubsections.includes(subsectionName) || itemType === 'drilled_hole_grout_group_sum') {
               spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
             }
           } catch (error) {
             // Ignore errors
@@ -892,9 +871,9 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
           } catch (error) {
             console.error(`Error applying foundation extra SQ FT formula at row ${row}:`, error)
           }
@@ -905,9 +884,9 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=C${row}*G${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
           } catch (error) {
             console.error(`Error applying foundation extra FT formula at row ${row}:`, error)
           }
@@ -919,15 +898,15 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
           } catch (error) {
             console.error(`Error applying foundation extra EA formula at row ${row}:`, error)
           }
           return
         }
-        if (['drilled_foundation_pile', 'helical_foundation_pile', 'driven_foundation_pile', 'stelcor_drilled_displacement_pile', 'cfa_pile', 'pile_cap', 'strip_footing', 'isolated_footing', 'pilaster', 'grade_beam', 'tie_beam', 'thickened_slab', 'buttress_takeoff', 'buttress_final', 'pier', 'corbel', 'linear_wall', 'foundation_wall', 'retaining_wall', 'barrier_wall', 'stem_wall', 'elevator_pit', 'service_elevator_pit', 'detention_tank', 'duplex_sewage_ejector_pit', 'deep_sewage_ejector_pit', 'sump_pump_pit', 'grease_trap', 'house_trap', 'mat_slab', 'mud_slab_foundation', 'sog', 'stairs_on_grade', 'electric_conduit'].includes(itemType)) {
+        if (['drilled_foundation_pile', 'helical_foundation_pile', 'driven_foundation_pile', 'stelcor_drilled_displacement_pile', 'cfa_pile', 'pile_cap', 'strip_footing', 'isolated_footing', 'pilaster', 'grade_beam', 'tie_beam', 'strap_beam', 'thickened_slab', 'buttress_takeoff', 'buttress_final', 'pier', 'corbel', 'linear_wall', 'foundation_wall', 'retaining_wall', 'barrier_wall', 'stem_wall', 'elevator_pit', 'service_elevator_pit', 'detention_tank', 'duplex_sewage_ejector_pit', 'deep_sewage_ejector_pit', 'sump_pump_pit', 'grease_trap', 'house_trap', 'mat_slab', 'mud_slab_foundation', 'sog', 'stairs_on_grade', 'electric_conduit'].includes(itemType)) {
           try {
             const foundationFormulas = generateFoundationFormulas(itemType, row, parsedData || formulaInfo)
             if (foundationFormulas.takeoff) spreadsheet.updateCell({ formula: `=${foundationFormulas.takeoff}` }, `C${row}`)
@@ -1023,10 +1002,10 @@ const Spreadsheet = () => {
               if (formulaInfo.buttressRow) {
                 spreadsheet.updateCell({ formula: `=C${formulaInfo.buttressRow}` }, `M${row}`)
               }
-              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
             }
 
             // Special formatting for Elevator Pit - Sump pit row (J, L, M red)
@@ -1034,23 +1013,23 @@ const Spreadsheet = () => {
               (itemType === 'elevator_pit' || itemType === 'service_elevator_pit') &&
               (parsedData || formulaInfo)?.parsed?.itemSubType === 'sump_pit'
             ) {
-              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
             }
 
             // Special formatting for Mud Slab - J and L red
             if (itemType === 'mud_slab_foundation') {
-              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
             }
 
             // Special formatting for Stairs on grade - Stair slab and Landings J and L red
             if (itemType === 'stairs_on_grade') {
               const subType = (parsedData || formulaInfo)?.parsed?.itemSubType
               if (subType === 'stair_slab' || subType === 'landings') {
-                spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
-                spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+                spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+                spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
               }
             }
           } catch (error) {
@@ -1060,14 +1039,14 @@ const Spreadsheet = () => {
         }
 
         if (itemType === 'foundation_sum') {
-          const { firstDataRow, lastDataRow, subsectionName, isDualDiameter, excludeISum, excludeJSum, matSumOnly, cySumOnly, firstDataRowForL, lastDataRowForL, lSumRange } = formulaInfo
+          const { firstDataRow, lastDataRow, subsectionName, isDualDiameter, excludeISum, excludeJSum, excludeKSum, matSumOnly, cySumOnly, firstDataRowForL, lastDataRowForL, lSumRange } = formulaInfo
           try {
             // Sum for FT (I) - exclude if excludeISum is true (for slab items)
             if (!excludeISum) {
-              const ftSumSubsections = ['Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile', 'Grade beams', 'Tie beam', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Drilled foundation pile', 'Strip Footings', 'Stem wall', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'SOG', 'Stairs on grade Stairs', 'Electric conduit']
+              const ftSumSubsections = ['Piles', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Drilled foundation pile', 'Strip Footings', 'Stem wall', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'SOG', 'Stairs on grade Stairs', 'Electric conduit']
               if (ftSumSubsections.includes(subsectionName)) {
                 spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
-                spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+                spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `I${row}`)
               }
             }
 
@@ -1075,17 +1054,17 @@ const Spreadsheet = () => {
             if (subsectionName === 'Drilled foundation pile' && isDualDiameter) {
               spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
               spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
             }
 
             // Sum for SQ FT (J) - exclude Drilled foundation pile (single diameter)
             // For Mat slab, only sum J for mat items (not haunch)
             if (!excludeJSum && !cySumOnly) {
-              const sqFtSubsections = ['Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Strip Footings', 'Grade beams', 'Tie beam', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Stem wall', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'Mat slab', 'SOG', 'Stairs on grade Stairs']
+              const sqFtSubsections = ['Piles', 'Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Strip Footings', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Stem wall', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'Mat slab', 'SOG', 'Stairs on grade Stairs']
               if (sqFtSubsections.includes(subsectionName)) {
                 spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
-                spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+                spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
               }
             }
 
@@ -1095,17 +1074,17 @@ const Spreadsheet = () => {
             }
 
             // Sum for LBS (K)
-            const lbsSubsections = ['Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile']
-            if (lbsSubsections.includes(subsectionName)) {
+            const lbsSubsections = ['Piles', 'Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile']
+            if (!excludeKSum && lbsSubsections.includes(subsectionName)) {
               spreadsheet.updateCell({ formula: `=SUM(K${firstDataRow}:K${lastDataRow})` }, `K${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `K${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `K${row}`)
             }
 
             // Sum for QTY (M)
-            const qtySubsections = ['Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile', 'Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Stairs on grade Stairs']
+            const qtySubsections = ['Piles', 'Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile', 'Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Stairs on grade Stairs']
             if (qtySubsections.includes(subsectionName)) {
               spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
             }
 
             // Sum for CY (L)
@@ -1116,13 +1095,13 @@ const Spreadsheet = () => {
             if (cySumOnly) {
               // Only sum L (CY) for mat + haunch combined
               spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
-              spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
             } else if (!formulaInfo.excludeLSum) {
-              const cySubsections = ['Pile caps', 'Strip Footings', 'Isolated Footings', 'Pilaster', 'Grade beams', 'Tie beam', 'Thickened slab', 'Pier', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Stem wall', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'Mat slab', 'SOG', 'Stairs on grade Stairs']
+              const cySubsections = ['Piles', 'Pile caps', 'Strip Footings', 'Isolated Footings', 'Pilaster', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Pier', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Stem wall', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'Mat slab', 'SOG', 'Stairs on grade Stairs']
               if (cySubsections.includes(subsectionName)) {
                 const lFormula = lSumRange ? `=SUM(${lSumRange})` : `=SUM(L${lStartRow}:L${lEndRow})`
                 deferredFoundationSumL.push({ row, lFormula })
-                spreadsheet.cellFormat({ color: '#FF0000' }, `L${row}`)
+                spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
               }
             }
           } catch (error) {
@@ -1136,8 +1115,8 @@ const Spreadsheet = () => {
           try {
             spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
             spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
           } catch (error) {
             console.error(`Error applying Waterproofing Exterior side sum at row ${row}:`, error)
           }
@@ -1186,8 +1165,8 @@ const Spreadsheet = () => {
           try {
             spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
             spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `I${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
           } catch (error) {
             console.error(`Error applying Waterproofing Negative side sum at row ${row}:`, error)
           }
@@ -1226,7 +1205,7 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ value: 0 }, `C${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
           } catch (error) {
             console.error(`Error applying Waterproofing Horizontal WP formula at row ${row}:`, error)
           }
@@ -1236,7 +1215,7 @@ const Spreadsheet = () => {
           const { firstDataRow, lastDataRow } = formulaInfo
           try {
             spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
           } catch (error) {
             console.error(`Error applying Waterproofing Horizontal WP sum at row ${row}:`, error)
           }
@@ -1247,7 +1226,7 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ value: 0 }, `C${row}`)
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
           } catch (error) {
             console.error(`Error applying Waterproofing Horizontal insulation formula at row ${row}:`, error)
           }
@@ -1257,7 +1236,7 @@ const Spreadsheet = () => {
           const { firstDataRow, lastDataRow } = formulaInfo
           try {
             spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
           } catch (error) {
             console.error(`Error applying Waterproofing Horizontal insulation sum at row ${row}:`, error)
           }
@@ -1267,7 +1246,7 @@ const Spreadsheet = () => {
           try {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
           } catch (error) {
             console.error(`Error applying Waterproofing extra SQ FT formula at row ${row}:`, error)
           }
@@ -1277,7 +1256,7 @@ const Spreadsheet = () => {
           try {
             spreadsheet.updateCell({ formula: `=H${row}*C${row}` }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
           } catch (error) {
             console.error(`Error applying Waterproofing extra FT formula at row ${row}:`, error)
           }
@@ -5618,7 +5597,7 @@ const Spreadsheet = () => {
         'Stub beam',
         'Rock anchors',
         'Rock bolts',
-        'Anchor'
+        'Tie down anchor'
       ])
 
       // Get all unique subsection names from collected items
@@ -7685,7 +7664,7 @@ const Spreadsheet = () => {
 
           // Add Tie down anchor section right after Tie back anchor (only if items exist)
           // Get tie down anchor groups first to check if any exist
-          let tieDownGroups = soeSubsectionItems.get('Tie down') || []
+          let tieDownGroups = soeSubsectionItems.get('Tie down') || soeSubsectionItems.get('Anchor') || []
           const tieDownAnchorGroups = soeSubsectionItems.get('Tie down anchor') || []
           tieDownGroups = [...tieDownGroups, ...tieDownAnchorGroups]
 
@@ -10751,7 +10730,7 @@ const Spreadsheet = () => {
           processorGroups.forEach((itemOrGroup, groupIndex) => {
             if (!itemOrGroup.items || !Array.isArray(itemOrGroup.items) || itemOrGroup.items.length === 0) return
 
-            const groupTakeoff = itemOrGroup.items[0]?.takeoff || 0
+            const groupTakeoff = itemOrGroup.items.reduce((sum, item) => sum + (item.takeoff || 0), 0)
             if (groupTakeoff === 0) return
 
             const groupQty = Math.round(groupTakeoff)
@@ -10938,13 +10917,9 @@ const Spreadsheet = () => {
                 .sort((a, b) => a.firstDataRow - b.firstDataRow) // Sort by firstDataRow to match group order
 
               // Use groupIndex to get the corresponding sum row
-              // The sum row is at formula.row, and firstDataRow is the data row
-              // So the sum row is at firstDataRow + 1 (data row + 1 = sum row)
               if (drilledFoundationSumFormulas[groupIndex]) {
                 const formulaInfo = drilledFoundationSumFormulas[groupIndex]
-                // The sum row should be firstDataRow + 1 (data row + 1 = sum row)
-                // Use firstDataRow + 1 directly to ensure we get the correct sum row
-                groupSumRowIndex = formulaInfo.firstDataRow + 1
+                groupSumRowIndex = formulaInfo.row
 
 
                 // Reference the FT sum from column I of the sum row
