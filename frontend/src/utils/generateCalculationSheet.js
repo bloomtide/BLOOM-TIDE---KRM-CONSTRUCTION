@@ -84,6 +84,7 @@ import {
   processMatSlabItems,
   processMudSlabFoundationItems,
   processSOGItems,
+  processROGItems,
   processStairsOnGradeItems,
   processElectricConduitItems,
   generateFoundationFormulas
@@ -221,6 +222,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let matSlabItems = []
   let mudSlabFoundationItems = []
   let sogItems = []
+  let rogItems = []
   let stairsOnGradeGroups = []
   let electricConduitItems = []
   let exteriorSideItems = []
@@ -363,6 +365,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     matSlabItems = processMatSlabItems(dataRows, headers, tracker)
     mudSlabFoundationItems = processMudSlabFoundationItems(dataRows, headers, tracker)
     sogItems = processSOGItems(dataRows, headers, tracker)
+    rogItems = processROGItems(dataRows, headers, tracker)
     stairsOnGradeGroups = processStairsOnGradeItems(dataRows, headers, tracker)
     electricConduitItems = processElectricConduitItems(dataRows, headers, tracker)
     exteriorSideItems = processExteriorSideItems(dataRows, headers, tracker)
@@ -1491,10 +1494,11 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Grease trap') hasSubsectionData = greaseTrapItems.length > 0
         else if (subsection.name === 'House trap') hasSubsectionData = houseTrapItems.length > 0
         else if (subsection.name === 'Mat slab') hasSubsectionData = matSlabItems.length > 0
-        else if (subsection.name === 'Mud slab') hasSubsectionData = mudSlabFoundationItems.length > 0
+        else if (subsection.name === 'Mud Slab') hasSubsectionData = true // Always show heading - manual entry subsection
         else if (subsection.name === 'SOG') hasSubsectionData = sogItems.length > 0
-        else if (subsection.name === 'Stairs on grade') hasSubsectionData = stairsOnGradeGroups.length > 0
-        else if (subsection.name === 'Proposed underground electrical conduit') hasSubsectionData = electricConduitItems.length > 0
+        else if (subsection.name === 'Ramp on grade') hasSubsectionData = rogItems.length > 0
+        else if (subsection.name === 'Stairs on grade Stairs') hasSubsectionData = stairsOnGradeGroups.length > 0
+        else if (subsection.name === 'Electric conduit') hasSubsectionData = electricConduitItems.length > 0
         else if (subsection.name === 'For foundation Extra line item use this') hasSubsectionData = true // Always show extra line item placeholder if section exists? Or only if needed? Treating as always show if section active
 
         if (hasSubsectionData) {
@@ -2982,98 +2986,47 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
           }
         } else if (subsection.name === 'Mat slab' && matSlabItems.length > 0) {
-          // Group items by type and height
-          const matItems = []
-          const haunchItems = []
-
-          matSlabItems.forEach(item => {
-            const subType = item.parsed?.itemSubType
-            if (subType === 'mat') {
-              matItems.push(item)
-            } else if (subType === 'haunch') {
-              haunchItems.push(item)
-            }
-          })
-
-          // Group mat items by height (groupKey)
-          const matGroups = new Map()
-          matItems.forEach(item => {
-            const groupKey = item.parsed.groupKey || 'OTHER'
-            if (!matGroups.has(groupKey)) {
-              matGroups.set(groupKey, [])
-            }
-            matGroups.get(groupKey).push(item)
-          })
-
-          // Process each mat group with its associated haunch
-          const matGroupsToIterate = getMergedGroupsIfNeeded(matGroups)
-          matGroupsToIterate.forEach((group, groupIndex) => {
-            const matGroupItems = group.items
-            // Add mat items for this group
+          // matSlabItems are groups: each group = mats (same H) + the haunch that immediately follows in raw order
+          matSlabItems.forEach((group, groupIndex) => {
             const matFirstRow = rows.length + 1
-            matGroupItems.forEach(item => {
+            let lastMatRow = matFirstRow - 1
+
+            group.items.forEach(item => {
+              const subType = item.parsed?.itemSubType
               const itemRow = Array(template.columns.length).fill('')
               itemRow[1] = item.particulars
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
-              itemRow[7] = item.parsed.heightFromH || '' // Height (H)
+              if (subType === 'mat') {
+                itemRow[7] = item.parsed.heightFromH || '' // Height (H)
+              } else if (subType === 'haunch') {
+                itemRow[6] = item.parsed.width || '' // Width (G)
+                itemRow[7] = item.parsed.height || '' // Height (H)
+              }
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'mat_slab', parsedData: item, section: 'foundation' })
+              if (subType === 'mat') lastMatRow = rows.length
             })
-            const lastMatRow = rows.length
+            const lastDataRow = rows.length
 
-            // Add haunch item(s) for this group (if available) - when merged, add all corresponding haunch items
-            let lastDataRow = lastMatRow
-            const haunchIndices = matGroupItems.length === 1 ? [groupIndex] : Array.from({ length: matGroupItems.length }, (_, i) => i)
-            haunchIndices.forEach((idx) => {
-              if (haunchItems.length > idx) {
-                const haunchItem = haunchItems[idx]
-                const itemRow = Array(template.columns.length).fill('')
-                itemRow[1] = haunchItem.particulars
-                itemRow[2] = haunchItem.takeoff
-                itemRow[3] = haunchItem.unit
-                itemRow[6] = haunchItem.parsed.width || '' // Width (G)
-                itemRow[7] = haunchItem.parsed.height || '' // Height (H)
-                rows.push(itemRow)
-                formulas.push({ row: rows.length, itemType: 'mat_slab', parsedData: haunchItem, section: 'foundation' })
-                lastDataRow = rows.length // Update to include haunch item
-              }
-            })
-
-            // Add sum row for mat items (J only, no I, no L)
-            const matSumRow = Array(template.columns.length).fill('')
-            rows.push(matSumRow)
-            formulas.push({
-              row: rows.length,
-              itemType: 'foundation_sum',
-              section: 'foundation',
-              firstDataRow: matFirstRow,
-              lastDataRow: lastMatRow,
-              subsectionName: subsection.name,
-              excludeISum: true, // Exclude I sum for mat items
-              excludeLSum: true, // Exclude L sum (will be in combined sum)
-              matSumOnly: true // Only sum J for mat items
-            })
-
-            // Add sum row for mat + haunch (L only, includes both mat and haunch)
-            // This comes right after the mat sum row (no gap)
-            const combinedSumRow = Array(template.columns.length).fill('')
-            rows.push(combinedSumRow)
+            // Single sum row: J (mat items only) + L (mat + haunch) - no gap in column L
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
             formulas.push({
               row: rows.length,
               itemType: 'foundation_sum',
               section: 'foundation',
               firstDataRow: matFirstRow,
               lastDataRow: lastDataRow,
+              lastDataRowForJ: lastMatRow, // J sum: mat items only
               subsectionName: subsection.name,
-              excludeISum: true, // Exclude I sum
-              excludeJSum: true, // Exclude J sum (only for mat items)
-              cySumOnly: true, // Only sum L (CY) for mat + haunch combined
+              excludeISum: true,
+              matSlabCombinedSum: true, // J (mat only) + L (mat+haunch) on same row
               foundationCySumRow: true
             })
 
             // Add empty row between groups
-            if (groupIndex < matGroupsToIterate.length - 1) {
+            if (groupIndex < matSlabItems.length - 1) {
               rows.push(Array(template.columns.length).fill(''))
             }
           })
@@ -3092,6 +3045,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             section: 'foundation',
             foundationCySumRow: true
           })
+          // Gap row between Mud slab and SOG
+          rows.push(Array(template.columns.length).fill(''))
         } else if (subsection.name === 'SOG' && sogItems.length >= 0) {
           // Group items by type
           const gravelItems = []
@@ -3280,6 +3235,46 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               })
             })
           }
+        } else if (subsection.name === 'Ramp on grade' && rogItems.length > 0) {
+          // ROG items: same structure as SOG slab - J=C, L=J*H/27, H from name
+          const rogGroups = new Map()
+          rogItems.forEach(item => {
+            const groupKey = item.parsed.groupKey || 'OTHER'
+            if (!rogGroups.has(groupKey)) {
+              rogGroups.set(groupKey, [])
+            }
+            rogGroups.get(groupKey).push(item)
+          })
+
+          const rogGroupsToIterate = getMergedGroupsIfNeeded(rogGroups)
+          rogGroupsToIterate.forEach((group, groupIndex) => {
+            const { items } = group
+            const rogGroupFirstRow = rows.length + 1
+            items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.heightFromName || '' // Height (H)
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'rog', parsedData: item, section: 'foundation' })
+            })
+            const rogSumRow = Array(template.columns.length).fill('')
+            rows.push(rogSumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: rogGroupFirstRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name,
+              excludeISum: true,
+              foundationCySumRow: true
+            })
+            if (groupIndex < rogGroupsToIterate.length - 1) {
+              rows.push(Array(template.columns.length).fill(''))
+            }
+          })
         } else if (subsection.name === 'Stairs on grade Stairs' && stairsOnGradeGroups.length > 0) {
           // Process each stair group
           stairsOnGradeGroups.forEach((group, groupIndex) => {
@@ -3667,13 +3662,13 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Topping slab') hasSubsectionData = superstructureItems.toppingSlab && superstructureItems.toppingSlab.length > 0
         else if (subsection.name === 'Thermal break') hasSubsectionData = superstructureItems.thermalBreak && superstructureItems.thermalBreak.length > 0
         else if (subsection.name === 'Raised slab') hasSubsectionData = superstructureItems.raisedSlab && (superstructureItems.raisedSlab.kneeWall.length > 0 || superstructureItems.raisedSlab.raisedSlab.length > 0)
-        else if (subsection.name === 'Built up slab') hasSubsectionData = superstructureItems.builtUpSlab && (superstructureItems.builtUpSlab.kneeWall.length > 0 || superstructureItems.builtUpSlab.builtUpSlab.length > 0)
-        else if (subsection.name === 'Built up stair') hasSubsectionData = superstructureItems.builtUpStair && (superstructureItems.builtUpStair.kneeWall.length > 0 || superstructureItems.builtUpStair.builtUpStairs.length > 0)
-        else if (subsection.name === 'Built up ramps') hasSubsectionData = superstructureItems.builtupRamps && (superstructureItems.builtupRamps.kneeWall.length > 0 || superstructureItems.builtupRamps.ramp.length > 0)
+        else if (subsection.name === 'Built-up slab') hasSubsectionData = superstructureItems.builtUpSlab && (superstructureItems.builtUpSlab.kneeWall.length > 0 || superstructureItems.builtUpSlab.builtUpSlab.length > 0)
+        else if (subsection.name === 'Built-up stair') hasSubsectionData = superstructureItems.builtUpStair && (superstructureItems.builtUpStair.kneeWall.length > 0 || superstructureItems.builtUpStair.builtUpStairs.length > 0)
+        else if (subsection.name === 'Builtup ramps') hasSubsectionData = superstructureItems.builtupRamps && (superstructureItems.builtupRamps.kneeWall.length > 0 || superstructureItems.builtupRamps.ramp.length > 0)
         else if (subsection.name === 'Concrete hanger') hasSubsectionData = superstructureItems.concreteHanger && superstructureItems.concreteHanger.length > 0
         else if (subsection.name === 'Shear Walls') hasSubsectionData = superstructureItems.shearWalls && superstructureItems.shearWalls.length > 0
         else if (subsection.name === 'Parapet walls') hasSubsectionData = superstructureItems.parapetWalls && superstructureItems.parapetWalls.length > 0
-        else if (subsection.name === 'Columns') hasSubsectionData = superstructureItems.columnsTakeoff && superstructureItems.columnsTakeoff.length > 0
+        else if (subsection.name === 'Columns') hasSubsectionData = true // Always show heading - content (As per Takeoff count, Final as per schedule count) is always rendered
         else if (subsection.name === 'Concrete post') hasSubsectionData = superstructureItems.concretePost && superstructureItems.concretePost.length > 0
         else if (subsection.name === 'Concrete encasement') hasSubsectionData = superstructureItems.concreteEncasement && superstructureItems.concreteEncasement.length > 0
         else if (subsection.name === 'Drop panel') hasSubsectionData = (superstructureItems.dropPanelBracket && superstructureItems.dropPanelBracket.length > 0) || (superstructureItems.dropPanelH && superstructureItems.dropPanelH.length > 0)
@@ -4092,7 +4087,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstItem = superstructureItems.columnsTakeoff?.[0]
           const takeoffRow = rows.length + 1
           const row1 = Array(template.columns.length).fill('')
-          row1[1] = 'Columns'
+          row1[1] = 'As per Takeoff count'
           row1[2] = firstItem?.takeoff || 0
           row1[3] = 'EA'
           rows.push(row1)
@@ -4715,6 +4710,10 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Fence') hasSubsectionData = Object.values(civilOtherItems['Fence']).some(arr => arr.length > 0)
         else if (subsection.name === 'Concrete filled steel pipe bollard') hasSubsectionData = Object.values(civilOtherItems['Concrete filled steel pipe bollard']).some(arr => arr.length > 0)
         else if (subsection.name === 'Site') hasSubsectionData = Object.values(civilOtherItems['Site']).some(val => Array.isArray(val) ? val.length > 0 : Object.values(val).some(v => Array.isArray(v) && v.length > 0))
+        else if (subsection.name === 'Ele') hasSubsectionData = true // Always show - content (Excavation, Backfill, Gravel) is always rendered
+        else if (subsection.name === 'Gas') hasSubsectionData = true // Always show - content is always rendered
+        else if (subsection.name === 'Water') hasSubsectionData = true // Always show - content is always rendered
+        else if (subsection.name === 'Drains & Utilities') hasSubsectionData = civilOtherItems['Drains & Utilities'] && civilOtherItems['Drains & Utilities'].length > 0
         else if (subsection.name === 'Alternate') hasSubsectionData = true // Handled inside
 
         // Add subsection header for all subsections except Alternate,
@@ -5515,8 +5514,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         } else if (subsection.name === 'Ele') {
           // Civil/Sitework Ele subsection with Excavation, Backfill, Gravel
           const createCivilEleGroup = (subSubName, takeoffSourceType) => {
-            // Sub-subsection header
+            // Sub-subsection header - Ele in column A, sub-subsection name in column B
             const headerRow = Array(template.columns.length).fill('')
+            headerRow[0] = 'Ele'
             headerRow[1] = `  ${subSubName}:`
             rows.push(headerRow)
 
@@ -5562,6 +5562,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
 
           // Excavation sub-subsection
           const excavationHeaderRow = Array(template.columns.length).fill('')
+          excavationHeaderRow[0] = 'Gas'
           excavationHeaderRow[1] = '  Excavation:'
           rows.push(excavationHeaderRow)
 
@@ -5595,6 +5596,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
 
           // Backfill sub-subsection
           const backfillHeaderRow = Array(template.columns.length).fill('')
+          backfillHeaderRow[0] = 'Gas'
           backfillHeaderRow[1] = '  Backfill:'
           rows.push(backfillHeaderRow)
 
@@ -5628,6 +5630,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
 
           // Gravel sub-subsection
           const gravelHeaderRow = Array(template.columns.length).fill('')
+          gravelHeaderRow[0] = 'Gas'
           gravelHeaderRow[1] = '  Gravel:'
           rows.push(gravelHeaderRow)
 
@@ -5682,6 +5685,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
 
           // Excavation sub-subsection
           const excavationHeaderRow = Array(template.columns.length).fill('')
+          excavationHeaderRow[0] = 'Water'
           excavationHeaderRow[1] = '  Excavation:'
           rows.push(excavationHeaderRow)
 
@@ -5733,6 +5737,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
 
           // Backfill sub-subsection
           const backfillHeaderRow = Array(template.columns.length).fill('')
+          backfillHeaderRow[0] = 'Water'
           backfillHeaderRow[1] = '  Backfill:'
           rows.push(backfillHeaderRow)
 
@@ -5766,6 +5771,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
 
           // Gravel sub-subsection
           const gravelHeaderRow = Array(template.columns.length).fill('')
+          gravelHeaderRow[0] = 'Water'
           gravelHeaderRow[1] = '  Gravel:'
           rows.push(gravelHeaderRow)
 

@@ -34,6 +34,7 @@ import {
     isMatSlab,
     isMudSlabFoundation,
     isSOG,
+    isROG,
     isStairsOnGrade,
     isElectricConduit,
     parseDrilledFoundationPile,
@@ -67,6 +68,7 @@ import {
     parseMatSlab,
     parseMudSlabFoundation,
     parseSOG,
+    parseROG,
     parseStairsOnGrade,
     parseElectricConduit
 } from '../parsers/foundationParser'
@@ -643,10 +645,38 @@ export const processHouseTrapItems = (rawDataRows, headers, tracker = null) => {
 }
 
 /**
- * Processes mat slab items
+ * Processes mat slab items.
+ * Groups mats by H value; each haunch is assigned to the mat group that immediately precedes it in the raw order.
+ * So: Mat-1, Mat-2, Mat-3, Haunch -> group1; Mat-1, Mat-2, Mat-3, Haunch -> group2 (each haunch in its own group).
  */
 export const processMatSlabItems = (rawDataRows, headers, tracker = null) => {
-    return processGenericFoundationItems(rawDataRows, headers, isMatSlab, parseMatSlab, tracker)
+    const items = processGenericFoundationItems(rawDataRows, headers, isMatSlab, parseMatSlab, tracker)
+    if (items.length === 0) return []
+
+    const groups = []
+    let currentGroup = null
+
+    items.forEach(item => {
+        const subType = item.parsed?.itemSubType
+        if (subType === 'mat') {
+            const groupKey = item.parsed.groupKey || 'OTHER'
+            if (currentGroup && currentGroup.groupKey !== groupKey) {
+                groups.push(currentGroup)
+                currentGroup = null
+            }
+            if (!currentGroup) {
+                currentGroup = { groupKey, items: [] }
+            }
+            currentGroup.items.push(item)
+        } else if (subType === 'haunch') {
+            if (currentGroup) {
+                currentGroup.items.push(item)
+            }
+            // Haunch does not start a new group; next mat will
+        }
+    })
+    if (currentGroup) groups.push(currentGroup)
+    return groups
 }
 
 /**
@@ -661,6 +691,13 @@ export const processMudSlabFoundationItems = (rawDataRows, headers, tracker = nu
  */
 export const processSOGItems = (rawDataRows, headers, tracker = null) => {
     return processGenericFoundationItems(rawDataRows, headers, isSOG, parseSOG, tracker)
+}
+
+/**
+ * Processes ROG (Ramp on grade) items
+ */
+export const processROGItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isROG, parseROG, tracker)
 }
 
 /**
@@ -1180,6 +1217,15 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
             }
             break
 
+        case 'rog':
+            // ROG (Ramp on grade): same formulas as Patch SOG - J=C, L=J*H/27, H from name
+            formulas.sqFt = `C${rowNum}`
+            if (itemData.parsed?.heightFromName !== undefined) {
+                formulas.height = itemData.parsed.heightFromName
+            }
+            formulas.cy = `J${rowNum}*H${rowNum}/27`
+            break
+
         case 'stairs_on_grade':
             const sogStairsSubType = itemData.parsed?.itemSubType
             if (sogStairsSubType === 'stairs') {
@@ -1263,6 +1309,7 @@ export default {
     processMatSlabItems,
     processMudSlabFoundationItems,
     processSOGItems,
+    processROGItems,
     processStairsOnGradeItems,
     processElectricConduitItems,
     generateFoundationFormulas

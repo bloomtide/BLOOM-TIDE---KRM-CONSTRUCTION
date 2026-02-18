@@ -133,6 +133,7 @@ export const capstoneTemplate = {
         { name: 'Mat slab', items: [] },
         { name: 'Mud Slab', items: [] },
         { name: 'SOG', items: [] },
+        { name: 'Ramp on grade', items: [] },
         { name: 'Stairs on grade Stairs', items: [] },
         { name: 'Electric conduit', items: [] }
       ]

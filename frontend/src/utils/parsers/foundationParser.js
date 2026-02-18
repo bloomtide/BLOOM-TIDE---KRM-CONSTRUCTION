@@ -453,6 +453,16 @@ export const isSOG = (item) => {
 }
 
 /**
+ * Identifies if item is a ROG (Ramp on grade) item
+ */
+export const isROG = (item) => {
+    if (!item || typeof item !== 'string') return false
+    const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
+    return itemLower.includes('rog')
+}
+
+/**
  * Identifies if item is a stairs on grade item
  */
 export const isStairsOnGrade = (item) => {
@@ -1657,17 +1667,42 @@ export const parseSOG = (itemName) => {
             const inches = parseFloat(inchMatch[1])
             result.heightFromName = inches / 12 // Convert to feet
         }
-        // Group by prefix and height (e.g., "SOG 4"", "SOG 6"", "Patio SOG 6"", "Patch SOG 5"")
+        // Group by prefix and height (e.g., "SOG 4"", "SOG 6"", "Patio SOG 6"", "Patch SOG 5"", "Pressure SOG 5"")
         let prefix = 'sog'
         if (itemLower.includes('patio')) {
             prefix = 'patio_sog'
         } else if (itemLower.includes('patch')) {
             prefix = 'patch_sog'
+        } else if (itemLower.includes('pressure')) {
+            prefix = 'pressure_sog'
         }
         result.groupKey = `${prefix}_${result.heightFromName?.toFixed(2) || 'other'}`
         return result
     }
 
+    return result
+}
+
+/**
+ * Parses ROG (Ramp on grade) items
+ * Handles: ROG 6", ROG 4", etc. - same structure as SOG slabs
+ */
+export const parseROG = (itemName) => {
+    const result = {
+        type: 'rog',
+        itemSubType: 'rog_slab',
+        heightFromName: null,
+        groupKey: null
+    }
+
+    const itemLower = itemName.toLowerCase()
+    // Extract height from name like "ROG 6"", "ROG 4""
+    const inchMatch = itemName.match(/(\d+)"\s*(?:thick)?/i)
+    if (inchMatch) {
+        const inches = parseFloat(inchMatch[1])
+        result.heightFromName = inches / 12 // Convert to feet
+    }
+    result.groupKey = `rog_${result.heightFromName?.toFixed(2) || 'other'}`
     return result
 }
 
@@ -1740,6 +1775,7 @@ export default {
     isMatSlab,
     isMudSlabFoundation,
     isSOG,
+    isROG,
     isStairsOnGrade,
     isElectricConduit,
     parseDrilledFoundationPile,
@@ -1773,6 +1809,7 @@ export default {
     parseMatSlab,
     parseMudSlabFoundation,
     parseSOG,
+    parseROG,
     parseStairsOnGrade,
     parseElectricConduit,
     calculatePileWeight
