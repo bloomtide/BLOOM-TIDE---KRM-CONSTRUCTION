@@ -201,7 +201,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let pilasterItems = []
   let gradeBeamGroups = []
   let tieBeamGroups = []
-  let strapBeamGroups = []
+  let strapBeamItems = []
   let thickenedSlabGroups = []
   let buttressItem = null
   let pierItems = []
@@ -343,7 +343,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     pilasterItems = processPilasterItems(dataRows, headers, tracker)
     gradeBeamGroups = processGradeBeamItems(dataRows, headers, tracker)
     tieBeamGroups = processTieBeamItems(dataRows, headers, tracker)
-    strapBeamGroups = processStrapBeamItems(dataRows, headers, tracker)
+    strapBeamItems = processStrapBeamItems(dataRows, headers, tracker)
     thickenedSlabGroups = processThickenedSlabItems(dataRows, headers, tracker)
     buttressItem = processButtressItems(dataRows, headers, tracker)
     pierItems = processPierItems(dataRows, headers, tracker)
@@ -431,7 +431,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
       hasSectionData = [
         miscellaneousPileItems, drilledFoundationPileGroups, helicalFoundationPileGroups, drivenFoundationPileItems,
         stelcorDrilledDisplacementPileItems, cfaPileItems, pileCapItems, stripFootingGroups,
-        isolatedFootingItems, pilasterItems, gradeBeamGroups, tieBeamGroups, strapBeamGroups, thickenedSlabGroups,
+        isolatedFootingItems, pilasterItems, gradeBeamGroups, tieBeamGroups, strapBeamItems, thickenedSlabGroups,
         pierItems, corbelGroups, linearWallGroups, foundationWallGroups, retainingWallGroups,
         barrierWallGroups, stemWallItems, elevatorPitItems, serviceElevatorPitItems, detentionTankItems,         duplexSewageEjectorPitItems,
         deepSewageEjectorPitItems, sumpPumpPitItems, greaseTrapItems, houseTrapItems, matSlabItems, mudSlabFoundationItems,
@@ -844,8 +844,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Underpinning') headerCheckItems = underpinningItems
         else if (subsection.name === 'Rock anchors') headerCheckItems = rockAnchorItems
         else if (subsection.name === 'Rock bolts') headerCheckItems = rockBoltItems
-        else if (subsection.name === 'Anchor') headerCheckItems = anchorItems
-        else if (subsection.name === 'Tie back') headerCheckItems = tieBackItems
+        else if (subsection.name === 'Tie back anchor') headerCheckItems = tieBackItems
+        else if (subsection.name === 'Tie down anchor') headerCheckItems = anchorItems
         else if (subsection.name === 'Concrete soil retention piers') headerCheckItems = concreteSoilRetentionPierItems
         else if (subsection.name === 'Guide wall') headerCheckItems = guideWallItems
         else if (subsection.name === 'Dowel bar') headerCheckItems = dowelBarItems
@@ -933,9 +933,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             if (groupIndex < timberPlankGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
           })
         } else if (subsection.name === 'Timber waler' && timberWalerGroups.length > 0) {
-          // Timber waler: E=qty from (N) or 1, F=manual, I=E*C, M=E*F. Sum I and M only if multiple items.
-          const timberWalerTotalItems = timberWalerGroups.reduce((sum, g) => sum + g.items.length, 0)
-          const hasMultipleTimberWalerItems = timberWalerTotalItems > 1
+          // Timber waler: E=qty from (N) or 1, F=manual, I=E*C, M=E*F. Always create sum row; single-item group -> sum row red.
           timberWalerGroups.forEach((group, groupIndex) => {
             const firstGroupRow = rows.length + 1
             group.items.forEach(item => {
@@ -946,13 +944,11 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               itemRow[4] = item.parsed.qty ?? 1
               // Col F (index 5) = length, empty for manual input
               rows.push(itemRow)
-              formulas.push({ row: rows.length, itemType: 'timber_waler_item', parsedData: item, section: 'soe', hasMultipleItems: hasMultipleTimberWalerItems })
+              formulas.push({ row: rows.length, itemType: 'timber_waler_item', parsedData: item, section: 'soe' })
             })
-            if (hasMultipleTimberWalerItems) {
-              const sumRow = Array(template.columns.length).fill('')
-              rows.push(sumRow)
-              formulas.push({ row: rows.length, itemType: 'timber_waler_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
-            }
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'timber_waler_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1, isSingleItemGroup: group.items.length === 1 })
             if (groupIndex < timberWalerGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
           })
         } else if (subsection.name === 'Timber raker' && timberRakerGroups.length > 0) {
@@ -974,10 +970,10 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             if (groupIndex < timberRakerGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
           })
         } else if (subsection.name === 'Timber brace' && timberBraceGroups.length > 0) {
-          // Timber brace: per-group - multiple same-type items -> sum I and M, items black; single item or merged (different types) -> no sum, I and M red
+          // Timber brace: always create sum row; single-item group -> sum row red, item row black
           timberBraceGroups.forEach((group, groupIndex) => {
             const firstGroupRow = rows.length + 1
-            const hasMultipleItemsInGroup = group.items.length > 1 && !group.isMerged
+            const isSingleItemGroup = group.items.length === 1 && !group.isMerged
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
               itemRow[1] = item.particulars
@@ -990,13 +986,11 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 itemRow[7] = item.parsed.calculatedHeight || ''
               }
               rows.push(itemRow)
-              formulas.push({ row: rows.length, itemType: 'timber_brace_item', parsedData: item, section: 'soe', hasMultipleItems: hasMultipleItemsInGroup })
+              formulas.push({ row: rows.length, itemType: 'timber_brace_item', parsedData: item, section: 'soe' })
             })
-            if (hasMultipleItemsInGroup) {
-              const sumRow = Array(template.columns.length).fill('')
-              rows.push(sumRow)
-              formulas.push({ row: rows.length, itemType: 'timber_brace_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
-            }
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'timber_brace_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1, isSingleItemGroup })
             if (groupIndex < timberBraceGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
           })
         } else if (subsection.name === 'Timber post' && timberPostGroups.length > 0) {
@@ -1054,10 +1048,10 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             if (groupIndex < horizontalTimberSheetsGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
           })
         } else if (subsection.name === 'Timber stringer' && timberStringerGroups.length > 0) {
-          // Timber stringer: E=qty from (N) or 1, I=C*E. Per-group: multiple items -> sum I, items black; single item -> no sum, item row red
+          // Timber stringer: E=qty from (N) or 1, I=C*E. Always create sum row; single-item group -> sum row red, item row black
           timberStringerGroups.forEach((group, groupIndex) => {
             const firstGroupRow = rows.length + 1
-            const hasMultipleItemsInGroup = group.items.length > 1 && !group.isMerged
+            const isSingleItemGroup = group.items.length === 1 && !group.isMerged
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
               itemRow[1] = item.particulars
@@ -1065,13 +1059,11 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               itemRow[3] = item.unit
               itemRow[4] = item.parsed.qty ?? 1
               rows.push(itemRow)
-              formulas.push({ row: rows.length, itemType: 'timber_stringer_item', parsedData: item, section: 'soe', hasMultipleItems: hasMultipleItemsInGroup })
+              formulas.push({ row: rows.length, itemType: 'timber_stringer_item', parsedData: item, section: 'soe' })
             })
-            if (hasMultipleItemsInGroup) {
-              const sumRow = Array(template.columns.length).fill('')
-              rows.push(sumRow)
-              formulas.push({ row: rows.length, itemType: 'timber_stringer_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
-            }
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({ row: rows.length, itemType: 'timber_stringer_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1, isSingleItemGroup })
             if (groupIndex < timberStringerGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
           })
         } else {
@@ -1099,8 +1091,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           else if (subsection.name === 'Underpinning') subsectionItems = [] // Handled specially below
           else if (subsection.name === 'Rock anchors') subsectionItems = [] // Handled specially below
           else if (subsection.name === 'Rock bolts') subsectionItems = [] // Handled specially below
-          else if (subsection.name === 'Anchor') subsectionItems = [] // Handled specially below
-          else if (subsection.name === 'Tie back') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Tie back anchor') subsectionItems = [] // Handled specially below
+          else if (subsection.name === 'Tie down anchor') subsectionItems = [] // Handled specially below
           else if (subsection.name === 'Concrete soil retention piers') subsectionItems = [] // Handled specially below
           else if (subsection.name === 'Guide wall') subsectionItems = [] // Handled specially below
           else if (subsection.name === 'Dowel bar') subsectionItems = [] // Handled specially below
@@ -1240,19 +1232,23 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
           } else if (subsection.name === 'Rock bolts' && rockBoltItems.length > 0) {
             const firstItemRow = rows.length + 1
-            rockBoltItems.forEach(item => {
+            // processRockBoltItems returns groups { groupKey, items: [...] } or flat items
+            const itemsToRender = rockBoltItems[0]?.items
+              ? rockBoltItems.flatMap(g => g.items)
+              : rockBoltItems
+            itemsToRender.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
               itemRow[1] = item.particulars
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
-              itemRow[5] = item.parsed.calculatedLength || '' // Length (F) = bond length + 5
+              itemRow[5] = item.parsed?.calculatedLength || '' // Length (F) = bond length + 5
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'rock_bolt', parsedData: item, section: 'soe' })
             })
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
             formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
-          } else if (subsection.name === 'Anchor' && anchorItems.length > 0) {
+          } else if (subsection.name === 'Tie down anchor' && anchorItems.length > 0) {
             const firstItemRow = rows.length + 1
             anchorItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
@@ -1266,7 +1262,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
             formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
-          } else if (subsection.name === 'Tie back' && tieBackItems.length > 0) {
+          } else if (subsection.name === 'Tie back anchor' && tieBackItems.length > 0) {
             const firstItemRow = rows.length + 1
             tieBackItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
@@ -1416,10 +1412,10 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'soe_generic_sum', section: 'soe', firstDataRow: firstItemRow, lastDataRow: rows.length - 1, subsectionName: subsection.name })
           } else if (subsection.name === 'Drilled hole grout' && drilledHoleGroutGroups.length > 0) {
             // Drilled hole grout: F=G=SQRT((d/12)^2*3.14/4), H=height, I=C*H, J=G*F*C, L=J*H/27, M=C
-            // Per-group: multiple items -> sum row, items black; single item -> no sum, item row red
+            // Always create sum row; single-item group -> sum row red, item row black
             drilledHoleGroutGroups.forEach((group, groupIndex) => {
               const firstGroupRow = rows.length + 1
-              const hasMultipleItemsInGroup = group.items.length > 1 && !group.isMerged
+              const isSingleItemGroup = group.items.length === 1 && !group.isMerged
               group.items.forEach(item => {
                 const itemRow = Array(template.columns.length).fill('')
                 itemRow[1] = item.particulars
@@ -1427,13 +1423,11 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 itemRow[3] = item.unit
                 itemRow[7] = item.parsed.heightRaw || item.parsed.calculatedHeight || ''
                 rows.push(itemRow)
-                formulas.push({ row: rows.length, itemType: 'drilled_hole_grout_item', parsedData: item, section: 'soe', hasMultipleItems: hasMultipleItemsInGroup })
+                formulas.push({ row: rows.length, itemType: 'drilled_hole_grout_item', parsedData: item, section: 'soe' })
               })
-              if (hasMultipleItemsInGroup) {
-                const sumRow = Array(template.columns.length).fill('')
-                rows.push(sumRow)
-                formulas.push({ row: rows.length, itemType: 'drilled_hole_grout_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
-              }
+              const sumRow = Array(template.columns.length).fill('')
+              rows.push(sumRow)
+              formulas.push({ row: rows.length, itemType: 'drilled_hole_grout_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1, isSingleItemGroup })
               if (groupIndex < drilledHoleGroutGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
             })
           } else if (subsection.name === 'Backpacking' && hasBackpacking) {
@@ -1479,6 +1473,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Pilaster') hasSubsectionData = pilasterItems.length > 0
         else if (subsection.name === 'Grade beams') hasSubsectionData = gradeBeamGroups.length > 0
         else if (subsection.name === 'Tie beam') hasSubsectionData = tieBeamGroups.length > 0
+        else if (subsection.name === 'Strap beams') hasSubsectionData = strapBeamItems.length > 0
         else if (subsection.name === 'Thickened slab') hasSubsectionData = thickenedSlabGroups.length > 0
         else if (subsection.name === 'Buttresses') hasSubsectionData = !!buttressItem
         else if (subsection.name === 'Pier') hasSubsectionData = pierItems.length > 0
@@ -1511,35 +1506,64 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         }
 
         if (subsection.name === 'Piles' && miscellaneousPileItems.length > 0) {
+          // Items here have matched structure from Drilled/Helical/Driven/Stelcor/CFA - use that pile type's formulas
+          const pilesFirstRow = rows.length + 1
           miscellaneousPileItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
             itemRow[1] = item.particulars
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || ''
+            itemRow[7] = item.parsed?.calculatedHeight || item.parsed?.height || '' // Height (H)
             rows.push(itemRow)
-            formulas.push({ row: rows.length, itemType: 'foundation_piles_misc', parsedData: item, section: 'foundation', subsectionName: subsection.name })
+            formulas.push({
+              row: rows.length,
+              itemType: item.matchedPileType || item.parsed?.type || 'foundation_piles_misc',
+              parsedData: item,
+              section: 'foundation',
+              subsectionName: subsection.name
+            })
+          })
+          // Add sum row for Piles subsection - only sum columns that have data
+          // J: only dual diameter drilled; K: all except CFA; L: piles don't have CY
+          const hasDualDiameterDrilled = miscellaneousPileItems.some(i => i.parsed?.isDualDiameter)
+          const hasNonCfaPiles = miscellaneousPileItems.some(i => {
+            const t = i.matchedPileType || i.parsed?.type
+            return t && t !== 'cfa_pile'
+          })
+          const pilesSumRow = Array(template.columns.length).fill('')
+          rows.push(pilesSumRow)
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: pilesFirstRow,
+            lastDataRow: rows.length - 1,
+            subsectionName: subsection.name,
+            excludeJSum: !hasDualDiameterDrilled,
+            excludeKSum: !hasNonCfaPiles,
+            excludeLSum: true // Piles don't have CY (L)
           })
           rows.push(Array(template.columns.length).fill(''))
         } else if (subsection.name === 'Drilled foundation pile' && drilledFoundationPileGroups.length > 0) {
           // Process each group for drilled foundation piles.
-          // - Identical items are merged into one data row per group (C column).
+          // - Show all items individually (no merging or summing of takeoffs).
           // - Each group gets its own sum row (separated).
           drilledFoundationPileGroups.forEach((group, groupIndex) => {
             const firstGroupRow = rows.length + 1
-            const item = group.items[0]
+            group.items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
 
-            const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
-            itemRow[2] = item.takeoff // Combined quantity (from raw)
-            itemRow[3] = item.unit
+              // Height is always in column H for this subsection (including isolation casing)
+              itemRow[7] = item.parsed.calculatedHeight || ''
+              // Column E remains manual input for isolation casing items (dual diameter) and is left blank here.
+              // Leave F/G empty.
 
-            // Height is always in column H for this subsection (including isolation casing)
-            itemRow[7] = item.parsed.calculatedHeight || ''
-            // Column E remains manual input for isolation casing items (dual diameter) and is left blank here.
-            // Leave F/G empty.
-
-            rows.push(itemRow)
-            formulas.push({ row: rows.length, itemType: 'drilled_foundation_pile', parsedData: item, section: 'foundation' })
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'drilled_foundation_pile', parsedData: item, section: 'foundation' })
+            })
 
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
@@ -1550,7 +1574,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               firstDataRow: firstGroupRow,
               lastDataRow: rows.length - 1,
               subsectionName: subsection.name,
-              isDualDiameter: !!item.parsed?.isDualDiameter
+              isDualDiameter: !!group.items[0]?.parsed?.isDualDiameter
             })
 
             if (groupIndex < drilledFoundationPileGroups.length - 1) {
@@ -1800,6 +1824,30 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             if (groupIndex < tieBeamGroups.length - 1) {
               rows.push(Array(template.columns.length).fill(''))
             }
+          })
+        } else if (subsection.name === 'Strap beams' && strapBeamItems.length > 0) {
+          // Same logic as Grade beams: all items under single sum
+          const firstItemRow = rows.length + 1
+          strapBeamItems.forEach(item => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit
+            itemRow[6] = item.parsed.width || '' // Width (G)
+            itemRow[7] = item.parsed.height || '' // Height (H)
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'strap_beam', parsedData: item, section: 'foundation' })
+          })
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: firstItemRow,
+            lastDataRow: rows.length - 1,
+            subsectionName: subsection.name,
+            foundationCySumRow: true
           })
         } else if (subsection.name === 'Thickened slab' && thickenedSlabGroups.length > 0) {
           // Process each group for thickened slabs

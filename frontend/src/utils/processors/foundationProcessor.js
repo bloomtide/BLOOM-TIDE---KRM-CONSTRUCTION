@@ -6,6 +6,7 @@ import {
     isStelcorDrilledDisplacementPile,
     isCFAPile,
     isMiscellaneousFoundationPile,
+    tryMatchPileStructure,
     isPileCap,
     isStripFooting,
     isIsolatedFooting,
@@ -162,13 +163,21 @@ export const processDrilledFoundationPileItems = (rawDataRows, headers, tracker 
                 tracker.markUsed(rowIndex)
             }
 
-            // If no current group, start a new one (new group starts when we encounter a drilled pile after an empty row)
+            const itemGroupKey = parsed.groupKey || 'OTHER'
+
+            // If current group exists but has different structure (e.g. single vs dual diameter), save it and start new group
+            if (currentGroup && currentGroup.groupKey !== itemGroupKey) {
+                groups.push(currentGroup)
+                currentGroup = null
+            }
+
+            // If no current group, start a new one
             if (!currentGroup) {
                 currentGroup = {
-                    groupKey: parsed.groupKey || 'OTHER',
+                    groupKey: itemGroupKey,
                     items: [{
                         particulars: digitizerItem,
-                        takeoff: 0,
+                        takeoff: total,
                         unit: unit,
                         parsed: parsed,
                         rawRowNumber: rowIndex + 2,
@@ -178,10 +187,15 @@ export const processDrilledFoundationPileItems = (rawDataRows, headers, tracker 
                     hasInflu: hasInflu
                 }
             } else {
-                // Add to current group - sum the takeoff
-                // This item belongs to the same group (no empty row between them)
-                currentGroup.items[0].takeoff += total
-                // If this item has Influ, mark the whole group
+                // Same structure - add as separate item (do not sum takeoffs)
+                currentGroup.items.push({
+                    particulars: digitizerItem,
+                    takeoff: total,
+                    unit: unit,
+                    parsed: parsed,
+                    rawRowNumber: rowIndex + 2,
+                    hasInflu: hasInflu
+                })
                 if (hasInflu) {
                     currentGroup.hasInflu = true
                 }
@@ -268,13 +282,20 @@ export const processMiscellaneousPileItems = (rawDataRows, headers, tracker = nu
         const unit = unitIdx >= 0 ? (row[unitIdx] || '') : ''
 
         if (isMiscellaneousFoundationPile(digitizerItem)) {
-            items.push({
-                particulars: digitizerItem || '',
-                takeoff,
-                unit: unit || '',
-                parsed: {}
-            })
-            if (tracker) tracker.markUsed(rowIndex)
+            // Only add if item structure matches one of the known pile types (Drilled, Helical, Driven, Stelcor, CFA)
+            // If no match, don't add - item stays in unused data
+            const match = tryMatchPileStructure(digitizerItem)
+            if (match) {
+                items.push({
+                    particulars: digitizerItem || '',
+                    takeoff,
+                    unit: unit || '',
+                    parsed: match.parsed,
+                    matchedPileType: match.matchedType
+                })
+                if (tracker) tracker.markUsed(rowIndex)
+            }
+            // If no match: do not add, do not mark as used - item stays in unused data
         }
     })
     return items
@@ -331,6 +352,14 @@ export const processPilasterItems = (rawDataRows, headers, tracker = null) => {
  */
 export const processGradeBeamItems = (rawDataRows, headers, tracker = null) => {
     return processGenericFoundationItems(rawDataRows, headers, isGradeBeam, parseGradeBeam, tracker)
+}
+
+/**
+ * Processes strap beam items.
+ * Same logic as grade beams: flat list, all items under single sum.
+ */
+export const processStrapBeamItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isStrapBeam, parseStrapBeam, tracker)
 }
 
 /**
@@ -869,6 +898,15 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
 
         case 'tie_beam':
             // I=C, J=H*I, L=J*G/27
+            if (itemData.parsed?.width) formulas.width = itemData.parsed.width
+            if (itemData.parsed?.height) formulas.height = itemData.parsed.height
+            formulas.ft = `C${rowNum}`
+            formulas.sqFt = `H${rowNum}*I${rowNum}`
+            formulas.cy = `J${rowNum}*G${rowNum}/27`
+            break
+
+        case 'strap_beam':
+            // Same as grade_beam: I=C, J=H*I, L=J*G/27
             if (itemData.parsed?.width) formulas.width = itemData.parsed.width
             if (itemData.parsed?.height) formulas.height = itemData.parsed.height
             formulas.ft = `C${rowNum}`

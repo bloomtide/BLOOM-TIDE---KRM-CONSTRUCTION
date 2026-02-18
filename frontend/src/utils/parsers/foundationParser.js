@@ -67,7 +67,11 @@ const parseDiameterThickness = (str) => {
     const match = normalizedStr.match(/(\d+(?:-\d+\/\d+)?)["']?\s*[ØØ]\s*x\s*([0-9.]+)/i)
     if (match) {
         const diameterStr = match[1]
-        const thickness = parseFloat(match[2])
+        let thickness = parseFloat(match[2])
+        // Normalize typo "0545" (missing decimal) -> 0.545; "0408" -> 0.408
+        if (thickness >= 100 && thickness < 1000 && Number.isInteger(thickness)) {
+            thickness = thickness / 1000
+        }
         
         // Parse diameter - handle fractions like "9-5/8" or "4-1/2"
         let diameter = 0
@@ -245,13 +249,13 @@ export const isTieBeam = (item) => {
 }
 
 /**
- * Identifies if item is a strap beam (e.g. "ST (3'-10\"x2'-9\") typ." or "strap beam")
+ * Identifies if item is a strap beam
+ * Format: ST (3'-10"x2'-9") typ. or ST (2'-8"x3'-0") (87.86')
  */
 export const isStrapBeam = (item) => {
     if (!item || typeof item !== 'string') return false
-    const s = String(item).trim()
-    const lower = s.toLowerCase()
-    return lower.includes('strap beam') || /^ST\s*\(/i.test(s)
+    const itemLower = item.toLowerCase().trim()
+    return (itemLower.startsWith('st ') || /^st\s*\(/i.test(itemLower)) && !itemLower.startsWith('st-')
 }
 
 /**
@@ -477,6 +481,22 @@ export const parseElectricConduit = (itemName) => ({
 })
 
 /**
+ * Builds groupKey for drilled foundation pile based on H and RS values only.
+ * Groups items with same height and rock socket regardless of diameter string typos (e.g. 0545 vs 0.545).
+ */
+const buildDrilledPileGroupKey = (parsed, isDual) => {
+    const prefix = isDual ? 'DUAL' : 'SINGLE'
+    const parts = []
+    if (parsed.height != null && parsed.height > 0) {
+        parts.push(`H${parsed.height.toFixed(2)}`)
+    }
+    if (parsed.rockSocket != null && parsed.rockSocket > 0) {
+        parts.push(`RS${parsed.rockSocket.toFixed(2)}`)
+    }
+    return parts.length > 0 ? `${prefix}-${parts.join('-')}` : `${prefix}-OTHER`
+}
+
+/**
  * Parses drilled foundation pile
  */
 export const parseDrilledFoundationPile = (itemName) => {
@@ -576,20 +596,18 @@ export const parseDrilledFoundationPile = (itemName) => {
             result.weight2 = calculatePileWeight(diameter2, 0.5) // Default thickness 0.5
         }
         
-        // Group key for dual diameter - use normalized item name to group identical items
-        const normalizedName = itemName.toLowerCase().trim()
-        result.groupKey = `DUAL-${normalizedName}`
+        // Group key: dual diameter + H + RS (ignores diameter typos like 0545 vs 0.545)
+        result.groupKey = buildDrilledPileGroupKey(result, true)
     } else {
-        // Single diameter - use normalized item name to group identical items
+        // Single diameter
         const dt = parseDiameterThickness(itemName)
         if (dt) {
             result.diameter = dt.diameter
             result.thickness = dt.thickness
             result.weight = calculatePileWeight(dt.diameter, dt.thickness)
         }
-        // Group by normalized item name to combine identical items
-        const normalizedName = itemName.toLowerCase().trim()
-        result.groupKey = `SINGLE-${normalizedName}`
+        // Group key: single diameter + H + RS (ignores diameter typos like 0545 vs 0.545)
+        result.groupKey = buildDrilledPileGroupKey(result, false)
     }
 
     return result
@@ -711,6 +729,49 @@ export const parseCFAPile = (itemName) => {
     }
 
     return result
+}
+
+/**
+ * Tries to match a miscellaneous pile item's structure to one of the known pile types.
+ * Used for Piles subsection: if structure matches Drilled/Helical/Driven/Stelcor/CFA, use that pile's formulas.
+ * If no match, the item should NOT be added (stays in unused data).
+ * @param {string} itemName - The item name (e.g. from Digitizer Item)
+ * @returns {{ matchedType: string, parsed: object } | null} - Matched pile type and parsed data, or null if no structure match
+ */
+export const tryMatchPileStructure = (itemName) => {
+    if (!itemName || typeof itemName !== 'string') return null
+
+    // Try Drilled - needs (diameter or dual diameter) and (height or calculatedHeight)
+    const drilled = parseDrilledFoundationPile(itemName)
+    if ((drilled.diameter || drilled.isDualDiameter) && (drilled.height || drilled.calculatedHeight)) {
+        return { matchedType: 'drilled_foundation_pile', parsed: drilled }
+    }
+
+    // Try Driven - needs hpSize (HP12x74 pattern) and height
+    const driven = parseDrivenFoundationPile(itemName)
+    if (driven.hpSize && (driven.height || driven.calculatedHeight)) {
+        return { matchedType: 'driven_foundation_pile', parsed: driven }
+    }
+
+    // Try Helical - needs diameter and height
+    const helical = parseHelicalFoundationPile(itemName)
+    if (helical.diameter && (helical.height || helical.calculatedHeight)) {
+        return { matchedType: 'helical_foundation_pile', parsed: helical }
+    }
+
+    // Try Stelcor - needs diameter and height
+    const stelcor = parseStelcorDrilledDisplacementPile(itemName)
+    if (stelcor.diameter && (stelcor.height || stelcor.calculatedHeight)) {
+        return { matchedType: 'stelcor_drilled_displacement_pile', parsed: stelcor }
+    }
+
+    // Try CFA - needs height only (H= dimension)
+    const cfa = parseCFAPile(itemName)
+    if (cfa.height || cfa.calculatedHeight) {
+        return { matchedType: 'cfa_pile', parsed: cfa }
+    }
+
+    return null
 }
 
 /**
@@ -907,7 +968,9 @@ export const parseTieBeam = (itemName) => {
 }
 
 /**
- * Parses strap beam (e.g. ST (3'-10"x2'-9") typ.)
+ * Parses strap beam
+ * Format: ST (3'-10"x2'-9") typ. or ST (2'-8"x3'-0") (87.86')
+ * Same structure as grade beam: width x height from bracket
  */
 export const parseStrapBeam = (itemName) => {
     const result = {
@@ -1684,6 +1747,7 @@ export default {
     parseDrivenFoundationPile,
     parseStelcorDrilledDisplacementPile,
     parseCFAPile,
+    tryMatchPileStructure,
     parsePileCap,
     parseStripFooting,
     parseIsolatedFooting,
