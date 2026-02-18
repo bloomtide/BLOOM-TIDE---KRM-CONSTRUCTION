@@ -1678,6 +1678,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       const demolitionCalcSheet = 'Calculations Sheet'
       orderedSubsections.forEach((name, index) => {
         const rowCount = (rowsBySubsection.get(name) || []).length
+        // Do not show "Demo stair on grade" line when there is no raw/calc data for it
+        if (name === 'Demo stair on grade' && rowCount === 0) return
         const originalText = linesBySubsection.get(name)
         const subsectionRows = rowsBySubsection.get(name) || []
         const firstRowWithB = subsectionRows.find(r => r[1] && String(r[1]).trim())
@@ -1898,152 +1900,152 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       currentRow++
     }
 
-    // First soil excavation line (dynamic: Havg from calculation data; unique page refs from all excavation/backfill group rows)
+    // First soil excavation line – only show when soil excavation group exists in calculation sheet
+    let soilExcavationRow1 = null
     const uniqueExcavationBackfillRefs = getUniquePageRefsForExcavationAndBackfillGroup()
     const asPerPart = uniqueExcavationBackfillRefs.length > 0 ? uniqueExcavationBackfillRefs.join(', ') : '##'
     const havgText = formatHeightAsFeetInches(excavationHeightValues)
-    const soilExcavationText = `Allow to perform soil excavation, trucking & disposal (Havg=${havgText}) as per ${asPerPart} & details on`
-    spreadsheet.updateCell({ value: soilExcavationText }, `${pfx}B${currentRow}`)
-    rowBContentMap.set(currentRow, soilExcavationText)
-    spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'left',
-        verticalAlign: 'top',
-        wrapText: true
-      },
-      `${pfx}B${currentRow}`
-    )
-    const soilExcavationHeight = calculateRowHeight(soilExcavationText)
-    try { spreadsheet.setRowHeight(soilExcavationHeight, currentRow - 1, proposalSheetIndex) } catch (e) { }
-    dynamicHeightRows.push({ row: currentRow, height: soilExcavationHeight })
-    // Use scope-specific rate lookup so CY 75 applies only under Soil excavation scope (proposal_mapped.json).
-    // Pass only this key so it exact-matches the scope entry; the full line contains "(Havg=...)" so it would match the (Havg= entry (400) instead.
-    fillRatesForProposalRow(currentRow, 'Allow to perform soil excavation, trucking & disposal - Soil excavation scope')
-    const soilExcavationRow1 = currentRow
+    if (excavationEmptyRowIndex || excavationTotalSQFT > 0 || excavationTotalCY > 0) {
+      const soilExcavationText = `Allow to perform soil excavation, trucking & disposal (Havg=${havgText}) as per ${asPerPart} & details on`
+      spreadsheet.updateCell({ value: soilExcavationText }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, soilExcavationText)
+      spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+      spreadsheet.cellFormat(
+        {
+          fontWeight: 'bold',
+          color: '#000000',
+          textAlign: 'left',
+          verticalAlign: 'top',
+          wrapText: true
+        },
+        `${pfx}B${currentRow}`
+      )
+      const soilExcavationHeight = calculateRowHeight(soilExcavationText)
+      try { spreadsheet.setRowHeight(soilExcavationHeight, currentRow - 1, proposalSheetIndex) } catch (e) { }
+      dynamicHeightRows.push({ row: currentRow, height: soilExcavationHeight })
+      fillRatesForProposalRow(currentRow, 'Allow to perform soil excavation, trucking & disposal - Soil excavation scope')
+      soilExcavationRow1 = currentRow
 
-    // Add SF value from excavation total to column D
-    if (excavationEmptyRowIndex) {
-      spreadsheet.updateCell({ formula: `='Calculations Sheet'!J${excavationEmptyRowIndex}` }, `${pfx}D${currentRow}`)
-    } else {
-      const formattedExcavationSF = parseFloat(excavationTotalSQFT.toFixed(2))
-      spreadsheet.updateCell({ value: formattedExcavationSF }, `${pfx}D${currentRow}`)
+      // Add SF value from excavation total to column D
+      if (excavationEmptyRowIndex) {
+        spreadsheet.updateCell({ formula: `='Calculations Sheet'!J${excavationEmptyRowIndex}` }, `${pfx}D${currentRow}`)
+      } else {
+        const formattedExcavationSF = parseFloat(excavationTotalSQFT.toFixed(2))
+        spreadsheet.updateCell({ value: formattedExcavationSF }, `${pfx}D${currentRow}`)
+      }
+      spreadsheet.cellFormat(
+        {
+          fontWeight: 'bold',
+          color: '#000000',
+          textAlign: 'right',
+          format: '#,##0.00'
+        },
+        `${pfx}D${currentRow}`
+      )
+
+      // Add CY value from excavation total to column F
+      if (excavationEmptyRowIndex) {
+        spreadsheet.updateCell({ formula: `='Calculations Sheet'!L${excavationEmptyRowIndex}` }, `${pfx}F${currentRow}`)
+      } else {
+        const formattedExcavationCY = parseFloat(excavationTotalCY.toFixed(2))
+        spreadsheet.updateCell({ value: formattedExcavationCY }, `${pfx}F${currentRow}`)
+      }
+      spreadsheet.cellFormat(
+        {
+          fontWeight: 'bold',
+          color: '#000000',
+          textAlign: 'right',
+          format: '#,##0.00'
+        },
+        `${pfx}F${currentRow}`
+      )
+
+      const dollarFormulaSoil1 = `=IFERROR(IF(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)=0,"",ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)),"")`
+      spreadsheet.updateCell({ formula: dollarFormulaSoil1 }, `${pfx}H${currentRow}`)
+      spreadsheet.cellFormat(
+        {
+          fontWeight: 'bold',
+          color: '#000000',
+          textAlign: 'right',
+          format: '$#,##0.00'
+        },
+        `${pfx}H${currentRow}`
+      )
+      currentRow++
     }
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'right',
-        format: '#,##0.00'
-      },
-      `${pfx}D${currentRow}`
-    )
 
-    // Add CY value from excavation total to column F
-    if (excavationEmptyRowIndex) {
-      spreadsheet.updateCell({ formula: `='Calculations Sheet'!L${excavationEmptyRowIndex}` }, `${pfx}F${currentRow}`)
-    } else {
-      const formattedExcavationCY = parseFloat(excavationTotalCY.toFixed(2))
-      spreadsheet.updateCell({ value: formattedExcavationCY }, `${pfx}F${currentRow}`)
+    // Row 2: Second soil excavation line (new clean soil) – only show if backfill group exists in calculation sheet
+    if (backfillEmptyRowIndex || backfillTotalSQFT > 0 || backfillTotalCY > 0) {
+      const soilExcavationRow2 = currentRow
+      const backfillSoilText = `Allow to import new clean soil to backfill and compact as per ${asPerPart} & details on`
+      spreadsheet.updateCell({ value: backfillSoilText }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, backfillSoilText)
+      spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+      spreadsheet.cellFormat(
+        {
+          fontWeight: 'bold',
+          color: '#000000',
+          textAlign: 'left',
+          backgroundColor: 'white',
+          verticalAlign: 'top',
+          wrapText: true
+        },
+        `${pfx}B${currentRow}`
+      )
+      const backfillSoilHeight = calculateRowHeight(backfillSoilText)
+      try { spreadsheet.setRowHeight(backfillSoilHeight, currentRow - 1, proposalSheetIndex) } catch (e) { }
+      dynamicHeightRows.push({ row: currentRow, height: backfillSoilHeight })
+      fillRatesForProposalRow(currentRow, backfillSoilText)
+
+      // Add SF value
+      if (backfillEmptyRowIndex) {
+        spreadsheet.updateCell({ formula: `='Calculations Sheet'!J${backfillEmptyRowIndex}` }, `${pfx}D${currentRow}`)
+      } else {
+        const formattedBackfillSF = parseFloat(backfillTotalSQFT.toFixed(2))
+        spreadsheet.updateCell({ value: formattedBackfillSF }, `${pfx}D${currentRow}`)
+      }
+      spreadsheet.cellFormat(
+        {
+          fontWeight: 'bold',
+          color: '#000000',
+          textAlign: 'right',
+          format: '#,##0.00'
+        },
+        `${pfx}D${currentRow}`
+      )
+
+      // Add CY value
+      if (backfillEmptyRowIndex) {
+        spreadsheet.updateCell({ formula: `='Calculations Sheet'!L${backfillEmptyRowIndex}` }, `${pfx}F${currentRow}`)
+      } else {
+        const formattedBackfillCY = parseFloat(backfillTotalCY.toFixed(2))
+        spreadsheet.updateCell({ value: formattedBackfillCY }, `${pfx}F${currentRow}`)
+      }
+      spreadsheet.cellFormat(
+        {
+          fontWeight: 'bold',
+          color: '#000000',
+          textAlign: 'right',
+          format: '#,##0.00'
+        },
+        `${pfx}F${currentRow}`
+      )
+
+      // Formula for row 2
+      const dollarFormulaSoil2 = `=IFERROR(IF(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)=0,"",ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)),"")`
+      spreadsheet.updateCell({ formula: dollarFormulaSoil2 }, `${pfx}H${currentRow}`)
+      spreadsheet.cellFormat(
+        {
+          fontWeight: 'bold',
+          color: '#000000',
+          textAlign: 'right',
+          format: '$#,##0.00'
+        },
+        `${pfx}H${currentRow}`
+      )
+      currentRow++
+      if (soilExcavationRow1 === null) soilExcavationRow1 = currentRow - 1
     }
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'right',
-        format: '#,##0.00'
-      },
-      `${pfx}F${currentRow}`
-    )
-
-    // Formula for row 1
-    const dollarFormulaSoil1 = `=IFERROR(IF(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)=0,"",ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)),"")`
-
-    // Evaluation Logic (simplified for brevity, main logic logic remains in helpers if any)
-
-    spreadsheet.updateCell({ formula: dollarFormulaSoil1 }, `${pfx}H${currentRow}`)
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'right',
-        format: '$#,##0.00'
-      },
-      `${pfx}H${currentRow}`
-    )
-    currentRow++
-
-    // Row 2: Second soil excavation line (new clean soil) – same unique page refs from excavation/backfill group (Underground piping, Backfill, Slope exc, etc.)
-    const soilExcavationRow2 = currentRow
-    const backfillSoilText = `Allow to import new clean soil to backfill and compact as per ${asPerPart} & details on`
-    spreadsheet.updateCell({ value: backfillSoilText }, `${pfx}B${currentRow}`)
-    rowBContentMap.set(currentRow, backfillSoilText)
-    spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'left',
-        backgroundColor: 'white',
-        verticalAlign: 'top',
-        wrapText: true
-      },
-      `${pfx}B${currentRow}`
-    )
-    const backfillSoilHeight = calculateRowHeight(backfillSoilText)
-    try { spreadsheet.setRowHeight(backfillSoilHeight, currentRow - 1, proposalSheetIndex) } catch (e) { }
-    dynamicHeightRows.push({ row: currentRow, height: backfillSoilHeight })
-    fillRatesForProposalRow(currentRow, backfillSoilText)
-
-    // Add SF value
-    if (backfillEmptyRowIndex) {
-      spreadsheet.updateCell({ formula: `='Calculations Sheet'!J${backfillEmptyRowIndex}` }, `${pfx}D${currentRow}`)
-    } else {
-      const formattedBackfillSF = parseFloat(backfillTotalSQFT.toFixed(2))
-      spreadsheet.updateCell({ value: formattedBackfillSF }, `${pfx}D${currentRow}`)
-    }
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'right',
-        format: '#,##0.00'
-      },
-      `${pfx}D${currentRow}`
-    )
-
-    // Add CY value
-    if (backfillEmptyRowIndex) {
-      spreadsheet.updateCell({ formula: `='Calculations Sheet'!L${backfillEmptyRowIndex}` }, `${pfx}F${currentRow}`)
-    } else {
-      const formattedBackfillCY = parseFloat(backfillTotalCY.toFixed(2))
-      spreadsheet.updateCell({ value: formattedBackfillCY }, `${pfx}F${currentRow}`)
-    }
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'right',
-        format: '#,##0.00'
-      },
-      `${pfx}F${currentRow}`
-    )
-
-    // Formula for row 2
-    const dollarFormulaSoil2 = `=IFERROR(IF(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)=0,"",ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)),"")`
-    spreadsheet.updateCell({ formula: dollarFormulaSoil2 }, `${pfx}H${currentRow}`)
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'right',
-        format: '$#,##0.00'
-      },
-      `${pfx}H${currentRow}`
-    )
-    currentRow++
 
     // Notes: single-column cell in B with rich text – "Note:" bold, rest normal
     const notes = [
@@ -2085,7 +2087,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       )
 
       spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
-      spreadsheet.updateCell({ formula: `=SUM(H${soilExcavationRow1}:H${currentRow - 1})*1000` }, `${pfx}F${currentRow}`)
+      spreadsheet.updateCell({
+        formula: soilExcavationRow1 != null ? `=SUM(H${soilExcavationRow1}:H${currentRow - 1})*1000` : '=0'
+      }, `${pfx}F${currentRow}`)
 
       spreadsheet.cellFormat(
         {
@@ -2337,7 +2341,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
     const excavationFullTotalFormula = hasRockExcavation
       ? `=SUM(F${soilExcavationTotalRow},F${rockExcavationTotalRow})`
-      : `=SUM(H${soilExcavationRow1}:H${currentRow - 1})*1000`
+      : (soilExcavationRow1 != null ? `=SUM(H${soilExcavationRow1}:H${currentRow - 1})*1000` : '=0')
     spreadsheet.updateCell({ formula: excavationFullTotalFormula }, `${pfx}F${currentRow}`)
     spreadsheet.cellFormat(
       {

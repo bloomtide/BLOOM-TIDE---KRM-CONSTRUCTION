@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import Modal from './Modal'
-import { FiDownload, FiSave, FiRefreshCw } from 'react-icons/fi'
+import { FiDownload, FiSave, FiRefreshCw, FiTrash2 } from 'react-icons/fi'
 import * as XLSX from 'xlsx'
 import { proposalAPI } from '../services/proposalService'
 
@@ -55,6 +55,10 @@ const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData, proposalId, onSave
             })
             return next
         })
+    }
+
+    const deleteRow = (rowIndex) => {
+        setEditableRows(prev => prev.filter((_, r) => r !== rowIndex))
     }
 
     const normalizeValue = (v) => {
@@ -155,7 +159,7 @@ const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData, proposalId, onSave
                 <table className="w-full border-collapse">
                     <thead className="bg-gray-100 sticky top-0 z-10">
                         <tr>
-                            <th className="px-2 py-2 text-left text-xs font-semibold text-gray-600 uppercase border-b-2 border-gray-300 w-12">
+                            <th className="px-2 py-2 text-left text-xs font-semibold text-gray-600 uppercase border-b-2 border-gray-300 w-20">
                                 #
                             </th>
                             {Array.from({ length: numCols }, (_, colIndex) => (
@@ -180,9 +184,19 @@ const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData, proposalId, onSave
                             </tr>
                         ) : (
                             editableRows.map((row, rowIndex) => (
-                                <tr key={rowIndex} className="hover:bg-gray-50">
-                                    <td className="px-2 py-1 text-sm text-gray-500 font-medium border-r border-gray-200 sticky left-0 bg-white">
-                                        {rowIndex + 1}
+                                <tr key={rowIndex} className="hover:bg-gray-50 group">
+                                    <td className="px-2 py-1 text-sm text-gray-500 font-medium border-r border-gray-200 sticky left-0 bg-white align-middle">
+                                        <span className="inline-flex items-center gap-1">
+                                            <span>{rowIndex + 1}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => deleteRow(rowIndex)}
+                                                className="p-1 rounded text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                                title="Delete row"
+                                            >
+                                                <FiTrash2 size={14} />
+                                            </button>
+                                        </span>
                                     </td>
                                     {Array.from({ length: numCols }, (_, colIndex) => {
                                         const cellValue = row[colIndex]

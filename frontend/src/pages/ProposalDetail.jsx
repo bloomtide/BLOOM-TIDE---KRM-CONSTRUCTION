@@ -53,6 +53,7 @@ const ProposalDetail = () => {
   const saveTimeoutRef = useRef(null)
   const maxWaitTimeoutRef = useRef(null)
   const hasLoadedFromJson = useRef(false)
+  const needReapplyAfterRawSave = useRef(false)
   const isSavingRef = useRef(false)
   const pendingSaveRef = useRef(false)
   const retryCountRef = useRef(0)
@@ -196,53 +197,36 @@ const ProposalDetail = () => {
   useEffect(() => {
     if (!spreadsheetRef.current || !proposal) return
 
-    // If we have saved JSON and haven't loaded it yet, load it
+    // When we have rawExcelData, ONLY ever build from raw (never load spreadsheet from DB)
+    if (proposal.rawExcelData) {
+      if (needReapplyAfterRawSave.current && calculationData.length > 0 && hasLoadedFromJson.current) {
+        needReapplyAfterRawSave.current = false
+        applyDataToSpreadsheet().then(() => {
+          setTimeout(() => {
+            try { spreadsheetRef.current?.goTo('Calculations Sheet!A1') } catch (e) { }
+          }, 100)
+        })
+        return
+      }
+      if (calculationData.length > 0 && !hasLoadedFromJson.current) {
+        applyDataToSpreadsheet()
+      }
+      return
+    }
+
+    // Load from saved JSON only when there is no rawExcelData (e.g. legacy proposals)
     if (proposal.spreadsheetJson && !hasLoadedFromJson.current) {
       setIsSpreadsheetLoading(true)
         ; (async () => {
           try {
-            // Handle both old format (just Workbook) and new format (full jsonObject with Workbook property)
             const jsonData = proposal.spreadsheetJson.Workbook
-              ? proposal.spreadsheetJson  // New format: full jsonObject
-              : { Workbook: proposal.spreadsheetJson }  // Old format: just Workbook, wrap it
+              ? proposal.spreadsheetJson
+              : { Workbook: proposal.spreadsheetJson }
             spreadsheetRef.current.openFromJson({ file: jsonData })
             hasLoadedFromJson.current = true
             setLastSaved(new Date(proposal.updatedAt))
-
-            // Restore images after loading the spreadsheet JSON
             if (proposal.images && proposal.images.length > 0) {
               restoreImages(proposal.images)
-            }
-
-            // Rebuild Proposal sheet from calculation data on every refresh (so it stays in sync with rawExcelData)
-            if (proposal.rawExcelData && generatedDataRef.current) {
-              const gen = generatedDataRef.current
-              try {
-                await new Promise(resolve => setTimeout(resolve, 100))
-                buildProposalSheet(spreadsheetRef.current, {
-                  calculationData: gen.rows,
-                  formulaData: gen.formulas,
-                  rockExcavationTotals: gen.rockExcavationTotals,
-                  lineDrillTotalFT: gen.lineDrillTotalFT,
-                  rawData: rawDataRef.current,
-                  createdAt: proposal.createdAt,
-                  project: proposal.project,
-                  client: proposal.client
-                })
-                proposalBuiltRef.current = true
-                markDirtyAndScheduleSave()
-                await new Promise(resolve => setTimeout(resolve, 300))
-                if (saveTimeoutRef.current) {
-                  clearTimeout(saveTimeoutRef.current)
-                  saveTimeoutRef.current = null
-                }
-                saveSpreadsheet(false)
-                setTimeout(() => {
-                  try { spreadsheetRef.current?.goTo('Proposal Sheet!A1') } catch (e) { }
-                }, 50)
-              } catch (e) {
-                console.error('Error building proposal sheet after load:', e)
-              }
             }
           } catch (error) {
             toast.error('Error loading saved spreadsheet')
@@ -251,9 +235,14 @@ const ProposalDetail = () => {
           }
         })()
     }
-    // Otherwise, apply generated data if we have it
-    else if (calculationData.length > 0 && !hasLoadedFromJson.current) {
-      applyDataToSpreadsheet()
+    // Re-apply after save/rebuild when there is no rawExcelData (legacy path)
+    else if (needReapplyAfterRawSave.current && calculationData.length > 0 && hasLoadedFromJson.current && spreadsheetRef.current) {
+      needReapplyAfterRawSave.current = false
+      applyDataToSpreadsheet().then(() => {
+        setTimeout(() => {
+          try { spreadsheetRef.current?.goTo('Calculations Sheet!A1') } catch (e) { }
+        }, 100)
+      })
     }
   }, [calculationData, formulaData, proposal])
 
@@ -358,7 +347,7 @@ const ProposalDetail = () => {
             columns: columns
           }
         ],
-        activeSheetIndex: 0
+        activeSheetIndex: 1
       }
     }
 
@@ -3061,6 +3050,25 @@ const ProposalDetail = () => {
         isOpen={isPreviewModalOpen}
         onClose={() => setIsPreviewModalOpen(false)}
         rawExcelData={proposal.rawExcelData}
+        proposalId={proposal?._id}
+        onSaveSuccess={async () => {
+          if (!proposal?._id) return
+          try {
+            const response = await proposalAPI.getById(proposal._id)
+            setProposal(response.proposal)
+            needReapplyAfterRawSave.current = true
+            setIsPreviewModalOpen(false)
+            toast.success('Raw data saved. Rebuilding sheets…')
+          } catch (e) {
+            toast.error('Failed to refresh after save')
+          }
+        }}
+        onRebuildWithRawData={(editedRawExcelData) => {
+          setProposal(prev => prev ? { ...prev, rawExcelData: editedRawExcelData } : prev)
+          needReapplyAfterRawSave.current = true
+          setIsPreviewModalOpen(false)
+          toast.success('Rebuilding calculation and proposal sheets from edited raw data…')
+        }}
       />
 
       <UnusedRawDataModal
