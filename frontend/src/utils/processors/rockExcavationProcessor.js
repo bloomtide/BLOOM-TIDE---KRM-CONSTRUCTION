@@ -141,11 +141,21 @@ export const processRockExcavationItems = (rawDataRows, headers, tracker = null)
         }
     })
 
-    // Add manual "Sump pit" item
+    // Add "Sump pit" item - takeoff from "Sump pit @ elevator pit" raw data, or 0 if not available
+    let sumpPitTakeoff = 0
+    rawDataRows.forEach((row) => {
+        const digitizerItem = row[digitizerIdx]
+        const total = parseFloat(row[totalIdx]) || 0
+        const itemLower = (digitizerItem || '').toLowerCase().trim()
+        if (itemLower.includes('sump pit @ elevator pit')) {
+            sumpPitTakeoff += total
+        }
+    })
+
     rockExcavationItems.push({
         id: 'rock_exc_sump_pit_manual',
         particulars: 'Sump pit',
-        takeoff: 2,
+        takeoff: sumpPitTakeoff,
         unit: 'EA',
         qty: 0,
         length: 0,
