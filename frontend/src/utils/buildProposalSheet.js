@@ -11438,7 +11438,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         },
         {
           heading: 'Trench drain', items: [
-            { text: 'F&I new concrete @ trench drain as per FO-102.00 & details on', formulaItem: { itemType: 'electric_conduit', match: p => (p || '').toLowerCase().includes('trench drain') } }
+            { text: 'F&I new trench drain as per FO-102.00 & details on', formulaItem: { itemType: 'electric_conduit', match: p => (p || '').toLowerCase().includes('trench drain') } }
           ]
         },
         {
