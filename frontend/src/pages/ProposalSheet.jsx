@@ -1473,7 +1473,7 @@ const Spreadsheet = () => {
 
   const applyProposalFirstRow = (spreadsheet) => {
     // Full Proposal template (match screenshot layout).
-    const proposalSheetIndex = 0
+    const proposalSheetIndex = 1
     const pfx = 'Proposal Sheet!'
 
     // Clear everything (values + formats) on Proposal sheet so it never retains other sheet data.
@@ -1582,9 +1582,7 @@ const Spreadsheet = () => {
     }
     // Reapply formatting without borders
     spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000' }, `${pfx}B4:E8`)
-    spreadsheet.cellFormat({ fontWeight: 'bold' }, `${pfx}B4`)
-    // Tel/Fax/Cell line: bold, black, 18pt
-    spreadsheet.cellFormat({ fontWeight: 'bold', fontSize: '18pt', color: '#000000' }, `${pfx}B5`)
+    spreadsheet.cellFormat({ fontWeight: 'bold' }, `${pfx}B4:B5`)
     spreadsheet.cellFormat({ color: '#0B76C3', textDecoration: 'underline' }, `${pfx}B6`)
 
     // Logo (image) near center top-left; uses production URL for server-side save compatibility
@@ -1743,7 +1741,7 @@ const Spreadsheet = () => {
 
       // Initialize workbook early so we can read evaluated formula values
       let workbook = null
-      let calcSheetIndex = 1
+      let calcSheetIndex = 0
       try {
         workbook = spreadsheet.getWorkbook()
       } catch (e) {
@@ -3354,41 +3352,7 @@ const Spreadsheet = () => {
         `${pfx}H27`
       )
 
-      // Row 28: Note 1
-      spreadsheet.updateCell({ value: 'Note: Backfill SOE voids by others' }, `${pfx}B28`)
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'left',
-          backgroundColor: 'white'
-        },
-        `${pfx}B28`
-      )
-
-      // Row 29: Note 2
-      spreadsheet.updateCell({ value: 'Note: NJ Res Soil included, contaminated, mixed, hazardous, petroleum impacted not incl.' }, `${pfx}B29`)
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'left',
-          backgroundColor: 'white'
-        },
-        `${pfx}B29`
-      )
-
-      // Row 30: Note 3
-      spreadsheet.updateCell({ value: 'Note: Bedrock not included, see add alt unit rate if required' }, `${pfx}B30`)
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'left',
-          backgroundColor: 'white'
-        },
-        `${pfx}B30`
-      )
+      // Notes (B28, B29, B30) are written only by buildProposalSheet and are conditional on scope (backfill, soil, rock). Do not overwrite here.
 
       // Row 31: Soil Excavation Total
       spreadsheet.merge(`${pfx}D31:E31`)
@@ -12080,16 +12044,16 @@ const Spreadsheet = () => {
           height="100%"
         >
           <SheetsDirective>
-            <SheetDirective name="Proposal Sheet" rowCount={500}>
-              <ColumnsDirective>
-                <ColumnDirective width={150}></ColumnDirective>
-              </ColumnsDirective>
-            </SheetDirective>
             <SheetDirective name="Calculations Sheet" rowCount={1000}>
               <ColumnsDirective>
                 {columnConfigs.map((config, index) => (
                   <ColumnDirective key={index} width={config.width}></ColumnDirective>
                 ))}
+              </ColumnsDirective>
+            </SheetDirective>
+            <SheetDirective name="Proposal Sheet" rowCount={500}>
+              <ColumnsDirective>
+                <ColumnDirective width={150}></ColumnDirective>
               </ColumnsDirective>
             </SheetDirective>
           </SheetsDirective>

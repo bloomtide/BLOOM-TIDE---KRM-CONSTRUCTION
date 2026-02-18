@@ -386,28 +386,6 @@ export const processTieBeamItems = (rawDataRows, headers, tracker = null) => {
 }
 
 /**
- * Processes strap beam items and groups them by size (same pattern as tie beam)
- */
-export const processStrapBeamItems = (rawDataRows, headers, tracker = null) => {
-    const items = processGenericFoundationItems(rawDataRows, headers, isStrapBeam, parseStrapBeam, tracker)
-
-    const groupMap = new Map()
-    items.forEach(item => {
-        const groupKey = item.parsed.groupKey || 'OTHER'
-        if (!groupMap.has(groupKey)) {
-            groupMap.set(groupKey, {
-                groupKey: groupKey,
-                items: [],
-                parsed: item.parsed
-            })
-        }
-        groupMap.get(groupKey).items.push(item)
-    })
-
-    return mergeSingleItemGroupsIfAll(Array.from(groupMap.values()))
-}
-
-/**
  * Processes thickened slab items and groups them by size
  */
 export const processThickenedSlabItems = (rawDataRows, headers, tracker = null) => {

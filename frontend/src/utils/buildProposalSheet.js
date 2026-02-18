@@ -28,6 +28,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     return ''
   }
 
+  // Format multiple page refs for template text: "102 & 105" or "102, 103 & 105" (used in all scopes)
+  const formatPageRefList = (refs) => {
+    const list = Array.isArray(refs) ? refs.filter(Boolean) : []
+    if (list.length === 0) return '##'
+    if (list.length === 1) return list[0]
+    if (list.length === 2) return `${list[0]} & ${list[1]}`
+    return list.slice(0, -1).join(', ') + ' & ' + list[list.length - 1]
+  }
+
   // Extract "whatever is after () and before as per" for rate matching (e.g. "no W12x58 walers" from "F&I new (11)no W12x58 walers as per SOE-101.00")
   const getDescriptionKeyAfterParenBeforeAsPer = (descriptionText) => {
     if (!descriptionText || typeof descriptionText !== 'string') return null
@@ -500,23 +509,30 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     }
     const pattern = subsectionPatterns[subsectionName]
     if (!pattern) return '##'
+    const collected = []
+    const seen = new Set()
     for (const row of dataRows) {
       const digitizerItem = row[digitizerIdx]
       if (!digitizerItem || !pattern.test(String(digitizerItem))) continue
-      // Prefer Page column value (e.g. DM-107.00, A-312.00) when present
+      let ref = null
       if (pageIdx >= 0) {
         const pageValue = row[pageIdx]
         if (pageValue != null && pageValue !== '') {
           const pageStr = String(pageValue).trim()
           const dmMatch = pageStr.match(/DM-[\d.]+/i) || pageStr.match(/A-[\d.]+/i)
-        if (dmMatch) return dmMatch[0]
+          if (dmMatch) ref = dmMatch[0]
+        }
+      }
+      if (!ref) {
+        const dmMatch = String(digitizerItem).trim().match(/DM-[\d.]+/i) || String(digitizerItem).trim().match(/A-[\d.]+/i)
+        if (dmMatch) ref = dmMatch[0]
+      }
+      if (ref && !seen.has(ref)) {
+        seen.add(ref)
+        collected.push(ref)
       }
     }
-      // Fallback: parse DM-xxx or A-xxx from digitizer item text
-      const dmMatch = String(digitizerItem).trim().match(/DM-[\d.]+/i) || String(digitizerItem).trim().match(/A-[\d.]+/i)
-      if (dmMatch) return dmMatch[0]
-  }
-    return '##'
+    return formatPageRefList(collected)
   }
   const buildDemolitionTemplate = (subsectionName, itemText, fallbackText) => {
     const slabTypeMatch = subsectionName.match(/^Demo\s+(.+)$/i)
@@ -814,6 +830,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     calculationData.forEach((row, rowIndex) => {
       const colA = row[0]
       const colB = row[1]
+
+      // Reset SOE soldier pile groups at start of each build so we don't accumulate duplicates on re-run
+      if (rowIndex === 0) {
+        window.drilledSoldierPileGroups = []
+        window.hpSoldierPileGroups = []
+      }
 
       if (colA && String(colA).trim().toLowerCase() === 'demolition') {
         inDemolitionSection = true
@@ -1884,7 +1906,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       (parseFloat(rockExcavationTotals.totalCY) || 0) > 0 ||
       (parseFloat(lineDrillTotalFT) || 0) > 0
     )
-    if (hasRockExcavation) {
+    const hasSoilExcavationItems = !!(excavationEmptyRowIndex || excavationTotalSQFT > 0 || excavationTotalCY > 0)
+    const hasBackfillItems = !!(backfillEmptyRowIndex || backfillTotalSQFT > 0 || backfillTotalCY > 0)
+    const hasSoilScopeItems = hasSoilExcavationItems || hasBackfillItems
+    const hasAnyExcavationData = hasSoilScopeItems || hasRockExcavation
+    if (hasRockExcavation && hasSoilScopeItems) {
       currentRow++ // Extra line after Excavation scope
       // Soil excavation scope heading
       spreadsheet.updateCell({ value: 'Soil excavation scope:' }, `${pfx}B${currentRow}`)
@@ -2047,12 +2073,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       if (soilExcavationRow1 === null) soilExcavationRow1 = currentRow - 1
     }
 
-    // Notes: single-column cell in B with rich text – "Note:" bold, rest normal
-    const notes = [
-      'Note: Backfill SOE voids by others only',
-      'Note: NJ Res Soil included, contaminated, mixed, hazardous, petroleum impacted not incl.',
-      'Note: Bedrock not included, see add alt unit rate if required'
-    ]
+    // Notes: only show when the related scope has items (if a scope has no items, don't show its note)
+    const notes = []
+    if (hasBackfillItems) notes.push('Note: Backfill SOE voids by others only')
+    if (hasSoilExcavationItems) notes.push('Note: NJ Res Soil included, contaminated, mixed, hazardous, petroleum impacted not incl.')
+    // Bedrock note only when rock excavation exists AND soil excavation scope has at least one line (soil or backfill)
+    if (hasRockExcavation && (hasSoilExcavationItems || hasBackfillItems)) notes.push('Note: Bedrock not included, see add alt unit rate if required')
     notes.forEach(note => {
       noteRows.push(currentRow)
       const colonIdx = note.indexOf(': ')
@@ -2071,9 +2097,24 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       currentRow++
     })
 
-    // Soil Excavation Total (only when rock section is shown)
+    // Clear any leftover note rows from a previous build (e.g. Bedrock note when hasRockExcavation is now false)
+    if (notes.length < 3) {
+      const emptyRow = currentRow
+      spreadsheet.updateCell({ value: '' }, `${pfx}B${emptyRow}`)
+      rowBContentMap.set(emptyRow, '')
+      if (notes.length < 2) {
+        spreadsheet.updateCell({ value: '' }, `${pfx}B${emptyRow + 1}`)
+        rowBContentMap.set(emptyRow + 1, '')
+      }
+      if (notes.length < 1) {
+        spreadsheet.updateCell({ value: '' }, `${pfx}B${emptyRow + 2}`)
+        rowBContentMap.set(emptyRow + 2, '')
+      }
+    }
+
+    // Soil Excavation Total (only when rock section is shown and soil scope has items)
     let soilExcavationTotalRow = null
-    if (hasRockExcavation) {
+    if (hasRockExcavation && hasSoilScopeItems) {
       spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
       spreadsheet.updateCell({ value: 'Soil Excavation Total:' }, `${pfx}D${currentRow}`)
       spreadsheet.cellFormat(
@@ -2130,6 +2171,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           spreadsheet.cellFormat({ backgroundColor: '#E2EFDA' }, `${pfx}${col}${row}`)
         })
       }
+    }
+
+    // When there is rock but no soil excavation scope, add an empty row between Excavation and Rock
+    if (hasRockExcavation && !hasSoilScopeItems) {
+      currentRow++
     }
 
     // -------------------------------------------------------------------------
@@ -2325,39 +2371,41 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     currentRow++ // Extra line after Rock Excavation Total
     }
 
-    // Excavation Total (Sum of Soil + Rock when both; otherwise soil only)
-    spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
-    spreadsheet.updateCell({ value: 'Excavation Total:' }, `${pfx}D${currentRow}`)
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'left',
-        backgroundColor: '#BDD7EE'
-      },
-      `${pfx}D${currentRow}:E${currentRow}`
-    )
+    // Excavation Total (only when there is any excavation data: soil and/or rock)
+    if (hasAnyExcavationData) {
+      spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
+      spreadsheet.updateCell({ value: 'Excavation Total:' }, `${pfx}D${currentRow}`)
+      spreadsheet.cellFormat(
+        {
+          fontWeight: 'bold',
+          color: '#000000',
+          textAlign: 'left',
+          backgroundColor: '#BDD7EE'
+        },
+        `${pfx}D${currentRow}:E${currentRow}`
+      )
 
-    spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
-    const excavationFullTotalFormula = hasRockExcavation
-      ? `=SUM(F${soilExcavationTotalRow},F${rockExcavationTotalRow})`
-      : (soilExcavationRow1 != null ? `=SUM(H${soilExcavationRow1}:H${currentRow - 1})*1000` : '=0')
-    spreadsheet.updateCell({ formula: excavationFullTotalFormula }, `${pfx}F${currentRow}`)
-    spreadsheet.cellFormat(
-      {
-        fontWeight: 'bold',
-        color: '#000000',
-        textAlign: 'right',
-        backgroundColor: '#BDD7EE',
-        format: '$#,##0.00'
-      },
-      `${pfx}F${currentRow}:G${currentRow}`
-    )
-    applyTotalRowBorders(spreadsheet, pfx, currentRow, '#BDD7EE')
-    baseBidTotalRows.push(currentRow) // Excavation Total (with or without rock)
-    totalRows.push(currentRow) // so Excavation Total gets centered $ like other totals
+      spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
+      const excavationFullTotalFormula = hasRockExcavation
+        ? `=SUM(F${soilExcavationTotalRow},F${rockExcavationTotalRow})`
+        : (soilExcavationRow1 != null ? `=SUM(H${soilExcavationRow1}:H${currentRow - 1})*1000` : '=0')
+      spreadsheet.updateCell({ formula: excavationFullTotalFormula }, `${pfx}F${currentRow}`)
+      spreadsheet.cellFormat(
+        {
+          fontWeight: 'bold',
+          color: '#000000',
+          textAlign: 'right',
+          backgroundColor: '#BDD7EE',
+          format: '$#,##0.00'
+        },
+        `${pfx}F${currentRow}:G${currentRow}`
+      )
+      applyTotalRowBorders(spreadsheet, pfx, currentRow, '#BDD7EE')
+      baseBidTotalRows.push(currentRow) // Excavation Total (with or without rock)
+      totalRows.push(currentRow) // so Excavation Total gets centered $ like other totals
 
-    currentRow++ // Extra line after Excavation Total
+      currentRow++ // Extra line after Excavation Total
+    }
 
     // Apply currency formatting to H and number format to others for all data rows 
     // (Demolition start to now)
@@ -2400,7 +2448,96 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     )
     currentRow++
 
-    // SOE Headings (hardcoded order; Timber soldier piles: always below Soldier drilled piles:)
+    // Compute drilled vs HP groups before headings so we know which subsection headings to show
+    const collectedGroups = window.drilledSoldierPileGroups || []
+    const drilledGroups = []
+    const hpGroupsFromDrilled = []
+    collectedGroups.forEach((group) => {
+      const hasHPItems = group.some(item => /HP\d+x\d+/i.test(item.particulars || ''))
+      if (hasHPItems) hpGroupsFromDrilled.push(group)
+      else drilledGroups.push(group)
+    })
+    if (hpGroupsFromDrilled.length > 0) {
+      if (!window.hpSoldierPileGroups) window.hpSoldierPileGroups = []
+      window.hpSoldierPileGroups.push(...hpGroupsFromDrilled)
+    }
+
+    const hasSOESubsectionGroups = (map, keys) => {
+      if (!map || !Array.isArray(keys)) return false
+      for (const k of keys) {
+        const groups = map.get(k) || []
+        if (Array.isArray(groups) && groups.some(g => Array.isArray(g) && g.length > 0)) return true
+      }
+      return false
+    }
+
+    const hasSOEHeadingItems = (heading) => {
+      const key = heading.replace(/:$/, '').trim()
+      switch (heading) {
+        case 'Soldier drilled piles:':
+          return drilledGroups.length > 0
+        case 'Timber soldier piles:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Timber soldier piles'])
+        case 'Soldier driven piles:':
+          return hpGroupsFromDrilled.length > 0 || ((window.soldierPileGroups || []).length > 0) || ((window.hpSoldierPileGroups || []).length > 0)
+        case 'Primary secant piles:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Primary secant piles'])
+        case 'Secondary secant piles:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Secondary secant piles'])
+        case 'Tangent pile:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Tangent piles', 'Tangent pile'])
+        case 'Sheet piles:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Sheet piles', 'Sheet pile'])
+        case 'Timber planks:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Timber planks'])
+        case 'Timber post:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Timber post'])
+        case 'Timber lagging:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Timber lagging'])
+        case 'Timber sheeting:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Timber sheeting'])
+        case 'Bracing:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Bracing'])
+        case 'Tie back anchor:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Tie back anchor', 'Tie back'])
+        case 'Tie down anchor:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Tie down anchor', 'Tie down'])
+        case 'Parging:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Parging']) || ((window.pargingItems || []).length > 0)
+        case 'Heel blocks:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Heel blocks'])
+        case 'Underpinning:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Underpinning'])
+        case 'Concrete soil retention pier:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Concrete soil retention pier', 'Concrete soil retention piers'])
+        case 'Form board:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Form board'])
+        case 'Buttons:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Buttons'])
+        case 'Concrete buttons:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Concrete buttons'])
+        case 'Guide wall:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Guide wall', 'Guilde wall']) || ((window.guideWallItems || []).length > 0)
+        case 'Dowels:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Dowels', 'Dowel bar']) || ((window.dowelBarItems || []).length > 0)
+        case 'Rock pins:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Rock pins', 'Rock pin']) || ((window.rockPinItems || []).length > 0)
+        case 'Rock stabilization:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Rock stabilization']) || ((window.rockStabilizationItems || []).length > 0)
+        case 'Shotcrete:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Shotcrete']) || ((window.shotcreteItems || []).length > 0)
+        case 'Permission grouting:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Permission grouting']) || ((window.permissionGroutingItems || []).length > 0)
+        case 'Mud slab:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Mud slab']) || ((window.mudSlabItems || []).length > 0)
+        case 'Misc.:':
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, ['Misc.', 'Misc'])
+        default:
+          return hasSOESubsectionGroups(soeSubsectionItemsForCheck, [key])
+      }
+    }
+
+    // SOE Headings (hardcoded order) — only show heading when that subsection has at least one group
     const soeHeadings = [
       'Soldier drilled piles:',
       'Timber soldier piles:',
@@ -2434,13 +2571,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       'Misc.:'
     ]
 
-    const headingRows = {}
-    soeHeadings.forEach((heading, index) => {
-      // Write headings sequentially
-      const rowNum = currentRow
-      headingRows[heading] = rowNum
-      spreadsheet.updateCell({ value: heading }, `${pfx}B${rowNum}`)
-        rowBContentMap.set(rowNum, heading)
+    // Write SOE subheading at currentRow and advance (only call when subsection has items)
+    const writeSOESubheading = (heading) => {
+      spreadsheet.updateCell({ value: heading }, `${pfx}B${currentRow}`)
+      rowBContentMap.set(currentRow, heading)
       spreadsheet.cellFormat(
         {
           fontWeight: 'bold',
@@ -2450,10 +2584,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           textDecoration: 'underline',
           border: '1px solid #000000'
         },
-        `${pfx}B${rowNum}`
+        `${pfx}B${currentRow}`
       )
       currentRow++
-    })
+    }
 
     let rowShift = 0
 
@@ -2465,10 +2599,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       return 'SOE-101.00'
     }
 
-    // Add drilled soldier pile proposal text
-    const collectedGroups = window.drilledSoldierPileGroups || []
-
-    // ... (helper parseDimension) ...
+    // Add drilled soldier pile proposal text (drilledGroups / hpGroupsFromDrilled already computed above for SOE headings)
     const parseDimension = (dimStr) => {
       if (!dimStr) return 0
       const match = dimStr.match(/(\d+)(?:'-?)?(\d+)?/)
@@ -2476,28 +2607,36 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       return (parseInt(match[1]) || 0) + ((parseInt(match[2]) || 0) / 12)
     }
 
-    // Logic to separate HP/Drilled
-    const drilledGroups = []
-    const hpGroupsFromDrilled = []
-    collectedGroups.forEach((group) => {
-      const hasHPItems = group.some(item => /HP\d+x\d+/i.test(item.particulars || ''))
-      if (hasHPItems) hpGroupsFromDrilled.push(group)
-      else drilledGroups.push(group)
-    })
-
-    if (hpGroupsFromDrilled.length > 0) {
-      if (!window.hpSoldierPileGroups) window.hpSoldierPileGroups = []
-      window.hpSoldierPileGroups.push(...hpGroupsFromDrilled)
+    // Merge drilled groups that have the same diameter, thickness, H, E (and RS) so we output one proposal line per unique combo
+    const getDrilledGroupKey = (items) => {
+      if (!items || items.length === 0) return ''
+      const p = (items[0].particulars || '').trim()
+      const dMatch = p.match(/([0-9.]+)Ø\s*x\s*([0-9.]+)/i)
+      const diameter = dMatch ? dMatch[1] : ''
+      const thickness = dMatch ? dMatch[2] : ''
+      const hMatch = p.match(/H=([0-9'"\-]+)/)
+      const h = hMatch ? hMatch[1] : ''
+      const rsMatch = p.match(/\+\s*RS=([0-9'"\-]+)/i)
+      const rs = rsMatch ? rsMatch[1] : ''
+      const eMatch = p.match(/E=([0-9'"\-]+)/)
+      const e = eMatch ? eMatch[1] : ''
+      return `${diameter}|${thickness}|${h}|${rs}|${e}`
     }
+    const mergedDrilledGroups = []
+    const keyToItems = new Map()
+    drilledGroups.forEach((collectedItems) => {
+      if (collectedItems.length === 0) return
+      const key = getDrilledGroupKey(collectedItems)
+      if (!keyToItems.has(key)) keyToItems.set(key, [])
+      keyToItems.get(key).push(...collectedItems)
+    })
+    keyToItems.forEach((items) => mergedDrilledGroups.push(items))
 
-    // Initialize currentRow for Drilled items
-    // Initialize currentRow for both drilled and HP groups
-    // Start drilled soldier piles right after "Soldier drilled piles:" heading
-    currentRow = headingRows['Soldier drilled piles:'] + 1
-
-    if (drilledGroups.length > 0) {
-      // Process each group separately
-      drilledGroups.forEach((collectedItems, groupIndex) => {
+    // Drilled soldier piles: write heading only when we have items, then content (next group will be on next row)
+    if (mergedDrilledGroups.length > 0) {
+      writeSOESubheading('Soldier drilled piles:')
+      // Process each merged group (one proposal line per unique diameter/thickness/H/E combo)
+      mergedDrilledGroups.forEach((collectedItems, groupIndex) => {
         if (collectedItems.length > 0) {
           // Parse items to extract diameter, thickness, heights, and embedment
           let diameter = null
@@ -2637,22 +2776,37 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             // Get SOE page number from raw data
             const soePage = getSOEPageFromRawData(diameter, thickness)
 
-            // Sum row is the same row as the last item in the calculation sheet (total line)
-            const lastRowNumber = Math.max(...collectedItems.map(item => item.rawRowNumber || 0), 0)
+            // Row range for this (possibly merged) group so FT/LBS/QTY sum across all items
+            const rowNumbers = collectedItems.map(item => item.rawRowNumber || 0).filter(Boolean)
+            const firstRowNumber = rowNumbers.length > 0 ? Math.min(...rowNumbers) : 0
+            const lastRowNumber = rowNumbers.length > 0 ? Math.max(...rowNumbers) : 0
             const sumRowIndex = lastRowNumber
+            const useSumRange = firstRowNumber > 0 && lastRowNumber > 0 && firstRowNumber !== lastRowNumber
+            const calcSheetName = 'Calculations Sheet'
 
-            // Use QTY from that row (column M) for display when available so (XX)no matches the sheet
+            // Use QTY from calculation data: for merged groups use sum of column M across rows; else single row
             let displayCount = totalCount
-            if (calculationData && sumRowIndex >= 1 && calculationData[sumRowIndex - 1]) {
-              const rowQty = parseFloat(calculationData[sumRowIndex - 1][12])
-              if (!Number.isNaN(rowQty) && rowQty > 0) displayCount = Math.round(rowQty)
+            if (calculationData && rowNumbers.length > 0) {
+              if (useSumRange) {
+                let sumQty = 0
+                for (let r = firstRowNumber; r <= lastRowNumber; r++) {
+                  const row = calculationData[r - 1]
+                  if (row && row[12] != null) {
+                    const q = parseFloat(row[12])
+                    if (!Number.isNaN(q)) sumQty += q
+                  }
+                }
+                if (sumQty > 0) displayCount = Math.round(sumQty)
+              } else if (sumRowIndex >= 1 && calculationData[sumRowIndex - 1]) {
+                const rowQty = parseFloat(calculationData[sumRowIndex - 1][12])
+                if (!Number.isNaN(rowQty) && rowQty > 0) displayCount = Math.round(rowQty)
+              }
             }
 
-            // Create cell references to the sum row in calculation sheet
-            const calcSheetName = 'Calculations Sheet'
-            const ftCellRef = `'${calcSheetName}'!I${sumRowIndex}`
-            const lbsCellRef = `'${calcSheetName}'!K${sumRowIndex}`
-            const qtyCellRef = `'${calcSheetName}'!M${sumRowIndex}`
+            // Cell refs: single row or SUM over range for merged groups
+            const ftCellRef = useSumRange ? `SUM('${calcSheetName}'!I${firstRowNumber}:I${lastRowNumber})` : `'${calcSheetName}'!I${sumRowIndex}`
+            const lbsCellRef = useSumRange ? `SUM('${calcSheetName}'!K${firstRowNumber}:K${lastRowNumber})` : `'${calcSheetName}'!K${sumRowIndex}`
+            const qtyCellRef = useSumRange ? `SUM('${calcSheetName}'!M${firstRowNumber}:M${lastRowNumber})` : `'${calcSheetName}'!M${sumRowIndex}`
 
             // Proposal text for rate lookup and row height; B cell uses formula so (XX) updates when QTY changes
             const proposalText = `F&I new (${displayCount})no [${diameter}" Øx${thickness}" thick] drilled soldier piles (H=${heightText}, ${embedmentText} embedment) as per ${soePage} & details on`
@@ -2730,33 +2884,34 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       })
     }
 
-    // Move to row after "Soldier driven piles:" heading for HP piles
-    // If drilled piles were added, currentRow is already after the last drilled pile
-    // If no drilled piles, start HP piles at row 43 (right after "Soldier driven piles:" at row 42)
-    if (drilledGroups.length === 0 || currentRow <= 42) {
-      currentRow = 43 // Start HP piles right after "Soldier driven piles:" heading
-    } else {
-      // Drilled piles were added and we're past row 42
-      // Ensure "Soldier driven piles:" heading is visible before HP piles
-      // Add it at the current row, then increment for HP piles
-      spreadsheet.updateCell({ value: 'Soldier driven piles:' }, `${pfx}B${currentRow}`)
-        rowBContentMap.set(currentRow, 'Soldier driven piles:')
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'left',
-          backgroundColor: '#D0CECE',
-          textDecoration: 'underline',
-          border: '1px solid #000000'
-        },
-        `${pfx}B${currentRow}`
-      )
-      currentRow++ // Move to next row for HP piles
+    // Soldier driven piles (HP): write heading only when we have items, then content
+    const hasHPGroups = hpGroupsFromDrilled.length > 0 || ((window.hpSoldierPileGroups || []).length > 0)
+    if (hasHPGroups) {
+      writeSOESubheading('Soldier driven piles:')
     }
 
     // Add HP soldier pile proposal text from collected groups
-    const hpCollectedGroups = window.hpSoldierPileGroups || []
+    const hpCollectedGroupsRaw = window.hpSoldierPileGroups || []
+
+    // Merge HP groups by (HP type, height) so one proposal line per unique combo; skip empty groups
+    const getHPGroupKey = (items) => {
+      if (!items || items.length === 0) return ''
+      const p = (items[0].particulars || '').trim()
+      const hpMatch = p.match(/HP(\d+)x(\d+)/i)
+      const hpType = hpMatch ? `HP${hpMatch[1]}x${hpMatch[2]}` : ''
+      const hMatch = p.match(/H=([0-9'"\-]+)/)
+      const hRaw = hMatch ? hMatch[1] : ''
+      return `${hpType}|${hRaw}`
+    }
+    const hpKeyToItems = new Map()
+    hpCollectedGroupsRaw.forEach((group) => {
+      if (!group || group.length === 0) return
+      const key = getHPGroupKey(group)
+      if (!key) return
+      if (!hpKeyToItems.has(key)) hpKeyToItems.set(key, [])
+      hpKeyToItems.get(key).push(...group)
+    })
+    const hpCollectedGroups = Array.from(hpKeyToItems.values())
 
     // Calculate totals using formulas from soeProcessor.js
     // FT = H * C (Height * Takeoff) - formula from soeProcessor.js line 255
@@ -2898,7 +3053,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               heightText = `${heightFeet}'-${heightInches}"`
             }
 
-            // Get SOE page number from raw data (search for HP type)
+            // Get SOE page ref(s) from raw data (search for HP type); multiple pages formatted as "102 & 105" or "102, 103 & 105"
             const getHPPageFromRawData = (hpTypeValue) => {
               if (!rawData || !Array.isArray(rawData) || rawData.length < 2) {
                 return 'SOE-B-100.00' // Default fallback
@@ -2914,9 +3069,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 return 'SOE-B-100.00' // Default fallback
               }
 
-              // Create pattern to match HP type (e.g., "HP12x63")
               const pattern = new RegExp(hpTypeValue.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
-
+              const collected = []
+              const seen = new Set()
               for (const row of dataRows) {
                 const digitizerItem = row[digitizerIdx]
                 if (digitizerItem && pattern.test(String(digitizerItem))) {
@@ -2924,33 +3079,49 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                   if (pageValue) {
                     const pageStr = String(pageValue).trim()
                     const soeMatch = pageStr.match(/SOE-[\w-]+/i)
-                    if (soeMatch) {
-                      return soeMatch[0]
+                    if (soeMatch && !seen.has(soeMatch[0])) {
+                      seen.add(soeMatch[0])
+                      collected.push(soeMatch[0])
                     }
                   }
                 }
               }
 
-              return 'SOE-B-100.00' // Default fallback
+              return collected.length ? formatPageRefList(collected) : 'SOE-B-100.00'
             }
 
             const soePage = getHPPageFromRawData(hpType)
 
-            // Sum row is the same row as the last item in the calculation sheet
-            const lastRowNumber = Math.max(...hpCollectedItems.map(item => item.rawRowNumber || 0), 0)
+            // Row range for this (possibly merged) group
+            const hpRowNumbers = hpCollectedItems.map(item => item.rawRowNumber || 0).filter(Boolean)
+            const firstRowNumber = hpRowNumbers.length > 0 ? Math.min(...hpRowNumbers) : 0
+            const lastRowNumber = hpRowNumbers.length > 0 ? Math.max(...hpRowNumbers) : 0
             const sumRowIndex = lastRowNumber
+            const useSumRange = firstRowNumber > 0 && lastRowNumber > 0 && firstRowNumber !== lastRowNumber
+            const calcSheetName = 'Calculations Sheet'
 
-            // Use QTY from that row (column M) for display when available so (XX)no matches the sheet
+            // Use QTY: for merged groups sum column M over range; else single row
             let displayCount = totalCount
-            if (calculationData && sumRowIndex >= 1 && calculationData[sumRowIndex - 1]) {
-              const rowQty = parseFloat(calculationData[sumRowIndex - 1][12])
-              if (!Number.isNaN(rowQty) && rowQty > 0) displayCount = Math.round(rowQty)
+            if (calculationData && hpRowNumbers.length > 0) {
+              if (useSumRange) {
+                let sumQty = 0
+                for (let r = firstRowNumber; r <= lastRowNumber; r++) {
+                  const row = calculationData[r - 1]
+                  if (row && row[12] != null) {
+                    const q = parseFloat(row[12])
+                    if (!Number.isNaN(q)) sumQty += q
+                  }
+                }
+                if (sumQty > 0) displayCount = Math.round(sumQty)
+              } else if (sumRowIndex >= 1 && calculationData[sumRowIndex - 1]) {
+                const rowQty = parseFloat(calculationData[sumRowIndex - 1][12])
+                if (!Number.isNaN(rowQty) && rowQty > 0) displayCount = Math.round(rowQty)
+              }
             }
 
-            const calcSheetName = 'Calculations Sheet'
-            const ftCellRef = `'${calcSheetName}'!I${sumRowIndex}`
-            const lbsCellRef = `'${calcSheetName}'!K${sumRowIndex}`
-            const qtyCellRef = `'${calcSheetName}'!M${sumRowIndex}`
+            const ftCellRef = useSumRange ? `SUM('${calcSheetName}'!I${firstRowNumber}:I${lastRowNumber})` : `'${calcSheetName}'!I${sumRowIndex}`
+            const lbsCellRef = useSumRange ? `SUM('${calcSheetName}'!K${firstRowNumber}:K${lastRowNumber})` : `'${calcSheetName}'!K${sumRowIndex}`
+            const qtyCellRef = useSumRange ? `SUM('${calcSheetName}'!M${firstRowNumber}:M${lastRowNumber})` : `'${calcSheetName}'!M${sumRowIndex}`
 
             const proposalText = `F&I new (${displayCount})no [${hpType}] driven pile (Havg=${heightText}) as per ${soePage} & details on`
             const afterCount = `)no [${hpType}] driven pile (Havg=${heightText}) as per ${soePage} & details on`
@@ -3063,31 +3234,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       primarySecantGroups = primarySecantGroupsFromMap
     }
 
-    // Move to row after "Primary secant piles:" heading (row 43) for primary secant piles
-    // If HP piles were added, currentRow is already after the last HP pile
-    // If no HP piles, start primary secant piles at row 44 (right after "Primary secant piles:" at row 43)
-    const primarySecantHeadingRow = headingRows['Primary secant piles:']
-    if (hpCollectedGroups.length === 0 || currentRow <= primarySecantHeadingRow) {
-      currentRow = primarySecantHeadingRow + 1 // Start primary secant piles right after heading
-    } else {
-      // HP piles were added and we're past the heading row
-      // Ensure "Primary secant piles:" heading is visible before primary secant content
-      spreadsheet.updateCell({ value: 'Primary secant piles:' }, `${pfx}B${currentRow}`)
-        rowBContentMap.set(currentRow, 'Primary secant piles:')
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'left',
-          backgroundColor: '#D0CECE',
-          textDecoration: 'underline',
-          border: '1px solid #000000'
-        },
-        `${pfx}B${currentRow}`
-      )
-      currentRow++ // Move to next row for primary secant content
-    }
-
     // If still no groups, try to find primary secant items from calculation sheet data
     if (primarySecantGroups.length === 0 && calculationData && calculationData.length > 0) {
       const calcSheetName = 'Calculations Sheet'
@@ -3156,7 +3302,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       }
     }
 
+    // Primary secant piles: write heading only when we have items, then content (next group on next row)
     if (primarySecantGroups.length > 0) {
+      writeSOESubheading('Primary secant piles:')
       primarySecantGroups.forEach((group, groupIndex) => {
         // Handle both array format and object format with items property
         const groupItems = Array.isArray(group) ? group : (group.items || [])
@@ -3260,7 +3408,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
 
           if (digitizerIdx !== -1 && pageIdx !== -1) {
-            // Search for primary secant pile items
+            const soeRefsCollected = new Set()
             for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
               const row = dataRows[rowIndex]
               const digitizerItem = row[digitizerIdx]
@@ -3270,19 +3418,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                   const pageValue = row[pageIdx]
                   if (pageValue) {
                     const pageStr = String(pageValue).trim()
-                    // Extract all SOE references
                     const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
-                    if (soeMatches && soeMatches.length > 0) {
-                      if (!soePageMain || soePageMain === 'SOE-100.00') {
-                        soePageMain = soeMatches[0]
-                      }
-                      if (soeMatches.length > 1 && (!soePageDetails || soePageDetails === 'SOE-200.00')) {
-                        soePageDetails = soeMatches[1]
-                      }
-                    }
+                    if (soeMatches) soeMatches.forEach(m => soeRefsCollected.add(m))
                   }
                 }
               }
+            }
+            if (soeRefsCollected.size > 0) {
+              soePageMain = formatPageRefList([...soeRefsCollected])
+              const arr = [...soeRefsCollected]
+              if (arr.length > 1) soePageDetails = arr[1]
             }
           }
         }
@@ -3478,28 +3623,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       secondarySecantGroups = secondarySecantGroupsFromMap
     }
 
-    // Move to row after "Secondary secant piles:" heading for secondary secant piles
-    const secondarySecantHeadingRow = headingRows['Secondary secant piles:']
-    if (currentRow <= secondarySecantHeadingRow) {
-      currentRow = secondarySecantHeadingRow + 1 // Start secondary secant piles right after heading
-    } else {
-      // Ensure "Secondary secant piles:" heading is visible before secondary secant content
-      spreadsheet.updateCell({ value: 'Secondary secant piles:' }, `${pfx}B${currentRow}`)
-        rowBContentMap.set(currentRow, 'Secondary secant piles:')
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'left',
-          backgroundColor: '#D0CECE',
-          textDecoration: 'underline',
-          border: '1px solid #000000'
-        },
-        `${pfx}B${currentRow}`
-      )
-      currentRow++ // Move to next row for secondary secant content
-    }
-
     // If still no groups, try to find secondary secant items from calculation sheet data
     if (secondarySecantGroups.length === 0 && calculationData && calculationData.length > 0) {
       const calcSheetName = 'Calculations Sheet'
@@ -3550,7 +3673,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       }
     }
 
+    // Secondary secant piles: write heading only when we have items, then content (next group on next row)
     if (secondarySecantGroups.length > 0) {
+      writeSOESubheading('Secondary secant piles:')
       secondarySecantGroups.forEach((group, groupIndex) => {
         if (group.length === 0) return
 
@@ -3645,7 +3770,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
 
           if (digitizerIdx !== -1 && pageIdx !== -1) {
-            // Search for secondary secant pile items
+            const soeRefsCollected = new Set()
             for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
               const row = dataRows[rowIndex]
               const digitizerItem = row[digitizerIdx]
@@ -3655,17 +3780,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                   const pageValue = row[pageIdx]
                   if (pageValue) {
                     const pageStr = String(pageValue).trim()
-                    // Extract all SOE references
                     const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
-                    if (soeMatches && soeMatches.length > 0) {
-                      if (!soePageMain || soePageMain === 'SOE-100.00') {
-                        soePageMain = soeMatches[0]
-                      }
-                    }
+                    if (soeMatches) soeMatches.forEach(m => soeRefsCollected.add(m))
                   }
                 }
               }
             }
+            if (soeRefsCollected.size > 0) soePageMain = formatPageRefList([...soeRefsCollected])
           }
         }
 
@@ -3815,28 +3936,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       tangentPileGroups = tangentPileGroupsFromMap
     }
 
-    // Move to row after "Tangent pile:" heading for tangent piles
-    const tangentPileHeadingRow = headingRows['Tangent pile:']
-    if (currentRow <= tangentPileHeadingRow) {
-      currentRow = tangentPileHeadingRow + 1 // Start tangent piles right after heading
-    } else {
-      // Ensure "Tangent pile:" heading is visible before tangent pile content
-      spreadsheet.updateCell({ value: 'Tangent pile:' }, `${pfx}B${currentRow}`)
-        rowBContentMap.set(currentRow, 'Tangent pile:')
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'left',
-          backgroundColor: '#D0CECE',
-          textDecoration: 'underline',
-          border: '1px solid #000000'
-        },
-        `${pfx}B${currentRow}`
-      )
-      currentRow++ // Move to next row for tangent pile content
-    }
-
     // If still no groups, try to find tangent pile items from calculation sheet data
     if (tangentPileGroups.length === 0 && calculationData && calculationData.length > 0) {
       const calcSheetName = 'Calculations Sheet'
@@ -3887,7 +3986,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       }
     }
 
+    // Tangent pile: write heading only when we have items, then content (next group on next row)
     if (tangentPileGroups.length > 0) {
+      writeSOESubheading('Tangent pile:')
       tangentPileGroups.forEach((group, groupIndex) => {
         if (group.length === 0) return
 
@@ -3982,7 +4083,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const pageIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'page')
 
           if (digitizerIdx !== -1 && pageIdx !== -1) {
-            // Search for tangent pile items
+            const soeRefsCollected = new Set()
             for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
               const row = dataRows[rowIndex]
               const digitizerItem = row[digitizerIdx]
@@ -3992,17 +4093,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                   const pageValue = row[pageIdx]
                   if (pageValue) {
                     const pageStr = String(pageValue).trim()
-                    // Extract all SOE references
                     const soeMatches = pageStr.match(/SOE-[\d.]+/gi)
-                    if (soeMatches && soeMatches.length > 0) {
-                      if (!soePageMain || soePageMain === 'SOE-100.00') {
-                        soePageMain = soeMatches[0]
-                      }
-                    }
+                    if (soeMatches) soeMatches.forEach(m => soeRefsCollected.add(m))
                   }
                 }
               }
             }
+            if (soeRefsCollected.size > 0) soePageMain = formatPageRefList([...soeRefsCollected])
           }
         }
 
@@ -4802,9 +4899,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         collectedSubsections.delete(name)
         collectedSubsections.delete('Sheet piles') // Also remove plural version
       } else if (name === 'Timber lagging' && hasTimberLaggingItems) {
-        // Special handling for Timber lagging - show it if any items exist
+        // Special handling for Timber lagging - show it only when there are items
         subsectionsToDisplay.push(name)
         collectedSubsections.delete(name)
+      } else if (name === 'Timber lagging') {
+        // Do not show heading when the group is not there (do not add from collectedSubsections)
       } else if (name === 'Timber sheeting' && hasTimberSheetingItems) {
         // Special handling for Timber sheeting - show it if any items exist
         subsectionsToDisplay.push(name)
@@ -11189,7 +11288,39 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
         return []
       }
-      // Extract qty (col M = 12), height (col H = 7), thickness, width, dimensions (from Particulars col 1) from group rows for dynamic proposal text
+      // Get page ref(s) for a subsection from raw data Page column; if group has multiple pages return "102 & 105" or "102, 103 & 105"
+      const getPageRefForSubsection = (sub) => {
+        if (!rawData || !Array.isArray(rawData) || rawData.length < 2) return '##'
+        const headers = rawData[0]
+        const dataRows = rawData.slice(1)
+        const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
+        const pageIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'page')
+        if (digitizerIdx === -1 || pageIdx === -1) return '##'
+        const subNorm = (sub || '').toLowerCase().replace(/\s+s$/, '') // "Strap beams" -> "strap beam"
+        const subAlt = (sub || '').toLowerCase() // "Strap beams" as-is
+        const collected = []
+        const seen = new Set()
+        for (const row of dataRows) {
+          const digitizerItem = (row[digitizerIdx] || '').toString().toLowerCase()
+          let matches = digitizerItem.includes(subNorm) || digitizerItem.includes(subAlt) ||
+            (subNorm === 'tie beam' && (digitizerItem.includes('tie beam') || digitizerItem.startsWith('tb ')))
+          // Strap beams: raw data has "ST (3'-10"x2'-9") typ.", "ST (2'-8"x3'-0") (87.86')" etc. – no "strap" in text
+          if (!matches && (subAlt === 'strap beams' || subNorm === 'strap beam')) {
+            matches = (digitizerItem.startsWith('st ') || /^st\s*\(/.test(digitizerItem)) && !digitizerItem.startsWith('st-')
+          }
+          if (matches && row[pageIdx] != null && row[pageIdx] !== '') {
+            const pageStr = String(row[pageIdx]).trim()
+            const refMatch = pageStr.match(/(?:FO|P|S|A|E|DM)-[\d.]+/i)
+            const ref = refMatch ? refMatch[0] : pageStr
+            if (ref && !seen.has(ref)) {
+              seen.add(ref)
+              collected.push(ref)
+            }
+          }
+        }
+        return formatPageRefList(collected)
+      }
+      // Extract qty (col M = 12), height (col H = 7), thickness, width, dimensions (from Particulars col 1), pageRef from rawData for dynamic proposal text
       const getDynamicValuesFromGroupRows = (source, sub, isFormulaItem) => {
         const rows = getGroupDataRows(source, sub, isFormulaItem)
         const heightValues = rows.map(r => parseFloat(r[7])).filter(v => !Number.isNaN(v) && v > 0)
@@ -11224,6 +11355,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             const widthRange = p.match(/(\d+'\s*-\s*\d+"?\s*to\s*\d+'\s*-\s*\d+"?)\s*wide/i)
             const widthInch = p.match(/(\d+"?\s*x\s*\d+"?)\s*wide/i) || p.match(/(\d+)\s*["']?\s*x\s*["']?\s*(\d+)\s*wide/i)
             const widthSingle = p.match(/(\d+'\s*-\s*\d+"?)\s*wide/i) || p.match(/(\d+(?:\/\d+)?)"?\s*wide/i)
+            const stWxH = p.match(/\(\s*(\d+'\s*-\s*\d+"?)\s*x\s*(\d+'\s*-\s*\d+"?)\s*\)/i) // e.g. ST (3'-10"x2'-9")
             if (widthRange) widthText = widthRange[1].trim()
             else if (widthInch) {
               const parts = (widthInch[1] + (widthInch[2] ? 'x' + widthInch[2] : '')).split(/\s*x\s*/i)
@@ -11232,6 +11364,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             else if (widthSingle) {
               widthText = widthSingle[1].trim()
               if (!/"/.test(widthText) && widthSingle[0].includes('"')) widthText += '"'
+            } else if (stWxH) {
+              widthText = stWxH[1].trim()
+              if (!/"/.test(widthText)) widthText += '"'
             }
           }
           if (!dimensionsText) {
@@ -11239,13 +11374,17 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             if (dim3) dimensionsText = dim3[1].replace(/\s/g, '').trim()
           }
         }
-        return { qtyText, heightText: heightText || '##', thicknessText, widthText, dimensionsText }
+        const pageRef = getPageRefForSubsection(sub)
+        return { qtyText, heightText: heightText || '##', thicknessText, widthText, dimensionsText, pageRef }
       }
-      // Replace (X)no./no, (H=...), (Havg=...), thickness, width, dimensions in template with values from group data (template wording unchanged)
+      // Replace (X)no./no, (H=...), (Havg=...), thickness, width, dimensions, "as per X" in template with values from group data (template wording unchanged)
       const applyDynamicValuesToTemplate = (text, vals) => {
         if (!text || typeof text !== 'string') return text
         if (!vals) return text
         let out = text
+        if (vals.pageRef && vals.pageRef !== '##') {
+          out = out.replace(/\s+as\s+per\s+[^&]*&\s*details\s+on/gi, ` as per ${vals.pageRef} & details on`)
+        }
         if (vals.qtyText && vals.qtyText !== '##') {
           out = out.replace(/\s*\(\d+\)\s*no\./gi, ` (${vals.qtyText})no.`)
           out = out.replace(/\s*\(\d+\)\s*no\s/gi, ` (${vals.qtyText})no `)
@@ -11356,6 +11495,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             { text: `F&I new (4)no (22"x16" wide) Pilasters (Havg=8'-0") as per S-101.00 & details on`, sub: 'Pilaster', match: () => true },
             { text: 'F&I new grade beams as per FO-102.00 & details on', sub: 'Grade beams', match: () => true },
             { text: 'F&I new tie beams as per FO-101.00, FO-102.00 & details on', sub: 'Tie beam', match: () => true },
+            { text: 'F&I new strap beams as per FO-102.00 & details on', sub: 'Strap beams', match: () => true },
             { text: `F&I new (8" thick) thickened slab as per FO-101.00 & details on`, sub: 'Thickened slab', match: () => true },
             { text: `F&I new (24" thick) mat slab reinforced as per FO-101.00 & details on`, sub: 'Mat slab', match: p => p.includes('2\'') || p.includes('24') },
             { text: `F&I new (36" thick) mat slab reinforced as per FO-101.00 & details on`, sub: 'Mat slab', match: p => p.includes('3\'') || p.includes('36') },

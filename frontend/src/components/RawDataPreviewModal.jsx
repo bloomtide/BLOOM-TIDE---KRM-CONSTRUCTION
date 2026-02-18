@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 import Modal from './Modal'
 import { FiDownload, FiSave, FiRefreshCw, FiTrash2 } from 'react-icons/fi'
@@ -10,6 +10,8 @@ const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData, proposalId, onSave
     const [editableRows, setEditableRows] = useState([])
     const [saving, setSaving] = useState(false)
     const [saveError, setSaveError] = useState(null)
+    const [selectedRows, setSelectedRows] = useState(() => new Set())
+    const selectAllCheckboxRef = useRef(null)
 
     useEffect(() => {
         if (isOpen && rawExcelData) {
@@ -18,6 +20,7 @@ const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData, proposalId, onSave
                 ? rawExcelData.rows.map(row => Array.isArray(row) ? [...row] : [])
                 : [])
             setSaveError(null)
+            setSelectedRows(new Set())
         }
     }, [isOpen, rawExcelData])
 
@@ -59,7 +62,46 @@ const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData, proposalId, onSave
 
     const deleteRow = (rowIndex) => {
         setEditableRows(prev => prev.filter((_, r) => r !== rowIndex))
+        setSelectedRows(prev => {
+            const next = new Set(prev)
+            next.delete(rowIndex)
+            return next
+        })
     }
+
+    const numRows = editableRows.length
+    const allSelected = numRows > 0 && selectedRows.size === numRows
+    const someSelected = selectedRows.size > 0
+    const selectAllIndeterminate = someSelected && !allSelected
+
+    const toggleSelectAll = () => {
+        if (allSelected) {
+            setSelectedRows(new Set())
+        } else {
+            setSelectedRows(new Set(editableRows.map((_, i) => i)))
+        }
+    }
+
+    const toggleRowSelection = (rowIndex) => {
+        setSelectedRows(prev => {
+            const next = new Set(prev)
+            if (next.has(rowIndex)) next.delete(rowIndex)
+            else next.add(rowIndex)
+            return next
+        })
+    }
+
+    const deleteSelectedRows = () => {
+        if (selectedRows.size === 0) return
+        const indicesToRemove = new Set(selectedRows)
+        setEditableRows(prev => prev.filter((_, r) => !indicesToRemove.has(r)))
+        setSelectedRows(new Set())
+    }
+
+    useEffect(() => {
+        const el = selectAllCheckboxRef.current
+        if (el) el.indeterminate = selectAllIndeterminate
+    }, [selectAllIndeterminate])
 
     const normalizeValue = (v) => {
         if (v === null || v === undefined || v === '') return ''
@@ -155,12 +197,44 @@ const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData, proposalId, onSave
             }
             maxWidth="max-w-6xl"
         >
+            {editableRows.length > 0 && (
+                <div className="flex items-center gap-2 mb-3">
+                    <button
+                        type="button"
+                        onClick={deleteSelectedRows}
+                        disabled={!someSelected}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        title={someSelected ? `Delete ${selectedRows.size} selected row(s)` : 'Select rows to delete'}
+                    >
+                        <FiTrash2 size={16} />
+                        {someSelected
+                            ? `Delete selected${selectedRows.size === numRows ? ' (clear table)' : ` (${selectedRows.size})`}`
+                            : 'Delete selected'}
+                    </button>
+                    {someSelected && (
+                        <span className="text-sm text-gray-500">
+                            {selectedRows.size} of {numRows} row{numRows !== 1 ? 's' : ''} selected
+                        </span>
+                    )}
+                </div>
+            )}
             <div className="max-h-[600px] overflow-auto">
                 <table className="w-full border-collapse">
                     <thead className="bg-gray-100 sticky top-0 z-10">
                         <tr>
-                            <th className="px-2 py-2 text-left text-xs font-semibold text-gray-600 uppercase border-b-2 border-gray-300 w-20">
-                                #
+                            <th className="px-2 py-2 text-left text-xs font-semibold text-gray-600 uppercase border-b-2 border-gray-300 w-24">
+                                <span className="inline-flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        ref={selectAllCheckboxRef}
+                                        checked={allSelected}
+                                        onChange={toggleSelectAll}
+                                        disabled={numRows === 0}
+                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        title={allSelected ? 'Deselect all' : 'Select all'}
+                                    />
+                                    <span>#</span>
+                                </span>
                             </th>
                             {Array.from({ length: numCols }, (_, colIndex) => (
                                 <th key={colIndex} className="border-b-2 border-gray-300 p-0">
@@ -186,7 +260,14 @@ const RawDataPreviewModal = ({ isOpen, onClose, rawExcelData, proposalId, onSave
                             editableRows.map((row, rowIndex) => (
                                 <tr key={rowIndex} className="hover:bg-gray-50 group">
                                     <td className="px-2 py-1 text-sm text-gray-500 font-medium border-r border-gray-200 sticky left-0 bg-white align-middle">
-                                        <span className="inline-flex items-center gap-1">
+                                        <span className="inline-flex items-center gap-1.5">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedRows.has(rowIndex)}
+                                                onChange={() => toggleRowSelection(rowIndex)}
+                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                title="Select row"
+                                            />
                                             <span>{rowIndex + 1}</span>
                                             <button
                                                 type="button"

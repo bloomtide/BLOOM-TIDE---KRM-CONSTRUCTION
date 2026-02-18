@@ -689,6 +689,10 @@
   "values": { "CY": 950 }
 },
 {
+  "description": "strap beams",
+  "values": { "CY": 800 }
+},
+{
   "description": "concrete curb",
   "values": { "LF": 90 }
 },
