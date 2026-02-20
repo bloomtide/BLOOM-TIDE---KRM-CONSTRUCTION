@@ -3,6 +3,8 @@ import {
     createProposal,
     getProposals,
     getProposalById,
+    getRawFile,
+    getSpreadsheetFile,
     updateProposal,
     deleteProposal,
     deleteProposals,
@@ -25,6 +27,8 @@ router.route('/')
 
 router.post('/bulk-delete', deleteProposals);
 router.post('/:id/duplicate', duplicateProposal);
+router.get('/:id/raw-file', getRawFile);
+router.get('/:id/spreadsheet-file', getSpreadsheetFile);
 router.patch('/:id/unused-rows/bulk', updateUnusedRowStatusBulk);
 router.patch('/:id/unused-rows/:rowIndex', updateUnusedRowStatus);
 

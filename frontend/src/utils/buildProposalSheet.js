@@ -216,10 +216,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     try { spreadsheet.setColWidth(width, col.charCodeAt(0) - 65, proposalSheetIndex) } catch (e) { }
   })
 
-  // Set height for 1st row only on Proposal sheet
-  try { spreadsheet.setRowHeight(24, 0, proposalSheetIndex) } catch (e) { }
-  // Row 12 (DESCRIPTION header): height 34
-  try { spreadsheet.setRowHeight(34, 11, proposalSheetIndex) } catch (e) { }
+  // Uniform height for one-liner and empty rows on Proposal sheet (same across whole sheet)
+  const DEFAULT_ROW_HEIGHT = 30
+  for (let ri = 0; ri <= 11; ri++) {
+    try { spreadsheet.setRowHeight(DEFAULT_ROW_HEIGHT, ri, proposalSheetIndex) } catch (e) { }
+  }
+  // Row 13 (index 12) is empty spacer – set same default height
+  try { spreadsheet.setRowHeight(DEFAULT_ROW_HEIGHT, 12, proposalSheetIndex) } catch (e) { }
 
   // Track all section total rows for BASE BID TOTAL formula
   const baseBidTotalRows = []
@@ -231,43 +234,40 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   const noteRows = []
   // WR Meadows Installer note row – re-apply normal, italic, center
   const wpNoteRow = []
+  // Row with "General Liability total coverage..." – re-apply 3px bottom border last so it is not overwritten
+  let generalLiabilityBorderRow = null
   // Rows with long text that need dynamic height (e.g. soil excavation); re-applied after uniform height loop
   const dynamicHeightRows = []
   // Column B content per row for dynamic height (row number -> text)
   const rowBContentMap = new Map()
 
   // Helper function to calculate row height based on text content in column B
+  // One-liner and empty: same height (DEFAULT_ROW_HEIGHT). When text wraps to multiple lines: height fits content.
   const calculateRowHeight = (text) => {
-    if (!text || typeof text !== 'string') {
-      return 30 // Default minimal height
+    const trimmed = (text && typeof text === 'string') ? String(text).trim() : ''
+    if (trimmed === '') {
+      return DEFAULT_ROW_HEIGHT
     }
 
     // Column B width is 955 pixels
     const columnWidth = 955
-    const fontSize = 18 // Updated to 18pt
-    // Approximate line height for 18pt font. 30px is very tight for 18pt (24px).
-    // Try tightly packed to meet request.
     const lineHeight = 26
-    // Vertical padding (y) so multi-line text isn't tightly fit – space above and below
     const paddingTop = 8
     const paddingBottom = 8
     const verticalPadding = paddingTop + paddingBottom
-    // Average char width for 18pt Calibri Bold is approx 11-12px
     const charWidth = 11
-
-    // Calculate how many characters fit per line (accounting for padding)
-    const availableWidth = columnWidth - 20 // Account for cell padding
+    const availableWidth = columnWidth - 20
     const charsPerLine = Math.floor(availableWidth / charWidth)
+    const estimatedLines = Math.max(1, Math.ceil(trimmed.length / charsPerLine))
 
-    // Calculate number of lines needed (accounting for word wrapping)
-    const textLength = text.length
-    const estimatedLines = Math.max(1, Math.ceil(textLength / charsPerLine))
+    // One line: same height as empty rows for consistency
+    if (estimatedLines <= 1) {
+      return DEFAULT_ROW_HEIGHT
+    }
 
-    // Calculate height: (lines * lineHeight) + padding top & bottom so text is vertically centered
-    const calculatedHeight = Math.max(30, Math.ceil(estimatedLines * lineHeight + verticalPadding))
-
-    // Increase cap significantly as 18pt text takes space
-    return Math.min(calculatedHeight, 400)
+    // Multiple lines: height fits content
+    const calculatedHeight = Math.ceil(estimatedLines * lineHeight + verticalPadding)
+    return Math.min(Math.max(DEFAULT_ROW_HEIGHT, calculatedHeight), 400)
   }
 
 
@@ -321,7 +321,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   spreadsheet.updateCell({ value: '37-24 24th Street, Suite 132, Long Island City, NY 11101' }, `${pfx}B4`)
   spreadsheet.updateCell({ value: 'Tel: 718 726-1525 | Fax: 718 726-1601 | Cell: 917 600-3958' }, `${pfx}B5`)
   spreadsheet.updateCell({ value: 'Email:' }, `${pfx}B6`)
-  spreadsheet.cellFormat(thin, `${pfx}F4:G6`)
+  spreadsheet.cellFormat({ border: '3px solid #000000'}, `${pfx}F4:G4`)
+  spreadsheet.cellFormat({ border: '2px solid #000000'}, `${pfx}F6:G6`)
+  // F5:G5 formatted separately below so its borderTop can override
   // Remove borders from B4:E8 - ensure no border color
   try {
     spreadsheet.clear({ range: `${pfx}B4:E8`, type: 'Clear Formats' })
@@ -351,59 +353,74 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   // Right grey box (Estimate / Drawings Dated / lines) - start from column F
   // Individual cell styling - customize each cell separately
 
-  // Row 3: Estimate #YY-2 (centered); row 3 top border 2px
+  // Row 3: Estimate #YY- (centered); 3px border on all sides
   spreadsheet.merge(`${pfx}F3:G3`)
   spreadsheet.updateCell({ value: estimateLabel }, `${pfx}F3`)
-  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontSize: '11pt', fontWeight: 'bold', textAlign: 'center', borderTop: '4px solid #000000', borderLeft: '2px solid #000000', borderBottom: '2px solid #000000', borderRight: '1px solid #000000' }, `${pfx}F3`)
-  spreadsheet.cellFormat({ backgroundColor: 'white', fontSize: '11pt', fontWeight: 'bold', textAlign: 'center', borderTop: '4px solid #000000', borderRight: '1px solid #000000', borderBottom: '2px solid #000000' }, `${pfx}G3`)
+  spreadsheet.cellFormat({
+    backgroundColor: '#D0CECE',
+    fontSize: '11pt',
+    fontWeight: 'bold',
+    textAlign: 'center',
+    borderTop: '3px solid #000000',
+    borderLeft: '3px solid #000000',
+    borderBottom: '3px solid #000000',
+    borderRight: '3px solid #000000'
+  }, `${pfx}F3:G3`)
   spreadsheet.cellFormat({ backgroundColor: 'white', fontSize: '11pt', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H3`)
 
-  // Row 4: Empty row
+  // Row 4: Empty row (no left border on F4)
   spreadsheet.merge(`${pfx}F4:G4`)
-  spreadsheet.cellFormat({ backgroundColor: 'white', borderLeft: '1px solid #000000' }, `${pfx}F4`)
+  spreadsheet.cellFormat({ backgroundColor: 'white', borderLeft: 'none' }, `${pfx}F4`)
   spreadsheet.cellFormat({ backgroundColor: 'white', borderRight: '1px solid #000000' }, `${pfx}G4`)
   spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H4`)
 
-  // Row 5: Drawings Dated:
+  // Row 5: Drawings Dated: (all borders set explicitly so borderTop overrides any prior range format)
   spreadsheet.merge(`${pfx}F5:G5`)
   spreadsheet.updateCell({ value: 'Drawings Dated:' }, `${pfx}F5`)
-  // Top border, Left/Right borders, No bottom border
-  spreadsheet.cellFormat({ textAlign: 'center', backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '2px solid #000000', borderTop: '2px solid #000000', borderRight: '2px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F5:G5`)
+  spreadsheet.cellFormat({
+    textAlign: 'center',
+    backgroundColor: '#D0CECE',
+    fontWeight: 'bold',
+    borderTop: '3px solid #000000',
+    borderLeft: '3px solid #000000',
+    borderRight: '2px solid #000000',
+    borderBottom: '1px solid #D0CECE'
+  }, `${pfx}F5:G5`)
   spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H5`)
 
   // Row 6: SOE:
   spreadsheet.merge(`${pfx}F6:G6`)
   spreadsheet.updateCell({ value: 'SOE:' }, `${pfx}F6`)
   // Side borders only
-  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '2px solid #000000', borderRight: '2px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F6:G6`)
+  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '3px solid #000000', borderRight: '2px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F6:G6`)
   spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H6`)
 
   // Row 7: Structural:
   spreadsheet.merge(`${pfx}F7:G7`)
   spreadsheet.updateCell({ value: 'Structural:' }, `${pfx}F7`)
   // Side borders only
-  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '2px solid #000000', borderRight: '2px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F7:G7`)
+  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '3px solid #000000', borderRight: '2px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F7:G7`)
   spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H7`)
 
   // Row 8: Architectural:
   spreadsheet.merge(`${pfx}F8:G8`)
   spreadsheet.updateCell({ value: 'Architectural:' }, `${pfx}F8`)
   // Side borders only
-  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '2px solid #000000', borderRight: '2px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F8:G8`)
+  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '3px solid #000000', borderRight: '2px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F8:G8`)
   spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H8`)
 
   // Row 9: Plumbing:
   spreadsheet.merge(`${pfx}F9:G9`)
   spreadsheet.updateCell({ value: 'Plumbing:' }, `${pfx}F9`)
   // Side borders only
-  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '2px solid #000000', borderRight: '2px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F9:G9`)
+  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '3px solid #000000', borderRight: '2px solid #000000', borderBottom: '1px solid #D0CECE' }, `${pfx}F9:G9`)
   spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H9`)
 
   // Row 10: Mechanical
   spreadsheet.merge(`${pfx}F10:G10`)
   spreadsheet.updateCell({ value: 'Mechanical' }, `${pfx}F10`)
   // Bottom border, Side borders
-  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '2px solid #000000', borderBottom: '2px solid #000000', borderRight: '2px solid #000000' }, `${pfx}F10:G10`)
+  spreadsheet.cellFormat({ backgroundColor: '#D0CECE', fontWeight: 'bold', borderLeft: '3px solid #000000', borderBottom: '3px solid #000000', borderRight: '2px solid #000000' }, `${pfx}F10:G10`)
   spreadsheet.cellFormat({ backgroundColor: 'white', fontWeight: 'normal', fontFamily: 'Calibri (Body)' }, `${pfx}H10`)
 
   // Explicit right border on G5, G6, G10, G11 (right edge of grey box / Date block)
@@ -424,11 +441,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   spreadsheet.updateCell({ value: L.LS }, `${pfx}N12`)
 
   spreadsheet.cellFormat(headerGray, `${pfx}B12:N12`)
-  spreadsheet.cellFormat({ fontSize: '18pt', border: '2px solid #000000' }, `${pfx}C12:N12`) // LF, SF, LBS, CY, QTY, LF, SF, LBS, CY, QTY, LS at 18pt
+  spreadsheet.cellFormat({ fontSize: '18pt', borderTop: '3px solid #000000', borderLeft: '2px solid #000000', borderRight: '3px solid #000000', borderBottom: '3px solid #000000' }, `${pfx}C12:N12`)
   spreadsheet.cellFormat({ backgroundColor: 'white', fontSize: '11pt', textAlign: 'center', verticalAlign: 'middle' }, `${pfx}H12`) // $/1000 in row 12: 11pt, white, centered
   spreadsheet.cellFormat({ fontWeight: '300' }, `${pfx}B12:N12`) // row 12: semi-bold
-  // 2px border on entire row 12 (DESCRIPTION, LF, SF, LBS, CY, QTY, $/1000, I–N)
-  spreadsheet.cellFormat({ border: '2px solid #000000' }, `${pfx}B12:N12`)
+  // Row 12 (B12:N12): 3px top, bottom, and right (N12); 2px left
+  spreadsheet.cellFormat({ borderTop: '3px solid #000000', borderLeft: '2px solid #000000', borderRight: '3px solid #000000', borderBottom: '3px solid #000000' }, `${pfx}B12:N12`)
 
   // Row 13: Empty row between DESCRIPTION and Demolition scope
   spreadsheet.cellFormat({ backgroundColor: 'white' }, `${pfx}B13:N13`)
@@ -11050,7 +11067,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       // Check if we have a misc section for this subsection
       const miscSection = miscSections[subsectionName]
       if (miscSection) {
-        // Add misc. title
+        // Add misc. title (no extra line after – first included item on next row)
         spreadsheet.updateCell({ value: miscSection.title }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
           {
@@ -11244,8 +11261,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
         const totalLabel = totalLabels[subsectionName] || 'Foundation Piles Total:'
 
-        currentRow++
-        // Format like Demolition Total: label in D:E, total in F:G
+        // Format like Demolition Total: label in D:E, total in F:G (no extra line before total)
         spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
         spreadsheet.updateCell({ value: totalLabel }, `${pfx}D${currentRow}`)
         spreadsheet.cellFormat(
@@ -11289,8 +11305,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         baseBidTotalRows.push(currentRow) // Foundation pile section total
         totalRows.push(currentRow)
 
-        currentRow++ // One row gap after total
-        currentRow++ // Empty row after Foundation Piles Total
+        currentRow++ // Move past total row
+        currentRow++ // One extra blank line after total before next subsection
       }
     })
 
@@ -12369,16 +12385,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       currentRow++
     }
 
-    // Note: Capstone Contracting Corp is a licensed WR Meadows Installer – part of waterproofing (not bold, italic, centered)
+    // Note: Capstone Contracting Corp is a licensed WR Meadows Installer – part of waterproofing (not bold, italic, centered); one column (B only)
     wpNoteRow.push(currentRow)
-    spreadsheet.merge(`${pfx}B${currentRow}:C${currentRow}`)
     const wpNote = 'Note: Capstone Contracting Corp is a licensed WR Meadows Installer'
     spreadsheet.updateCell({ value: wpNote }, `${pfx}B${currentRow}`)
     rowBContentMap.set(currentRow, wpNote)
     spreadsheet.wrap(`${pfx}B${currentRow}`, true)
     spreadsheet.cellFormat(
       { fontWeight: 'normal', fontStyle: 'italic', color: '#000000', textAlign: 'center', verticalAlign: 'middle', backgroundColor: 'white' },
-      `${pfx}B${currentRow}:C${currentRow}`
+      `${pfx}B${currentRow}`
     )
     currentRow++
 
@@ -13840,13 +13855,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       spreadsheet.updateCell({ value: 'Total SF' }, `${pfx}C${currentRow}`)
       spreadsheet.updateCell({ formula: `=SUM(D${cipStartRow}:D${cipEndRow})` }, `${pfx}D${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', fontStyle: 'italic', color: '#000000', textAlign: 'left', backgroundColor: 'white' },
+        { fontWeight: 'bold', fontStyle: 'italic', color: '#000000', textAlign: 'center', backgroundColor: 'white' },
         `${pfx}C${currentRow}`
       )
-          spreadsheet.cellFormat(
-            { fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' },
+      spreadsheet.cellFormat(
+        { fontWeight: 'bold', fontStyle: 'italic', textAlign: 'center', backgroundColor: 'white' },
         `${pfx}D${currentRow}`
-          )
+      )
       try { spreadsheet.numberFormat('#,##0.00', `${pfx}D${currentRow}`) } catch (e) { }
       washoutExclusionRows.push(currentRow)
       totalRows.push(currentRow) // So "Total SF" stays bold after global C13:G normal-weight override
@@ -14984,19 +14999,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         )
         currentRow++
 
-        const excFirstRow = civilExcSum.firstDataRow || civilExcSum.row
-        const excLastRow = civilExcSum.lastDataRow || civilExcSum.row
+        const excSumRow = civilExcSum.row // Row on Calculations Sheet that has the sum (e.g. J1410, L1410)
           const soilExcavationC4Text = 'Allow to perform soil excavation, trucking & disposal as per C-4'
           spreadsheet.updateCell({ value: soilExcavationC4Text }, `${pfx}B${currentRow}`)
           rowBContentMap.set(currentRow, soilExcavationC4Text)
         spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
-        if (excFirstRow && excLastRow && excLastRow !== excFirstRow) {
-          spreadsheet.updateCell({ formula: `=SUM('${excGradingCalcSheet}'!J${excFirstRow}:'${excGradingCalcSheet}'!J${excLastRow})` }, `${pfx}D${currentRow}`)
-          spreadsheet.updateCell({ formula: `=SUM('${excGradingCalcSheet}'!L${excFirstRow}:'${excGradingCalcSheet}'!L${excLastRow})` }, `${pfx}F${currentRow}`)
-        } else if (excFirstRow) {
-          spreadsheet.updateCell({ formula: `='${excGradingCalcSheet}'!J${excFirstRow}` }, `${pfx}D${currentRow}`)
-          spreadsheet.updateCell({ formula: `='${excGradingCalcSheet}'!L${excFirstRow}` }, `${pfx}F${currentRow}`)
+        if (excSumRow) {
+          spreadsheet.updateCell({ formula: `='${excGradingCalcSheet}'!J${excSumRow}` }, `${pfx}D${currentRow}`)
+          spreadsheet.updateCell({ formula: `='${excGradingCalcSheet}'!L${excSumRow}` }, `${pfx}F${currentRow}`)
         }
           fillRatesForProposalRow(currentRow, soilExcavationC4Text)
         spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
@@ -15941,13 +15952,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       `${pfx}B${currentRow}:E${currentRow}`
     )
     spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
-    spreadsheet.updateCell({ value: 225000 }, `${pfx}F${currentRow}`)
+    spreadsheet.updateCell({ formula: `=SUM(H${allowancesDataStartRow}:H${allowancesEndRow})*1000` }, `${pfx}F${currentRow}`)
+    try { spreadsheet.numberFormat('$#,##0.00', `${pfx}F${currentRow}:G${currentRow}`) } catch (e) { }
     spreadsheet.cellFormat(
         { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', format: '$#,##0.00' },
       `${pfx}F${currentRow}:G${currentRow}`
     )
       applyTotalRowBorders(spreadsheet, pfx, currentRow, '#FEF2CB')
     siteworkTotalFRows.push(currentRow)
+    totalRows.push(currentRow) // Allowances Total: dollar format and alignment like other totals
     currentRow++
 
     // Add Alternate #1: Sitework Total row - sum of individual section F column totals
@@ -16274,7 +16287,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
       concreteUnitRates.forEach(itemText => {
         spreadsheet.updateCell({ value: itemText }, `${pfx}B${currentRow}`)
-        spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
+        spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+        spreadsheet.cellFormat({ textAlign: 'left', wrapText: true }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, itemText)
         currentRow++
       })
     }
@@ -16305,7 +16320,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
       masonryUnitRates.forEach(itemText => {
         spreadsheet.updateCell({ value: itemText }, `${pfx}B${currentRow}`)
-        spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
+        spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+        spreadsheet.cellFormat({ textAlign: 'left', wrapText: true }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, itemText)
         currentRow++
       })
     }
@@ -16332,7 +16349,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
       laborRates.forEach(itemText => {
         spreadsheet.updateCell({ value: itemText }, `${pfx}B${currentRow}`)
-        spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
+        spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+        spreadsheet.cellFormat({ textAlign: 'left', wrapText: true }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, itemText)
         currentRow++
       })
     }
@@ -16376,9 +16395,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
       exclusions.forEach(itemText => {
         spreadsheet.updateCell({ value: itemText }, `${pfx}B${currentRow}`)
-        spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}B${currentRow}`)
+        spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+        spreadsheet.cellFormat({ textAlign: 'left', wrapText: true }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, itemText)
         if (itemText.includes('General Liability total coverage')) {
-          spreadsheet.cellFormat({ borderBottom: '2px solid #000000' }, `${pfx}B${currentRow}:G${currentRow}`)
+          generalLiabilityBorderRow = currentRow
+          spreadsheet.cellFormat({ borderBottom: '3px solid #000000' }, `${pfx}B${currentRow}:G${currentRow}`)
         }
         currentRow++
       })
@@ -16426,11 +16448,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       spreadsheet.cellFormat({ borderLeft: '3px solid #000000' }, `${pfx}B3:B${finalRow}`)
       spreadsheet.cellFormat({ borderRight: '3px solid #000000' }, `${pfx}G3:G${finalRow}`)
 
-      // Border on each row for columns B to G (1px internal grid); then re-apply 2px outer perimeter so it is not overwritten
-      spreadsheet.cellFormat(thin, `${pfx}B13:G${finalRow}`)
+      // Border on each row for columns B to G (1px internal grid); exclude last 4 rows so they have no internal borders
+      const thinEndRow = finalRow - 4
+      if (thinEndRow >= 13) {
+        spreadsheet.cellFormat(thin, `${pfx}B13:G${thinEndRow}`)
+      } else {
+        spreadsheet.cellFormat(thin, `${pfx}B13:G${finalRow}`)
+      }
       spreadsheet.cellFormat(thickLeft, `${pfx}B13:B${finalRow}`)
       spreadsheet.cellFormat(thickRight, `${pfx}G13:G${finalRow}`)
-      spreadsheet.cellFormat(thickTop, `${pfx}B13:G13`)
+      spreadsheet.cellFormat({ borderTop: '3px solid #000000' }, `${pfx}B13:G13`)
       spreadsheet.cellFormat(thickBottom, `${pfx}B${finalRow}:G${finalRow}`)
 
       // Global Font Style Application (Calibri Bold 18pt, text color black); all cells vertically centered
@@ -16442,11 +16469,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       const cellPaddingIndent = '6pt'
       spreadsheet.cellFormat({ fontSize: '11pt', textIndent: cellPaddingIndent }, `${pfx}H13:H${finalRow}`)
       spreadsheet.cellFormat({ fontSize: '11pt', textIndent: cellPaddingIndent }, `${pfx}I2:N${finalRow}`)
-      // Row 12 header: 18pt, 2px border, semi-bold; $/1000 (H12) at 11pt, centered
+      // Row 12 header: 18pt, 3px top and bottom, 2px left/right; $/1000 (H12) at 11pt, centered
       spreadsheet.cellFormat({ fontSize: '18pt', fontColor: '#000000', fontWeight: '600' }, `${pfx}A12:N12`)
       spreadsheet.cellFormat({ fontSize: '11pt', textAlign: 'center', verticalAlign: 'middle' }, `${pfx}H12`)
-      // Re-apply 2px border on row 12 (incl. bottom) so it is not overwritten by thin grid on row 13
-      spreadsheet.cellFormat({ border: '2px solid #000000' }, `${pfx}B12:N12`)
+      // Re-apply row 12 (B12:N12) borders: 3px top, bottom, right (N12); 2px left
+      spreadsheet.cellFormat({ borderTop: '3px solid #000000', borderLeft: '2px solid #000000', borderRight: '3px solid #000000', borderBottom: '3px solid #000000' }, `${pfx}B12:N12`)
       // $/1000 heading (H1) at 11pt, centered
       spreadsheet.cellFormat({ fontSize: '11pt', textAlign: 'center', verticalAlign: 'middle' }, `${pfx}H1`)
       // Columns C–G: center all values horizontally and vertically
@@ -16471,14 +16498,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.cellFormat({ fontWeight: 'bold', fontFamily: 'Calibri' }, `${pfx}I${row}:N${row}`)
       })
       totalSFRowsForItalic.forEach(row => {
-        spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic', fontFamily: 'Calibri' }, `${pfx}C${row}`)
+        spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic', textAlign: 'center', fontFamily: 'Calibri' }, `${pfx}C${row}`)
+        spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic', textAlign: 'center', fontFamily: 'Calibri' }, `${pfx}D${row}`)
       })
       // Note rows: single-column B with rich text (Note: bold, rest normal) – don’t apply fontWeight so rich text is preserved
       noteRows.forEach(row => {
         spreadsheet.cellFormat({ fontFamily: 'Calibri (Body)', textAlign: 'left' }, `${pfx}B${row}`)
       })
       wpNoteRow.forEach(row => {
-        spreadsheet.cellFormat({ fontWeight: 'normal', fontStyle: 'italic', textAlign: 'center', verticalAlign: 'middle', fontFamily: 'Calibri (Body)' }, `${pfx}B${row}:C${row}`)
+        spreadsheet.cellFormat({ fontWeight: 'normal', fontStyle: 'italic', textAlign: 'center', verticalAlign: 'middle', fontFamily: 'Calibri (Body)' }, `${pfx}B${row}`)
       })
       // Ensure every cell on Proposal sheet is vertically centered (y-axis)
       spreadsheet.cellFormat({ verticalAlign: 'middle' }, `${pfx}A1:N${finalRow}`)
@@ -16517,6 +16545,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         },
         `${pfx}I12:N${lastDataRow}`
       )
+      // 3px border on all sides for each cell I–N from row 13 to lastDataRow
+      spreadsheet.cellFormat(
+        { borderTop: '3px solid #000000', borderBottom: '3px solid #000000', borderLeft: '3px solid #000000', borderRight: '3px solid #000000' },
+        `${pfx}I13:N${lastDataRow}`
+      )
+      // Override row 12 (I12:N12) so 3px top, bottom, right (N12) are not overwritten by the 2px border above
+      spreadsheet.cellFormat(
+        { borderTop: '3px solid #000000', borderBottom: '3px solid #000000', borderLeft: '2px solid #000000', borderRight: '3px solid #000000' },
+        `${pfx}I12:N12`
+      )
       // Border on header row I1:N1 (in case not covered by header styles)
       spreadsheet.cellFormat({ border: '1px solid #000000' }, `${pfx}I1:N1`)
       // Apply number format to quantity columns C-G that hides zeros
@@ -16545,20 +16583,33 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       }
       spreadsheet.cellFormat({ textAlign: 'left' }, `${pfx}I2:N${lastDataRow}`)
 
-      // Total rows: no spaces between $ and value; total label (B:E) left-aligned; $ values (F:G, H, I-N) centered
-      const totalFormatNoSpace = '$#,##0.00;-$#,##0.00;""'
-      const totalFormatNoSpace1Dec = '$#,##0.00;-$#,##0.00;""'
+      // Total rows: dollar and amount together (no space); total label (B:E) right-aligned; $ values (F:G, H, I-N) centered
+      const totalFormat = '$#,##0.00;-$#,##0.00;""'
       totalRows.forEach(row => {
         spreadsheet.cellFormat({ textAlign: 'right' }, `${pfx}B${row}:E${row}`)
         try {
-          spreadsheet.numberFormat(totalFormatNoSpace, `${pfx}F${row}:G${row}`)
-          spreadsheet.numberFormat(totalFormatNoSpace1Dec, `${pfx}H${row}`)
-          spreadsheet.numberFormat(totalFormatNoSpace1Dec, `${pfx}I${row}:N${row}`)
+          spreadsheet.numberFormat(totalFormat, `${pfx}F${row}:G${row}`)
+          spreadsheet.numberFormat(totalFormat, `${pfx}H${row}`)
+          spreadsheet.numberFormat(totalFormat, `${pfx}I${row}:N${row}`)
         } catch (e) { /* ignore */ }
-        spreadsheet.cellFormat({ textAlign: 'center', format: totalFormatNoSpace }, `${pfx}F${row}:G${row}`)
-        spreadsheet.cellFormat({ textAlign: 'center', format: totalFormatNoSpace1Dec }, `${pfx}H${row}`)
-        spreadsheet.cellFormat({ textAlign: 'center', format: totalFormatNoSpace1Dec }, `${pfx}I${row}:N${row}`)
+        spreadsheet.cellFormat({ textAlign: 'center', format: totalFormat }, `${pfx}F${row}:G${row}`)
+        spreadsheet.cellFormat({ textAlign: 'center', format: totalFormat }, `${pfx}H${row}`)
+        spreadsheet.cellFormat({ textAlign: 'center', format: totalFormat }, `${pfx}I${row}:N${row}`)
       })
+      // Final override: totals show $ and amount together – re-apply so global H/I-N format does not override
+      totalRows.forEach(row => {
+        try {
+          spreadsheet.numberFormat('$#,##0.00', `${pfx}F${row}:G${row}`)
+          spreadsheet.numberFormat('$#,##0.00', `${pfx}H${row}`)
+          spreadsheet.numberFormat('$#,##0.00', `${pfx}I${row}:N${row}`)
+        } catch (e) { /* ignore */ }
+        spreadsheet.cellFormat({ format: '$#,##0.00' }, `${pfx}F${row}:N${row}`)
+      })
+      // Re-apply row 12 (I12:N12) 3px top, bottom, right (N12) last so nothing overwrites them
+      spreadsheet.cellFormat(
+        { borderTop: '3px solid #000000', borderBottom: '3px solid #000000', borderLeft: '2px solid #000000', borderRight: '3px solid #000000' },
+        `${pfx}I12:N12`
+      )
     }
 
     // Force recalculation of all formulas to ensure $/1000 values display correctly
@@ -16578,5 +16629,34 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.autoFit('I:N')
       }
     } catch (e) { /* ignore */ }
+
+    // Hardcoded override: row 12 I12:N12 always 3px top, bottom, right (N12) (overrides any other formatting)
+    try {
+      spreadsheet.cellFormat(
+        { borderTop: '3px solid #000000', borderBottom: '3px solid #000000', borderLeft: '3px solid #000000', borderRight: '3px solid #000000' },
+        `${pfx}I12:N12`
+      )
+      // Remove top border from row 13 (I13:N13) so row 12's 3px bottom border is not doubled/hidden
+      spreadsheet.cellFormat({ borderTop: 'none' }, `${pfx}I13:N13`)
+    } catch (e) { /* ignore */ }
+
+    // Total SF rows: force center, bold, italic on C and D so alignment is not overwritten
+    try {
+      totalSFRowsForItalic.forEach(row => {
+        spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic', textAlign: 'center', verticalAlign: 'middle' }, `${pfx}C${row}`)
+        spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic', textAlign: 'center', verticalAlign: 'middle' }, `${pfx}D${row}`)
+      })
+    } catch (e) { /* ignore */ }
+
+    // General Liability line: force 3px bottom border (overrides thin/thickBottom applied to range)
+    if (generalLiabilityBorderRow != null) {
+      try {
+        spreadsheet.cellFormat({ borderBottom: '3px solid #000000' }, `${pfx}B${generalLiabilityBorderRow}:G${generalLiabilityBorderRow}`)
+        // Re-apply per column in case range format is overridden
+        ;['B', 'C', 'D', 'E', 'F', 'G'].forEach(col => {
+          spreadsheet.cellFormat({ borderBottom: '3px solid #000000' }, `${pfx}${col}${generalLiabilityBorderRow}`)
+        })
+      } catch (e) { /* ignore */ }
+    }
   }
 }
