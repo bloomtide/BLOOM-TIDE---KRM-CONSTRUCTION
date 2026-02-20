@@ -231,7 +231,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let negativeSideWallItems = []
   let negativeSideSlabItems = []
   let trenchingTakeoff = ''
-  let superstructureItems = { cipSlab8: [], cipRoofSlab8: [], balconySlab: [], terraceSlab: [], patchSlab: [], slabSteps: [], lwConcreteFill: [], slabOnMetalDeck: [], toppingSlab: [], thermalBreak: [], raisedSlab: { kneeWall: [], raisedSlab: [] }, builtUpSlab: { kneeWall: [], builtUpSlab: [] }, builtUpStair: { kneeWall: [], builtUpStairs: [] }, builtupRamps: { kneeWall: [], ramp: [] }, concreteHanger: [], shearWalls: [], parapetWalls: [], columnsTakeoff: [], concretePost: [], concreteEncasement: [], dropPanelBracket: [], dropPanelH: [], beams: [], curbs: [], concretePad: [], nonShrinkGrout: [], repairScope: [] }
+  let superstructureItems = { cipSlab8: [], cipRoofSlab8: [], balconySlab: [], terraceSlab: [], patchSlab: [], slabSteps: [], lwConcreteFill: [], slabOnMetalDeck: [], infilledLandingItems: [], toppingSlab: [], thermalBreak: [], raisedSlab: { kneeWall: [], raisedSlab: [] }, builtUpSlab: { kneeWall: [], builtUpSlab: [] }, builtUpStair: { kneeWall: [], builtUpStairs: [] }, builtupRamps: { kneeWall: [], ramp: [] }, concreteHanger: [], shearWalls: [], parapetWalls: [], columnsTakeoff: [], concretePost: [], concreteEncasement: [], dropPanelBracket: [], dropPanelH: [], beams: [], curbs: [], concretePad: [], nonShrinkGrout: [], repairScope: [] }
   let bppAlternateItemsByStreet = {}
   let civilDemoItems = {
     'Demo asphalt': [],
@@ -568,6 +568,57 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               if (item.h) itemRow[7] = item.h
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: item.type, section: 'demolition' })
+            })
+          } else if (subsection.name === 'Demo stair on grade') {
+            // Demo stair on grade: groups with heading, landing (optional), stairs, stair slab, each group has its own sum, spacing between groups
+            const stairGroups = subsectionItems
+            stairGroups.forEach((group, groupIndex) => {
+              // Spacing between groups (empty row before each group except the first)
+              if (groupIndex > 0) {
+                rows.push(Array(template.columns.length).fill(''))
+                rows.push(Array(template.columns.length).fill(''))
+              }
+              const { heading, stairs, landings } = group
+              if (heading) {
+                const headingRow = Array(template.columns.length).fill('')
+                headingRow[1] = heading + ':'
+                rows.push(headingRow)
+                formulas.push({ row: rows.length, itemType: 'demo_stair_on_grade_heading', section: 'demolition', subsection: 'Demo stair on grade' })
+              }
+              if (landings) {
+                const unitD = (landings.unit || '').toUpperCase() === 'EA' ? 'Treads' : (landings.unit || 'SQ FT')
+                const landingRow = Array(template.columns.length).fill('')
+                landingRow[1] = landings.particulars
+                landingRow[2] = landings.takeoff
+                landingRow[3] = unitD
+                landingRow[7] = 0.67
+                rows.push(landingRow)
+                formulas.push({ row: rows.length, itemType: 'demo_stair_on_grade_landing', parsedData: landings, section: 'demolition', subsection: 'Demo stair on grade' })
+                rows.push(Array(template.columns.length).fill(''))
+              }
+              if (stairs) {
+                const unitD = (stairs.unit || '').toUpperCase() === 'EA' ? 'Treads' : (stairs.unit || 'SQ FT')
+                const stairsRow = Array(template.columns.length).fill('')
+                stairsRow[1] = stairs.particulars
+                stairsRow[2] = stairs.takeoff
+                stairsRow[3] = unitD
+                stairsRow[5] = '11/12'
+                stairsRow[6] = 4.5
+                stairsRow[7] = '7/12'
+                rows.push(stairsRow)
+                const stairsRowNum = rows.length
+                formulas.push({ row: stairsRowNum, itemType: 'demo_stair_on_grade_stairs', parsedData: stairs, section: 'demolition', subsection: 'Demo stair on grade' })
+                const slabRow = Array(template.columns.length).fill('')
+                slabRow[1] = 'Stair slab'
+                slabRow[3] = 'FT'
+                slabRow[7] = 0.67
+                rows.push(slabRow)
+                formulas.push({ row: rows.length, itemType: 'demo_stair_on_grade_stair_slab', section: 'demolition', subsection: 'Demo stair on grade', stairsRefRow: stairsRowNum })
+                // Sum row for this group (stairs + stair slab only, excludes landing)
+                const sumRow = Array(template.columns.length).fill('')
+                rows.push(sumRow)
+                formulas.push({ row: rows.length, itemType: 'demo_stair_on_grade_sum', section: 'demolition', subsection: 'Demo stair on grade', sumRanges: [[stairsRowNum, rows.length - 1]] })
+              }
             })
           } else {
             const firstItemRow = rows.length + 1
@@ -3288,117 +3339,51 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             }
           })
         } else if (subsection.name === 'Stairs on grade Stairs' && stairsOnGradeGroups.length > 0) {
-          // Process each stair group
+          // Same logic as Demo stair on grade (see stair_subsection_logic.md)
           stairsOnGradeGroups.forEach((group, groupIndex) => {
-            // Add group header (e.g., "Stair A:")
-            const groupHeaderRow = Array(template.columns.length).fill('')
-            groupHeaderRow[1] = `Stair ${group.stairIdentifier}:`
-            rows.push(groupHeaderRow)
-            formulas.push({ row: rows.length, itemType: 'stairs_on_grade_group_header', section: 'foundation' })
-
-            const groupFirstRow = rows.length + 1
-            let stairsOnGradeRow = null
-            let stairsOnGradeItem = null
-
-            // Process items in order: Landings first, then Stairs on grade
-            const landingsItems = group.items.filter(item => item.parsed?.itemSubType === 'landings')
-            const stairsItems = group.items.filter(item => item.parsed?.itemSubType === 'stairs')
-
-            // Add Landings items first
-            landingsItems.forEach(item => {
-              const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = 'Landings'
-              itemRow[2] = item.takeoff
-              itemRow[3] = item.unit || ''
-              // H = 0.67 (will be set by formula)
-              rows.push(itemRow)
-              formulas.push({ row: rows.length, itemType: 'stairs_on_grade', parsedData: item, section: 'foundation' })
-            })
-
-            // Add extra row space after the landings row when both landings and stairs exist
-            if (landingsItems.length > 0 && stairsItems.length > 0) {
+            if (groupIndex > 0) {
+              rows.push(Array(template.columns.length).fill(''))
               rows.push(Array(template.columns.length).fill(''))
             }
-
-            // Add Stairs on grade items
-            stairsItems.forEach(item => {
-              const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars.includes('wide') ? item.particulars : 'Stairs on grade'
-              itemRow[2] = item.takeoff
-              itemRow[3] = 'Treads' // Replace "EA" with "Treads"
-              itemRow[4] = item.takeoff // E (QTY) = takeoff value
-              // F = 11/12 (will be set by formula)
-              // G = width from name or manual input (will be set by formula or manual)
-              if (item.parsed?.widthFromName !== undefined) {
-                itemRow[6] = item.parsed.widthFromName // G (Width) from name
-              }
-              // H = 7/12 (will be set by formula)
-              rows.push(itemRow)
-              stairsOnGradeRow = rows.length
-              stairsOnGradeItem = item
-              formulas.push({ row: rows.length, itemType: 'stairs_on_grade', parsedData: item, section: 'foundation' })
-            })
-
-            // Generate Stair slab item if there's a Stairs on grade item
-            if (stairsOnGradeItem && stairsOnGradeRow) {
-              const stairSlabRow = Array(template.columns.length).fill('')
-              stairSlabRow[1] = 'Stair slab'
-              // C = C[stairs_row]*1.3 (will be set as formula)
-              stairSlabRow[3] = 'FT'
-              // F and G depend on whether stairs has width in name or manual input
-              // G for stair slab is always formula =G[stairs_row] (set in foundationProcessor / Spreadsheet)
-              if (!(stairsOnGradeItem.parsed?.widthFromName !== undefined)) {
-                // Manual width: F = G[stairs_row] (formula reference), G = empty
-                // F will be set as formula =G[stairs_row] in Spreadsheet.jsx
-              }
-              // H = 0.67 (will be set by formula)
-              rows.push(stairSlabRow)
-              formulas.push({
-                row: rows.length,
-                itemType: 'stairs_on_grade',
-                parsedData: {
-                  particulars: 'Stair slab',
-                  takeoff: 0,
-                  unit: 'FT',
-                  parsed: {
-                    type: 'stairs_on_grade',
-                    itemSubType: 'stair_slab',
-                    stairsRow: stairsOnGradeRow,
-                    hasWidthFromName: stairsOnGradeItem.parsed?.widthFromName !== undefined
-                  }
-                },
-                section: 'foundation'
-              })
+            const { heading, stairs, landings } = group
+            if (heading) {
+              const headingRow = Array(template.columns.length).fill('')
+              headingRow[1] = heading + ':'
+              rows.push(headingRow)
+              formulas.push({ row: rows.length, itemType: 'foundation_stairs_on_grade_heading', section: 'foundation', subsectionName: 'Stairs on grade Stairs' })
             }
-
-            // Add sum row for the group (I/J/M exclude landings; L sum includes landings + space row + stairs + stair slab)
-            const sumRow = Array(template.columns.length).fill('')
-            rows.push(sumRow)
-            const firstDataRowForSum = landingsItems.length > 0
-              ? groupFirstRow + landingsItems.length + (stairsItems.length > 0 ? 1 : 0) // skip landings rows + empty row
-              : groupFirstRow
-            const lastDataRowForGroup = rows.length - 1
-            // Explicit L range so landings L is always included: from first group data row (landings) to last data row (stair slab).
-            // Build as explicit cell list L52,L53,... so every row (landing, space, stairs, stair slab) is included.
-            const lSumCells = []
-            for (let r = groupFirstRow; r <= lastDataRowForGroup; r++) lSumCells.push(`L${r}`)
-            const lSumRange = lSumCells.join(',')
-            formulas.push({
-              row: rows.length,
-              itemType: 'foundation_sum',
-              section: 'foundation',
-              firstDataRow: firstDataRowForSum,
-              lastDataRow: lastDataRowForGroup,
-              subsectionName: subsection.name,
-              foundationCySumRow: true,
-              firstDataRowForL: groupFirstRow,
-              lastDataRowForL: lastDataRowForGroup,
-              lSumRange // explicit range string for L sum (includes landings)
-            })
-
-            // Add empty row between groups
-            if (groupIndex < stairsOnGradeGroups.length - 1) {
+            if (landings) {
+              const unitD = (landings.unit || '').toUpperCase() === 'EA' ? 'Treads' : (landings.unit || 'SQ FT')
+              const landingRow = Array(template.columns.length).fill('')
+              landingRow[1] = landings.particulars
+              landingRow[2] = landings.takeoff
+              landingRow[3] = unitD
+              landingRow[7] = 0.67
+              rows.push(landingRow)
+              formulas.push({ row: rows.length, itemType: 'foundation_stairs_on_grade_landing', parsedData: landings, section: 'foundation', subsectionName: 'Stairs on grade Stairs' })
               rows.push(Array(template.columns.length).fill(''))
+            }
+            if (stairs) {
+              const unitD = (stairs.unit || '').toUpperCase() === 'EA' ? 'Treads' : (stairs.unit || 'SQ FT')
+              const stairsRow = Array(template.columns.length).fill('')
+              stairsRow[1] = stairs.particulars
+              stairsRow[2] = stairs.takeoff
+              stairsRow[3] = unitD
+              stairsRow[5] = '11/12'
+              stairsRow[6] = stairs.parsed?.widthFromName ?? 4.5
+              stairsRow[7] = stairs.parsed?.heightFromName != null ? stairs.parsed.heightFromName : '7/12'
+              rows.push(stairsRow)
+              const stairsRowNum = rows.length
+              formulas.push({ row: stairsRowNum, itemType: 'foundation_stairs_on_grade_stairs', parsedData: stairs, section: 'foundation', subsectionName: 'Stairs on grade Stairs' })
+              const slabRow = Array(template.columns.length).fill('')
+              slabRow[1] = 'Stair slab'
+              slabRow[3] = 'FT'
+              slabRow[7] = 0.67
+              rows.push(slabRow)
+              formulas.push({ row: rows.length, itemType: 'foundation_stairs_on_grade_stair_slab', section: 'foundation', subsectionName: 'Stairs on grade Stairs', stairsRefRow: stairsRowNum })
+              const sumRow = Array(template.columns.length).fill('')
+              rows.push(sumRow)
+              formulas.push({ row: rows.length, itemType: 'foundation_stairs_on_grade_sum', section: 'foundation', subsectionName: 'Stairs on grade Stairs', sumRanges: [[stairsRowNum, rows.length - 1]], foundationCySumRow: true })
             }
           })
         } else if (subsection.name === 'Electric conduit') {
@@ -3661,6 +3646,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         }
       })
     } else if (section.section === 'Superstructure') {
+      const somdSumRowByKey = {} // groupKey -> sum row number (for Stairs - Infilled tads landing ref)
       section.subsections.forEach((subsection) => {
         let hasSubsectionData = false
         // Determine if subsection has data
@@ -3690,7 +3676,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Non-shrink grout') hasSubsectionData = superstructureItems.nonShrinkGrout && superstructureItems.nonShrinkGrout.length > 0
         else if (subsection.name === 'Repair scope') hasSubsectionData = superstructureItems.repairScope && superstructureItems.repairScope.length > 0
         else if (subsection.name === 'CIP Stairs') hasSubsectionData = true // Always show CIP stairs? 
-        else if (subsection.name === 'Stairs \u2013 Infilled tads') hasSubsectionData = true // Always show?
+        else if (subsection.name === 'Stairs \u2013 Infilled tads') hasSubsectionData = (superstructureItems.infilledLandingItems || []).length > 0
         else if (subsection.name === 'Ele') hasSubsectionData = civilOtherItems['Drains & Utilities'] && civilOtherItems['Drains & Utilities'].some(i => i.particulars.toLowerCase().includes('electrical conduit'))
         else if (subsection.name === 'For Superstructure Extra line item use this') hasSubsectionData = true
 
@@ -3838,7 +3824,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'superstructure_somd_gen2', section: 'superstructure', subsectionName: subsection.name, takeoffRefRow: gen1Row, heightValue: group.secondValueInches / 12 })
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
-            formulas.push({ row: rows.length, itemType: 'superstructure_somd_sum', section: 'superstructure', subsectionName: subsection.name, gen1Row, gen2Row })
+            const somdSumRow = rows.length
+            formulas.push({ row: somdSumRow, itemType: 'superstructure_somd_sum', section: 'superstructure', subsectionName: subsection.name, gen1Row, gen2Row })
+            somdSumRowByKey[group.groupKey] = somdSumRow
             rows.push(Array(template.columns.length).fill(''))
             if (groupIndex < groups.length - 1) {
               rows.push(Array(template.columns.length).fill(''))
@@ -4326,9 +4314,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           ]
 
           stairGroups.forEach((group) => {
-            // Group Header (underlined, no other data in this row)
+            // Group Header - only "Stair:" (user will modify the rest)
             const headerRow = Array(template.columns.length).fill('')
-            headerRow[1] = group.name
+            headerRow[1] = 'Stair:'
             rows.push(headerRow)
             formulas.push({
               row: rows.length,
@@ -4337,10 +4325,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               subsectionName: subsection.name
             })
 
-            // Landings (if present)
+            // Landings (if present): C=empty, D=SQ FT, H=0.67
             if (group.hasLandings) {
               const landingRow = Array(template.columns.length).fill('')
               landingRow[1] = 'Landings'
+              landingRow[3] = 'SQ FT'
+              landingRow[7] = 0.67
               rows.push(landingRow)
               formulas.push({
                 row: rows.length,
@@ -4355,9 +4345,11 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               rows.push(Array(template.columns.length).fill(''))
             }
 
-            // Stairs
+            // Stairs: C=empty, D=Treads, F=11/12, G=3, H=7/12 (F/H set as formulas in ProposalDetail)
             const stairRow = Array(template.columns.length).fill('')
             stairRow[1] = 'Stairs'
+            stairRow[3] = 'Treads'
+            stairRow[6] = 3  // G
             rows.push(stairRow)
             const stairRowNum = rows.length
             formulas.push({
@@ -4371,9 +4363,11 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               height: group.stairHeight
             })
 
-            // Stair slab
+            // Stair slab: D=FT, G=G{stair row}, H=0.5
             const slabRow = Array(template.columns.length).fill('')
             slabRow[1] = 'Stair slab'
+            slabRow[3] = 'FT'
+            slabRow[7] = 0.5
             rows.push(slabRow)
             formulas.push({
               row: rows.length,
@@ -4404,13 +4398,14 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
 
         } else if (subsection.name === 'Stairs \u2013 Infilled tads') {
-          // Stairs - Infilled tads - similar to CIP Stairs, C-H empty
-          // Two identical "Stair E:" groups
+          // Stairs - Infilled tads: only create groups when Landing SOMD item is in raw data; one group per landing item
+          // Landing: replicate SOMD formulas (C from raw takeoff, J=C, L=J*H/27) - no reference to SOMD sum
+          const infilledLandingItems = superstructureItems.infilledLandingItems || []
 
-          const addStairE = () => {
-            // Header (underlined, no other data)
+          infilledLandingItems.forEach((landingItem) => {
+            // Header - only "Stair:" (user will modify the rest)
             const headerRow = Array(template.columns.length).fill('')
-            headerRow[1] = 'Stair E:'
+            headerRow[1] = 'Stair:'
             rows.push(headerRow)
             formulas.push({
               row: rows.length,
@@ -4419,48 +4414,57 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               subsectionName: subsection.name
             })
 
-            // Landings row 1
-            const landing1Row = Array(template.columns.length).fill('')
-            landing1Row[1] = 'Landings'
-            rows.push(landing1Row)
-            const landing1RowNum = rows.length
+            // Landing row (e.g. "Landing SOMD S3 4 ½" LW concrete topping over 2" MD x18GA")
+            // H = first value from name (4 ½"); J=C, L=(J*H)/27
+            const firstInches = landingItem.parsed?.firstValueInches ?? 4.5
+            const secondInches = landingItem.parsed?.secondValueInches ?? 2
+            const landingRow = Array(template.columns.length).fill('')
+            landingRow[1] = landingItem.particulars
+            landingRow[2] = landingItem.takeoff ?? ''
+            landingRow[3] = 'SQ FT'
+            landingRow[7] = firstInches / 12
+            rows.push(landingRow)
+            const landingRowNum = rows.length
             formulas.push({
-              row: rows.length,
-              itemType: 'superstructure_manual_infilled_landing_1',
-              section: 'superstructure',
-              subsectionName: subsection.name
-            })
-
-            // Landings row 2 (no name, C and H set via formulas)
-            const landing2Row = Array(template.columns.length).fill('')
-            rows.push(landing2Row)
-            formulas.push({
-              row: rows.length,
-              itemType: 'superstructure_manual_infilled_landing_2',
+              row: landingRowNum,
+              itemType: 'superstructure_infilled_landing_item',
               section: 'superstructure',
               subsectionName: subsection.name,
-              landing1RowNum: landing1RowNum
+              parsedData: landingItem
             })
-
-            // Sum for Landings
-            const landingSumRow = Array(template.columns.length).fill('')
-            rows.push(landingSumRow)
+            // Second row: C=C{landing}, D=SQ FT, H=second value (2"); J=C, L=(J*H)/27/2
+            const secondRow = Array(template.columns.length).fill('')
+            secondRow[3] = 'SQ FT'
+            secondRow[7] = secondInches / 12
+            rows.push(secondRow)
+            const secondRowNum = rows.length
             formulas.push({
-              row: rows.length,
-              itemType: 'superstructure_manual_infilled_landing_sum',
+              row: secondRowNum,
+              itemType: 'superstructure_infilled_landing_second',
               section: 'superstructure',
               subsectionName: subsection.name,
-              landing1RowNum: landing1RowNum,
-              firstDataRow: landing1RowNum,
-              lastDataRow: landing1RowNum + 1
+              landingRowNum,
+              parsedData: landingItem
             })
-
-            // Blank row
+            // Sum row: J=J{landing} only (first row), L=SUM(L{landing}:L{second}); J and L in red
+            const sumRow = Array(template.columns.length).fill('')
+            rows.push(sumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'superstructure_infilled_landing_sum',
+              section: 'superstructure',
+              subsectionName: subsection.name,
+              landingRowNum,
+              firstDataRow: landingRowNum,
+              lastDataRow: secondRowNum
+            })
             rows.push(Array(template.columns.length).fill(''))
 
-            // Stairs
+            // Stairs row: C=empty, D=Tads, F=11/12, G=5, H=2/12 (formulas applied in ProposalDetail to avoid date)
             const stairsRow = Array(template.columns.length).fill('')
             stairsRow[1] = 'Stairs'
+            stairsRow[3] = 'Tads'
+            stairsRow[6] = 5        // G
             rows.push(stairsRow)
             formulas.push({
               row: rows.length,
@@ -4469,13 +4473,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               subsectionName: subsection.name
             })
 
-            // Blank row
             rows.push(Array(template.columns.length).fill(''))
-          }
-
-          // Add two identical Stair E groups
-          addStairE()
-          addStairE()
+          })
 
         } else if (subsection.name === 'Ele') {
           // Superstructure Ele subsection with Excavation, Backfill, Gravel

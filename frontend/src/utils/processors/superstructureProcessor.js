@@ -204,6 +204,14 @@ export const getSuperstructureItemType = (particulars) => {
     const heightValue = parseHeightFromName(particulars)
     return { subsection: 'LW concrete fill', groupKey: 'lwConcreteFill', heightFormula: null, heightValue: heightValue ?? 1 + 1 / 12, widthValue: null, qty: null }
   }
+  // Landing SOMD for Stairs - Infilled tads (exclude from Slab on metal deck)
+  if (p.includes('landing') && (p.includes('somd') || p.includes('slab on metal deck')) && p.includes('lw concrete topping')) {
+    const dims = parseSOMDDimensions(particulars)
+    if (dims) {
+      const groupKey = `somd_${dims.firstValueInches}_${dims.secondValueInches}`
+      return { subsection: 'Stairs – Infilled tads', groupKey: 'infilledLanding', heightFormula: null, heightValue: 0.67, widthValue: null, qty: null, firstValueInches: dims.firstValueInches, secondValueInches: dims.secondValueInches, somdGroupKey: groupKey }
+    }
+  }
   if (p.includes('slab on metal deck') || p.includes('somd')) {
     const dims = parseSOMDDimensions(particulars)
     if (dims) {
@@ -381,6 +389,7 @@ export const processSuperstructureItems = (rawDataRows, headers, tracker = null)
   const slabSteps = []
   const lwConcreteFill = []
   const slabOnMetalDeckByKey = {}
+  const infilledLandingItems = []
   const toppingSlab = []
   const thermalBreak = []
   const raisedSlab = { kneeWall: [], raisedSlab: [] }
@@ -411,7 +420,7 @@ export const processSuperstructureItems = (rawDataRows, headers, tracker = null)
   })
 
   if (digitizerIdx === -1 || totalIdx === -1) {
-    return { cipSlab8, cipRoofSlab8, balconySlab, terraceSlab, patchSlab, slabSteps, lwConcreteFill, slabOnMetalDeck: [], toppingSlab, thermalBreak, raisedSlab, builtUpSlab, builtUpStair, builtupRamps, concreteHanger, shearWalls, parapetWalls, columnsTakeoff, concretePost, concreteEncasement, dropPanelBracket, dropPanelH, beams, curbs, concretePad, nonShrinkGrout, repairScope }
+    return { cipSlab8, cipRoofSlab8, balconySlab, terraceSlab, patchSlab, slabSteps, lwConcreteFill, slabOnMetalDeck: [], infilledLandingItems: [], toppingSlab, thermalBreak, raisedSlab, builtUpSlab, builtUpStair, builtupRamps, concreteHanger, shearWalls, parapetWalls, columnsTakeoff, concretePost, concreteEncasement, dropPanelBracket, dropPanelH, beams, curbs, concretePad, nonShrinkGrout, repairScope }
   }
 
   rawDataRows.forEach((row, rowIndex) => {
@@ -433,6 +442,19 @@ export const processSuperstructureItems = (rawDataRows, headers, tracker = null)
       tracker.markUsed(rowIndex)
     }
 
+    if (itemType.groupKey === 'infilledLanding') {
+      infilledLandingItems.push({
+        particulars: particulars || '',
+        takeoff,
+        unit: 'SQ FT',
+        parsed: {
+          somdGroupKey: itemType.somdGroupKey,
+          firstValueInches: itemType.firstValueInches,
+          secondValueInches: itemType.secondValueInches
+        }
+      })
+      return
+    }
     if (itemType.groupKey && itemType.groupKey.startsWith('somd_')) {
       const key = itemType.groupKey
       if (!slabOnMetalDeckByKey[key]) {
@@ -571,7 +593,7 @@ export const processSuperstructureItems = (rawDataRows, headers, tracker = null)
   })
 
   const slabOnMetalDeck = Object.values(slabOnMetalDeckByKey)
-  return { cipSlab8, cipRoofSlab8, balconySlab, terraceSlab, patchSlab, slabSteps, lwConcreteFill, slabOnMetalDeck, toppingSlab, thermalBreak, raisedSlab, builtUpSlab, builtUpStair, builtupRamps, concreteHanger, shearWalls, parapetWalls, columnsTakeoff, concretePost, concreteEncasement, dropPanelBracket, dropPanelH, beams, curbs, concretePad, nonShrinkGrout, repairScope }
+  return { cipSlab8, cipRoofSlab8, balconySlab, terraceSlab, patchSlab, slabSteps, lwConcreteFill, slabOnMetalDeck, infilledLandingItems, toppingSlab, thermalBreak, raisedSlab, builtUpSlab, builtUpStair, builtupRamps, concreteHanger, shearWalls, parapetWalls, columnsTakeoff, concretePost, concreteEncasement, dropPanelBracket, dropPanelH, beams, curbs, concretePad, nonShrinkGrout, repairScope }
 }
 
 export default {

@@ -703,9 +703,9 @@ export const processROGItems = (rawDataRows, headers, tracker = null) => {
 }
 
 /**
- * Processes stairs on grade items: one group per "stairs on grade" item.
- * Prioritize attaching one landing to each stairs group when available.
- * Landings are never in separate groups; they are always included with a stairs group.
+ * Processes stairs on grade items (Foundation section).
+ * Same logic as Demo stair on grade: group by text after @, or NO_AT.
+ * Raw items: "Stairs on grade @ Stair A1", "Landings on grade @ Stair A1", "Stairs on grade", "Landings on grade"
  */
 export const processStairsOnGradeItems = (rawDataRows, headers, tracker = null) => {
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
@@ -714,58 +714,38 @@ export const processStairsOnGradeItems = (rawDataRows, headers, tracker = null) 
 
     if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
 
-    const stairsList = []
-    const landingsList = []
+    const groupMap = new Map() // key -> { heading, stairs, landings }
 
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
         const unit = row[unitIdx]
 
+        // Exclude demo stair items - they belong in Demolition section only
+        const itemLower = (digitizerItem || '').toLowerCase()
+        if (itemLower.includes('demo') && (itemLower.includes('stairs on grade') || itemLower.includes('landings on grade'))) {
+            return
+        }
+
         if (isStairsOnGrade(digitizerItem)) {
             const parsed = parseStairsOnGrade(digitizerItem)
-            const item = {
-                particulars: digitizerItem,
-                takeoff: total,
-                unit: unit,
-                parsed: parsed,
-                rawRowNumber: rowIndex + 2
+            const key = parsed.groupKey || 'NO_AT'
+            const heading = key !== 'NO_AT' ? key : null
+
+            if (!groupMap.has(key)) {
+                groupMap.set(key, { heading, stairs: null, landings: null })
             }
+            const g = groupMap.get(key)
             if (parsed.itemSubType === 'stairs') {
-                stairsList.push(item)
+                g.stairs = { particulars: digitizerItem, takeoff: total, unit: unit, parsed, rawRowNumber: rowIndex + 2 }
             } else if (parsed.itemSubType === 'landings') {
-                landingsList.push(item)
+                g.landings = { particulars: digitizerItem, takeoff: total, unit: unit, parsed, rawRowNumber: rowIndex + 2 }
             }
-            // Mark this row as used
-            if (tracker) {
-                tracker.markUsed(rowIndex)
-            }
+            if (tracker) tracker.markUsed(rowIndex)
         }
     })
 
-    // One group per stairs. Attach one landing to each stairs group when available.
-    // Attach landings to the last N stairs (so if we have more stairs than landings, first stairs have no landing).
-    const groups = []
-    const stairIdentifiers = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
-
-    stairsList.forEach((stairsItem, i) => {
-        const items = []
-        // Landing index for this group: attach landings to the last N stairs
-        const landingIndex = i - (stairsList.length - landingsList.length)
-        if (landingIndex >= 0 && landingIndex < landingsList.length) {
-            items.push(landingsList[landingIndex])
-        }
-        items.push(stairsItem)
-
-        groups.push({
-            stairIdentifier: stairIdentifiers[i] || `Group${i + 1}`,
-            items,
-            hasStairs: true,
-            hasLandings: items.length > 1
-        })
-    })
-
-    return groups
+    return Array.from(groupMap.values()).filter(g => g.stairs || g.landings)
 }
 
 /**
@@ -1226,9 +1206,9 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
         case 'stairs_on_grade':
             const sogStairsSubType = itemData.parsed?.itemSubType
             if (sogStairsSubType === 'stairs') {
-                // Stairs on grade: F=11/12, H=7/12, J=C*G*F, L=J*H/27, M=C
+                // Stairs on grade: F=11/12, H=7/12 or from name, J=C*G*F, L=J*H/27, M=C
                 formulas.length = '11/12' // Formula: =11/12
-                formulas.height = '7/12' // Formula: =7/12
+                formulas.height = itemData.parsed?.heightFromName != null ? itemData.parsed.heightFromName : '7/12'
                 if (itemData.parsed?.widthFromName !== undefined) {
                     formulas.width = itemData.parsed.widthFromName
                 }
