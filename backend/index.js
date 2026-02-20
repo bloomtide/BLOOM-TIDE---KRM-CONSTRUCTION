@@ -1,14 +1,18 @@
-import express from 'express';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Load .env from backend directory so AWS_S3_BUCKET etc. are set even when cwd is project root
+dotenv.config({ path: path.join(__dirname, '.env') });
+
+import express from 'express';
 import cookieParser from 'cookie-parser';
 import connectDB from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import proposalRoutes from './routes/proposalRoutes.js';
 import errorHandler from './middleware/errorHandler.js';
-
-// Load env vars
-dotenv.config();
 
 // Connect to database
 connectDB();

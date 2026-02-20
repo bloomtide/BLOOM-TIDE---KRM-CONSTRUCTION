@@ -40,6 +40,22 @@ export const proposalAPI = {
         return response.data;
     },
 
+    /** Get raw Excel file as ArrayBuffer (for parsing client-side when rawExcelFileUrl is set) */
+    getRawFile: async (id) => {
+        const response = await axios.get(`${API_URL}/proposals/${id}/raw-file`, {
+            responseType: 'arraybuffer',
+        });
+        return response.data;
+    },
+
+    /** Get spreadsheet JSON file (gzipped) as ArrayBuffer (decompress and parse client-side) */
+    getSpreadsheetFile: async (id) => {
+        const response = await axios.get(`${API_URL}/proposals/${id}/spreadsheet-file`, {
+            responseType: 'arraybuffer',
+        });
+        return response.data;
+    },
+
     /**
      * Update a proposal
      * @param {string} id - Proposal ID

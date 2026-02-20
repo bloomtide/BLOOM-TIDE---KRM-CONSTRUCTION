@@ -17,7 +17,35 @@ import { generateSoeFormulas } from '../utils/processors/soeProcessor'
 import { generateFoundationFormulas } from '../utils/processors/foundationProcessor'
 import { generateWaterproofingFormulas } from '../utils/processors/waterproofingProcessor'
 import { buildProposalSheet } from '../utils/buildProposalSheet'
+import { compressJsonToBase64 } from '../utils/compressJson'
 import { useSidebar } from '../context/SidebarContext'
+import * as XLSX from 'xlsx'
+
+async function decompressGzip(arrayBuffer) {
+  const stream = new ReadableStream({
+    start(c) {
+      c.enqueue(new Uint8Array(arrayBuffer))
+      c.close()
+    }
+  })
+  const decompressed = stream.pipeThrough(new DecompressionStream('gzip'))
+  const reader = decompressed.getReader()
+  const chunks = []
+  let total = 0
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    total += value.length
+  }
+  const out = new Uint8Array(total)
+  let offset = 0
+  for (const c of chunks) {
+    out.set(c, offset)
+    offset += c.length
+  }
+  return new TextDecoder().decode(out)
+}
 
 const ProposalDetail = () => {
   const { proposalId } = useParams()
@@ -59,6 +87,9 @@ const ProposalDetail = () => {
   const retryCountRef = useRef(0)
   const lastSaveTimeRef = useRef(null)
   const scrollSyncCleanupRef = useRef(null)
+  const rawDataSignatureRef = useRef(null)
+  const rawDataJustChangedRef = useRef(false)
+  const userEditedCellsRef = useRef(new Set())
 
   // Sync spreadsheet overlay images (e.g. logo) with scroll – they stay stuck because virtual scroll moves only .e-virtualable via transform
   const attachScrollSyncForOverlays = useCallback(() => {
@@ -106,7 +137,42 @@ const ProposalDetail = () => {
     try {
       setIsLoading(true)
       const response = await proposalAPI.getById(proposalId)
-      setProposal(response.proposal)
+      let p = response.proposal
+      if (p.rawExcelFileUrl) {
+        try {
+          const ab = await proposalAPI.getRawFile(proposalId)
+          const wb = XLSX.read(ab, { type: 'array' })
+          const firstSheetName = wb.SheetNames[0]
+          const ws = wb.Sheets[firstSheetName]
+          const jsonData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+          const headers = jsonData[0] || []
+          const rows = jsonData.slice(1)
+          p = {
+            ...p,
+            rawExcelData: {
+              ...(p.rawExcelData || {}),
+              fileName: p.rawExcelData?.fileName || 'upload.xlsx',
+              sheetName: firstSheetName,
+              headers,
+              rows,
+            },
+          }
+        } catch (e) {
+          console.error('Error fetching/parsing raw Excel:', e)
+          toast.error('Could not load raw data file')
+        }
+      }
+      if (p.spreadsheetFileUrl) {
+        try {
+          const ab = await proposalAPI.getSpreadsheetFile(proposalId)
+          const jsonStr = await decompressGzip(ab)
+          p = { ...p, spreadsheetJson: JSON.parse(jsonStr) }
+        } catch (e) {
+          console.error('Error fetching/parsing spreadsheet file:', e)
+          toast.error('Could not load spreadsheet file')
+        }
+      }
+      setProposal(p)
     } catch (error) {
       console.error('Error fetching proposal:', error)
       toast.error('Error loading proposal')
@@ -128,6 +194,12 @@ const ProposalDetail = () => {
     const { headers, rows } = proposal.rawExcelData
     const rawData = [headers, ...rows]
     rawDataRef.current = rawData
+
+    const newSignature = `${(headers && headers.length) ?? 0}-${(rows && rows.length) ?? 0}`
+    if (rawDataSignatureRef.current != null && rawDataSignatureRef.current !== newSignature) {
+      rawDataJustChangedRef.current = true
+    }
+    rawDataSignatureRef.current = newSignature
 
     const template = proposal.template || 'capstone'
     const result = generateCalculationSheet(template, rawData)
@@ -231,17 +303,19 @@ const ProposalDetail = () => {
   }, [proposal?.rawExcelData, proposal?.template])
 
   // Apply data and formulas or load from JSON
+  // Prefer loading both sheets from DB (spreadsheetJson). Rebuild from raw only when raw data was edited or no saved state yet.
   useEffect(() => {
     if (!spreadsheetRef.current || !proposal) return
 
-    // When we have rawExcelData, ONLY ever build from raw (never load spreadsheet from DB)
-    if (proposal.rawExcelData) {
+    const shouldRebuildFromRaw = proposal.rawExcelData && (rawDataJustChangedRef.current || !proposal.spreadsheetJson)
+
+    if (shouldRebuildFromRaw) {
       if (needReapplyAfterRawSave.current && hasLoadedFromJson.current) {
-        // Use freshly generated data from ref (generate effect already ran this cycle) so we don't use stale state
         const override = generatedDataRef.current
         if (override?.rows?.length > 0) {
           needReapplyAfterRawSave.current = false
           applyDataToSpreadsheet(override).then(() => {
+            rawDataJustChangedRef.current = false
             setTimeout(() => {
               try { spreadsheetRef.current?.goTo('Calculations Sheet!A1') } catch (e) { }
             }, 100)
@@ -249,35 +323,38 @@ const ProposalDetail = () => {
         }
         return
       }
-      if (calculationData.length > 0 && !hasLoadedFromJson.current) {
-        applyDataToSpreadsheet()
+      const hasGeneratedData = calculationData.length > 0 || (generatedDataRef.current?.rows?.length > 0)
+      if (hasGeneratedData && !hasLoadedFromJson.current) {
+        const override = generatedDataRef.current?.rows?.length > 0 ? generatedDataRef.current : undefined
+        applyDataToSpreadsheet(override).then(() => { rawDataJustChangedRef.current = false })
       }
       return
     }
 
-    // Load from saved JSON only when there is no rawExcelData (e.g. legacy proposals)
     if (proposal.spreadsheetJson && !hasLoadedFromJson.current) {
+      rawDataJustChangedRef.current = false
       setIsSpreadsheetLoading(true)
-        ; (async () => {
-          try {
-            const jsonData = proposal.spreadsheetJson.Workbook
-              ? proposal.spreadsheetJson
-              : { Workbook: proposal.spreadsheetJson }
-            spreadsheetRef.current.openFromJson({ file: jsonData })
-            hasLoadedFromJson.current = true
-            setLastSaved(new Date(proposal.updatedAt))
-            if (proposal.images && proposal.images.length > 0) {
-              restoreImages(proposal.images)
-            }
-          } catch (error) {
-            toast.error('Error loading saved spreadsheet')
-          } finally {
-            setIsSpreadsheetLoading(false)
+      ;(async () => {
+        try {
+          const jsonData = proposal.spreadsheetJson.Workbook
+            ? proposal.spreadsheetJson
+            : { Workbook: proposal.spreadsheetJson }
+          spreadsheetRef.current.openFromJson({ file: jsonData })
+          hasLoadedFromJson.current = true
+          setLastSaved(new Date(proposal.updatedAt))
+          if (proposal.images && proposal.images.length > 0) {
+            restoreImages(proposal.images)
           }
-        })()
+        } catch (error) {
+          toast.error('Error loading saved spreadsheet')
+        } finally {
+          setIsSpreadsheetLoading(false)
+        }
+      })()
+      return
     }
-    // Re-apply after save/rebuild when there is no rawExcelData (legacy path)
-    else if (needReapplyAfterRawSave.current && calculationData.length > 0 && hasLoadedFromJson.current && spreadsheetRef.current) {
+
+    if (needReapplyAfterRawSave.current && calculationData.length > 0 && hasLoadedFromJson.current && spreadsheetRef.current) {
       needReapplyAfterRawSave.current = false
       applyDataToSpreadsheet().then(() => {
         setTimeout(() => {
@@ -295,26 +372,32 @@ const ProposalDetail = () => {
     const rockTotals = override?.rockExcavationTotals ?? rockExcavationTotals
     const lineDrill = override?.lineDrillTotalFT ?? lineDrillTotalFT
 
+    const spreadsheet = spreadsheetRef.current
+    const pfx = 'Proposal Sheet!'
+    const userEdits = userEditedCellsRef.current
+    const snapshot = new Map()
+    if (userEdits.size > 0 && spreadsheet.getCellValue) {
+      userEdits.forEach((cellAddr) => {
+        try {
+          const val = spreadsheet.getCellValue(pfx + cellAddr)
+          if (val !== undefined && val !== null) snapshot.set(cellAddr, val)
+        } catch (e) { /* ignore */ }
+      })
+    }
+
     setIsSpreadsheetLoading(true)
-    // Use setTimeout to allow React to update the UI with loading state
     await new Promise(resolve => setTimeout(resolve, 50))
 
     try {
-      // Build complete spreadsheet model as JSON for batch loading
       const spreadsheetModel = buildSpreadsheetModel(rows)
-
-      // Load the entire spreadsheet at once - much faster than individual cell updates
-      spreadsheetRef.current.openFromJson({ file: spreadsheetModel })
+      spreadsheet.openFromJson({ file: spreadsheetModel })
       hasLoadedFromJson.current = true
 
-      // Apply all formulas and styles after data is loaded
-      // Small delay to ensure spreadsheet is fully rendered
       await new Promise(resolve => setTimeout(resolve, 100))
       applyFormulasAndStyles(formulas, rows)
 
-      // Build the Proposal sheet from calculation data
       try {
-        buildProposalSheet(spreadsheetRef.current, {
+        buildProposalSheet(spreadsheet, {
           calculationData: rows,
           formulaData: formulas,
           rockExcavationTotals: rockTotals,
@@ -328,7 +411,16 @@ const ProposalDetail = () => {
       } catch (e) {
         console.error('Error building proposal sheet:', e)
       }
-      // Sync overlay (logo) with scroll after it is inserted by buildProposalSheet (setTimeout 250ms)
+
+      if (snapshot.size > 0) {
+        await new Promise(resolve => setTimeout(resolve, 50))
+        snapshot.forEach((value, cellAddr) => {
+          try {
+            spreadsheet.updateCell({ value }, pfx + cellAddr)
+          } catch (e) { /* ignore */ }
+        })
+      }
+
       setTimeout(attachScrollSyncForOverlays, 600)
 
       // Trigger initial save to persist both Calculations and Proposal sheets
@@ -2665,11 +2757,9 @@ const ProposalDetail = () => {
     setSaveError(null)
 
     try {
-      // Get the spreadsheet JSON (includes all sheets: Calculations Sheet + Proposal Sheet)
+      const images = extractImages()
       const json = await spreadsheetRef.current.saveAsJson()
       const jsonObject = json.jsonObject || json
-
-      // Dev: verify both sheets are in the save payload
       if (import.meta.env.DEV) {
         const sheets = jsonObject?.Workbook?.sheets || []
         const sheetNames = sheets.map(s => s.name || s.Name).filter(Boolean)
@@ -2677,16 +2767,14 @@ const ProposalDetail = () => {
           console.warn('[ProposalDetail] Save payload missing Proposal Sheet. Sheets:', sheetNames)
         }
       }
-
-      // Extract images separately since saveAsJson doesn't include them
-      const images = extractImages()
-
-      // Save both spreadsheet JSON and images
-      await proposalAPI.update(proposalId, {
-        spreadsheetJson: jsonObject,
-        images: images,
-        unusedRawDataRows: unusedRawDataRowsRef.current // Sync current unused rows state
-      })
+      const payload = { images, unusedRawDataRows: unusedRawDataRowsRef.current }
+      const compressed = await compressJsonToBase64(jsonObject)
+      if (compressed) {
+        payload.spreadsheetJsonCompressed = compressed
+      } else {
+        payload.spreadsheetJson = jsonObject
+      }
+      await proposalAPI.update(proposalId, payload)
 
       const now = new Date()
       setLastSaved(now)
@@ -2824,14 +2912,17 @@ const ProposalDetail = () => {
 
   // Handle spreadsheet action complete event - captures most changes
   const handleActionComplete = useCallback((args) => {
-    // Actions that should NOT trigger a save (read-only operations)
+    if (args.action === 'cellSave' && args.eventArgs?.address) {
+      const addr = args.eventArgs.address
+      if (addr.startsWith('Proposal Sheet!')) {
+        const cellAddr = addr.replace(/^Proposal Sheet!/i, '')
+        userEditedCellsRef.current.add(cellAddr)
+      }
+    }
     const noSaveActions = [
       'copy', 'select', 'scroll', 'zoom',
       'find', 'getData', 'refresh'
     ]
-    // Note: We DO save on 'gotoSheet' - when user switches away from Proposal Sheet,
-    // we need to capture any pending edits (cell may have been saved but we want to persist)
-    // Save on any action that's not in the no-save list
     if (args.action && !noSaveActions.includes(args.action)) {
       markDirtyAndScheduleSave()
     }
@@ -3165,6 +3256,14 @@ const ProposalDetail = () => {
             const response = await proposalAPI.getById(proposal._id)
             setProposal(response.proposal)
             needReapplyAfterRawSave.current = true
+            rawDataJustChangedRef.current = true
+            // After raw data save, force a rebuild of Calculations + Proposal sheets
+            setTimeout(() => {
+              const override = generatedDataRef.current
+              if (override?.rows?.length && spreadsheetRef.current) {
+                applyDataToSpreadsheet(override)
+              }
+            }, 0)
             setIsPreviewModalOpen(false)
             toast.success('Raw data saved. Rebuilding sheets…')
           } catch (e) {
