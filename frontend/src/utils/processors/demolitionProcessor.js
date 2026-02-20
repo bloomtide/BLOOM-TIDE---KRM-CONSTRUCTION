@@ -52,6 +52,11 @@ export const getDemolitionSubsection = (digitizerItem) => {
     return 'Demo isolated footing'
   }
 
+  // Demo stair on grade (stairs and landings)
+  if (itemLower.includes('demo stairs on grade') || itemLower.includes('demo landings on grade')) {
+    return 'Demo stair on grade'
+  }
+
   return null
 }
 
@@ -122,7 +127,8 @@ export const processDemolitionItems = (rawDataRows, headers, tracker = null) => 
     'Demo strip footing': [],
     'Demo foundation wall': [],
     'Demo retaining wall': [],
-    'Demo isolated footing': []
+    'Demo isolated footing': [],
+    'Demo stair on grade': []
   }
 
   // Find column indices
@@ -150,7 +156,12 @@ export const processDemolitionItems = (rawDataRows, headers, tracker = null) => 
         let groupKey = 'DEFAULT'
         const itemLower = (digitizerItem || '').toLowerCase()
 
-        if ((subsection === 'Demo slab on grade' || subsection === 'Demo Ramp on grade') && itemLower.includes('"')) {
+        if (subsection === 'Demo stair on grade') {
+          // Demo stair on grade: group by text after @, or "NO_AT" if no @
+          const atMatch = digitizerItem.match(/@\s*(.+)$/i)
+          groupKey = atMatch ? atMatch[1].trim() : 'NO_AT'
+          parsed.itemSubType = itemLower.includes('landings') ? 'landings' : 'stairs'
+        } else if ((subsection === 'Demo slab on grade' || subsection === 'Demo Ramp on grade') && itemLower.includes('"')) {
           // Group by thickness for Demo SOG / Demo ROG
           const thickMatch = digitizerItem.match(/(\d+)["']?\s*thick/i)
           if (thickMatch) {
@@ -184,6 +195,26 @@ export const processDemolitionItems = (rawDataRows, headers, tracker = null) => 
   Object.keys(demolitionItemsBySubsection).forEach(subsection => {
     const items = demolitionItemsBySubsection[subsection]
     if (items.length === 0) return
+
+    // Demo stair on grade: build groups { heading, stairs, landings } - do not merge
+    if (subsection === 'Demo stair on grade') {
+      const groupMap = new Map() // key -> { heading, stairs, landings }
+      items.forEach(item => {
+        const key = item.groupKey || 'NO_AT'
+        const heading = key !== 'NO_AT' ? key : null
+        if (!groupMap.has(key)) {
+          groupMap.set(key, { heading, stairs: null, landings: null })
+        }
+        const g = groupMap.get(key)
+        if (item.itemSubType === 'stairs') {
+          g.stairs = item
+        } else if (item.itemSubType === 'landings') {
+          g.landings = item
+        }
+      })
+      demolitionItemsBySubsection[subsection] = Array.from(groupMap.values()).filter(g => g.stairs || g.landings)
+      return
+    }
 
     const groupMap = new Map()
     items.forEach(item => {

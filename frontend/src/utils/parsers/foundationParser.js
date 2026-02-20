@@ -1709,6 +1709,9 @@ export const parseROG = (itemName) => {
 /**
  * Parses stairs on grade items
  * Handles: Stairs on grade (with/without width in name), Landings on grade
+ * Raw items: "Stairs on grade @ Stair A1", "Landings on grade @ Stair A1", "Stairs on grade", "Landings on grade"
+ * Special: "Stairs on grade 5'-5" wide @ stair A2" - parse width and height from name for col G and H
+ * Grouping: by text after @ (e.g. "Stair A1"), or "NO_AT" if no @
  */
 export const parseStairsOnGrade = (itemName) => {
     const result = {
@@ -1716,16 +1719,20 @@ export const parseStairsOnGrade = (itemName) => {
         itemSubType: null, // 'stairs', 'landings'
         width: 0,
         widthFromName: null, // Width parsed from name like "5'-5" wide"
-        stairIdentifier: null, // Extracted identifier like "A2", "C2", "D2", "F"
+        heightFromName: null, // Height (col H) parsed from name like "7" riser" -> 7/12 feet
+        stairIdentifier: null,
         groupKey: null
     }
 
     const itemLower = itemName.toLowerCase()
 
+    // Group by text after @, or "NO_AT" if no @ (same logic as Demo stair on grade)
+    const atMatch = itemName.match(/@\s*(.+)$/i)
+    const groupKey = atMatch ? atMatch[1].trim() : 'NO_AT'
+    result.groupKey = groupKey
+
     if (itemLower.includes('landings')) {
         result.itemSubType = 'landings'
-        // Try to extract stair identifier from context (may need to be set during processing)
-        result.groupKey = 'landings'
         return result
     } else if (itemLower.includes('stairs on grade')) {
         result.itemSubType = 'stairs'
@@ -1734,9 +1741,12 @@ export const parseStairsOnGrade = (itemName) => {
         if (widthMatch) {
             result.widthFromName = parseDimension(widthMatch[1])
         }
-        // Try to extract stair identifier (A2, C2, D2, F, etc.) - may need manual grouping
-        // For now, we'll group by whether width is in name or not
-        result.groupKey = result.widthFromName ? `stairs_with_width_${result.widthFromName.toFixed(2)}` : 'stairs_manual'
+        // Extract height (col H) from name - e.g. "7" riser", "7\" riser", "7 inch riser"
+        const riserMatch = itemName.match(/(\d+(?:\.\d+)?)\s*["']?\s*riser/i)
+        if (riserMatch) {
+            const inches = parseFloat(riserMatch[1])
+            result.heightFromName = inches / 12
+        }
         return result
     }
 

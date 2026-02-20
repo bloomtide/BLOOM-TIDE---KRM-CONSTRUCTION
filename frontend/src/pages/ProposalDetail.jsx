@@ -605,6 +605,57 @@ const ProposalDetail = () => {
             return
           }
 
+          if (itemType === 'demo_stair_on_grade_heading') {
+            spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic', textDecoration: 'underline', color: '#000000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'demo_stair_on_grade_landing') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+            return
+          }
+          if (itemType === 'demo_stair_on_grade_stairs') {
+            spreadsheet.updateCell({ formula: '=11/12' }, `F${row}`)
+            spreadsheet.updateCell({ formula: '=7/12' }, `H${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}*G${row}*F${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
+            return
+          }
+          if (itemType === 'demo_stair_on_grade_stair_slab') {
+            const { stairsRefRow } = formulaInfo
+            if (stairsRefRow) {
+              spreadsheet.updateCell({ formula: `=1.3*C${stairsRefRow}` }, `C${row}`)
+              spreadsheet.updateCell({ formula: `=G${stairsRefRow}` }, `G${row}`)
+            }
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            return
+          }
+          if (itemType === 'demo_stair_on_grade_sum') {
+            const { sumRanges } = formulaInfo
+            if (sumRanges && sumRanges.length > 0) {
+              const sumI = sumRanges.map(([f, l]) => `SUM(I${f}:I${l})`).join('+')
+              const sumJ = sumRanges.map(([f, l]) => `SUM(J${f}:J${l})`).join('+')
+              const sumL = sumRanges.map(([f, l]) => `SUM(L${f}:L${l})`).join('+')
+              const sumM = sumRanges.map(([f, l]) => `SUM(M${f}:M${l})`).join('+')
+              spreadsheet.updateCell({ formula: `=${sumI}` }, `I${row}`)
+              spreadsheet.updateCell({ formula: `=${sumJ}` }, `J${row}`)
+              spreadsheet.updateCell({ formula: `=${sumL}` }, `L${row}`)
+              spreadsheet.updateCell({ formula: `=${sumM}` }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
+            }
+            return
+          }
+
           if (itemType === 'demo_extra_sqft' || itemType === 'demo_extra_rog_sqft') {
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
@@ -960,6 +1011,61 @@ const ProposalDetail = () => {
           // Foundation section continues in the full Spreadsheet.jsx - copy all the logic
           if (itemType === 'foundation_piles_misc') {
             spreadsheet.cellFormat({ color: '#FF0000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'foundation_stairs_on_grade_heading') {
+            spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic', textDecoration: 'underline', color: '#000000' }, `B${row}`)
+            return
+          }
+          if (itemType === 'foundation_stairs_on_grade_landing') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+            return
+          }
+          if (itemType === 'foundation_stairs_on_grade_stairs') {
+            spreadsheet.updateCell({ formula: '=11/12' }, `F${row}`)
+            const heightFromName = parsedData?.parsed?.heightFromName
+            if (heightFromName != null) {
+              spreadsheet.updateCell({ value: heightFromName }, `H${row}`)
+            } else {
+              spreadsheet.updateCell({ formula: '=7/12' }, `H${row}`)
+            }
+            spreadsheet.updateCell({ formula: `=C${row}*G${row}*F${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: getColumnBColor(row, parsedData) }, `B${row}`)
+            return
+          }
+          if (itemType === 'foundation_stairs_on_grade_stair_slab') {
+            const { stairsRefRow } = formulaInfo
+            if (stairsRefRow) {
+              spreadsheet.updateCell({ formula: `=1.3*C${stairsRefRow}` }, `C${row}`)
+              spreadsheet.updateCell({ formula: `=G${stairsRefRow}` }, `G${row}`)
+            }
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+            return
+          }
+          if (itemType === 'foundation_stairs_on_grade_sum') {
+            const { sumRanges } = formulaInfo
+            if (sumRanges && sumRanges.length > 0) {
+              const sumI = sumRanges.map(([f, l]) => `SUM(I${f}:I${l})`).join('+')
+              const sumJ = sumRanges.map(([f, l]) => `SUM(J${f}:J${l})`).join('+')
+              const sumL = sumRanges.map(([f, l]) => `SUM(L${f}:L${l})`).join('+')
+              const sumM = sumRanges.map(([f, l]) => `SUM(M${f}:M${l})`).join('+')
+              spreadsheet.updateCell({ formula: `=${sumI}` }, `I${row}`)
+              spreadsheet.updateCell({ formula: `=${sumJ}` }, `J${row}`)
+              spreadsheet.updateCell({ formula: `=${sumL}` }, `L${row}`)
+              spreadsheet.updateCell({ formula: `=${sumM}` }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
+            }
             return
           }
           if (itemType === 'foundation_sum') {
@@ -2449,42 +2555,38 @@ const ProposalDetail = () => {
             return
           }
 
-          // CIP Stairs - Landings: I=empty, J=C, K=empty, L=J*H/27
+          // CIP Stairs - Landings: C=empty, D=SQ FT, H=0.67 (from row); J=C, L=J*H/27
           if (itemType === 'superstructure_manual_cip_stairs_landing') {
-            // J = C
             spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
-            // L = J*H/27
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
             return
           }
 
-          // CIP Stairs - Stairs: J=C*G*F, K=empty, L=J*H/27, M=C
+          // CIP Stairs - Stairs: C=empty, D=Treads, F=11/12, G=3, H=7/12; J=C*G*F, L=J*H/27, M=C
           if (itemType === 'superstructure_manual_cip_stairs_stair') {
-            // J = C*G*F
+            spreadsheet.updateCell({ formula: '=11/12' }, `F${row}`)
+            spreadsheet.updateCell({ formula: '=7/12' }, `H${row}`)
             spreadsheet.updateCell({ formula: `=C${row}*G${row}*F${row}` }, `J${row}`)
-            // L = J*H/27
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            // M = C
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
             return
           }
 
-          // CIP Stairs - Stair Slab: I=C, J=I*H/27, K=empty, L=J*G/27, M=empty
+          // CIP Stairs - Stair Slab: D=FT, G=G{stair row}, H=0.5; C, I, J, L from formulas
           if (itemType === 'superstructure_manual_cip_stairs_slab') {
             const { stairsRowNum, slabCMultiplier } = formulaInfo
-            // C = reference to stairs row C (with optional multiplier)
+            if (stairsRowNum != null) {
+              spreadsheet.updateCell({ formula: `=G${stairsRowNum}` }, `G${row}`)
+            }
             if (slabCMultiplier && slabCMultiplier !== 1) {
               spreadsheet.updateCell({ formula: `=C${stairsRowNum}*${slabCMultiplier}` }, `C${row}`)
             } else {
               spreadsheet.updateCell({ formula: `=C${stairsRowNum}` }, `C${row}`)
             }
-            // I = C
             spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
-            // J = I*H
             spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
-            // L = J*G/27
             spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
             return
           }
@@ -2492,9 +2594,8 @@ const ProposalDetail = () => {
           // CIP Stairs - Sum: SUM of I, J, L, M (excludes Landings row)
           if (itemType === 'superstructure_manual_cip_stairs_sum') {
             const { firstDataRow, lastDataRow } = formulaInfo
-            // Sum I
+            // Sum I (not red)
             spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `I${row}`)
             // Sum J
             spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
@@ -2510,6 +2611,38 @@ const ProposalDetail = () => {
           // Stairs - Infilled tads - Header (underlined, no other data)
           if (itemType === 'superstructure_manual_infilled_header') {
             spreadsheet.cellFormat({ textDecoration: 'underline' }, `B${row}`)
+            return
+          }
+
+          // Stairs - Infilled tads - Landing row: H=first value (in row), J=C, L=(J*H)/27 (no red)
+          if (itemType === 'superstructure_infilled_landing_item') {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=(J${row}*H${row})/27` }, `L${row}`)
+            spreadsheet.cellFormat({ backgroundColor: '#D9E1F2' }, `H${row}`)
+            return
+          }
+          // Stairs - Infilled tads - Second row: C=C{landing}, D=SQ FT, H=second value, J=C, L=(J*H)/27/2 (no red)
+          if (itemType === 'superstructure_infilled_landing_second') {
+            const { landingRowNum } = formulaInfo
+            if (landingRowNum != null) {
+              spreadsheet.updateCell({ formula: `=C${landingRowNum}` }, `C${row}`)
+            }
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=(J${row}*H${row})/27/2` }, `L${row}`)
+            spreadsheet.cellFormat({ backgroundColor: '#D9E1F2' }, `H${row}`)
+            return
+          }
+          // Stairs - Infilled tads - Landing sum: J=J{landing} only, L=SUM(L{landing}:L{second}); only sum in red
+          if (itemType === 'superstructure_infilled_landing_sum') {
+            const { landingRowNum, firstDataRow, lastDataRow } = formulaInfo
+            if (landingRowNum != null) {
+              spreadsheet.updateCell({ formula: `=J${landingRowNum}` }, `J${row}`)
+            }
+            if (firstDataRow != null && lastDataRow != null) {
+              spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
+            }
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
             return
           }
 
@@ -2551,16 +2684,15 @@ const ProposalDetail = () => {
             return
           }
 
-          // Stairs - Infilled tads - Stairs: J=C*G*F, L=J*H/27, M=C (All RED)
+          // Stairs - Infilled tads - Stairs: C=empty, D=Tads, F=11/12, G=5, H=2/12, J=C*G*F, L=J*H/27, M=C (J, L, M in red)
           if (itemType === 'superstructure_manual_infilled_stair') {
-            // J = C*G*F
+            spreadsheet.updateCell({ formula: '=11/12' }, `F${row}`)
+            spreadsheet.updateCell({ formula: '=2/12' }, `H${row}`)
             spreadsheet.updateCell({ formula: `=C${row}*G${row}*F${row}` }, `J${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
-            // L = J*H/27
             spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
-            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
-            // M = C
             spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
             return
           }

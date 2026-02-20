@@ -173,6 +173,10 @@ export const parseDemolitionItem = (digitizerItem, total, unit, subsection) => {
       // Column E remains empty
       break
 
+    case 'Demo stair on grade':
+      // Pass-through: particulars, takeoff, unit - no dimension extraction
+      break
+
     default:
       break
   }

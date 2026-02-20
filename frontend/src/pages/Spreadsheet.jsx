@@ -255,6 +255,65 @@ const Spreadsheet = () => {
           return
         }
 
+        if (itemType === 'demo_stair_on_grade_heading') {
+          try {
+            spreadsheet.cellFormat({ fontWeight: 'bold', fontStyle: 'italic', textDecoration: 'underline', color: '#000000' }, `B${row}`)
+          } catch (e) {}
+          return
+        }
+        if (itemType === 'demo_stair_on_grade_landing') {
+          try {
+            spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+            spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+          } catch (e) {}
+          return
+        }
+        if (itemType === 'demo_stair_on_grade_stairs') {
+          try {
+            spreadsheet.updateCell({ formula: '=11/12' }, `F${row}`)
+            spreadsheet.updateCell({ formula: '=7/12' }, `H${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}*G${row}*F${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, `L${row}`)
+            spreadsheet.updateCell({ formula: `=C${row}` }, `M${row}`)
+          } catch (e) {}
+          return
+        }
+        if (itemType === 'demo_stair_on_grade_stair_slab') {
+          try {
+            const { stairsRefRow } = formulaInfo
+            if (stairsRefRow) {
+              spreadsheet.updateCell({ formula: `=1.3*C${stairsRefRow}` }, `C${row}`)
+              spreadsheet.updateCell({ formula: `=G${stairsRefRow}` }, `G${row}`)
+            }
+            spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
+            spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
+            spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
+          } catch (e) {}
+          return
+        }
+        if (itemType === 'demo_stair_on_grade_sum') {
+          try {
+            const { sumRanges } = formulaInfo
+            if (sumRanges && sumRanges.length > 0) {
+              const sumI = sumRanges.map(([f, l]) => `SUM(I${f}:I${l})`).join('+')
+              const sumJ = sumRanges.map(([f, l]) => `SUM(J${f}:J${l})`).join('+')
+              const sumL = sumRanges.map(([f, l]) => `SUM(L${f}:L${l})`).join('+')
+              const sumM = sumRanges.map(([f, l]) => `SUM(M${f}:M${l})`).join('+')
+              spreadsheet.updateCell({ formula: `=${sumI}` }, `I${row}`)
+              spreadsheet.updateCell({ formula: `=${sumJ}` }, `J${row}`)
+              spreadsheet.updateCell({ formula: `=${sumL}` }, `L${row}`)
+              spreadsheet.updateCell({ formula: `=${sumM}` }, `M${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000' }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
+            }
+          } catch (e) {}
+          return
+        }
+
         // Handle "For demo Extra line item use this" rows
         if (itemType === 'demo_extra_sqft') {
           // Row 1: In SQ FT
