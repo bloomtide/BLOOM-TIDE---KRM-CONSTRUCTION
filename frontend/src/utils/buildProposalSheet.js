@@ -763,6 +763,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
   let sumRowsBySubsection = new Map()
   let sumRowIndexBySubsection = new Map() // Excel 1-based row in Calculations Sheet for formula refs
   let lastDataRowIndexBySubsection = new Map() // 0-based row index of last data row (sum row = this + 2 in 1-based)
+  let firstDemoStairOnGradeStairsRowIndex = null // 1-based Excel row of first "Demo stairs on grade" (not landings) row, for width (G)
   const getQTYFromSumRow = (subsectionName) => {
     const sumRow = sumRowsBySubsection.get(subsectionName)
     return sumRow && parseFloat(sumRow[12]) > 0 ? parseFloat(sumRow[12]) : null
@@ -1619,6 +1620,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       if (currentSubsection && currentSubsection.startsWith('Demo')) {
         lastDataRowIndexBySubsection.set(currentSubsection, rowIndex)
       }
+      // First "Demo stairs on grade" (stairs line, not landings/slab) row – for width (G) in proposal CONCATENATE
+      if (currentSubsection === 'Demo stair on grade') {
+        const lower = bText.toLowerCase()
+        if (lower.includes('stairs on grade') && !lower.includes('landings') && !lower.includes('stair slab')) {
+          if (firstDemoStairOnGradeStairsRowIndex == null) firstDemoStairOnGradeStairsRowIndex = rowIndex + 1
+        }
+      }
     })
 
 
@@ -1771,15 +1779,21 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const detectedSumRow = sumRowIndexBySubsection.get(name)
         const sumRowIndex = detectedSumRow != null ? detectedSumRow : (lastDataIdx != null ? lastDataIdx + 2 : null)
 
-        // Stairs on grade: riser count from QTY (column M) – use formula so B updates when calc sheet changes
+        // Demo stair on grade: width from first "Demo stairs on grade" row (G), riser from sum row (M) – full formula when both available
         const stairsRiserPlaceholder = '(## Riser)'
-        const useStairsRiserFormula = templateText.includes(stairsRiserPlaceholder) && sumRowIndex != null
+        const dmRef = getDMReferenceFromRawData(name)
+        const esc = (s) => (s || '').replace(/"/g, '""')
+        const useDemoStairsFullFormula = name === 'Demo stair on grade' && sumRowIndex != null && firstDemoStairOnGradeStairsRowIndex != null
+        const useStairsRiserFormula = !useDemoStairsFullFormula && templateText.includes(stairsRiserPlaceholder) && sumRowIndex != null
         let valueOrFormulaForB = templateText
-        if (useStairsRiserFormula) {
+        if (useDemoStairsFullFormula) {
+          valueOrFormulaForB = {
+            formula: `=CONCATENATE("Allow to saw-cut/demo/remove/dispose existing (",'${demolitionCalcSheet}'!G${firstDemoStairOnGradeStairsRowIndex}," wide) stairs on grade (",'${demolitionCalcSheet}'!M${sumRowIndex}," Riser) @ 1st FL as per ",\"${esc(dmRef)}\",\" & details on\")`
+          }
+        } else if (useStairsRiserFormula) {
           const parts = templateText.split(stairsRiserPlaceholder)
           const prefix = (parts[0] || '').trimEnd()
           const suffix = ' Riser)' + (parts[1] || '').trimStart()
-          const esc = (s) => (s || '').replace(/"/g, '""')
           valueOrFormulaForB = {
             formula: `=CONCATENATE("${esc(prefix)}",'${demolitionCalcSheet}'!M${sumRowIndex},"${esc(suffix)}")`
           }
@@ -11663,10 +11677,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             { text: `F&I new (0'-10" thick) stem walls (Havg=5'-1") @ cellar FL as per FO-001.00 & details on`, sub: 'Stem wall', match: () => true }
           ]
         },
+        // Stair on grade: under Stem wall in substructure scope; groups from calc "Stairs on grade Stairs" (e.g. Stair A2, C2, D2, F)
         {
-        heading: 'Stair on grade',
-        customStairsOnGrade: true,
-        items: []
+          heading: 'Stair on grade',
+          customStairsOnGrade: true,
+          items: []
         },
         {
           heading: 'Electric conduit', items: [
@@ -11690,7 +11705,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     for (const { items, customStairsOnGrade } of substructureTemplate) {
       if (customStairsOnGrade) {
         const stairsOnGradeFormulas = (formulaData || []).filter(f =>
-          f.itemType === 'stairs_on_grade' && f.section === 'foundation' && hasNonZeroTakeoff(f, true)
+          f.section === 'foundation' &&
+          (f.itemType === 'stairs_on_grade' || f.itemType === 'foundation_stairs_on_grade_stairs' || f.itemType === 'foundation_stairs_on_grade_landing' || f.itemType === 'foundation_stairs_on_grade_stair_slab') &&
+          hasNonZeroTakeoff(f, true)
         )
         if (stairsOnGradeFormulas.length > 0) hasSubstructureScopeData = true
         if (hasSubstructureScopeData) break
@@ -11750,39 +11767,66 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         if (inch === 0) return `${f}'-0"`
         return `${f}'-${inch}"`
       }
+      const stairsOnGradePageRef = getPageRefForSubsection('Stairs on grade Stairs') || 'A-312.00'
       const getStairsOnGradeProposalText = (formulaEntry) => {
+        const it = formulaEntry.itemType
         const p = (formulaEntry.parsedData?.particulars || '').trim()
         const subType = formulaEntry.parsedData?.parsed?.itemSubType
-        if (subType === 'landings' || (p && p.toLowerCase().includes('landings'))) {
-          return `F&I new (8" thick) stair landings as per A-312.00`
+        if (it === 'foundation_stairs_on_grade_stair_slab') return null
+        if (subType === 'landings' || (p && p.toLowerCase().includes('landings')) || it === 'foundation_stairs_on_grade_landing') {
+          let thick = '8"'
+          if (calculationData && formulaEntry.row) {
+            const row = calculationData[formulaEntry.row - 1]
+            const particulars = (row?.[1] || '').toString()
+            const m = particulars.match(/(\d+(?:\/\d+)?)"?\s*thick/i) || particulars.match(/(\d+)"\s*thick/i)
+            if (m) thick = m[1].includes('"') ? m[1] : m[1] + '"'
+          }
+          return `F&I new (${thick} thick) stair landings as per ${stairsOnGradePageRef}`
         }
-        if (subType === 'stair_slab' || (p && p.toLowerCase().includes('stair slab'))) {
-          return `F&I new stair slab on grade as per A-312.00`
+        if (subType === 'stair_slab' || (p && p.toLowerCase().includes('stair slab'))) return null
+        let widthStr = 'as indicated'
+        let riserStr = 'as indicated'
+        if (calculationData && formulaEntry.row) {
+          const row = calculationData[formulaEntry.row - 1]
+          const particulars = (row?.[1] || '').toString()
+          const widthMatch = particulars.match(/(\d+'-?\d*")\s*wide/i)
+          const widthFromParsed = formulaEntry.parsedData?.parsed?.widthFromName
+          widthStr = widthMatch && widthMatch[1] ? widthMatch[1] : (widthFromParsed != null ? formatStairsWidth(widthFromParsed) : (row[6] != null && row[6] !== '' ? String(row[6]).trim() : 'as indicated'))
+          const qtyM = Math.round(parseFloat(row[12]) || 0)
+          const rm = particulars.match(/(\d+)\s*Riser/i)
+          riserStr = qtyM > 0 ? `${qtyM} Riser` : (rm ? `${rm[1]} Riser` : 'as indicated')
+        } else {
+          const widthFromParsed = formulaEntry.parsedData?.parsed?.widthFromName
+          const wm = p.match(/(\d+'-?\d*")\s*wide/i)
+          widthStr = (wm && wm[1]) || (widthFromParsed != null ? formatStairsWidth(widthFromParsed) : 'as indicated')
+          const riserMatch = p.match(/(\d+)\s*Riser/i)
+          riserStr = riserMatch ? `${riserMatch[1]} Riser` : 'as indicated'
         }
-        const widthMatch = p.match(/(\d+'-?\d*")\s*wide/i)
-        const widthFromParsed = formulaEntry.parsedData?.parsed?.widthFromName
-        const widthStr = widthMatch && widthMatch[1]
-          ? widthMatch[1]
-          : (widthFromParsed != null ? formatStairsWidth(widthFromParsed) : 'as indicated')
-        const riserMatch = p.match(/(\d+)\s*Riser/i)
-        const riserStr = riserMatch ? `${riserMatch[1]} Riser` : 'as indicated'
-        return `F&I new (${widthStr} wide) stairs on grade (${riserStr}) @ 1st FL as per A-312.00`
+        return `F&I new (${widthStr} wide) stairs on grade (${riserStr}) @ 1st FL as per ${stairsOnGradePageRef}`
       }
 
       substructureTemplate.forEach(({ heading, items, customStairsOnGrade }) => {
         let headingAdded = false
         if (customStairsOnGrade && heading === 'Stair on grade') {
           const allStairsFormulas = (formulaData || []).filter(f =>
-            f.section === 'foundation' && (f.itemType === 'stairs_on_grade' || f.itemType === 'stairs_on_grade_group_header')
+            f.section === 'foundation' &&
+            (f.itemType === 'stairs_on_grade' || f.itemType === 'stairs_on_grade_group_header' ||
+             f.itemType === 'foundation_stairs_on_grade_heading' || f.itemType === 'foundation_stairs_on_grade_stairs' ||
+             f.itemType === 'foundation_stairs_on_grade_landing' || f.itemType === 'foundation_stairs_on_grade_stair_slab')
           )
           allStairsFormulas.sort((a, b) => a.row - b.row)
           const groups = []
           let currentGroup = null
+          const getStairHeadingFromRow = (rowNum) => {
+            if (!calculationData || !rowNum) return 'Stair'
+            const particulars = (calculationData[rowNum - 1]?.[1] || '').toString().trim()
+            return particulars.replace(/:+\s*$/, '').trim() || 'Stair'
+          }
           allStairsFormulas.forEach((f) => {
-            if (f.itemType === 'stairs_on_grade_group_header') {
-              currentGroup = { stairIdentifier: f.stairIdentifier || 'Stair', items: [] }
+            if (f.itemType === 'stairs_on_grade_group_header' || f.itemType === 'foundation_stairs_on_grade_heading') {
+              currentGroup = { stairIdentifier: f.stairIdentifier || getStairHeadingFromRow(f.row), items: [] }
               groups.push(currentGroup)
-            } else if (f.itemType === 'stairs_on_grade' && currentGroup && hasNonZeroTakeoff(f, true)) {
+            } else if ((f.itemType === 'stairs_on_grade' || f.itemType === 'foundation_stairs_on_grade_stairs' || f.itemType === 'foundation_stairs_on_grade_landing' || f.itemType === 'foundation_stairs_on_grade_stair_slab') && currentGroup && (hasNonZeroTakeoff(f, true) || f.itemType === 'foundation_stairs_on_grade_stair_slab')) {
               currentGroup.items.push(f)
             }
           })
@@ -11798,14 +11842,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               )
               currentRow++
             }
-            spreadsheet.updateCell({ value: `Stair ${group.stairIdentifier}:` }, `${pfx}B${currentRow}`)
+            spreadsheet.updateCell({ value: `${group.stairIdentifier}:` }, `${pfx}B${currentRow}`)
             spreadsheet.cellFormat(
               { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#E2EFDA', textDecoration: 'underline', border: '1px solid #000000' },
               `${pfx}B${currentRow}`
             )
             currentRow++
             group.items.forEach((formulaEntry) => {
+              if (formulaEntry.itemType === 'foundation_stairs_on_grade_stair_slab') return
               const text = getStairsOnGradeProposalText(formulaEntry)
+              if (!text) return
               const sumRow = formulaEntry.row
               spreadsheet.updateCell({ value: text }, `${pfx}B${currentRow}`)
               rowBContentMap.set(currentRow, text)
@@ -13720,13 +13766,58 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       })
     }
 
-    // Template proposal text for CIP Stairs (placeholder format; values come from calculation sheet columns)
-    const CIP_STAIRS_PROPOSAL_TEMPLATE = {
-      landings: 'F&I new (#" thick) stair landings @ ## as per ##',
-      stairs: 'F&I new (#" wide) concrete stairs (## Riser) @ # as per ##',
-      slab: 'F&I new stair slab as per'
+    // Page ref for superstructure subsections (CIP Stairs, Stairs – Infilled tads)
+    const getPageRefSuperstructure = (subSectionName) => {
+      if (!rawData || !Array.isArray(rawData) || rawData.length < 2) return '##'
+      const headers = rawData[0]
+      const dataRows = rawData.slice(1)
+      const digitizerIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'digitizer item')
+      const pageIdx = headers.findIndex(h => h && String(h).toLowerCase().trim() === 'page')
+      if (digitizerIdx === -1 || pageIdx === -1) return '##'
+      const subLower = (subSectionName || '').toLowerCase()
+      const collected = []
+      const seen = new Set()
+      for (const row of dataRows) {
+        const dig = (row[digitizerIdx] || '').toString().toLowerCase()
+        const matches = dig.includes('cip stair') || dig.includes('stair') && (subLower.includes('infilled') ? dig.includes('infill') : true)
+        if (matches && row[pageIdx] != null && row[pageIdx] !== '') {
+          const pageStr = String(row[pageIdx]).trim()
+          const refMatch = pageStr.match(/(?:FO|P|S|A|E|DM)-[\d.]+/i)
+          const ref = refMatch ? refMatch[0] : pageStr
+          if (ref && !seen.has(ref)) { seen.add(ref); collected.push(ref) }
+        }
+      }
+      return collected.length === 0 ? '##' : collected.length === 1 ? collected[0] : collected.slice(0, -1).join(', ') + ' & ' + collected[collected.length - 1]
     }
-    const getCipStairsProposalText = (groupName, lineType) => CIP_STAIRS_PROPOSAL_TEMPLATE[lineType] || null
+    const getCipStairsValuesFromRow = (calcRow) => {
+      if (!calculationData || !calcRow || calcRow < 1) return { thickness: '8"', width: '##', riser: '##', location: '1st FL', asPer: getPageRefSuperstructure('CIP Stairs') || '##' }
+      const row = calculationData[calcRow - 1]
+      if (!row || !Array.isArray(row)) return { thickness: '8"', width: '##', riser: '##', location: '1st FL', asPer: getPageRefSuperstructure('CIP Stairs') || '##' }
+      const p = (row[1] || '').toString()
+      const thicknessMatch = p.match(/(\d+(?:\/\d+)?)"?\s*thick/i) || p.match(/(\d+)"\s*thick/i)
+      const thickness = thicknessMatch ? (thicknessMatch[1].includes('"') ? thicknessMatch[1] : thicknessMatch[1] + '"') : '8"'
+      const widthFromCol = row[6] != null && row[6] !== '' ? String(row[6]).trim() : null
+      const widthMatch = p.match(/(\d+'-?\d*")\s*wide/i)
+      const width = widthFromCol || (widthMatch ? widthMatch[1] : '##')
+      let riserVal = Math.round(parseFloat(row[12]) || 0)
+      if (riserVal <= 0) {
+        const rm = p.match(/(\d+)\s*Riser/i)
+        if (rm) riserVal = parseInt(rm[1], 10)
+      }
+      const riser = riserVal > 0 ? String(riserVal) : '##'
+      const locationMatch = p.match(/@\s*([^ as per]+?)(?:\s+as\s+per|$)/i) || p.match(/(?:cellar|roof|1st|2nd|\d+th)\s*FL[^,]*(?:,\s*(?:cellar|roof|1st|2nd|\d+th)\s*FL[^,]*)*/i)
+      const location = (locationMatch && locationMatch[1] ? locationMatch[1].trim() : null) || (locationMatch && locationMatch[0] ? locationMatch[0].trim() : null) || '1st FL'
+      const asPer = getPageRefSuperstructure('CIP Stairs') || '##'
+      return { thickness, width, riser, location, asPer }
+    }
+    const getCipStairsProposalText = (groupName, lineType, calcRow) => {
+      if (lineType === 'slab') return `F&I new stair slab as per ${getPageRefSuperstructure('CIP Stairs') || '##'}`
+      if (!calcRow) return null
+      const v = getCipStairsValuesFromRow(calcRow)
+      if (lineType === 'landings') return `F&I new (${v.thickness} thick) stair landings @ ${v.location} as per ${v.asPer}`
+      if (lineType === 'stairs') return `F&I new (${v.width} wide) concrete stairs (${v.riser} Riser) @ ${v.location} as per ${v.asPer}`
+      return null
+    }
     // Only render slab line when the slab row has actual quantity data (so we don't add a third line when original has two: landings + stairs)
     const cipStairsSlabRowHasData = (grp) => {
       if (grp.slabRow == null || !calculationData || !Array.isArray(calculationData)) return false
@@ -14016,17 +14107,30 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       return withColon
     }
     const renderCipStairsLineFromFormula = (proposalText, calcRow, options = {}) => {
-      if (!proposalText || !calcRow) return
+      if (!calcRow) return
       const showRisersSuffix = options.riserSuffix === true
+      const useStairsFormula = options.useStairsFormula === true
       if (superstructureScopeStartRow == null) superstructureScopeStartRow = currentRow
-      spreadsheet.updateCell({ value: proposalText }, `${pfx}B${currentRow}`)
-      rowBContentMap.set(currentRow, proposalText)
+      if (useStairsFormula) {
+        const v = getCipStairsValuesFromRow(calcRow)
+        const locEsc = (v.location || '1st FL').replace(/"/g, '""')
+        const asPerEsc = (v.asPer || '##').replace(/"/g, '""')
+        const bFormula = `=CONCATENATE("F&I new (", '${calcSheetName}'!G${calcRow}, " wide) concrete stairs (", G${currentRow}, " Riser) @ ", "\"\"${locEsc}\"\"", " as per ", "\"\"${asPerEsc}\"\"", ")")`
+        spreadsheet.updateCell({ formula: bFormula }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, `F&I new (… wide) concrete stairs (… Riser) @ ${v.location} as per ${v.asPer}`)
+      } else {
+        const text = proposalText || getCipStairsProposalText(null, options.lineType, calcRow)
+        if (!text) return
+        spreadsheet.updateCell({ value: text }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, text)
+      }
+      const descForRates = rowBContentMap.get(currentRow) || proposalText || ''
       spreadsheet.wrap(`${pfx}B${currentRow}`, true)
       spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
       spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${calcRow}` }, `${pfx}D${currentRow}`)
       spreadsheet.updateCell({ formula: `='${calcSheetName}'!L${calcRow}` }, `${pfx}F${currentRow}`)
       spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${calcRow}` }, `${pfx}G${currentRow}`)
-      fillRatesForProposalRow(currentRow, proposalText)
+      fillRatesForProposalRow(currentRow, descForRates)
       spreadsheet.cellFormat({ fontWeight: 'normal', textAlign: 'right', backgroundColor: 'white' }, `${pfx}D${currentRow}`)
       spreadsheet.cellFormat({ fontWeight: 'normal', textAlign: 'right', backgroundColor: 'white' }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat({ fontWeight: 'normal', textAlign: showRisersSuffix ? 'center' : 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
@@ -14080,11 +14184,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           `${pfx}B${currentRow}`
         )
         currentRow++
-        const landingsText = getCipStairsProposalText(grp.name, 'landings')
-        if (grp.landingRow != null && landingsText) renderCipStairsLineFromFormula(landingsText, grp.landingRow, {})
-        const stairsText = getCipStairsProposalText(grp.name, 'stairs')
-        if (grp.stairRow != null && stairsText) renderCipStairsLineFromFormula(stairsText, grp.stairRow, { riserSuffix: true })
-        const slabText = getCipStairsProposalText(grp.name, 'slab')
+        const landingsText = getCipStairsProposalText(grp.name, 'landings', grp.landingRow)
+        if (grp.landingRow != null && landingsText) renderCipStairsLineFromFormula(landingsText, grp.landingRow, { lineType: 'landings' })
+        if (grp.stairRow != null) renderCipStairsLineFromFormula(null, grp.stairRow, { riserSuffix: true, useStairsFormula: true })
+        const slabText = getCipStairsProposalText(grp.name, 'slab', grp.slabRow)
         if (grp.slabRow != null && slabText && cipStairsSlabRowHasData(grp)) renderCipStairsLineFromFormula(slabText, grp.slabRow, {})
       })
       superstructureScopeEndRow = currentRow - 1
@@ -14107,6 +14210,34 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         lines.forEach((line) => renderProposalLine(line, { fontWeight: 'normal' }))
       })
     }
+    const getInfilledValuesFromRow = (calcRow) => {
+      if (!calculationData || !calcRow || calcRow < 1) return { thickness: '##', width: '##', riser: '##', location: '1st FL', asPer: getPageRefSuperstructure('Stairs – Infilled tads') || '##', particulars: '' }
+      const row = calculationData[calcRow - 1]
+      if (!row || !Array.isArray(row)) return { thickness: '##', width: '##', riser: '##', location: '1st FL', asPer: getPageRefSuperstructure('Stairs – Infilled tads') || '##', particulars: '' }
+      const p = (row[1] || '').toString()
+      const thicknessMatch = p.match(/(\d+(?:\/\d+)?)"?\s*thick/i) || p.match(/(\d+)"\s*thick/i)
+      const thickness = thicknessMatch ? (thicknessMatch[1].includes('"') ? thicknessMatch[1] : thicknessMatch[1] + '"') : '##'
+      const widthFromCol = row[6] != null && row[6] !== '' ? String(row[6]).trim() : null
+      const widthMatch = p.match(/(\d+'-?\d*")\s*wide/i)
+      const width = widthFromCol || (widthMatch ? widthMatch[1] : '##')
+      let riserVal = Math.round(parseFloat(row[12]) || 0)
+      if (riserVal <= 0) { const rm = p.match(/(\d+)\s*Riser/i); if (rm) riserVal = parseInt(rm[1], 10) }
+      const riser = riserVal > 0 ? String(riserVal) : '##'
+      const locationMatch = p.match(/@\s*([^ as per]+?)(?:\s+as\s+per|$)/i) || p.match(/(?:cellar|roof|1st|2nd|\d+th)\s*FL[^,]*(?:,\s*(?:cellar|roof|1st|2nd|\d+th)\s*FL[^,]*)*/i)
+      const location = (locationMatch && locationMatch[1] ? locationMatch[1].trim() : null) || (locationMatch && locationMatch[0] ? locationMatch[0].trim() : null) || '1st FL'
+      const asPer = getPageRefSuperstructure('Stairs – Infilled tads') || '##'
+      return { thickness, width, riser, location, asPer, particulars: p }
+    }
+    const getInfilledLandingProposalText = (calcRow) => {
+      const v = getInfilledValuesFromRow(calcRow)
+      if (v.particulars && v.particulars.length > 30 && /F&I|topping|concrete|reinforced/i.test(v.particulars)) return v.particulars
+      return `F&I new (${v.thickness} thick) stair landings @ ${v.location} as per ${v.asPer}`
+    }
+    const getInfilledStairProposalText = (calcRow) => {
+      const v = getInfilledValuesFromRow(calcRow)
+      if (v.particulars && v.particulars.length > 30 && /F&I|infill|concrete|riser/i.test(v.particulars)) return v.particulars
+      return `F&I new (${v.width} wide) concrete stairs (${v.riser} Riser) @ ${v.location} as per ${v.asPer}`
+    }
     if (infilledGroups.length > 0) {
       if (superstructureScopeStartRow == null) superstructureScopeStartRow = currentRow
       spreadsheet.updateCell({ value: 'Concrete infilled stairs:' }, `${pfx}B${currentRow}`)
@@ -14122,8 +14253,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           `${pfx}B${currentRow}`
         )
         currentRow++
-        const landingText = 'F&I new (#" thick) stair landings @ ## as per ##'
-        const stairText = 'F&I new (#" wide) concrete stairs (## Riser) @ # as per ##'
+        const landingText = grp.landingSumRow != null ? getInfilledLandingProposalText(grp.landingSumRow) : 'F&I new (#" thick) stair landings @ ## as per ##'
+        const stairText = grp.stairRow != null ? getInfilledStairProposalText(grp.stairRow) : 'F&I new (#" wide) concrete stairs (## Riser) @ # as per ##'
         if (grp.landingSumRow != null) {
           spreadsheet.updateCell({ value: landingText }, `${pfx}B${currentRow}`)
           rowBContentMap.set(currentRow, landingText)

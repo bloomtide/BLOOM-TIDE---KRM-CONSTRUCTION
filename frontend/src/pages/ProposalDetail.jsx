@@ -303,11 +303,11 @@ const ProposalDetail = () => {
   }, [proposal?.rawExcelData, proposal?.template])
 
   // Apply data and formulas or load from JSON
-  // Prefer loading both sheets from DB (spreadsheetJson). Rebuild from raw only when raw data was edited or no saved state yet.
+  // When raw data exists: always recalculate from raw (build Calculation + Proposal sheets). Never load workbook from DB so refresh always recalculates.
   useEffect(() => {
     if (!spreadsheetRef.current || !proposal) return
 
-    const shouldRebuildFromRaw = proposal.rawExcelData && (rawDataJustChangedRef.current || !proposal.spreadsheetJson)
+    const shouldRebuildFromRaw = !!proposal.rawExcelData
 
     if (shouldRebuildFromRaw) {
       if (needReapplyAfterRawSave.current && hasLoadedFromJson.current) {
@@ -331,9 +331,13 @@ const ProposalDetail = () => {
       return
     }
 
+    // No raw data: load saved workbook from DB (e.g. legacy or no raw file)
     if (proposal.spreadsheetJson && !hasLoadedFromJson.current) {
       rawDataJustChangedRef.current = false
       setIsSpreadsheetLoading(true)
+      const calcData = calculationDataRef.current
+      const formulas = formulaDataRef.current
+      const rawData = rawDataRef.current
       ;(async () => {
         try {
           const jsonData = proposal.spreadsheetJson.Workbook
@@ -344,6 +348,25 @@ const ProposalDetail = () => {
           setLastSaved(new Date(proposal.updatedAt))
           if (proposal.images && proposal.images.length > 0) {
             restoreImages(proposal.images)
+          }
+          // Always regenerate Proposal Sheet from Calculation Sheet (do not use saved Proposal content)
+          if (calcData?.length > 0 && spreadsheetRef.current) {
+            await new Promise(resolve => setTimeout(resolve, 100))
+            try {
+              buildProposalSheet(spreadsheetRef.current, {
+                calculationData: calcData,
+                formulaData: formulas ?? [],
+                rockExcavationTotals: rockExcavationTotalsRef.current ?? { totalSQFT: 0, totalCY: 0 },
+                lineDrillTotalFT: lineDrillTotalFTRef.current ?? 0,
+                rawData: rawData ?? null,
+                project: proposal?.project,
+                client: proposal?.client,
+                createdAt: proposal?.createdAt
+              })
+              proposalBuiltRef.current = true
+            } catch (e) {
+              console.error('Error building proposal sheet (on load):', e)
+            }
           }
         } catch (error) {
           toast.error('Error loading saved spreadsheet')
