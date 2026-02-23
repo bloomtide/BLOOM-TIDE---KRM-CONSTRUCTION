@@ -53,7 +53,7 @@ export const getDemolitionSubsection = (digitizerItem) => {
   }
 
   // Demo stair on grade (stairs and landings)
-  if (itemLower.includes('demo stairs on grade') || itemLower.includes('demo landings on grade')) {
+  if (itemLower.includes('demo stairs on grade') || itemLower.includes('demo stair landings on grade') || itemLower.includes('demo stair landing on grade')) {
     return 'Demo stair on grade'
   }
 
