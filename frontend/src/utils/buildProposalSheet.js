@@ -10779,34 +10779,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const pileRateKey = useParticularsAsDescription && /titan\s+pile/i.test(pileDescriptionFromParticulars) ? 'titan pile' : null
           fillRatesForProposalRow(currentRow, proposalText, pileRateKey)
 
-          // Add "Influ" marker in column A if group has influence
-          if (groupHasInflu) {
-            spreadsheet.updateCell({ value: 'Influ' }, `${pfx}A${currentRow}`)
-            spreadsheet.cellFormat(
-              {
-                // backgroundColor: '#FCE4D6',
-                fontWeight: 'bold',
-                textAlign: 'center',
-                verticalAlign: 'middle'
-              },
-              `${pfx}A${currentRow}`
-            )
-          }
-
-          // Add "Influ" marker in column A if group has influence
-          if (groupHasInflu) {
-            spreadsheet.updateCell({ value: 'Influ' }, `${pfx}A${currentRow}`)
-            spreadsheet.cellFormat(
-              {
-                // backgroundColor: '#FCE4D6',
-                fontWeight: 'bold',
-                textAlign: 'center',
-                verticalAlign: 'middle'
-              },
-              `${pfx}A${currentRow}`
-            )
-          }
-
           // Data rows stay white; only section headings use #FCE4D6
           const cellFormat = {
             fontWeight: 'bold',
@@ -11103,11 +11075,17 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
 
         // Generate proposal text: use first group's particulars when rich; else template with parsed design loads, grout, rebar, height & rock socket
+        // For Stelcor/CFA, groups may be [non-influence, influence]; use first group for default, but for influence heading/line use first *influence* group if any
         const firstGroupFirstItem = processorGroups[0]?.items?.[0]
-        let pileDescFromParticulars = (firstGroupFirstItem?.particulars || '').toString().trim()
-        // If line contains "influence", add subsection-specific "X within TA Influence Line:" heading and normalize to "... within TA influence line"
-        const hasInfluence = /\binfluence\b/i.test(pileDescFromParticulars)
+        let pileDescFromParticulars = (firstGroupFirstItem?.particulars || processorGroups[0]?.particulars || '').toString().trim()
+        const firstInfluenceGroup = processorGroups.find(g => g.hasInflu || (Array.isArray(g.items) && g.items.some(it => /\binfluence\b/i.test((it.particulars || '').toString()))))
+        const firstInfluenceParticulars = firstInfluenceGroup
+          ? (firstInfluenceGroup.items?.[0]?.particulars ?? firstInfluenceGroup.particulars ?? '')
+          : ''
+        const influenceDesc = (firstInfluenceParticulars && firstInfluenceParticulars.toString().trim()) || pileDescFromParticulars
+        const hasInfluence = /\binfluence\b/i.test(influenceDesc)
         if (hasInfluence) {
+          pileDescFromParticulars = influenceDesc
           const influenceHeadingBySubsection = {
             'CFA pile': 'CFA pile within TA Influence Line:',
             'Driven foundation pile': 'Driven pile within TA Influence Line:',
@@ -11307,7 +11285,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             fontWeight: 'bold',
             color: '#000000',
             textAlign: 'left',
-            backgroundColor: 'white',
+            backgroundColor: '#c9c9c9',
             textDecoration: 'underline'
           },
           `${pfx}B${currentRow}`
@@ -14815,7 +14793,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     {
       spreadsheet.updateCell({ value: '(Good For 30 Days)' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#BDD7EE', border: '1px solid #000000' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'center', backgroundColor: '#BDD7EE', border: '1px solid #000000' },
         `${pfx}B${currentRow}`
       )
       spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
@@ -14834,7 +14812,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         `${pfx}F${currentRow}:G${currentRow}`
       )
       try { spreadsheet.numberFormat('$#,##0.00', `${pfx}F${currentRow}:G${currentRow}`) } catch (e) { }
-      spreadsheet.cellFormat({ backgroundColor: '#BDD7EE' }, `${pfx}B${currentRow}:G${currentRow}`)
       currentRow++
     }
 
@@ -14852,7 +14829,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.merge(`${pfx}B${currentRow}:G${currentRow}`)
         spreadsheet.updateCell({ value: 'Add Alternate #1: Sitework scope: as per C-4' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#BDD6EE', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'center', backgroundColor: '#BDD6EE', border: '1px solid #000000' },
           `${pfx}B${currentRow}:G${currentRow}`
         )
         currentRow++
@@ -16480,7 +16457,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.merge(`${pfx}B${currentRow}:G${currentRow}`)
         spreadsheet.updateCell({ value: 'Add Alternate #2 : B.P.P. scope: as per C-4' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#BDD6EE', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'center', backgroundColor: '#BDD6EE', border: '1px solid #000000' },
           `${pfx}B${currentRow}:G${currentRow}`
         )
         currentRow++

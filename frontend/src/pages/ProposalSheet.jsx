@@ -11465,7 +11465,7 @@ const Spreadsheet = () => {
               fontWeight: 'bold',
               color: '#000000',
               textAlign: 'left',
-              backgroundColor: 'white',
+              backgroundColor: '#c9c9c9',
               textDecoration: 'underline'
             },
             `${pfx}B${currentRow}`
