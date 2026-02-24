@@ -36,7 +36,7 @@ import {
     isChannel,
     isRollChock,
     isStudBeam,
-    isInnerCornerBrace,
+    isCornerbrace,
     isKneeBrace,
     isSupportingAngle,
     isParging,
@@ -874,7 +874,7 @@ export const processKickerItems = (rawDataRows, headers, tracker = null) => proc
 export const processChannelItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isChannel, tracker)
 export const processRollChockItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isRollChock, tracker)
 export const processStudBeamItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isStudBeam, tracker)
-export const processInnerCornerBraceItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isInnerCornerBrace, tracker)
+export const processInnerCornerBraceItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isCornerbrace, tracker)
 export const processKneeBraceItems = (rawDataRows, headers, tracker = null) => processGenericSoeItems(rawDataRows, headers, isKneeBrace, tracker)
 export const processSupportingAngleItems = (rawDataRows, headers, tracker = null) => {
     const items = processGenericSoeItems(rawDataRows, headers, isSupportingAngle, tracker)

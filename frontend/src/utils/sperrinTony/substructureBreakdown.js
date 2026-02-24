@@ -215,7 +215,7 @@ function applySubstructureFormulas(spreadsheet, pfx, formulaData, foundationStar
           return
         }
         if (!excludeISum) {
-          const ftSumSubsections = ['Piles', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Drilled foundation pile', 'Strip Footings', 'Stem wall', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs', 'Electric conduit']
+          const ftSumSubsections = ['Piles', 'Helical foundation pile', 'Driven foundation pile', 'Drilled displacement pile', 'CFA pile', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Drilled foundation pile', 'Strip Footings', 'Stem wall', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs', 'Electric conduit']
           if (ftSumSubsections.includes(subName)) {
             spreadsheet.updateCell({ formula: `=SUM(I${first}:I${last})` }, cell('I'))
             spreadsheet.cellFormat({ color: RED_TEXT, fontWeight: 'bold' }, cell('I'))
@@ -234,12 +234,12 @@ function applySubstructureFormulas(spreadsheet, pfx, formulaData, foundationStar
             spreadsheet.cellFormat({ color: RED_TEXT, fontWeight: 'bold' }, cell('J'))
           }
         }
-        const lbsSubsections = ['Piles', 'Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile']
+        const lbsSubsections = ['Piles', 'Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Drilled displacement pile']
         if (!excludeKSum && lbsSubsections.includes(subName)) {
           spreadsheet.updateCell({ formula: `=SUM(M${first}:M${last})` }, cell('M'))
           spreadsheet.cellFormat({ color: RED_TEXT, fontWeight: 'bold' }, cell('M'))
         }
-        const qtySubsections = ['Piles', 'Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile', 'Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Stairs on grade Stairs']
+        const qtySubsections = ['Piles', 'Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Drilled displacement pile', 'CFA pile', 'Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Stairs on grade Stairs']
         if (qtySubsections.includes(subName)) {
           spreadsheet.updateCell({ formula: `=SUM(L${first}:L${last})` }, cell('L'))
           spreadsheet.cellFormat({ color: RED_TEXT, fontWeight: 'bold' }, cell('L'))

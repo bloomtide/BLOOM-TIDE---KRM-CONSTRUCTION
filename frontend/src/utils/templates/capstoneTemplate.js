@@ -99,13 +99,13 @@ export const capstoneTemplate = {
       ]
     },
     {
-      section: 'Foundation',
+      section: 'Foundation/Substructure',
       subsections: [
         { name: 'Piles', items: [] },
         { name: 'Drilled foundation pile', items: [] },
         { name: 'Helical foundation pile', items: [] },
         { name: 'Driven foundation pile', items: [] },
-        { name: 'Stelcor drilled displacement pile', items: [] },
+        { name: 'Drilled displacement pile', items: [] },
         { name: 'CFA pile', items: [] },
         { name: 'Pile caps', items: [] },
         { name: 'Strip Footings', items: [] },

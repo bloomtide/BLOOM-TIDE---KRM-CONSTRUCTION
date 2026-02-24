@@ -256,7 +256,11 @@ const ProposalDetail = () => {
     window.drivenFoundationPileItems = result.drivenFoundationPileItems || []
     window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileItems || []
     window.cfaPileItems = result.cfaPileItems || []
-    window.miscellaneousPileItems = result.miscellaneousPileItems || []
+    const miscFromResult = result.miscellaneousPileItems || []
+    window.miscellaneousPileItems =
+      Array.isArray(miscFromResult) && miscFromResult.length > 0 && Array.isArray(miscFromResult[0]?.items)
+        ? miscFromResult.flatMap(g => g.items || [])
+        : miscFromResult
     window.foundationSubsectionItems = new Map()
     window.shotcreteItems = result.shotcreteItems || []
     window.permissionGroutingItems = result.permissionGroutingItems || []
@@ -345,48 +349,48 @@ const ProposalDetail = () => {
       const calcData = calculationDataRef.current
       const formulas = formulaDataRef.current
       const rawData = rawDataRef.current
-      ;(async () => {
-        try {
-          const jsonData = proposal.spreadsheetJson.Workbook
-            ? proposal.spreadsheetJson
-            : { Workbook: proposal.spreadsheetJson }
-          spreadsheetRef.current.openFromJson({ file: jsonData })
-          hasLoadedFromJson.current = true
-          setLastSaved(new Date(proposal.updatedAt))
-          if (proposal.images && proposal.images.length > 0) {
-            restoreImages(proposal.images)
-          }
-          // Always regenerate Proposal Sheet from Calculation Sheet (do not use saved Proposal content)
-          if (calcData?.length > 0 && spreadsheetRef.current) {
-            await new Promise(resolve => setTimeout(resolve, 100))
-            try {
-              const template = proposal?.template ?? proposalTemplateRef.current
-              const sheetOpts = {
-                calculationData: calcData,
-                formulaData: formulas ?? [],
-                rockExcavationTotals: rockExcavationTotalsRef.current ?? { totalSQFT: 0, totalCY: 0 },
-                lineDrillTotalFT: lineDrillTotalFTRef.current ?? 0,
-                rawData: rawData ?? null,
-                project: proposal?.project,
-                client: proposal?.client,
-                createdAt: proposal?.createdAt
-              }
-              if (template === 'sperrin_tony') {
-                buildSperrinTonySheet(spreadsheetRef.current, sheetOpts)
-              } else {
-                buildProposalSheet(spreadsheetRef.current, sheetOpts)
-              }
-              proposalBuiltRef.current = true
-            } catch (e) {
-              console.error('Error building proposal sheet (on load):', e)
+        ;(async () => {
+          try {
+            const jsonData = proposal.spreadsheetJson.Workbook
+              ? proposal.spreadsheetJson
+              : { Workbook: proposal.spreadsheetJson }
+            spreadsheetRef.current.openFromJson({ file: jsonData })
+            hasLoadedFromJson.current = true
+            setLastSaved(new Date(proposal.updatedAt))
+            if (proposal.images && proposal.images.length > 0) {
+              restoreImages(proposal.images)
             }
+            // Always regenerate Proposal Sheet from Calculation Sheet (do not use saved Proposal content)
+            if (calcData?.length > 0 && spreadsheetRef.current) {
+              await new Promise(resolve => setTimeout(resolve, 100))
+              try {
+                const template = proposal?.template ?? proposalTemplateRef.current
+                const sheetOpts = {
+                  calculationData: calcData,
+                  formulaData: formulas ?? [],
+                  rockExcavationTotals: rockExcavationTotalsRef.current ?? { totalSQFT: 0, totalCY: 0 },
+                  lineDrillTotalFT: lineDrillTotalFTRef.current ?? 0,
+                  rawData: rawData ?? null,
+                  project: proposal?.project,
+                  client: proposal?.client,
+                  createdAt: proposal?.createdAt
+                }
+                if (template === 'sperrin_tony') {
+                  buildSperrinTonySheet(spreadsheetRef.current, sheetOpts)
+                } else {
+                  buildProposalSheet(spreadsheetRef.current, sheetOpts)
+                }
+                proposalBuiltRef.current = true
+              } catch (e) {
+                console.error('Error building proposal sheet (on load):', e)
+              }
+            }
+          } catch (error) {
+            toast.error('Error loading saved spreadsheet')
+          } finally {
+            setIsSpreadsheetLoading(false)
           }
-        } catch (error) {
-          toast.error('Error loading saved spreadsheet')
-        } finally {
-          setIsSpreadsheetLoading(false)
-        }
-      })()
+        })()
       return
     }
 
@@ -521,9 +525,9 @@ const ProposalDetail = () => {
     const sheets = isSperrinTony
       ? SPERRIN_TONY_SHEET_NAMES.map(name => ({ name, rows: [], columns: [] }))
       : [
-          { name: 'Proposal Sheet', rows: [], columns: [] },
-          { name: 'Calculations Sheet', rows: calculationsRows, columns }
-        ]
+        { name: 'Proposal Sheet', rows: [], columns: [] },
+        { name: 'Calculations Sheet', rows: calculationsRows, columns }
+      ]
 
     const workbookModel = {
       Workbook: {
@@ -563,58 +567,58 @@ const ProposalDetail = () => {
       const rowIndex = row - 1 // calculationData is 0-indexed
       if (rowIndex >= 0 && rowIndex < rowsToApply.length) {
         const takeoffValue = rowsToApply[rowIndex][2] // Column C (index 2)
-        
+
         // Consider it as "has data" (RED) only if:
         // 1. Not null/undefined
         // 2. Not empty string or whitespace
         // 3. Not zero (0 or '0')
         // 4. Not a formula (starts with =)
         // 5. Parses to a number > 0
-        
+
         if (takeoffValue == null || takeoffValue === '' || takeoffValue === 0 || takeoffValue === '0') {
           // Definitely no data - use black
           return '#000000'
         }
-        
+
         const valueStr = String(takeoffValue).trim()
-        
+
         if (valueStr === '' || valueStr.startsWith('=')) {
           // Empty or formula reference - use black
           return '#000000'
         }
-        
+
         const numValue = parseFloat(valueStr)
         if (!isNaN(numValue)) {
           // It's a number - only red if > 0
           return numValue > 0 ? '#FF0000' : '#000000'
         }
-        
+
         // It's a non-numeric non-empty string - consider as having data
         return '#FF0000'
       }
-      
+
       // Fallback: check parsedData.takeoff (for items coming from raw data)
       if (parsedData && parsedData.takeoff != null) {
         const takeoff = parsedData.takeoff
-        
+
         if (takeoff === '' || takeoff === 0 || takeoff === '0') {
           return '#000000'
         }
-        
+
         const takeoffStr = String(takeoff).trim()
         if (takeoffStr === '' || takeoffStr.startsWith('=')) {
           return '#000000'
         }
-        
+
         const numValue = parseFloat(takeoffStr)
         if (!isNaN(numValue)) {
           return numValue > 0 ? '#FF0000' : '#000000'
         }
-        
+
         // Non-numeric non-empty string
         return '#FF0000'
       }
-      
+
       return '#000000' // Black if no data found
     }
 
@@ -1123,7 +1127,7 @@ const ProposalDetail = () => {
             }
 
             if (!excludeISum) {
-              const ftSumSubsections = ['Piles', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Drilled foundation pile', 'Strip Footings', 'Stem wall', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs', 'Electric conduit']
+              const ftSumSubsections = ['Piles', 'Helical foundation pile', 'Driven foundation pile', 'Drilled displacement pile', 'CFA pile', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Drilled foundation pile', 'Strip Footings', 'Stem wall', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs', 'Electric conduit']
               if (ftSumSubsections.includes(subsectionName)) {
                 spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
                 spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `I${row}`)
@@ -1145,13 +1149,13 @@ const ProposalDetail = () => {
               }
             }
 
-            const lbsSubsections = ['Piles', 'Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile']
+            const lbsSubsections = ['Piles', 'Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Drilled displacement pile']
             if (!excludeKSum && lbsSubsections.includes(subsectionName)) {
               spreadsheet.updateCell({ formula: `=SUM(K${firstDataRow}:K${lastDataRow})` }, `K${row}`)
               spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `K${row}`)
             }
 
-            const qtySubsections = ['Piles', 'Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile', 'Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Stairs on grade Stairs']
+            const qtySubsections = ['Piles', 'Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Drilled displacement pile', 'CFA pile', 'Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Stairs on grade Stairs']
             if (qtySubsections.includes(subsectionName)) {
               spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
               spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
@@ -1836,7 +1840,7 @@ const ProposalDetail = () => {
             // Check unit from raw data to determine formula application
             const unit = formulaInfo.parsedData?.unit || ''
             const unitLower = String(unit).toLowerCase().trim()
-            
+
             // If unit is SQ FT, apply SQ FT formulas
             if (unitLower.includes('sq') || unitLower === 'sf') {
               spreadsheet.updateCell({ formula: `=C${row}` }, `J${row}`)
@@ -2781,11 +2785,11 @@ const ProposalDetail = () => {
           const sectionName = String(row[0])
           let backgroundColor = '#F4B084'
           if (sectionName === 'Demolition') backgroundColor = '#E5B7AF'
-          else if (['Excavation', 'Rock Excavation', 'SOE', 'Foundation', 'Waterproofing', 'Trenching', 'Superstructure', 'B.P.P. Alternate #2 scope', 'Civil / Sitework'].includes(sectionName)) {
+          else if (['Excavation', 'Rock Excavation', 'SOE', 'Foundation', 'Foundation/Substructure', 'Waterproofing', 'Trenching', 'Superstructure', 'B.P.P. Alternate #2 scope', 'Civil / Sitework'].includes(sectionName)) {
             backgroundColor = '#C6E0B4'
           }
           spreadsheet.cellFormat({ fontWeight: 'bold', backgroundColor, fontSize: '11pt' }, `A${rowNum}:M${rowNum}`)
-          if (sectionName === 'Foundation' || sectionName === 'Trenching') {
+          if (sectionName === 'Foundation/Substructure' || sectionName === 'Trenching') {
             spreadsheet.cellFormat({ fontWeight: 'normal', backgroundColor, fontSize: '11pt' }, `C${rowNum}:D${rowNum}`)
           }
         }

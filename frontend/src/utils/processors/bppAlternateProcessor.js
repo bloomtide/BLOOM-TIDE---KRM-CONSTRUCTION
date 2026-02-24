@@ -46,10 +46,9 @@ export const getBPPSubsection = (digitizerItem) => {
 
   if (itemLower.includes('bpp concrete sidewalk')) return 'Concrete sidewalk'
   if (itemLower.includes('bpp concrete driveway')) return 'Concrete driveway'
-  if (itemLower.includes('bpp concrete curb') && !itemLower.includes('flush')) return 'Concrete curb'
-  if (itemLower.includes('bpp concrete flush curb') || itemLower.includes('bpp flush curb')) return 'Concrete flush curb'
+  if (itemLower.includes('bpp concrete curb') || itemLower.includes('bpp concrete flush curb') || itemLower.includes('bpp concrete drop curb')) return 'Concrete curb'
   if (itemLower.includes('bpp expansion joint')) return 'Expansion joint'
-  if (itemLower.includes('bpp full depth asphalt')) return 'Full depth asphalt pavement'
+  if (itemLower.includes('bpp full depth asphalt') || itemLower.includes('bpp asphalt') || itemLower.includes('bpp roadway')) return 'Full depth asphalt pavement'
 
   return null
 }
@@ -215,7 +214,6 @@ export const processBPPAlternateItems = (rawDataRows, headers, tracker = null) =
         'Concrete sidewalk': [],
         'Concrete driveway': [],
         'Concrete curb': [],
-        'Concrete flush curb': [],
         'Expansion joint': [],
         'Full depth asphalt pavement': []
       }
