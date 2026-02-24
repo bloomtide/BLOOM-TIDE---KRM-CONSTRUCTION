@@ -200,7 +200,7 @@ export const getSuperstructureItemType = (particulars) => {
       return { subsection: 'Slab steps', groupKey: 'slabStep', heightFormula: null, heightValue: dims.second, widthValue: dims.first, qty: 2 }
     }
   }
-  if (p.includes('lw concrete fill')) {
+  if (p.includes('lw concrete fill') || p.includes('light weight concrete fill')) {
     const heightValue = parseHeightFromName(particulars)
     return { subsection: 'LW concrete fill', groupKey: 'lwConcreteFill', heightFormula: null, heightValue: heightValue ?? 1 + 1 / 12, widthValue: null, qty: null }
   }
@@ -212,12 +212,18 @@ export const getSuperstructureItemType = (particulars) => {
       return { subsection: 'Stairs – Infilled tads', groupKey: 'infilledLanding', heightFormula: null, heightValue: 0.67, widthValue: null, qty: null, firstValueInches: dims.firstValueInches, secondValueInches: dims.secondValueInches, somdGroupKey: groupKey }
     }
   }
-  if (p.includes('slab on metal deck') || p.includes('somd')) {
+  if (p.includes('slab on metal deck') || p.includes('somd') || p.includes('corrugated slab on metal deck') || p.includes('corrugated somd')) {
     const dims = parseSOMDDimensions(particulars)
     if (dims) {
       const groupKey = `somd_${dims.firstValueInches}_${dims.secondValueInches}`
       return { subsection: 'Slab on metal deck', groupKey, heightFormula: null, heightValue: null, widthValue: null, qty: null, firstValueInches: dims.firstValueInches, secondValueInches: dims.secondValueInches }
     }
+  }
+  if (p.includes('cast in place slab 8"') || p.includes('cast in place slab 8\"')) {
+    return { subsection: 'CIP Slabs', groupKey: 'castInPlaceSlab8', heightFormula: '8/12', heightValue: null, widthValue: null, qty: null }
+  }
+  if (p.includes('cip slab 8"') || p.includes('cip slab 8\"')) {
+    return { subsection: 'CIP Slabs', groupKey: 'cipSlabVar', heightFormula: '8/12', heightValue: null, widthValue: null, qty: null }
   }
   if (p.includes('roof slab 8"') || p.includes('roof slab 8\"')) {
     return { subsection: 'CIP Slabs', groupKey: 'roofSlab8', heightFormula: '8/12', heightValue: null, widthValue: null, qty: null }
@@ -238,7 +244,7 @@ export const getSuperstructureItemType = (particulars) => {
   if (p.includes('patch slab')) {
     return { subsection: 'Patch slab', groupKey: 'patch', heightFormula: null, heightValue: 0.5, widthValue: null, qty: null }
   }
-  if (p.includes('topping slab') && (p.includes('thick') || p.includes('"'))) {
+  if ((p.includes('topping slab') || p.includes('overpour slab')) && (p.includes('thick') || p.includes('"'))) {
     const thickMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*thick/i) || particulars.match(/(\d+(?:\.\d+)?)\s*"/)
     const inches = thickMatch ? parseFloat(thickMatch[1]) : 2
     return { subsection: 'Topping slab', groupKey: 'toppingSlab', heightFormula: null, heightValue: inches / 12, widthValue: null, qty: null }
@@ -291,7 +297,10 @@ export const getSuperstructureItemType = (particulars) => {
     const inches = thickMatch ? parseFloat(thickMatch[1]) : 3
     return { subsection: 'Built-up slab', groupKey: 'builtUpSlab', heightFormula: null, heightValue: inches / 12, widthValue: null, qty: null }
   }
-  if ((p.includes('sw ') && particulars.match(/\([^)]+x[^)]+\)/)) || (p.includes('shear wall') && particulars.match(/\([^)]+x[^)]+\)/))) {
+  if (
+  (p.includes('sw ') || p.includes('shear wall') || p.includes('concrete wall')) &&
+  particulars.match(/\([^)]+x[^)]+\)/)
+ ) {
     const dims = parseBracketDimensions(particulars)
     if (dims) {
       return { subsection: 'Shear Walls', groupKey: 'shearWalls', heightFormula: null, heightValue: dims.second, widthValue: dims.first, qty: null }
@@ -342,13 +351,13 @@ export const getSuperstructureItemType = (particulars) => {
       return { subsection: 'Beams', groupKey: 'beams', heightFormula: null, heightValue: dims.second, widthValue: dims.first, qty: null }
     }
   }
-  if (p.includes('concrete curb') && particulars.match(/\([^)]+x[^)]+\)/)) {
+  if ((p.includes('concrete curb') || p.includes('curb')) && particulars.match(/\([^)]+x[^)]+\)/)) {
     const dims = parseBracketDimensions(particulars)
     if (dims) {
       return { subsection: 'Curbs', groupKey: 'curbs', heightFormula: null, heightValue: dims.second, widthValue: dims.first, qty: null }
     }
   }
-  if (p.includes('concrete pad') && (particulars.match(/\d+\s*"/) || particulars.match(/\d+"\s*$/))) {
+  if ((p.includes('concrete pad') || p.includes('pad') || p.includes('housekeeping pad')) && (particulars.match(/\d+\s*"/) || particulars.match(/\d+"\s*$/))) {
     if (p.includes('transformer')) return null
     const thickMatch = particulars.match(/(\d+)\s*"/)
     const inches = thickMatch ? parseFloat(thickMatch[1]) : 4
@@ -383,6 +392,8 @@ export const getSuperstructureItemType = (particulars) => {
 export const processSuperstructureItems = (rawDataRows, headers, tracker = null) => {
   const cipSlab8 = []
   const cipRoofSlab8 = []
+  const cipCastInPlaceSlab8 = []
+  const cipCIPSlabVar = []
   const balconySlab = []
   const terraceSlab = []
   const patchSlab = []
@@ -420,7 +431,7 @@ export const processSuperstructureItems = (rawDataRows, headers, tracker = null)
   })
 
   if (digitizerIdx === -1 || totalIdx === -1) {
-    return { cipSlab8, cipRoofSlab8, balconySlab, terraceSlab, patchSlab, slabSteps, lwConcreteFill, slabOnMetalDeck: [], infilledLandingItems: [], toppingSlab, thermalBreak, raisedSlab, builtUpSlab, builtUpStair, builtupRamps, concreteHanger, shearWalls, parapetWalls, columnsTakeoff, concretePost, concreteEncasement, dropPanelBracket, dropPanelH, beams, curbs, concretePad, nonShrinkGrout, repairScope }
+    return { cipSlab8, cipRoofSlab8, cipCastInPlaceSlab8, cipCIPSlabVar, balconySlab, terraceSlab, patchSlab, slabSteps, lwConcreteFill, slabOnMetalDeck: [], infilledLandingItems: [], toppingSlab, thermalBreak, raisedSlab, builtUpSlab, builtUpStair, builtupRamps, concreteHanger, shearWalls, parapetWalls, columnsTakeoff, concretePost, concreteEncasement, dropPanelBracket, dropPanelH, beams, curbs, concretePad, nonShrinkGrout, repairScope }
   }
 
   rawDataRows.forEach((row, rowIndex) => {
@@ -497,6 +508,12 @@ export const processSuperstructureItems = (rawDataRows, headers, tracker = null)
     switch (itemType.groupKey) {
       case 'slab8':
         cipSlab8.push(item)
+        break
+      case 'castInPlaceSlab8':
+        cipCastInPlaceSlab8.push(item)
+        break
+      case 'cipSlabVar':
+        cipCIPSlabVar.push(item)
         break
       case 'roofSlab8':
         cipRoofSlab8.push(item)
@@ -593,7 +610,7 @@ export const processSuperstructureItems = (rawDataRows, headers, tracker = null)
   })
 
   const slabOnMetalDeck = Object.values(slabOnMetalDeckByKey)
-  return { cipSlab8, cipRoofSlab8, balconySlab, terraceSlab, patchSlab, slabSteps, lwConcreteFill, slabOnMetalDeck, infilledLandingItems, toppingSlab, thermalBreak, raisedSlab, builtUpSlab, builtUpStair, builtupRamps, concreteHanger, shearWalls, parapetWalls, columnsTakeoff, concretePost, concreteEncasement, dropPanelBracket, dropPanelH, beams, curbs, concretePad, nonShrinkGrout, repairScope }
+  return { cipSlab8, cipRoofSlab8, cipCastInPlaceSlab8, cipCIPSlabVar, balconySlab, terraceSlab, patchSlab, slabSteps, lwConcreteFill, slabOnMetalDeck, infilledLandingItems, toppingSlab, thermalBreak, raisedSlab, builtUpSlab, builtUpStair, builtupRamps, concreteHanger, shearWalls, parapetWalls, columnsTakeoff, concretePost, concreteEncasement, dropPanelBracket, dropPanelH, beams, curbs, concretePad, nonShrinkGrout, repairScope }
 }
 
 export default {

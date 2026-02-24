@@ -41,16 +41,16 @@ export const parseExteriorSideHeight = (particulars) => {
 }
 
 /**
- * Mapping from item name patterns to foundation slab ref keys (used for H = 2nd value + H of slab row).
+ * Mapping from item name patterns to foundation slab ref keys.
+ * Using regex patterns to support flexible naming (pit is optional, abbreviations like elev/elev./elevator)
  */
-const PIT_REF_KEYS = {
-  'deep sewage ejector pit': 'deepSewageEjectorPit',
-  'elev. pit wall': 'elevatorPit',
-  'elevator pit wall': 'elevatorPit',
-  'detention tank wall': 'detentionTank',
-  'duplex sewage ejector pit wall': 'duplexSewageEjectorPit',
-  'grease trap pit': 'greaseTrap',
-  'house trap pit': 'houseTrap'
+const PIT_PATTERN_MAP = {
+  deepSewageEjectorPit: /deep\s+sewage\s+ejector(?:\s+pit)?\s+wall/i,
+  elevatorPit: /(elev\.?|elevator)(?:\s+pit)?\s+wall/i,
+  detentionTank: /detention\s+tank\s+wall/i,
+  duplexSewageEjectorPit: /duplex\s+sewage\s+ejector(?:\s+pit)?\s+wall/i,
+  greaseTrap: /grease\s+trap(?:\s+pit)?\s+(wall|slab)/i,
+  houseTrap: /house\s+trap(?:\s+pit)?\s+(wall|slab)/i
 }
 
 /**
@@ -63,7 +63,7 @@ export const isExteriorSidePitItem = (particulars) => {
   if (!particulars || typeof particulars !== 'string') return false
   const p = particulars.trim().toLowerCase()
   if (p.includes('slab')) return false
-  return Object.keys(PIT_REF_KEYS).some(key => p.includes(key))
+  return Object.values(PIT_PATTERN_MAP).some(pattern => pattern.test(p))
 }
 
 /**
@@ -74,8 +74,8 @@ export const isExteriorSidePitItem = (particulars) => {
 export const getExteriorSidePitRefKey = (particulars) => {
   if (!particulars || typeof particulars !== 'string') return null
   const p = particulars.trim().toLowerCase()
-  for (const [key, refKey] of Object.entries(PIT_REF_KEYS)) {
-    if (p.includes(key)) return refKey
+  for (const [refKey, pattern] of Object.entries(PIT_PATTERN_MAP)) {
+    if (pattern.test(p)) return refKey
   }
   return null
 }
@@ -120,18 +120,18 @@ export const parseNegativeSideWallHeight = (particulars) => {
   return secondValueFeet
 }
 
-/** Negative side slab items: contain "slab" and match known patterns. */
+/** Negative side slab items: contain "slab" and match known patterns. Supports flexible naming (pit is optional). */
 export const isNegativeSideSlabItem = (particulars) => {
   if (!particulars || typeof particulars !== 'string') return false
   const p = particulars.trim().toLowerCase()
   if (!p.includes('slab')) return false
-  if (p.includes('house trap pit slab')) return true
-  if (p.includes('grease trap pit slab')) return true
-  if (p.includes('deep sewage ejector pit slab')) return true
-  if (p.includes('duplex sewage ejector pit slab')) return true
-  if (p.includes('detention tank lid slab')) return true
-  if (p.includes('detention tank slab') && !p.includes('lid')) return true
-  if (p.includes('elev. pit slab') || p.includes('elevator pit slab')) return true
+  if (/house\s+trap(?:\s+pit)?\s+slab/i.test(p)) return true
+  if (/grease\s+trap(?:\s+pit)?\s+slab/i.test(p)) return true
+  if (/deep\s+sewage\s+ejector(?:\s+pit)?\s+slab/i.test(p)) return true
+  if (/duplex\s+sewage\s+ejector(?:\s+pit)?\s+slab/i.test(p)) return true
+  if (/detention\s+tank\s+lid\s+slab/i.test(p)) return true
+  if (/detention\s+tank(?:\s+pit)?\s+slab(?!\s+lid)/i.test(p)) return true
+  if (/(elev\.?|elevator)(?:\s+pit)?\s+slab/i.test(p)) return true
   return false
 }
 

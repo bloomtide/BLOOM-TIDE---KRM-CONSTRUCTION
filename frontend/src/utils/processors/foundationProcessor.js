@@ -156,9 +156,11 @@ export const processDrilledFoundationPileItems = (rawDataRows, headers, tracker 
         if (isDrilledFoundationPile(digitizerItem)) {
             const total = parseFloat(row[totalIdx]) || 0
             const unit = row[unitIdx]
-            const influValue = influIdx !== -1 ? row[influIdx] : null
-            const hasInflu = influValue && String(influValue).toLowerCase().includes('influ')
             const parsed = parseDrilledFoundationPile(digitizerItem)
+            
+            const influValue = influIdx !== -1 ? row[influIdx] : null
+            const hasInfluFromColumn = influValue && String(influValue).toLowerCase().includes('influ')
+            const hasInflu = parsed.hasInfluence || hasInfluFromColumn
 
             // Mark this row as used
             if (tracker) {
@@ -234,38 +236,284 @@ export const processHelicalFoundationPileItems = (rawDataRows, headers, tracker 
             groupMap.set(groupKey, {
                 groupKey: groupKey,
                 items: [],
-                parsed: item.parsed
+                parsed: item.parsed,
+                hasInflu: false
             })
         }
         groupMap.get(groupKey).items.push(item)
+        // Set hasInflu flag if any item has influence
+        if (item.parsed.hasInfluence) {
+            groupMap.get(groupKey).hasInflu = true
+        }
     })
 
-    return mergeSingleItemGroupsIfAll(Array.from(groupMap.values()))
+    // Set hasInflu flag on each item based on their group
+    const groups = Array.from(groupMap.values())
+    groups.forEach(group => {
+        group.items.forEach(item => {
+            item.hasInflu = group.hasInflu
+        })
+    })
+
+    return mergeSingleItemGroupsIfAll(groups)
 }
 
 /**
  * Processes driven foundation pile items
  */
 export const processDrivenFoundationPileItems = (rawDataRows, headers, tracker = null) => {
-    return processGenericFoundationItems(rawDataRows, headers, isDrivenFoundationPile, parseDrivenFoundationPile, tracker)
+    const items = processGenericFoundationItems(rawDataRows, headers, isDrivenFoundationPile, parseDrivenFoundationPile, tracker)
+
+    // Add hasInflu flag to each item based on parsed data
+    items.forEach(item => {
+        item.hasInflu = item.parsed.hasInfluence || false
+    })
+
+    if (items.length === 0) return []
+    const lastItem = items[items.length - 1]
+    if (lastItem.hasInflu) {
+        let firstInfluIdx = items.length - 1
+        while (firstInfluIdx - 1 >= 0 && items[firstInfluIdx - 1].hasInflu) {
+            firstInfluIdx--
+        }
+
+        const nonInfluItems = items.slice(0, firstInfluIdx)
+        const influItems = items.slice(firstInfluIdx)
+
+        const groups = []
+
+        if (nonInfluItems.length > 0) {
+            groups.push({
+                groupKey: 'DRIVEN_REMAINING',
+                items: nonInfluItems,
+                parsed: nonInfluItems[0].parsed || {},
+                hasInflu: false
+            })
+        }
+
+        groups.push({
+            groupKey: 'DRIVEN_INFLUENCE',
+            items: influItems,
+            parsed: influItems[0].parsed || {},
+            hasInflu: true
+        })
+
+        groups.forEach(g => g.items.forEach(it => { it.hasInflu = g.hasInflu }))
+
+        return groups
+    }
+
+    const groupMap = new Map()
+    items.forEach(item => {
+        const groupKey = item.parsed.groupKey || 'OTHER'
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                items: [],
+                parsed: item.parsed,
+                hasInflu: false
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+        if (item.parsed.hasInfluence) {
+            groupMap.get(groupKey).hasInflu = true
+        }
+    })
+
+    const groups = Array.from(groupMap.values())
+    groups.forEach(group => {
+        group.items.forEach(item => {
+            item.hasInflu = group.hasInflu
+        })
+    })
+
+    return mergeSingleItemGroupsIfAll(groups)
 }
 
 /**
- * Processes stelcor drilled displacement pile items
+ * Processes stelcor drilled displacement pile items and groups by empty rows and influence status
  */
 export const processStelcorDrilledDisplacementPileItems = (rawDataRows, headers, tracker = null) => {
-    return processGenericFoundationItems(rawDataRows, headers, isStelcorDrilledDisplacementPile, parseStelcorDrilledDisplacementPile, tracker)
+    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
+    const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+
+    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
+
+    const items = []
+
+    rawDataRows.forEach((row, rowIndex) => {
+        const digitizerItem = row[digitizerIdx]
+        const digitizerText = digitizerItem ? String(digitizerItem).trim() : ''
+        const isRowEmpty = !digitizerItem || digitizerText === ''
+
+        // Check if this is a sum row (empty digitizer and empty takeoff)
+        const takeoffValue = row[totalIdx]
+        const isSumRow = isRowEmpty && (takeoffValue === '' || takeoffValue === null || takeoffValue === undefined)
+
+        if (isRowEmpty || isSumRow) {
+            return
+        }
+
+        // Check if this is a stelcor drilled displacement pile
+        if (isStelcorDrilledDisplacementPile(digitizerItem)) {
+            const total = parseFloat(row[totalIdx]) || 0
+            const unit = row[unitIdx]
+            const parsed = parseStelcorDrilledDisplacementPile(digitizerItem)
+
+            // Mark this row as used
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
+
+            items.push({
+                particulars: digitizerItem,
+                takeoff: total,
+                unit: unit,
+                parsed: parsed,
+                rawRowNumber: rowIndex + 2,
+                hasInflu: parsed.hasInfluence || false
+            })
+        }
+    })
+
+    if (items.length === 0) return []
+
+    const lastItem = items[items.length - 1]
+    if (lastItem.hasInflu) {
+        // Group by size (groupKey) first, then split by influence status
+        const groupMap = new Map()
+        items.forEach(item => {
+            const groupKey = item.parsed.groupKey || 'OTHER'
+            if (!groupMap.has(groupKey)) {
+                groupMap.set(groupKey, { nonInflu: [], influ: [] })
+            }
+            if (item.hasInflu) {
+                groupMap.get(groupKey).influ.push(item)
+            } else {
+                groupMap.get(groupKey).nonInflu.push(item)
+            }
+        })
+
+        const groups = []
+        groupMap.forEach((sizeGroup, groupKey) => {
+            if (sizeGroup.nonInflu.length > 0) {
+                groups.push({
+                    groupKey: groupKey,
+                    items: sizeGroup.nonInflu,
+                    parsed: sizeGroup.nonInflu[0].parsed || {},
+                    hasInflu: false
+                })
+            }
+            if (sizeGroup.influ.length > 0) {
+                groups.push({
+                    groupKey: `INFLU-${groupKey}`,
+                    items: sizeGroup.influ,
+                    parsed: sizeGroup.influ[0].parsed || {},
+                    hasInflu: true
+                })
+            }
+        })
+        return groups
+    }
+
+    // No influence items - group by size only
+    const groupMap = new Map()
+    items.forEach(item => {
+        const groupKey = item.parsed.groupKey || 'OTHER'
+        if (!groupMap.has(groupKey)) {
+            groupMap.set(groupKey, {
+                groupKey: groupKey,
+                items: [],
+                parsed: item.parsed,
+                hasInflu: false
+            })
+        }
+        groupMap.get(groupKey).items.push(item)
+    })
+
+    return Array.from(groupMap.values())
 }
 
 /**
- * Processes CFA pile items
+ * Processes CFA pile items and groups by influence status
  */
 export const processCFAPileItems = (rawDataRows, headers, tracker = null) => {
-    return processGenericFoundationItems(rawDataRows, headers, isCFAPile, parseCFAPile, tracker)
+    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+    const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
+    const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+
+    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
+
+    const items = []
+
+    rawDataRows.forEach((row, rowIndex) => {
+        const digitizerItem = row[digitizerIdx]
+        const digitizerText = digitizerItem ? String(digitizerItem).trim() : ''
+        const isRowEmpty = !digitizerItem || digitizerText === ''
+
+        // Check if this is a sum row (empty digitizer and empty takeoff)
+        const takeoffValue = row[totalIdx]
+        const isSumRow = isRowEmpty && (takeoffValue === '' || takeoffValue === null || takeoffValue === undefined)
+
+        if (isRowEmpty || isSumRow) {
+            return
+        }
+
+        // Check if this is a CFA pile
+        if (isCFAPile(digitizerItem)) {
+            const total = parseFloat(row[totalIdx]) || 0
+            const unit = row[unitIdx]
+            const parsed = parseCFAPile(digitizerItem)
+
+            // Mark this row as used
+            if (tracker) {
+                tracker.markUsed(rowIndex)
+            }
+
+            items.push({
+                particulars: digitizerItem,
+                takeoff: total,
+                unit: unit,
+                parsed: parsed,
+                rawRowNumber: rowIndex + 2,
+                hasInflu: parsed.hasInfluence || false
+            })
+        }
+    })
+
+    if (items.length === 0) return []
+
+    // Split items into non-influence and influence groups
+    const nonInfluItems = items.filter(item => !item.hasInflu)
+    const influItems = items.filter(item => item.hasInflu)
+
+    const groups = []
+
+    if (nonInfluItems.length > 0) {
+        groups.push({
+            groupKey: 'CFA_REMAINING',
+            items: nonInfluItems,
+            parsed: nonInfluItems[0].parsed || {},
+            hasInflu: false
+        })
+    }
+
+    if (influItems.length > 0) {
+        groups.push({
+            groupKey: 'CFA_INFLUENCE',
+            items: influItems,
+            parsed: influItems[0].parsed || {},
+            hasInflu: true
+        })
+    }
+
+    return groups
 }
 
 /**
- * Processes miscellaneous pile items (pile items that don't fit other foundation or SOE subsections).
+ * Processes miscellaneous pile items and groups them by empty rows
+ * Pile items that don't fit other foundation or SOE subsections.
  * Run after other foundation pile processors; only processes rows not yet used.
  */
 export const processMiscellaneousPileItems = (rawDataRows, headers, tracker = null) => {
@@ -275,32 +523,79 @@ export const processMiscellaneousPileItems = (rawDataRows, headers, tracker = nu
 
     if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
 
-    const items = []
+    const groups = []
+    let currentGroup = null
+
     rawDataRows.forEach((row, rowIndex) => {
         if (tracker && tracker.isUsed(rowIndex)) return
-        const digitizerItem = row[digitizerIdx]
-        const total = row[totalIdx]
-        const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
-        const unit = unitIdx >= 0 ? (row[unitIdx] || '') : ''
 
+        const digitizerItem = row[digitizerIdx]
+        const digitizerText = digitizerItem ? String(digitizerItem).trim() : ''
+        const isRowEmpty = !digitizerItem || digitizerText === ''
+
+        // Check if this is a sum row (empty digitizer and empty takeoff)
+        const takeoffValue = row[totalIdx]
+        const isSumRow = isRowEmpty && (takeoffValue === '' || takeoffValue === null || takeoffValue === undefined)
+
+        if (isRowEmpty || isSumRow) {
+            // Empty row or sum row - save current group if it exists and start a new one
+            if (currentGroup && currentGroup.items.length > 0) {
+                groups.push(currentGroup)
+                currentGroup = null
+            }
+            return
+        }
+
+        // Check if this is a miscellaneous pile item
         if (isMiscellaneousFoundationPile(digitizerItem)) {
-            // Only add if item structure matches one of the known pile types (Drilled, Helical, Driven, Stelcor, CFA)
-            // If no match, don't add - item stays in unused data
+            // Only add if item structure matches one of the known pile types
             const match = tryMatchPileStructure(digitizerItem)
             if (match) {
-                items.push({
-                    particulars: digitizerItem || '',
-                    takeoff,
-                    unit: unit || '',
+                const total = parseFloat(row[totalIdx]) || 0
+                const unit = row[unitIdx]
+                const hasInflu = match.parsed.hasInfluence || false
+
+                // Mark this row as used
+                if (tracker) {
+                    tracker.markUsed(rowIndex)
+                }
+
+                // Start a new group for each item
+                if (currentGroup && currentGroup.items.length > 0) {
+                    groups.push(currentGroup)
+                }
+
+                currentGroup = {
+                    groupKey: match.parsed.groupKey || 'OTHER',
+                    items: [{
+                        particulars: digitizerItem,
+                        takeoff: total,
+                        unit: unit,
+                        parsed: match.parsed,
+                        matchedPileType: match.matchedType,
+                        rawRowNumber: rowIndex + 2,
+                        hasInflu: hasInflu
+                    }],
                     parsed: match.parsed,
-                    matchedPileType: match.matchedType
-                })
-                if (tracker) tracker.markUsed(rowIndex)
+                    hasInflu: hasInflu
+                }
             }
             // If no match: do not add, do not mark as used - item stays in unused data
+        } else {
+            // Not a miscellaneous pile - if we have a current group, save it
+            if (currentGroup && currentGroup.items.length > 0) {
+                groups.push(currentGroup)
+                currentGroup = null
+            }
         }
     })
-    return items
+
+    // Don't forget to add the last group if it exists
+    if (currentGroup && currentGroup.items.length > 0) {
+        groups.push(currentGroup)
+    }
+
+    return groups
 }
 
 /**
@@ -997,8 +1292,8 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
                 formulas.sqFt = `16*C${rowNum}`
                 formulas.cy = `C${rowNum}*1.3`
                 formulas.qtyFinal = `C${rowNum}`
-            } else if (subType === 'slab' || subType === 'mat') {
-                // Elev. pit slab / Elev. pit mat: I empty, J=C, L=J*H/27
+            } else if (subType === 'slab' || subType === 'mat' || subType === 'mat_slab') {
+                // Elev. pit slab / Elev. pit mat / Elev. pit mat slab: I empty, J=C, L=J*H/27
                 formulas.sqFt = `C${rowNum}` // J = C
                 if (itemData.parsed?.heightFromH !== undefined) {
                     formulas.height = itemData.parsed.heightFromH
@@ -1037,15 +1332,15 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
 
         case 'duplex_sewage_ejector_pit':
             const dsepSubType = itemData.parsed?.itemSubType
-            if (dsepSubType === 'slab') {
-                // Duplex sewage ejector pit slab: J=C, L=J*H/27
+            if (dsepSubType === 'slab' || dsepSubType === 'mat' || dsepSubType === 'mat_slab') {
+                // Duplex sewage ejector pit slab/mat/mat_slab: J=C, L=J*H/27
                 formulas.sqFt = `C${rowNum}`
                 if (itemData.parsed?.heightFromName !== undefined) {
                     formulas.height = itemData.parsed.heightFromName
                 }
                 formulas.cy = `J${rowNum}*H${rowNum}/27`
-            } else if (dsepSubType === 'wall') {
-                // Duplex sewage ejector pit wall: I=C, J=I*H, L=J*G/27
+            } else if (dsepSubType === 'wall' || dsepSubType === 'slope_transition') {
+                // Duplex sewage ejector pit wall/slope: I=C, J=I*H, L=J*G/27
                 formulas.ft = `C${rowNum}`
                 formulas.sqFt = `I${rowNum}*H${rowNum}`
                 if (itemData.parsed?.width !== undefined) formulas.width = itemData.parsed.width
@@ -1056,15 +1351,15 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
 
         case 'deep_sewage_ejector_pit':
             const deepSepSubType = itemData.parsed?.itemSubType
-            if (deepSepSubType === 'slab') {
-                // Deep sewage ejector pit slab: J=C, L=J*H/27
+            if (deepSepSubType === 'slab' || deepSepSubType === 'mat' || deepSepSubType === 'mat_slab') {
+                // Deep sewage ejector pit slab/mat/mat_slab: J=C, L=J*H/27
                 formulas.sqFt = `C${rowNum}`
                 if (itemData.parsed?.heightFromName !== undefined) {
                     formulas.height = itemData.parsed.heightFromName
                 }
                 formulas.cy = `J${rowNum}*H${rowNum}/27`
-            } else if (deepSepSubType === 'wall') {
-                // Deep sewage ejector pit wall: I=C, J=I*H, L=J*G/27
+            } else if (deepSepSubType === 'wall' || deepSepSubType === 'slope_transition') {
+                // Deep sewage ejector pit wall/slope: I=C, J=I*H, L=J*G/27
                 formulas.ft = `C${rowNum}`
                 formulas.sqFt = `I${rowNum}*H${rowNum}`
                 if (itemData.parsed?.width !== undefined) formulas.width = itemData.parsed.width
@@ -1075,15 +1370,15 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
 
         case 'sump_pump_pit':
             const sppSubType = itemData.parsed?.itemSubType
-            if (sppSubType === 'slab') {
-                // Sump pump pit slab: J=C, L=J*H/27 (same as Duplex sewage ejector pit)
+            if (sppSubType === 'slab' || sppSubType === 'mat' || sppSubType === 'mat_slab') {
+                // Sump pump pit slab/mat/mat_slab: J=C, L=J*H/27
                 formulas.sqFt = `C${rowNum}`
                 if (itemData.parsed?.heightFromName !== undefined) {
                     formulas.height = itemData.parsed.heightFromName
                 }
                 formulas.cy = `J${rowNum}*H${rowNum}/27`
-            } else if (sppSubType === 'wall') {
-                // Sump pump pit wall: I=C, J=I*H, L=J*G/27 (same as Duplex sewage ejector pit)
+            } else if (sppSubType === 'wall' || sppSubType === 'slope_transition') {
+                // Sump pump pit wall/slope: I=C, J=I*H, L=J*G/27
                 formulas.ft = `C${rowNum}`
                 formulas.sqFt = `I${rowNum}*H${rowNum}`
                 if (itemData.parsed?.width !== undefined) formulas.width = itemData.parsed.width
@@ -1094,15 +1389,15 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
 
         case 'grease_trap':
             const gtSubType = itemData.parsed?.itemSubType
-            if (gtSubType === 'slab') {
-                // Grease trap slab: J=C, L=J*H/27
+            if (gtSubType === 'slab' || gtSubType === 'mat' || gtSubType === 'mat_slab') {
+                // Grease trap slab/mat/mat_slab: J=C, L=J*H/27
                 formulas.sqFt = `C${rowNum}`
                 if (itemData.parsed?.heightFromName !== undefined) {
                     formulas.height = itemData.parsed.heightFromName
                 }
                 formulas.cy = `J${rowNum}*H${rowNum}/27`
-            } else if (gtSubType === 'wall') {
-                // Grease trap wall: I=C, J=I*H, L=J*G/27
+            } else if (gtSubType === 'wall' || gtSubType === 'slope_transition') {
+                // Grease trap wall/slope: I=C, J=I*H, L=J*G/27
                 formulas.ft = `C${rowNum}`
                 formulas.sqFt = `I${rowNum}*H${rowNum}`
                 if (itemData.parsed?.width !== undefined) formulas.width = itemData.parsed.width
@@ -1113,17 +1408,15 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
 
         case 'house_trap':
             const htSubType = itemData.parsed?.itemSubType
-            if (htSubType === 'slab') {
-                // House trap pit slab: J=C, L=J*H/27
-                // G (Width) should be empty, not set
+            if (htSubType === 'slab' || htSubType === 'mat' || htSubType === 'mat_slab') {
+                // House trap slab/mat/mat_slab: J=C, L=J*H/27
                 formulas.sqFt = `C${rowNum}`
                 if (itemData.parsed?.heightFromName !== undefined) {
                     formulas.height = itemData.parsed.heightFromName
                 }
-                // Do not set formulas.width for pit slab items (G should be empty)
                 formulas.cy = `J${rowNum}*H${rowNum}/27`
-            } else if (htSubType === 'wall') {
-                // House trap pit: I=C, J=I*H, L=J*G/27
+            } else if (htSubType === 'wall' || htSubType === 'slope_transition') {
+                // House trap wall/slope: I=C, J=I*H, L=J*G/27
                 formulas.ft = `C${rowNum}`
                 formulas.sqFt = `I${rowNum}*H${rowNum}`
                 if (itemData.parsed?.width !== undefined) formulas.width = itemData.parsed.width

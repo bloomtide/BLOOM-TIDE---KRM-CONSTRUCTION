@@ -138,7 +138,8 @@ export const isSoldierPile = (digitizerItem) => {
 export const isTimberSoldierPile = (digitizerItem) => {
     if (!digitizerItem || typeof digitizerItem !== 'string') return false
     const itemLower = digitizerItem.toLowerCase()
-    return itemLower.includes('timber soldier pile')
+    const regex = /\b(timber\s+soldier\s+piles|timber\s+piles?|wood(en)?\s+pile)\b/
+    return regex.test(itemLower)
 }
 
 /**
@@ -148,7 +149,7 @@ export const isTimberSoldierPile = (digitizerItem) => {
 export const isTimberPlank = (digitizerItem) => {
     if (!digitizerItem || typeof digitizerItem !== 'string') return false
     const itemLower = digitizerItem.toLowerCase()
-    return itemLower.includes('timber plank')
+    return /\b(timber|wood|wooden)\s+planks?\b/i.test(digitizerItem)
 }
 
 /**
@@ -232,7 +233,7 @@ export const parseTimberSoldierPile = (itemName) => {
 export const isTimberPost = (digitizerItem) => {
     if (!digitizerItem || typeof digitizerItem !== 'string') return false
     const itemLower = digitizerItem.toLowerCase()
-    return itemLower.includes('timber post')
+    return /\b(timber|wood|wooden)\s+post\b/.test(itemLower)
 }
 
 /**
@@ -278,7 +279,7 @@ export const parseTimberPost = (itemName) => {
 export const isVerticalTimberSheets = (digitizerItem) => {
     if (!digitizerItem || typeof digitizerItem !== 'string') return false
     const itemLower = digitizerItem.toLowerCase()
-    return itemLower.includes('vertical timber sheets')
+    return /\b(?:vertical|wood|wooden)?\s*timber\s+sheets?\b/.test(itemLower)
 }
 
 /**
@@ -325,7 +326,7 @@ export const parseVerticalTimberSheets = (itemName) => {
 export const isHorizontalTimberSheets = (digitizerItem) => {
     if (!digitizerItem || typeof digitizerItem !== 'string') return false
     const itemLower = digitizerItem.toLowerCase()
-    return itemLower.includes('horizontal timber sheets')
+    return /\b(?:horizontal|wood|wooden)?\s*timber\s+sheets?\b/.test(itemLower)
 }
 
 /**
@@ -372,7 +373,7 @@ export const parseHorizontalTimberSheets = (itemName) => {
 export const isTimberRaker = (digitizerItem) => {
     if (!digitizerItem || typeof digitizerItem !== 'string') return false
     const itemLower = digitizerItem.toLowerCase()
-    return itemLower.includes('wood raker')
+    return /\b(timber|wood|wooden)\s+raker\b/.test(itemLower)
 }
 
 /**
@@ -413,7 +414,7 @@ export const parseTimberRaker = (itemName) => {
 export const isTimberBrace = (digitizerItem) => {
     if (!digitizerItem || typeof digitizerItem !== 'string') return false
     const itemLower = digitizerItem.toLowerCase()
-    return itemLower.includes('horizontal wood brace') || itemLower.includes('timber corner brace')
+    return /\b(timber|wood|wooden)(?:\s+corner)?\s+brace\b/.test(itemLower)
 }
 
 /**
@@ -464,7 +465,7 @@ export const parseTimberBrace = (itemName) => {
 export const isTimberWaler = (digitizerItem) => {
     if (!digitizerItem || typeof digitizerItem !== 'string') return false
     const itemLower = digitizerItem.toLowerCase()
-    return itemLower.includes('timber waler')
+    return /\b(timber|wood|wooden)\s+waler\b/.test(itemLower)
 }
 
 /**
@@ -501,7 +502,7 @@ export const parseTimberWaler = (itemName) => {
 export const isTimberStringer = (digitizerItem) => {
     if (!digitizerItem || typeof digitizerItem !== 'string') return false
     const itemLower = digitizerItem.toLowerCase()
-    return itemLower.includes('timber stringer')
+    return /\b(timber|wood|wooden)\s+stringer\b/.test(itemLower)
 }
 
 /**
@@ -537,7 +538,8 @@ export const parseTimberStringer = (itemName) => {
 export const isPrimarySecantPile = (digitizerItem) => {
     if (!digitizerItem || typeof digitizerItem !== 'string') return false
     const itemLower = digitizerItem.toLowerCase()
-    return itemLower.includes('primary secant pile')
+    const primaryRegex = /\bprimary\s+secant(?:\s+pile)?\b/
+    return primaryRegex.test(itemLower)
 }
 
 /**
@@ -546,7 +548,8 @@ export const isPrimarySecantPile = (digitizerItem) => {
 export const isSecondarySecantPile = (digitizerItem) => {
     if (!digitizerItem || typeof digitizerItem !== 'string') return false
     const itemLower = digitizerItem.toLowerCase()
-    return itemLower.includes('secondary secant pile')
+    const secondaryRegex = /\bsecondary\s+secant(?:\s+pile)?\b/
+    return secondaryRegex.test(itemLower)
 }
 
 /**
@@ -577,13 +580,17 @@ export const isTimberLagging = (digitizerItem) => {
     // Exclude supporting angle items
     if (itemLower.includes('supporting angle')) return false
 
-    return itemLower.includes('timber lagging')
+    return /\b(timber|wood|wooden)\s+lagging\b/.test(itemLower)
 }
 
 /**
  * New identifiers for additional SOE sections
  */
-export const isTimberSheeting = (item) => item?.toLowerCase().includes('timber sheeting')
+export const isTimberSheeting = (item) => {
+    if (!item || typeof item !== 'string') return false
+    const lower = item.toLowerCase()
+    return /\b(timber|wood|wooden)\s+sheeting\b/.test(lower)
+}
 export const isWaler = (item) => item?.toLowerCase().includes('waler') && !item?.toLowerCase().includes('timber waler')
 export const isRaker = (item) => item?.toLowerCase().includes('raker') && !item?.toLowerCase().includes('upper') && !item?.toLowerCase().includes('lower') && !item?.toLowerCase().includes('wood raker')
 export const isUpperRaker = (item) => item?.toLowerCase().includes('upper raker')
@@ -597,12 +604,12 @@ export const isChannel = (item) => {
 }
 export const isRollChock = (item) => item?.toLowerCase().includes('roll chock')
 export const isStudBeam = (item) => item?.toLowerCase().includes('stud beam')
-export const isInnerCornerBrace = (item) => item?.toLowerCase().includes('inner corner brace')
+export const isCornerbrace = (item) => item?.toLowerCase().includes('corner brace')
 export const isKneeBrace = (item) => item?.toLowerCase().includes('knee brace')
 export const isSupportingAngle = (item) => item?.toLowerCase().includes('supporting angle')
-export const isParging = (item) => item?.toLowerCase().startsWith('parging')
+export const isParging = (item) => item?.toLowerCase().startsWith('parging') || item?.toLowerCase().startsWith('parge')
 export const isHeelBlock = (item) => item?.toLowerCase().includes('heel block')
-export const isUnderpinning = (item) => item?.toLowerCase().includes('underpinning')
+export const isUnderpinning = (item) => item?.toLowerCase().includes('underpinning') || item?.toLowerCase().includes('underpin')
 export const isRockAnchor = (item) => item?.toLowerCase().includes('rock anchor')
 export const isRockBolt = (item) => item?.toLowerCase().includes('rock bolt')
 export const isAnchor = (item) => {
@@ -612,15 +619,15 @@ export const isAnchor = (item) => {
 }
 export const isTieBack = (item) => item?.toLowerCase().includes('tie back') || item?.toLowerCase().includes('hollow down anchor')
 export const isConcreteSoilRetentionPier = (item) => item?.toLowerCase().includes('concrete soil retention pier')
-export const isGuideWall = (item) => item?.toLowerCase().includes('guide wall')
+export const isGuideWall = (item) => item?.toLowerCase().includes('guide wall') || item?.toLowerCase().includes('guilde wall')
 export const isDowelBar = (item) => item?.toLowerCase().includes('dowel bar') || item?.toLowerCase().includes('steel dowels bar')
-export const isRockPin = (item) => item?.toLowerCase().includes('rock pin')
+export const isRockPin = (item) => item?.toLowerCase().includes('rock pin') || item?.toLowerCase().includes('rock pins')
 export const isShotcrete = (item) => item?.toLowerCase().includes('shotcrete')
 export const isPermissionGrouting = (item) => item?.toLowerCase().includes('permission grouting')
-export const isButton = (item) => item?.toLowerCase().includes('concrete button')
+export const isButton = (item) => item?.toLowerCase().includes('concrete button') || item?.toLowerCase().includes('buttons')
 export const isRockStabilization = (item) => item?.toLowerCase().includes('rock stabilization')
 export const isFormBoard = (item) => item?.toLowerCase().includes('form board')
-export const isDrilledHoleGrout = (item) => item?.toLowerCase().includes('drilled hole grout')
+export const isDrilledHoleGrout = (item) => item?.toLowerCase().includes('drilled hole grout') || item?.toLowerCase().includes('drill hole grout')
 
 /**
  * Parses diameter in inches from string like "5-5/8" Ø" or "6" Ø"
@@ -763,7 +770,7 @@ export const parseSoeItem = (itemName) => {
     } else if (itemLower.includes('sheet pile')) {
         result.type = 'sheet_pile'
         result.calculatedHeight = roundToMultipleOf5(result.heightRaw)
-    } else if (itemLower.includes('timber lagging')) {
+    } else if (/\b(timber|wood|wooden)\s+lagging\b/.test(itemLower)) {
         result.type = 'timber_lagging'
         result.calculatedHeight = result.heightRaw
     } else if (itemLower.includes('timber sheeting')) {
@@ -787,8 +794,8 @@ export const parseSoeItem = (itemName) => {
         result.type = 'roll_chock'
     } else if (itemLower.includes('stud beam')) {
         result.type = 'stud_beam'
-    } else if (itemLower.includes('inner corner brace')) {
-        result.type = 'inner_corner_brace'
+    } else if (itemLower.includes('corner brace')) {
+        result.type = 'corner_brace'
     } else if (itemLower.includes('knee brace')) {
         result.type = 'knee_brace'
     } else if (itemLower.startsWith('parging')) {
@@ -862,7 +869,7 @@ export const parseSoeItem = (itemName) => {
             result.heightRaw = total
             result.calculatedHeight = roundToMultipleOf5(total) + 5
         }
-    } else if (itemLower.includes('concrete soil retention pier')) {
+    } else if (itemLower.includes('concrete soil retention pier') || itemLower.includes('retention pier')) {
         result.type = 'concrete_soil_retention_pier'
         // Concrete soil retention pier (4'-0"x4'-0"x14'-2")
         const bracketMatch = itemName.match(/\(([^)]+)\)/)
@@ -942,7 +949,7 @@ export const parseSoeItem = (itemName) => {
         if (result.hValue && result.rsValue) {
             result.heightRaw = result.hValue + result.rsValue
         }
-    } else if (itemLower.includes('rock pin')) {
+    } else if (itemLower.includes('rock pin') || itemLower.includes('rock pins')) {
         result.type = 'rock_pin'
         // Rock pin (H=1'-0" + RS=4'-0")
         const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
@@ -1060,7 +1067,7 @@ export default {
     isChannel,
     isRollChock,
     isStudBeam,
-    isInnerCornerBrace,
+    isCornerbrace,
     isKneeBrace,
     isSupportingAngle,
     isParging,

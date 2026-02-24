@@ -139,7 +139,8 @@ export const isDrilledFoundationPile = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
     return (itemLower.includes('drilled') && itemLower.includes('foundation pile')) ||
-           (itemLower.includes('drilled') && itemLower.includes('cassion pile'))
+           (itemLower.includes('drilled') && itemLower.includes('cassion pile')) ||
+           /\b(drilled|structural|foundation|fndt)\s+piles?\b/i.test(item)
 }
 
 /**
@@ -209,16 +210,19 @@ export const isPileCap = (item) => {
 export const isStripFooting = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
-    return itemLower.includes('strip footing') || itemLower.startsWith('sf') || itemLower.startsWith('st-') || itemLower.startsWith('wf-')
+    return itemLower.includes('strip footing') || itemLower.startsWith('sf') || itemLower.startsWith('st-') || itemLower.startsWith('wf-') || itemLower.includes('wall footing')
 }
 
 /**
  * Identifies if item is an isolated footing
  */
 export const isIsolatedFooting = (item) => {
-    if (!item || typeof item !== 'string') return false
-    const itemLower = item.toLowerCase()
-    return itemLower.startsWith('f-') && !itemLower.includes('foundation')
+  if (!item || typeof item !== 'string') return false
+  const itemLower = item.toLowerCase()
+
+  return (
+    (itemLower.startsWith('f-') || itemLower.includes('footing')) && !itemLower.includes('foundation')
+  )
 }
 
 /**
@@ -255,7 +259,7 @@ export const isTieBeam = (item) => {
 export const isStrapBeam = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase().trim()
-    return (itemLower.startsWith('st ') || /^st\s*\(/i.test(itemLower)) && !itemLower.startsWith('st-')
+    return (itemLower.startsWith('st ') || /^st\s*\(/i.test(itemLower) || itemLower.includes('strap beam')) && !itemLower.startsWith('st-')
 }
 
 /**
@@ -284,7 +288,7 @@ export const isPier = (item) => {
     const itemLower = item.toLowerCase().trim()
     // Only treat items explicitly named "Pier ..." as piers.
     // This excludes things like "Concrete soil retention pier".
-    return itemLower.startsWith('pier')
+    return itemLower.startsWith('pier') || itemLower.startsWith('concrete pier')
 }
 
 /**
@@ -311,7 +315,7 @@ export const isLinearWall = (item) => {
 export const isFoundationWall = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
-    return (itemLower.includes('foundation wall') || itemLower.startsWith('fw')) && !itemLower.includes('retaining')
+    return (itemLower.includes('foundation wall') || itemLower.startsWith('fw') || itemLower.includes('fndt wall')) && !itemLower.includes('retaining')
 }
 
 /**
@@ -344,26 +348,40 @@ export const isStemWall = (item) => {
 /**
  * Identifies if item is an elevator pit item
  * Excludes service elevator pit items - used in Service elevator pit subsection
+ * Note: "pit" is optional - "elev. slab" is treated as "elev. pit slab"
  */
 export const isElevatorPit = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    // Exclude service elevator pit items
     if (itemLower.includes('sump pit @ service elevator')) return false
     if (itemLower.includes('service elev. pit') || itemLower.includes('service elevator pit')) return false
-    return itemLower.includes('elev. pit') || itemLower.includes('elevator pit') ||
-        itemLower.includes('sump pit @ elevator') || itemLower.includes('sump pit @ elevator pit') ||
-        itemLower.includes('sump pit')
+    if (itemLower.includes('service elev.') || itemLower.includes('service elevator')) return false
+    // Check for explicit elevator pit
+    if (itemLower.includes('elev. pit') || itemLower.includes('elevator pit')) return true
+    // Check for sump pit @ elevator variants
+    if (itemLower.includes('sump pit @ elevator')) return true
+    if (itemLower.includes('sump pit')) return true
+    // Check for elev/elevator followed by keywords (pit is optional)
+    const elevPattern = /(elev\.?|elevator)\s+(slab|mat|wall|slope|haunch|sump)/i
+    return elevPattern.test(itemLower)
 }
 
 /**
  * Identifies if item is a service elevator pit item
  * Sump pit @ service elevator, Service Elev. pit slab, Service Elev. pit wall, etc.
+ * Note: "pit" is optional - "service elev. slab" is treated as "service elev. pit slab"
  */
 export const isServiceElevatorPit = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
-    return itemLower.includes('sump pit @ service elevator') ||
-        itemLower.includes('service elev. pit') || itemLower.includes('service elevator pit')
+    // Check for "sump pit @ service elevator" variants
+    if (itemLower.includes('sump pit @ service elevator')) return true
+    // Check for explicit service elevator pit
+    if (itemLower.includes('service elev. pit') || itemLower.includes('service elevator pit')) return true
+    // Check for service elev/elevator followed by keywords (pit is optional)
+    const serviceElevPattern = /service\s+(elev\.?|elevator)\s+(slab|mat|wall|slope|haunch|sump)/i
+    return serviceElevPattern.test(itemLower)
 }
 
 /**
@@ -377,47 +395,74 @@ export const isDetentionTank = (item) => {
 
 /**
  * Identifies if item is a duplex sewage ejector pit item
+ * Note: "pit" is optional - "duplex sewage ejector slab" = "duplex sewage ejector pit slab"
  */
 export const isDuplexSewageEjectorPit = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
-    return itemLower.includes('duplex sewage ejector pit')
+    // Explicit check
+    if (itemLower.includes('duplex sewage ejector pit')) return true
+    // Make pit optional: duplex sewage ejector + keyword
+    const dupPattern = /duplex\s+sewage\s+ejector\s+(slab|mat|wall|slope|haunch|sump)/i
+    return dupPattern.test(itemLower)
 }
 
 /**
  * Identifies if item is a deep sewage ejector pit item
+ * Note: "pit" is optional - "deep sewage ejector slab" = "deep sewage ejector pit slab"
  */
 export const isDeepSewageEjectorPit = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
-    return itemLower.includes('deep sewage ejector pit')
+    // Explicit check
+    if (itemLower.includes('deep sewage ejector pit')) return true
+    // Make pit optional: deep sewage ejector + keyword
+    const deepPattern = /deep\s+sewage\s+ejector\s+(slab|mat|wall|slope|haunch|sump)/i
+    return deepPattern.test(itemLower)
 }
 
 /**
  * Identifies if item is a sump pump pit item
+ * Note: "pit" is optional - "sump pump slab" = "sump pump pit slab"
  */
 export const isSumpPumpPit = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
-    return itemLower.includes('sump pump')
+    // Exclude items if they're pumps but not pits (e.g., sump pump equipment)
+    if (itemLower.includes('sump pump') && !itemLower.includes('pit')) {
+        // Check if it has pit-related keywords
+        const sumpPattern = /sump\s+pump(?:\s+pit)?\s+(slab|mat|wall|slope|haunch)/i
+        return sumpPattern.test(itemLower)
+    }
+    return itemLower.includes('sump pump pit') || itemLower.includes('sump pump')
 }
 
 /**
  * Identifies if item is a grease trap item
+ * Note: "pit" is optional - "grease trap slab" = "grease trap pit slab"
  */
 export const isGreaseTrap = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
-    return itemLower.includes('grease trap')
+    // Explicit check
+    if (itemLower.includes('grease trap')) return true
+    // Make pit optional: grease trap + keyword
+    const greasePattern = /grease\s+trap(?:\s+pit)?\s+(slab|mat|wall|slope|haunch)/i
+    return greasePattern.test(itemLower)
 }
 
 /**
  * Identifies if item is a house trap item
+ * Note: "pit" is optional - "house trap slab" = "house trap pit slab"
  */
 export const isHouseTrap = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
-    return itemLower.includes('house trap')
+    // Explicit check
+    if (itemLower.includes('house trap')) return true
+    // Make pit optional: house trap + keyword
+    const housePattern = /house\s+trap(?:\s+pit)?\s+(slab|mat|wall|slope|haunch)/i
+    return housePattern.test(itemLower)
 }
 
 /**
@@ -426,8 +471,14 @@ export const isHouseTrap = (item) => {
 export const isMatSlab = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
-    // Exclude elevator pit mat items
-    if (itemLower.includes('elevator pit') || itemLower.includes('elev. pit')) return false
+    // Exclude all pit-type items as they should be handled by their specific identifiers
+    if (itemLower.includes('elevator pit') || itemLower.includes('elev. pit') || 
+        itemLower.includes('service elevator pit') ||
+        itemLower.includes('duplex sewage ejector') ||
+        itemLower.includes('deep sewage ejector') ||
+        itemLower.includes('sump pump pit') ||
+        itemLower.includes('grease trap') ||
+        itemLower.includes('house trap')) return false
     return itemLower.includes('mat') && (itemLower.includes('haunch') || itemLower.match(/mat[-\s]*\d+/i))
 }
 
@@ -494,8 +545,11 @@ export const parseElectricConduit = (itemName) => ({
  * Builds groupKey for drilled foundation pile based on H and RS values only.
  * Groups items with same height and rock socket regardless of diameter string typos (e.g. 0545 vs 0.545).
  */
-const buildDrilledPileGroupKey = (parsed, isDual) => {
-    const prefix = isDual ? 'DUAL' : 'SINGLE'
+const buildDrilledPileGroupKey = (parsed, isDual, hasInfluence = false) => {
+    let prefix = isDual ? 'DUAL' : 'SINGLE'
+    if (hasInfluence) {
+        prefix = `INFLU-${prefix}`
+    }
     const parts = []
     if (parsed.height != null && parsed.height > 0) {
         parts.push(`H${parsed.height.toFixed(2)}`)
@@ -521,7 +575,13 @@ export const parseDrilledFoundationPile = (itemName) => {
         isDualDiameter: false,
         diameter2: null,
         weight2: 0,
+        hasInfluence: false,
         groupKey: null
+    }
+
+    const itemLower = itemName.toLowerCase()
+    if (itemLower.includes('influence')) {
+        result.hasInfluence = true
     }
 
     // Extract H and RS values
@@ -607,7 +667,7 @@ export const parseDrilledFoundationPile = (itemName) => {
         }
         
         // Group key: dual diameter + H + RS (ignores diameter typos like 0545 vs 0.545)
-        result.groupKey = buildDrilledPileGroupKey(result, true)
+        result.groupKey = buildDrilledPileGroupKey(result, true, result.hasInfluence)
     } else {
         // Single diameter
         const dt = parseDiameterThickness(itemName)
@@ -617,7 +677,7 @@ export const parseDrilledFoundationPile = (itemName) => {
             result.weight = calculatePileWeight(dt.diameter, dt.thickness)
         }
         // Group key: single diameter + H + RS (ignores diameter typos like 0545 vs 0.545)
-        result.groupKey = buildDrilledPileGroupKey(result, false)
+        result.groupKey = buildDrilledPileGroupKey(result, false, result.hasInfluence)
     }
 
     return result
@@ -634,7 +694,14 @@ export const parseHelicalFoundationPile = (itemName) => {
         height: 0,
         calculatedHeight: 0,
         weight: 0,
+        hasInfluence: false,
         groupKey: null
+    }
+
+    // Detect influence keyword
+    const itemLower = itemName.toLowerCase()
+    if (itemLower.includes('influence')) {
+        result.hasInfluence = true
     }
 
     // Extract H value
@@ -650,7 +717,9 @@ export const parseHelicalFoundationPile = (itemName) => {
         result.diameter = dt.diameter
         result.thickness = dt.thickness
         result.weight = calculatePileWeight(dt.diameter, dt.thickness)
-        result.groupKey = `${dt.diameter.toFixed(3)}x${dt.thickness}`
+        let groupKeyBase = `${dt.diameter.toFixed(3)}x${dt.thickness}`
+        // Add INFLU- prefix to groupKey if item has influence
+        result.groupKey = result.hasInfluence ? `INFLU-${groupKeyBase}` : groupKeyBase
     }
 
     return result
@@ -666,7 +735,14 @@ export const parseDrivenFoundationPile = (itemName) => {
         weight: 0,
         height: 0,
         calculatedHeight: 0,
+        hasInfluence: false,
         groupKey: null
+    }
+
+    // Detect influence keyword
+    const itemLower = itemName.toLowerCase()
+    if (itemLower.includes('influence')) {
+        result.hasInfluence = true
     }
 
     // Extract HP size (e.g., HP12x74)
@@ -683,7 +759,9 @@ export const parseDrivenFoundationPile = (itemName) => {
         result.calculatedHeight = roundToMultipleOf5(result.height)
     }
 
-    result.groupKey = result.hpSize || 'OTHER'
+    let groupKeyBase = result.hpSize || 'OTHER'
+    // Add INFLU- prefix to groupKey if item has influence
+    result.groupKey = result.hasInfluence ? `INFLU-${groupKeyBase}` : groupKeyBase
 
     return result
 }
@@ -699,7 +777,14 @@ export const parseStelcorDrilledDisplacementPile = (itemName) => {
         height: 0,
         calculatedHeight: 0,
         weight: 0,
+        hasInfluence: false,
         groupKey: null
+    }
+
+    // Detect influence keyword
+    const itemLower = itemName.toLowerCase()
+    if (itemLower.includes('influence')) {
+        result.hasInfluence = true
     }
 
     // Extract H value
@@ -715,7 +800,8 @@ export const parseStelcorDrilledDisplacementPile = (itemName) => {
         result.diameter = dt.diameter
         result.thickness = dt.thickness
         result.weight = calculatePileWeight(dt.diameter, dt.thickness)
-        result.groupKey = `${dt.diameter.toFixed(3)}x${dt.thickness}`
+        let groupKeyBase = `${dt.diameter.toFixed(3)}x${dt.thickness}`
+        result.groupKey = result.hasInfluence ? `INFLU-${groupKeyBase}` : groupKeyBase
     }
 
     return result
@@ -728,7 +814,14 @@ export const parseCFAPile = (itemName) => {
     const result = {
         type: 'cfa_pile',
         height: 0,
-        calculatedHeight: 0
+        calculatedHeight: 0,
+        hasInfluence: false
+    }
+
+    // Detect influence keyword
+    const itemLower = itemName.toLowerCase()
+    if (itemLower.includes('influence')) {
+        result.hasInfluence = true
     }
 
     // Extract H value
@@ -1185,12 +1278,13 @@ export const parseStemWall = (itemName) => {
 
 /**
  * Parses elevator pit items
- * Handles: Sump pit, Elev. pit slab, Elev. pit mat, Elev. pit wall, Elev. pit slope transition/haunch
+ * Handles: Sump pit, Elev. pit slab, Elev. pit mat, Elev. pit mat slab, Elev. pit wall, Elev. pit slope transition/haunch
+ * Note: "elev"/"elevator"/"elev." are treated as same; "pit" is optional (e.g., "elev slab" = "elev pit slab")
  */
 export const parseElevatorPit = (itemName) => {
     const result = {
         type: 'elevator_pit',
-        itemSubType: null, // 'sump_pit', 'slab', 'mat', 'wall', 'slope_transition'
+        itemSubType: null, // 'sump_pit', 'slab', 'mat', 'mat_slab', 'wall', 'slope_transition'
         length: 0,
         width: 0,
         height: 0,
@@ -1203,6 +1297,14 @@ export const parseElevatorPit = (itemName) => {
     // Identify sub-type (sump pit: "sump pit @ elevator", "sump pit @ elevator pit", or "sump pit")
     if (itemLower.includes('sump pit @ elevator') || itemLower.includes('sump pit @ elevator pit') || itemLower.includes('sump pit')) {
         result.itemSubType = 'sump_pit'
+        return result
+    } else if (itemLower.includes('mat slab')) {
+        result.itemSubType = 'mat_slab'
+        // Extract height from H=3'-0" format
+        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        if (hMatch) {
+            result.heightFromH = parseDimension(hMatch[1])
+        }
         return result
     } else if (itemLower.includes('mat')) {
         result.itemSubType = 'mat'
@@ -1253,12 +1355,13 @@ export const parseElevatorPit = (itemName) => {
 
 /**
  * Parses service elevator pit items
- * Same structure as elevator pit: Sump pit @ service elevator, Service Elev. pit slab, Service Elev. pit mat, Service Elev. pit wall, slope transition
+ * Same structure as elevator pit: Sump pit @ service elevator, Service Elev. pit slab, Service Elev. pit mat, Service Elev. pit mat slab, Service Elev. pit wall, slope transition
+ * Note: "elev"/"elevator"/"elev." are treated as same; "pit" is optional
  */
 export const parseServiceElevatorPit = (itemName) => {
     const result = {
         type: 'service_elevator_pit',
-        itemSubType: null, // 'sump_pit', 'slab', 'mat', 'wall', 'slope_transition'
+        itemSubType: null, // 'sump_pit', 'slab', 'mat', 'mat_slab', 'wall', 'slope_transition'
         length: 0,
         width: 0,
         height: 0,
@@ -1270,6 +1373,14 @@ export const parseServiceElevatorPit = (itemName) => {
 
     if (itemLower.includes('sump pit @ service elevator') || itemLower.includes('sump pit @ service elevator pit')) {
         result.itemSubType = 'sump_pit'
+        return result
+    } else if (itemLower.includes('mat slab')) {
+        // New group: mat slab 
+        result.itemSubType = 'mat_slab'
+        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        if (hMatch) {
+            result.heightFromH = parseDimension(hMatch[1])
+        }
         return result
     } else if (itemLower.includes('mat')) {
         result.itemSubType = 'mat'
@@ -1361,12 +1472,12 @@ export const parseDetentionTank = (itemName) => {
 
 /**
  * Parses duplex sewage ejector pit items
- * Handles: slab items (extract height from name), wall items (parse from bracket)
+ * Handles: slab, mat, mat_slab, wall, slope items with flexible naming (pit is optional)
  */
 export const parseDuplexSewageEjectorPit = (itemName) => {
     const result = {
         type: 'duplex_sewage_ejector_pit',
-        itemSubType: null, // 'slab', 'wall'
+        itemSubType: null, // 'slab', 'mat', 'mat_slab', 'wall', 'slope_transition'
         width: 0,
         height: 0,
         heightFromName: null,
@@ -1375,22 +1486,49 @@ export const parseDuplexSewageEjectorPit = (itemName) => {
 
     const itemLower = itemName.toLowerCase()
 
-    if (itemLower.includes('slab')) {
+    if (itemLower.includes('mat slab')) {
+        result.itemSubType = 'mat_slab'
+        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        if (hMatch) {
+            result.heightFromName = parseDimension(hMatch[1])
+        }
+        return result
+    } else if (itemLower.includes('mat')) {
+        result.itemSubType = 'mat'
+        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        if (hMatch) {
+            result.heightFromName = parseDimension(hMatch[1])
+        } else {
+            const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
+            if (inchMatch) {
+                const inches = parseFloat(inchMatch[1])
+                result.heightFromName = inches / 12
+            }
+        }
+        return result
+    } else if (itemLower.includes('slab')) {
         result.itemSubType = 'slab'
-        // Extract height from name like "8""
         const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
         if (inchMatch) {
             const inches = parseFloat(inchMatch[1])
-            result.heightFromName = inches / 12 // Convert to feet
+            result.heightFromName = inches / 12
         }
         return result
     } else if (itemLower.includes('wall')) {
         result.itemSubType = 'wall'
         const dims = parseBracketDimensions(itemName)
         if (dims && dims.length >= 2) {
-            // Width (G) and Height (H) from bracket
-            result.width = dims[0]   // Width (G)
-            result.height = dims[1]  // Height (H)
+            result.width = dims[0]
+            result.height = dims[1]
+            result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        }
+        return result
+    } else if (itemLower.includes('slope transition') || itemLower.includes('haunch')) {
+        result.itemSubType = 'slope_transition'
+        const dims = parseBracketDimensions(itemName)
+        if (dims && dims.length >= 2) {
+            result.width = dims[0]
+            result.height = dims[1]
             result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
         }
         return result
@@ -1401,12 +1539,12 @@ export const parseDuplexSewageEjectorPit = (itemName) => {
 
 /**
  * Parses deep sewage ejector pit items
- * Handles: slab items (extract height from name), wall items (parse from bracket)
+ * Handles: slab, mat, mat_slab, wall, slope items with flexible naming (pit is optional)
  */
 export const parseDeepSewageEjectorPit = (itemName) => {
     const result = {
         type: 'deep_sewage_ejector_pit',
-        itemSubType: null, // 'slab', 'wall'
+        itemSubType: null, // 'slab', 'mat', 'mat_slab', 'wall', 'slope_transition'
         width: 0,
         height: 0,
         heightFromName: null,
@@ -1415,23 +1553,44 @@ export const parseDeepSewageEjectorPit = (itemName) => {
 
     const itemLower = itemName.toLowerCase()
 
-    if (itemLower.includes('slab')) {
+    if (itemLower.includes('mat slab')) {
+        result.itemSubType = 'mat_slab'
+        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        if (hMatch) {
+            result.heightFromName = parseDimension(hMatch[1])
+        }
+        return result
+    } else if (itemLower.includes('mat')) {
+        result.itemSubType = 'mat'
+        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        if (hMatch) {
+            result.heightFromName = parseDimension(hMatch[1])
+        } else {
+            const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
+            if (inchMatch) {
+                const inches = parseFloat(inchMatch[1])
+                result.heightFromName = inches / 12
+            }
+        }
+        return result
+    } else if (itemLower.includes('slab')) {
         result.itemSubType = 'slab'
-        // Extract height from name like "12""
         const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
         if (inchMatch) {
             const inches = parseFloat(inchMatch[1])
-            result.heightFromName = inches / 12 // Convert to feet
+            result.heightFromName = inches / 12
         }
         return result
-    } else {
-        // For items like "Deep sewage ejector pit (6"x8'-6")" - no "wall" in name, but has bracket dimensions
-        result.itemSubType = 'wall'
+    } else if (itemLower.includes('wall') || itemLower.includes('slope transition') || itemLower.includes('haunch')) {
+        if (itemLower.includes('slope transition') || itemLower.includes('haunch')) {
+            result.itemSubType = 'slope_transition'
+        } else {
+            result.itemSubType = 'wall'
+        }
         const dims = parseBracketDimensions(itemName)
         if (dims && dims.length >= 2) {
-            // Width (G) and Height (H) from bracket
-            result.width = dims[0]   // Width (G)
-            result.height = dims[1]  // Height (H)
+            result.width = dims[0]
+            result.height = dims[1]
             result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
         }
         return result
@@ -1448,7 +1607,7 @@ export const parseDeepSewageEjectorPit = (itemName) => {
 export const parseSumpPumpPit = (itemName) => {
     const result = {
         type: 'sump_pump_pit',
-        itemSubType: null, // 'slab', 'wall'
+        itemSubType: null, // 'slab', 'mat', 'mat_slab', 'wall', 'slope_transition'
         width: 0,
         height: 0,
         heightFromName: null,
@@ -1457,22 +1616,44 @@ export const parseSumpPumpPit = (itemName) => {
 
     const itemLower = itemName.toLowerCase()
 
-    if (itemLower.includes('slab')) {
+    if (itemLower.includes('mat slab')) {
+        result.itemSubType = 'mat_slab'
+        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        if (hMatch) {
+            result.heightFromName = parseDimension(hMatch[1])
+        }
+        return result
+    } else if (itemLower.includes('mat')) {
+        result.itemSubType = 'mat'
+        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        if (hMatch) {
+            result.heightFromName = parseDimension(hMatch[1])
+        } else {
+            const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
+            if (inchMatch) {
+                const inches = parseFloat(inchMatch[1])
+                result.heightFromName = inches / 12
+            }
+        }
+        return result
+    } else if (itemLower.includes('slab')) {
         result.itemSubType = 'slab'
-        // Extract height from name like "8""
         const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
         if (inchMatch) {
             const inches = parseFloat(inchMatch[1])
             result.heightFromName = inches / 12 // Convert to feet
         }
         return result
-    } else if (itemLower.includes('wall')) {
-        result.itemSubType = 'wall'
+    } else if (itemLower.includes('wall') || itemLower.includes('slope transition') || itemLower.includes('haunch')) {
+        if (itemLower.includes('slope transition') || itemLower.includes('haunch')) {
+            result.itemSubType = 'slope_transition'
+        } else {
+            result.itemSubType = 'wall'
+        }
         const dims = parseBracketDimensions(itemName)
         if (dims && dims.length >= 2) {
-            // Width (G) and Height (H) from bracket
-            result.width = dims[0]   // Width (G)
-            result.height = dims[1]  // Height (H)
+            result.width = dims[0]
+            result.height = dims[1]
             result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
         }
         return result
@@ -1483,12 +1664,12 @@ export const parseSumpPumpPit = (itemName) => {
 
 /**
  * Parses grease trap items
- * Handles: slab items (extract height from name), wall items (parse from bracket)
+ * Handles: slab, mat, mat_slab, wall, slope items with flexible naming (pit is optional)
  */
 export const parseGreaseTrap = (itemName) => {
     const result = {
         type: 'grease_trap',
-        itemSubType: null, // 'slab', 'wall'
+        itemSubType: null, // 'slab', 'mat', 'mat_slab', 'wall', 'slope_transition'
         width: 0,
         height: 0,
         heightFromName: null,
@@ -1497,23 +1678,44 @@ export const parseGreaseTrap = (itemName) => {
 
     const itemLower = itemName.toLowerCase()
 
-    if (itemLower.includes('slab')) {
+    if (itemLower.includes('mat slab')) {
+        result.itemSubType = 'mat_slab'
+        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        if (hMatch) {
+            result.heightFromName = parseDimension(hMatch[1])
+        }
+        return result
+    } else if (itemLower.includes('mat')) {
+        result.itemSubType = 'mat'
+        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        if (hMatch) {
+            result.heightFromName = parseDimension(hMatch[1])
+        } else {
+            const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
+            if (inchMatch) {
+                const inches = parseFloat(inchMatch[1])
+                result.heightFromName = inches / 12
+            }
+        }
+        return result
+    } else if (itemLower.includes('slab')) {
         result.itemSubType = 'slab'
-        // Extract height from name like "12""
         const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
         if (inchMatch) {
             const inches = parseFloat(inchMatch[1])
             result.heightFromName = inches / 12 // Convert to feet
         }
         return result
-    } else {
-        // For items like "Grease trap pit (6"x8'-6")" - no "wall" in name, but has bracket dimensions
-        result.itemSubType = 'wall'
+    } else if (itemLower.includes('wall') || itemLower.includes('slope transition') || itemLower.includes('haunch')) {
+        if (itemLower.includes('slope transition') || itemLower.includes('haunch')) {
+            result.itemSubType = 'slope_transition'
+        } else {
+            result.itemSubType = 'wall'
+        }
         const dims = parseBracketDimensions(itemName)
         if (dims && dims.length >= 2) {
-            // Width (G) and Height (H) from bracket
-            result.width = dims[0]   // Width (G)
-            result.height = dims[1]  // Height (H)
+            result.width = dims[0]
+            result.height = dims[1]
             result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
         }
         return result
@@ -1524,12 +1726,12 @@ export const parseGreaseTrap = (itemName) => {
 
 /**
  * Parses house trap items
- * Handles: slab items (extract height from name), wall items (parse from bracket)
+ * Handles: slab, mat, mat_slab, wall, slope items with flexible naming (pit is optional)
  */
 export const parseHouseTrap = (itemName) => {
     const result = {
         type: 'house_trap',
-        itemSubType: null, // 'slab', 'wall'
+        itemSubType: null, // 'slab', 'mat', 'mat_slab', 'wall', 'slope_transition'
         width: 0,
         height: 0,
         heightFromName: null,
@@ -1538,28 +1740,50 @@ export const parseHouseTrap = (itemName) => {
 
     const itemLower = itemName.toLowerCase()
 
-    if (itemLower.includes('slab')) {
+    if (itemLower.includes('mat slab')) {
+        result.itemSubType = 'mat_slab'
+        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        if (hMatch) {
+            result.heightFromName = parseDimension(hMatch[1])
+        }
+        return result
+    } else if (itemLower.includes('mat')) {
+        result.itemSubType = 'mat'
+        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        if (hMatch) {
+            result.heightFromName = parseDimension(hMatch[1])
+        } else {
+            const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
+            if (inchMatch) {
+                const inches = parseFloat(inchMatch[1])
+                result.heightFromName = inches / 12
+            }
+        }
+        return result
+    } else if (itemLower.includes('slab')) {
         result.itemSubType = 'slab'
-        // Extract height from name like "12""
         const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
         if (inchMatch) {
             const inches = parseFloat(inchMatch[1])
             result.heightFromName = inches / 12 // Convert to feet
-            result.width = inches / 12 // Width (G) is also the height from name for slab
         }
         return result
-    } else {
-        // For items like "House trap pit (6"x8'-6")" - no "wall" in name, but has bracket dimensions
-        result.itemSubType = 'wall'
+    } else if (itemLower.includes('wall') || itemLower.includes('slope transition') || itemLower.includes('haunch')) {
+        if (itemLower.includes('slope transition') || itemLower.includes('haunch')) {
+            result.itemSubType = 'slope_transition'
+        } else {
+            result.itemSubType = 'wall'
+        }
         const dims = parseBracketDimensions(itemName)
         if (dims && dims.length >= 2) {
-            // Width (G) and Height (H) from bracket
-            result.width = dims[0]   // Width (G)
-            result.height = dims[1]  // Height (H)
+            result.width = dims[0]
+            result.height = dims[1]
             result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
         }
         return result
     }
+
+    return result
 }
 
 /**

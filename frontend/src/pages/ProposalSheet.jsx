@@ -62,7 +62,11 @@ const Spreadsheet = () => {
       window.drivenFoundationPileItems = result.drivenFoundationPileItems || []
       window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileItems || []
       window.cfaPileItems = result.cfaPileItems || []
-      window.miscellaneousPileItems = result.miscellaneousPileItems || []
+      const miscFromResult = result.miscellaneousPileItems || []
+      window.miscellaneousPileItems =
+        Array.isArray(miscFromResult) && miscFromResult.length > 0 && Array.isArray(miscFromResult[0]?.items)
+          ? miscFromResult.flatMap(g => g.items || [])
+          : miscFromResult
       // Store Foundation subsection items
       window.foundationSubsectionItems = new Map()
 
@@ -170,9 +174,9 @@ const Spreadsheet = () => {
       window.drilledFoundationPileGroups = result.drilledFoundationPileGroups || []
       window.helicalFoundationPileGroups = result.helicalFoundationPileGroups || []
       window.drivenFoundationPileItems = result.drivenFoundationPileItems || []
-      window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileItems || []
-      window.cfaPileItems = result.cfaPileItems || []
-      window.miscellaneousPileItems = result.miscellaneousPileItems || []
+      window.stelcorDrilledDisplacementPileItems = result.stelcorDrilledDisplacementPileGroups || []
+      window.cfaPileItems = result.cfaPileGroups || []
+      window.miscellaneousPileItems = result.miscellaneousPileGroups || []
       // Store Foundation subsection items
       window.foundationSubsectionItems = new Map()
     }
@@ -290,7 +294,7 @@ const Spreadsheet = () => {
             spreadsheet.updateCell({ formula: `=C${row}` }, `I${row}`)
             spreadsheet.updateCell({ formula: `=I${row}*H${row}` }, `J${row}`)
             spreadsheet.updateCell({ formula: `=J${row}*G${row}/27` }, `L${row}`)
-          } catch (e) {}
+          } catch (e) { }
           return
         }
         if (itemType === 'demo_stair_on_grade_sum') {
@@ -310,7 +314,7 @@ const Spreadsheet = () => {
               spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
               spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
             }
-          } catch (e) {}
+          } catch (e) { }
           return
         }
 
@@ -858,7 +862,7 @@ const Spreadsheet = () => {
               'Channel',
               'Roll chock',
               'Stud beam',
-              'Inner corner brace',
+              'Corner brace',
               'Knee brace',
               'Supporting angle'
             ]
@@ -881,7 +885,7 @@ const Spreadsheet = () => {
               'Channel',
               'Roll chock',
               'Stud beam',
-              'Inner corner brace',
+              'Corner brace',
               'Knee brace',
               'Supporting angle',
               'Heel blocks',
@@ -1131,7 +1135,7 @@ const Spreadsheet = () => {
 
             // Sum for FT (I) - exclude if excludeISum is true (for slab items)
             if (!excludeISum) {
-              const ftSumSubsections = ['Piles', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Drilled foundation pile', 'Strip Footings', 'Stem wall', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs', 'Electric conduit']
+              const ftSumSubsections = ['Piles', 'Helical foundation pile', 'Driven foundation pile', 'Drilled displacement pile', 'CFA pile', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Drilled foundation pile', 'Strip Footings', 'Stem wall', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs', 'Electric conduit']
               if (ftSumSubsections.includes(subsectionName)) {
                 spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
                 spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `I${row}`)
@@ -1162,14 +1166,14 @@ const Spreadsheet = () => {
             }
 
             // Sum for LBS (K)
-            const lbsSubsections = ['Piles', 'Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile']
+            const lbsSubsections = ['Piles', 'Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Drilled displacement pile']
             if (!excludeKSum && lbsSubsections.includes(subsectionName)) {
               spreadsheet.updateCell({ formula: `=SUM(K${firstDataRow}:K${lastDataRow})` }, `K${row}`)
               spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `K${row}`)
             }
 
             // Sum for QTY (M)
-            const qtySubsections = ['Piles', 'Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Stelcor drilled displacement pile', 'CFA pile', 'Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Stairs on grade Stairs']
+            const qtySubsections = ['Piles', 'Drilled foundation pile', 'Helical foundation pile', 'Driven foundation pile', 'Drilled displacement pile', 'CFA pile', 'Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Stairs on grade Stairs']
             if (qtySubsections.includes(subsectionName)) {
               spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
               spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
@@ -1446,7 +1450,7 @@ const Spreadsheet = () => {
             backgroundColor = '#C6E0B4'
           } else if (sectionName === 'SOE') {
             backgroundColor = '#C6E0B4'
-          } else if (sectionName === 'Foundation') {
+          } else if (sectionName === 'Foundation/Substructure') {
             backgroundColor = '#C6E0B4'
           } else if (sectionName === 'Waterproofing') {
             backgroundColor = '#C6E0B4'
@@ -5991,7 +5995,7 @@ const Spreadsheet = () => {
           collectedSubsections.add('Timber stringer')
         }
       }
-      
+
       // Check if heel blocks are in soeSubsectionItems
       const heelBlockGroups = soeSubsectionItems.get('Heel blocks') || []
       const hasHeelBlockItems = heelBlockGroups.length > 0 && heelBlockGroups.some(g => g.length > 0)
@@ -6149,7 +6153,7 @@ const Spreadsheet = () => {
 
       // Check if any bracing-related subsections exist
       // Match the exact names from the template, plus common variations
-      const bracingSubsections = ['Waler', 'Raker', 'Upper Raker', 'Lower Raker', 'Stand off', 'Kicker', 'Channel', 'Roll chock', 'Stub beam', 'Stud beam', 'Inner corner brace', 'Knee brace', 'Supporting angle']
+      const bracingSubsections = ['Waler', 'Raker', 'Upper Raker', 'Lower Raker', 'Stand off', 'Kicker', 'Channel', 'Roll chock', 'Stub beam', 'Stud beam', 'Corner brace', 'Knee brace', 'Supporting angle']
       // Also check case-insensitive matches
       let hasBracingItems = bracingSubsections.some(name => {
         return collectedSubsections.has(name) ||
@@ -6774,7 +6778,7 @@ const Spreadsheet = () => {
             'Roll chock': 'Roll Chock',
             'Stub beam': 'Stub Beam',
             'Stud beam': 'Stub Beam',
-            'Inner corner brace': 'Inner Corner Brace',
+            'Corner brace': 'Corner Brace',
             'Knee brace': 'Knee Brace',
             'Supporting angle': 'Supporting Angle'
           }
@@ -10675,7 +10679,7 @@ const Spreadsheet = () => {
         'Drilled foundation pile',  // Will display as "Foundation drilled piles scope:"
         'Driven foundation pile',   // Will display as "Foundation driven piles scope:"
         'Helical foundation pile',  // Will display as "Foundation helical piles scope:"
-        'Stelcor drilled displacement pile', // Will display as "Stelcor piles scope:"
+        'Drilled displacement pile', // Will display as "Stelcor piles scope:"
         'CFA pile'                  // Will display as "CAF piles scope:"
       ]
 
@@ -10685,7 +10689,7 @@ const Spreadsheet = () => {
         'Drilled foundation pile': 'Foundation drilled piles',
         'Driven foundation pile': 'Foundation driven piles',
         'Helical foundation pile': 'Foundation helical piles',
-        'Stelcor drilled displacement pile': 'Stelcor piles',
+        'Drilled displacement pile': 'Stelcor piles',
         'CFA pile': 'CAF piles'
       }
 
@@ -10752,7 +10756,7 @@ const Spreadsheet = () => {
           'Foundation driven piles': window.drivenFoundationPileItems || [],
           'Helical foundation pile': window.helicalFoundationPileGroups || [],
           'Foundation helical piles': window.helicalFoundationPileGroups || [],
-          'Stelcor drilled displacement pile': window.stelcorDrilledDisplacementPileItems || [],
+          'Drilled displacement pile': window.stelcorDrilledDisplacementPileItems || [],
           'CFA pile': window.cfaPileItems || []
         }
 
@@ -10766,7 +10770,7 @@ const Spreadsheet = () => {
           pileType = 'driven'
         } else if (subsectionName === 'Helical foundation pile' || subsectionName === 'Foundation helical piles') {
           pileType = 'helical'
-        } else if (subsectionName === 'Stelcor drilled displacement pile') {
+        } else if (subsectionName === 'Drilled displacement pile') {
           pileType = 'stelcor'
         } else if (subsectionName === 'CFA pile') {
           pileType = 'cfa'
@@ -11343,7 +11347,7 @@ const Spreadsheet = () => {
             'Drilled foundation pile': 150,
             'Driven foundation pile': 115,
             'Helical foundation pile': 120,
-            'Stelcor drilled displacement pile': 90,
+            'Drilled displacement pile': 90,
             'CFA pile': 90
           }
           const secondLFValue = secondLFValues[subsectionName] || 0
@@ -11419,7 +11423,7 @@ const Spreadsheet = () => {
             ],
             additional: []
           },
-          'Stelcor drilled displacement pile': {
+          'Drilled displacement pile': {
             title: 'Stelcor pile misc.:',
             included: [
               'Plates & locking nuts included',
@@ -11516,7 +11520,7 @@ const Spreadsheet = () => {
           const totalLabels = {
             'Drilled foundation pile': 'Foundation Piles Total:',
             'Helical foundation pile': 'Helical Pile Total:',
-            'Stelcor drilled displacement pile': 'Stelcor Piles Total:',
+            'Drilled displacement pile': 'Stelcor Piles Total:',
             'CFA pile': 'CFA Piles Total:',
             'Driven foundation pile': 'Foundation Piles Total:' // Driven piles use same label as drilled
           }
