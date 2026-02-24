@@ -309,7 +309,7 @@ function applySubstructureFormulas(spreadsheet, pfx, formulaData, foundationStar
         const refRow = formulaInfo.buttressRow ?? formulaInfo.takeoffRefRow
         if (refRow != null) spreadsheet.updateCell({ formula: `=C${toRow(refRow)}` }, cell('C'))
         spreadsheet.updateCell({ formula: `=C${row}` }, cell('L'))
-        spreadsheet.cellFormat({ color: getColumnBColor(calculationData, calcRow) }, cell('B'))
+        spreadsheet.cellFormat({ color: RED_TEXT }, cell('B')) // Final as per schedule count – always red
         spreadsheet.cellFormat({ color: RED_TEXT, fontWeight: 'bold' }, cell('I'))
         spreadsheet.cellFormat({ color: RED_TEXT, fontWeight: 'bold' }, cell('J'))
         spreadsheet.cellFormat({ color: RED_TEXT, fontWeight: 'bold' }, cell('K'))
@@ -358,7 +358,8 @@ function applySubstructureFormulas(spreadsheet, pfx, formulaData, foundationStar
         }
         if (foundationFormulas.cy) spreadsheet.updateCell({ formula: `=${f(foundationFormulas.cy)}` }, cell('K'))
         if (foundationFormulas.qtyFinal) spreadsheet.updateCell({ formula: `=${f(foundationFormulas.qtyFinal)}` }, cell('L'))
-        spreadsheet.cellFormat({ color: getColumnBColor(calculationData, calcRow) }, cell('B'))
+        const bColor = (itemType === 'buttress_takeoff') ? RED_TEXT : getColumnBColor(calculationData, calcRow) // As per Takeoff count – always red
+        spreadsheet.cellFormat({ color: bColor }, cell('B'))
         if (itemType === 'buttress_takeoff') {
           spreadsheet.cellFormat({ textDecoration: 'line-through' }, `${pfx}A${row}:${pfx}M${row}`)
         }
