@@ -17,6 +17,7 @@ import { generateSoeFormulas } from '../utils/processors/soeProcessor'
 import { generateFoundationFormulas } from '../utils/processors/foundationProcessor'
 import { generateWaterproofingFormulas } from '../utils/processors/waterproofingProcessor'
 import { buildProposalSheet } from '../utils/buildProposalSheet'
+import { buildSperrinTonySheet, SPERRIN_TONY_SHEET_NAMES } from '../utils/sperrinTony'
 import { compressJsonToBase64 } from '../utils/compressJson'
 import { useSidebar } from '../context/SidebarContext'
 import * as XLSX from 'xlsx'
@@ -90,6 +91,7 @@ const ProposalDetail = () => {
   const rawDataSignatureRef = useRef(null)
   const rawDataJustChangedRef = useRef(false)
   const userEditedCellsRef = useRef(new Set())
+  const proposalTemplateRef = useRef('capstone')
 
   // Sync spreadsheet overlay images (e.g. logo) with scroll – they stay stuck because virtual scroll moves only .e-virtualable via transform
   const attachScrollSyncForOverlays = useCallback(() => {
@@ -172,6 +174,7 @@ const ProposalDetail = () => {
           toast.error('Could not load spreadsheet file')
         }
       }
+      if (p.template != null && p.template !== '') proposalTemplateRef.current = p.template
       setProposal(p)
     } catch (error) {
       console.error('Error fetching proposal:', error)
@@ -202,6 +205,7 @@ const ProposalDetail = () => {
     rawDataSignatureRef.current = newSignature
 
     const template = proposal.template || 'capstone'
+    proposalTemplateRef.current = template
     const result = generateCalculationSheet(template, rawData)
     setCalculationData(result.rows)
     setFormulaData(result.formulas)
@@ -306,6 +310,7 @@ const ProposalDetail = () => {
   // When raw data exists: always recalculate from raw (build Calculation + Proposal sheets). Never load workbook from DB so refresh always recalculates.
   useEffect(() => {
     if (!spreadsheetRef.current || !proposal) return
+    if (proposal.template != null && proposal.template !== '') proposalTemplateRef.current = proposal.template
 
     const shouldRebuildFromRaw = !!proposal.rawExcelData
 
@@ -314,7 +319,8 @@ const ProposalDetail = () => {
         const override = generatedDataRef.current
         if (override?.rows?.length > 0) {
           needReapplyAfterRawSave.current = false
-          applyDataToSpreadsheet(override).then(() => {
+          const template = proposal?.template ?? proposalTemplateRef.current
+          applyDataToSpreadsheet(override, template).then(() => {
             rawDataJustChangedRef.current = false
             setTimeout(() => {
               try { spreadsheetRef.current?.goTo('Calculations Sheet!A1') } catch (e) { }
@@ -326,7 +332,8 @@ const ProposalDetail = () => {
       const hasGeneratedData = calculationData.length > 0 || (generatedDataRef.current?.rows?.length > 0)
       if (hasGeneratedData && !hasLoadedFromJson.current) {
         const override = generatedDataRef.current?.rows?.length > 0 ? generatedDataRef.current : undefined
-        applyDataToSpreadsheet(override).then(() => { rawDataJustChangedRef.current = false })
+        const template = proposal?.template ?? proposalTemplateRef.current
+        applyDataToSpreadsheet(override, template).then(() => { rawDataJustChangedRef.current = false })
       }
       return
     }
@@ -353,7 +360,8 @@ const ProposalDetail = () => {
           if (calcData?.length > 0 && spreadsheetRef.current) {
             await new Promise(resolve => setTimeout(resolve, 100))
             try {
-              buildProposalSheet(spreadsheetRef.current, {
+              const template = proposal?.template ?? proposalTemplateRef.current
+              const sheetOpts = {
                 calculationData: calcData,
                 formulaData: formulas ?? [],
                 rockExcavationTotals: rockExcavationTotalsRef.current ?? { totalSQFT: 0, totalCY: 0 },
@@ -362,7 +370,12 @@ const ProposalDetail = () => {
                 project: proposal?.project,
                 client: proposal?.client,
                 createdAt: proposal?.createdAt
-              })
+              }
+              if (template === 'sperrin_tony') {
+                buildSperrinTonySheet(spreadsheetRef.current, sheetOpts)
+              } else {
+                buildProposalSheet(spreadsheetRef.current, sheetOpts)
+              }
               proposalBuiltRef.current = true
             } catch (e) {
               console.error('Error building proposal sheet (on load):', e)
@@ -379,7 +392,8 @@ const ProposalDetail = () => {
 
     if (needReapplyAfterRawSave.current && calculationData.length > 0 && hasLoadedFromJson.current && spreadsheetRef.current) {
       needReapplyAfterRawSave.current = false
-      applyDataToSpreadsheet().then(() => {
+      const template = proposal?.template ?? proposalTemplateRef.current
+      applyDataToSpreadsheet(undefined, template).then(() => {
         setTimeout(() => {
           try { spreadsheetRef.current?.goTo('Calculations Sheet!A1') } catch (e) { }
         }, 100)
@@ -387,22 +401,24 @@ const ProposalDetail = () => {
     }
   }, [calculationData, formulaData, proposal])
 
-  const applyDataToSpreadsheet = async (override) => {
+  const applyDataToSpreadsheet = async (override, templateOverride) => {
     if (!spreadsheetRef.current) return
 
     const rows = override?.rows ?? calculationData
     const formulas = override?.formulas ?? formulaData
+    const sheetTemplate = templateOverride ?? proposal?.template ?? proposalTemplateRef.current ?? 'capstone'
     const rockTotals = override?.rockExcavationTotals ?? rockExcavationTotals
     const lineDrill = override?.lineDrillTotalFT ?? lineDrillTotalFT
 
     const spreadsheet = spreadsheetRef.current
-    const pfx = 'Proposal Sheet!'
+    const isSperrinTony = sheetTemplate === 'sperrin_tony'
+    const pfx = isSperrinTony ? 'Proposal!' : 'Proposal Sheet!'
     const userEdits = userEditedCellsRef.current
     const snapshot = new Map()
-    if (userEdits.size > 0 && spreadsheet.getCellValue) {
+    if (userEdits.size > 0 && spreadsheet.getCellValue && !isSperrinTony) {
       userEdits.forEach((cellAddr) => {
         try {
-          const val = spreadsheet.getCellValue(pfx + cellAddr)
+          const val = spreadsheet.getCellValue('Proposal Sheet!' + cellAddr)
           if (val !== undefined && val !== null) snapshot.set(cellAddr, val)
         } catch (e) { /* ignore */ }
       })
@@ -412,15 +428,18 @@ const ProposalDetail = () => {
     await new Promise(resolve => setTimeout(resolve, 50))
 
     try {
-      const spreadsheetModel = buildSpreadsheetModel(rows)
+      const spreadsheetModel = buildSpreadsheetModel(rows, sheetTemplate)
       spreadsheet.openFromJson({ file: spreadsheetModel })
       hasLoadedFromJson.current = true
 
       await new Promise(resolve => setTimeout(resolve, 100))
-      applyFormulasAndStyles(formulas, rows)
+      // Sperrin Tony has no Calculations Sheet; each breakdown applies its own formulas. Skip to avoid writing to wrong sheet.
+      if (sheetTemplate !== 'sperrin_tony') {
+        applyFormulasAndStyles(formulas, rows)
+      }
 
       try {
-        buildProposalSheet(spreadsheet, {
+        const sheetOpts = {
           calculationData: rows,
           formulaData: formulas,
           rockExcavationTotals: rockTotals,
@@ -429,7 +448,12 @@ const ProposalDetail = () => {
           project: proposal?.project,
           client: proposal?.client,
           createdAt: proposal?.createdAt
-        })
+        }
+        if (sheetTemplate === 'sperrin_tony') {
+          buildSperrinTonySheet(spreadsheet, sheetOpts)
+        } else {
+          buildProposalSheet(spreadsheet, sheetOpts)
+        }
         proposalBuiltRef.current = true
       } catch (e) {
         console.error('Error building proposal sheet:', e)
@@ -464,19 +488,18 @@ const ProposalDetail = () => {
   }
 
   // Build spreadsheet model with raw data only (formulas and styles applied after loading)
-  const buildSpreadsheetModel = (rowsOverride) => {
+  const buildSpreadsheetModel = (rowsOverride, templateOverride) => {
     const dataRows = rowsOverride ?? calculationData
     const calculationsRows = []
+    const template = templateOverride ?? proposal?.template ?? proposalTemplateRef.current ?? 'capstone'
+    const isSperrinTony = template === 'sperrin_tony'
 
     // Build rows for Calculations sheet - raw data only
-    dataRows.forEach((row, rowIndex) => {
+    dataRows.forEach((row) => {
       const cells = []
-
       row.forEach((cellValue, colIndex) => {
         const cell = {}
-
         if (cellValue !== '' && cellValue !== null && cellValue !== undefined) {
-          // For Particulars column (B), prevent date conversion - only set format '@' when needed (avoids storing formulas as text in line drill cells)
           if (colIndex === 1 && typeof cellValue === 'string') {
             if (/^[A-Z]+-\d+/.test(cellValue) || /^\d+-\d+/.test(cellValue)) {
               cell.value = "'" + cellValue
@@ -488,36 +511,26 @@ const ProposalDetail = () => {
             cell.value = cellValue
           }
         }
-
         cells.push(cell)
       })
-
       calculationsRows.push({ cells })
     })
 
-    // Column configurations
     const columns = generateColumnConfigs().map(config => ({ width: config.width }))
 
-    // Build the complete workbook model (no formulas - they're applied after loading)
-    // Sheet order: Proposal Sheet first, then Calculations Sheet (names must match buildProposalSheet)
+    const sheets = isSperrinTony
+      ? SPERRIN_TONY_SHEET_NAMES.map(name => ({ name, rows: [], columns: [] }))
+      : [
+          { name: 'Proposal Sheet', rows: [], columns: [] },
+          { name: 'Calculations Sheet', rows: calculationsRows, columns }
+        ]
+
     const workbookModel = {
       Workbook: {
-        sheets: [
-          {
-            name: 'Proposal Sheet',
-            rows: [],
-            columns: []
-          },
-          {
-            name: 'Calculations Sheet',
-            rows: calculationsRows,
-            columns: columns
-          }
-        ],
-        activeSheetIndex: 1  // Open Calculations Sheet first (0=Proposal, 1=Calculations)
+        sheets,
+        activeSheetIndex: isSperrinTony ? 0 : 1
       }
     }
-
     return workbookModel
   }
 
@@ -617,6 +630,11 @@ const ProposalDetail = () => {
         if (section === 'demolition') {
           if (itemType === 'demolition_sum') {
             const { firstDataRow, lastDataRow, subsection: subName } = formulaInfo
+            const hasFtColumn = ['Demo strip footing', 'Demo foundation wall', 'Demo retaining wall'].includes(subName)
+            if (hasFtColumn) {
+              spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `I${row}`)
+            }
             spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
             spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
@@ -2918,8 +2936,9 @@ const ProposalDetail = () => {
       if (import.meta.env.DEV) {
         const sheets = jsonObject?.Workbook?.sheets || []
         const sheetNames = sheets.map(s => s.name || s.Name).filter(Boolean)
-        if (!sheetNames.includes('Proposal Sheet')) {
-          console.warn('[ProposalDetail] Save payload missing Proposal Sheet. Sheets:', sheetNames)
+        const hasProposalSheet = sheetNames.includes('Proposal Sheet') || sheetNames.includes('Proposal')
+        if (!hasProposalSheet) {
+          console.warn('[ProposalDetail] Save payload missing proposal sheet. Sheets:', sheetNames)
         }
       }
       const payload = { images, unusedRawDataRows: unusedRawDataRowsRef.current }
@@ -3357,6 +3376,10 @@ const ProposalDetail = () => {
             beforeCellUpdate={handleBeforeCellUpdate}
             // Action events - captures all modifications including images
             actionComplete={handleActionComplete}
+            // Suppress circular reference warning dialog (formulas like I/L on sum rows can trigger it)
+            dialogBeforeOpen={(args) => {
+              if (args.dialogName === 'CircularReferenceDialog') args.cancel = true
+            }}
             // File menu events - trigger save after file menu operations
             // fileMenuItemSelect={() => setTimeout(() => markDirtyAndScheduleSave(), 1000)}
             // Created event
@@ -3365,7 +3388,8 @@ const ProposalDetail = () => {
               const calcData = calculationDataRef.current
               if (calcData.length > 0 && !proposalBuiltRef.current && spreadsheetRef.current && !proposal?.spreadsheetJson) {
                 try {
-                  buildProposalSheet(spreadsheetRef.current, {
+                  const template = proposal?.template ?? proposalTemplateRef.current
+                  const sheetOpts = {
                     calculationData: calcData,
                     formulaData: formulaDataRef.current,
                     rockExcavationTotals: rockExcavationTotalsRef.current,
@@ -3374,7 +3398,12 @@ const ProposalDetail = () => {
                     project: proposal?.project,
                     client: proposal?.client,
                     createdAt: proposal?.createdAt
-                  })
+                  }
+                  if (template === 'sperrin_tony') {
+                    buildSperrinTonySheet(spreadsheetRef.current, sheetOpts)
+                  } else {
+                    buildProposalSheet(spreadsheetRef.current, sheetOpts)
+                  }
                   proposalBuiltRef.current = true
                 } catch (e) {
                   console.error('Error building proposal sheet (onCreated):', e)
@@ -3386,14 +3415,24 @@ const ProposalDetail = () => {
             }}
           >
             <SheetsDirective>
-              <SheetDirective name="Proposal Sheet" />
-              <SheetDirective name="Calculations Sheet">
-                <ColumnsDirective>
-                  {generateColumnConfigs().map((config, idx) => (
-                    <ColumnDirective key={idx} width={config.width} />
+              {(proposal?.template ?? proposalTemplateRef.current) === 'sperrin_tony' ? (
+                <>
+                  {SPERRIN_TONY_SHEET_NAMES.map(name => (
+                    <SheetDirective key={name} name={name} />
                   ))}
-                </ColumnsDirective>
-              </SheetDirective>
+                </>
+              ) : (
+                <>
+                  <SheetDirective name="Proposal Sheet" />
+                  <SheetDirective name="Calculations Sheet">
+                    <ColumnsDirective>
+                      {generateColumnConfigs().map((config, idx) => (
+                        <ColumnDirective key={idx} width={config.width} />
+                      ))}
+                    </ColumnsDirective>
+                  </SheetDirective>
+                </>
+              )}
             </SheetsDirective>
           </SpreadsheetComponent>
         </div>
@@ -3416,7 +3455,8 @@ const ProposalDetail = () => {
             setTimeout(() => {
               const override = generatedDataRef.current
               if (override?.rows?.length && spreadsheetRef.current) {
-                applyDataToSpreadsheet(override)
+                const template = proposal?.template ?? proposalTemplateRef.current
+                applyDataToSpreadsheet(override, template)
               }
             }, 0)
             setIsPreviewModalOpen(false)

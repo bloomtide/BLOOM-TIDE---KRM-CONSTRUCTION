@@ -273,7 +273,7 @@ const CreateProposalModal = ({ isOpen, onClose, onSuccess }) => {
                                 <option value="capstone">Capstone</option>
                                 <option value="dbi" disabled>DBI</option>
                                 <option value="pd_steel" disabled>PD Steel</option>
-                                <option value="sperrin_tony" disabled>Sperrin Tony</option>
+                                <option value="sperrin_tony">Sperrin Tony</option>
                                 <option value="tristate_martin" disabled>Tristate Martin</option>
                             </select>
                         </div>

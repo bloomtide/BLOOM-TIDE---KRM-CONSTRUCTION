@@ -92,8 +92,8 @@ export const generateDemolitionFormulas = (type, rowNum, parsedData) => {
     case 'Demo retaining wall':
     case 'demo_extra_ft':
     case 'demo_extra_rw':
-      // SQ FT (J) = Takeoff * Width (G)
-      // Note: For Demo foundation wall / Demo retaining wall, C*G for J, J*H/27 for L
+      // FT (I) = Takeoff (C); SQ FT (J) = Takeoff * Width (G); CY (L) = J*H/27
+      formulas.ft = `C${rowNum}`
       formulas.sqFt = `C${rowNum}*G${rowNum}`
       formulas.cy = `J${rowNum}*H${rowNum}/27`
       break

@@ -36,6 +36,50 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     if (list.length === 2) return `${list[0]} & ${list[1]}`
     return list.slice(0, -1).join(', ') + ' & ' + list[list.length - 1]
   }
+  // Column G width: numeric 4.5 (feet) -> "4'-6""
+  const formatWidthFeetInches = (val) => {
+    const n = parseFloat(val)
+    if (val == null || val === '' || isNaN(n)) return null
+    const f = Math.floor(n)
+    const inch = Math.round((n - f) * 12)
+    if (inch === 0) return `${f}'-0"`
+    return `${f}'-${inch}"`
+  }
+
+  // Parse drilled caisson pile template fields from particulars (design loads, grout KSI, rebar)
+  const parseDrilledPileTemplateFromParticulars = (particulars) => {
+    const p = (particulars || '').toString()
+    const compMatch = p.match(/(\d+)\s*tons?\s*design\s*compression/i)
+    const tensionMatch = p.match(/(\d+)\s*tons?\s*design\s*tension/i)
+    const lateralMatch = p.match(/(\d+)\s*ton(?:s)?\s*design\s*lateral/i)
+    const groutMatch = p.match(/(\d+)-?\s*KSI\s*grout/i) || p.match(/(\d+)\s*KSI\s*grout\s*infilled/i)
+    const rebarMatch = p.match(/with\s*\((\d+)\)\s*qty\s*#?(\d+)"?\s*(\d+)\s*Ksi/i) || p.match(/\((\d+)\)\s*qty\s*#?(\d+)"?\s*(\d+)\s*Ksi/i)
+    return {
+      designCompression: compMatch ? compMatch[1] : null,
+      designTension: tensionMatch ? tensionMatch[1] : null,
+      designLateral: lateralMatch ? lateralMatch[1] : null,
+      groutKsi: groutMatch ? groutMatch[1] : null,
+      rebarQty: rebarMatch ? rebarMatch[1] : null,
+      rebarSize: rebarMatch ? rebarMatch[2] : null,
+      rebarKsi: rebarMatch ? rebarMatch[3] : null
+    }
+  }
+
+  const buildDrilledPileTemplateText = (particulars, diameterThicknessText, heightText, rockSocketText, qtyPlaceholder) => {
+    const parsed = parseDrilledPileTemplateFromParticulars(particulars)
+    const comp = parsed.designCompression ?? '##'
+    const tension = parsed.designTension ?? '##'
+    const lateral = parsed.designLateral ?? '##'
+    const grout = parsed.groutKsi ?? '##'
+    const rebarQty = parsed.rebarQty ?? '##'
+    const rebarSize = parsed.rebarSize ?? '###'
+    const rebarKsi = parsed.rebarKsi ?? '##'
+    const thickPart = diameterThicknessText || '(## thick)'
+    const heightPart = (rockSocketText && rockSocketText !== "0'-0\"")
+      ? `(H=${heightText}, ${rockSocketText} rock socket)`
+      : `(H=${heightText})`
+    return `F&I new (${qtyPlaceholder})no drilled caisson pile (${comp} tons design compression, ${tension} tons design tension & ${lateral} ton design lateral load), ${thickPart}, (${grout}-KSI grout infilled) with (${rebarQty})qty #${rebarSize}" ${rebarKsi} Ksi full length reinforcement ${heightPart} as per`
+  }
 
   // Extract "whatever is after () and before as per" for rate matching (e.g. "no W12x58 walers" from "F&I new (11)no W12x58 walers as per SOE-101.00")
   const getDescriptionKeyAfterParenBeforeAsPer = (descriptionText) => {
@@ -510,7 +554,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       'Demo isolated footing': /demo\s+isolated\s+footing/i,
       'Demo Ramp on grade': /demo\s+rog|demo\s+ramp\s+on\s+grade/i,
       'Demo retaining wall': /demo\s+rw|demo\s+retaining\s+wall/i,
-      'Demo stair on grade': /demo\s+(stairs|landings)\s+on\s+grade/i
+      // Match "Demo stair landings on grade @ Stair A1", "Demo stairs on grade", "Demo landings on grade" etc. in Digitizer Item
+      'Demo stair on grade': /demo\s+(?:stair\s+)?(?:stairs|landings)\s+on\s+grade/i
     }
     const pattern = subsectionPatterns[subsectionName]
     if (!pattern) return '##'
@@ -524,12 +569,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const pageValue = row[pageIdx]
         if (pageValue != null && pageValue !== '') {
           const pageStr = String(pageValue).trim()
-          const dmMatch = pageStr.match(/DM-[\d.]+/i) || pageStr.match(/A-[\d.]+/i)
+          const dmMatch = pageStr.match(/DM-[\d.]+/i) || pageStr.match(/A-[\d.]+/i) || pageStr.match(/FO-[\d.]+/i)
           if (dmMatch) ref = dmMatch[0]
         }
       }
       if (!ref) {
-        const dmMatch = String(digitizerItem).trim().match(/DM-[\d.]+/i) || String(digitizerItem).trim().match(/A-[\d.]+/i)
+        const dmMatch = String(digitizerItem).trim().match(/DM-[\d.]+/i) || String(digitizerItem).trim().match(/A-[\d.]+/i) || String(digitizerItem).trim().match(/FO-[\d.]+/i)
         if (dmMatch) ref = dmMatch[0]
       }
       if (ref && !seen.has(ref)) {
@@ -1724,6 +1769,26 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       'Demo stair on grade'
     ]
 
+    // Demo stair on grade: one proposal line per landing/stairs/slab from calculation (grouped by Stair A1, etc.)
+    const demoStairOnGradeLines = []
+    if (formulaData && Array.isArray(formulaData) && calculationData && calculationData.length > 0) {
+      const demoStairEntries = formulaData.filter(f =>
+        f.section === 'demolition' && f.subsection === 'Demo stair on grade' &&
+        ['demo_stair_on_grade_heading', 'demo_stair_on_grade_landing', 'demo_stair_on_grade_stairs', 'demo_stair_on_grade_stair_slab'].includes(f.itemType)
+      )
+      demoStairEntries.sort((a, b) => (a.row || 0) - (b.row || 0))
+      let currentGroupName = null
+      demoStairEntries.forEach((entry) => {
+        if (entry.itemType === 'demo_stair_on_grade_heading') {
+          const label = (calculationData[entry.row - 1]?.[1] || '').toString().trim().replace(/:+\s*$/, '').trim()
+          currentGroupName = (label && label !== 'Demo stair on grade') ? label : null
+        } else {
+          const type = entry.itemType === 'demo_stair_on_grade_landing' ? 'landing' : entry.itemType === 'demo_stair_on_grade_stairs' ? 'stairs' : 'slab'
+          demoStairOnGradeLines.push({ type, row: entry.row, groupName: currentGroupName })
+        }
+      })
+    }
+
     // Check if any of these subsections have data
     let hasDemolitionItems = false
     orderedSubsections.forEach(name => {
@@ -1731,6 +1796,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         hasDemolitionItems = true
       }
     })
+    if (demoStairOnGradeLines.length > 0) hasDemolitionItems = true
 
     if (hasDemolitionItems) {
       // Demolition Scope Heading
@@ -1762,11 +1828,72 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       ])
     )
 
-      const demolitionCalcSheet = 'Calculations Sheet'
+    const demolitionCalcSheet = 'Calculations Sheet'
     orderedSubsections.forEach((name, index) => {
         const rowCount = (rowsBySubsection.get(name) || []).length
-        // Do not show "Demo stair on grade" line when there is no raw/calc data for it
-        if (name === 'Demo stair on grade' && rowCount === 0) return
+        // Do not show "Demo stair on grade" when there is no data (neither rows nor formulaData lines)
+        if (name === 'Demo stair on grade' && rowCount === 0 && demoStairOnGradeLines.length === 0) return
+
+        const dmRef = getDMReferenceFromRawData(name)
+        const esc = (s) => (s || '').replace(/"/g, '""')
+        // Demo stair on grade: multiple rows from calculation (landings, stairs, slab per group)
+        if (name === 'Demo stair on grade' && demoStairOnGradeLines.length > 0) {
+          let lastGroupName = null
+          demoStairOnGradeLines.forEach((line) => {
+            if (line.groupName && line.groupName !== lastGroupName) {
+              spreadsheet.updateCell({ value: `${line.groupName}:` }, `${pfx}B${currentRow}`)
+              rowBContentMap.set(currentRow, `${line.groupName}:`)
+              spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+              spreadsheet.cellFormat(
+                { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#E2EFDA', textDecoration: 'underline', border: '1px solid #000000' },
+                `${pfx}B${currentRow}`
+              )
+              currentRow++
+              lastGroupName = line.groupName
+            }
+            const cellRef = `${pfx}B${currentRow}`
+            let bVal
+            let bDesc
+            if (line.type === 'landing') {
+              const atStair = line.groupName ? ` @ ${line.groupName}` : ''
+              bDesc = `Allow to saw-cut/demo/remove/dispose existing stair landing on grade${atStair} as per ${dmRef} & details on`
+              bVal = { value: bDesc }
+            } else if (line.type === 'stairs') {
+              const midPart = line.groupName ? `" @ ${line.groupName} "` : '" "'
+              const calcRow = calculationData[line.row - 1]
+              const widthVal = calcRow && calcRow[6] != null && calcRow[6] !== '' ? calcRow[6] : null
+              const widthStr = formatWidthFeetInches(widthVal) || "0'-0\""
+              const widthEsc = widthStr.replace(/"/g, '""')
+              bVal = {
+                formula: `=CONCATENATE("Allow to saw-cut/demo/remove/dispose existing (","${widthEsc}"," wide) stairs on grade",${midPart},"(",ROUND('${demolitionCalcSheet}'!M${line.row},0)," Riser) @ 1st FL as per ","${esc(dmRef)}"," & details on")`
+              }
+              bDesc = `Allow to saw-cut/demo/remove/dispose existing (… wide) stairs on grade${line.groupName ? ` @ ${line.groupName}` : ''} (… Riser) @ 1st FL as per ${dmRef} & details on`
+            } else {
+              bDesc = `Allow to saw-cut/demo/remove/dispose existing stair slab as per ${dmRef} & details on`
+              bVal = { value: bDesc }
+            }
+            spreadsheet.updateCell(bVal, cellRef)
+            rowBContentMap.set(currentRow, bDesc)
+            spreadsheet.wrap(cellRef, true)
+            spreadsheet.cellFormat(
+              { fontWeight: 'bold', color: '#000000', textAlign: 'left', verticalAlign: 'top', wrapText: true },
+              cellRef
+            )
+            fillRatesForProposalRow(currentRow, bDesc)
+            spreadsheet.updateCell({ formula: `='${demolitionCalcSheet}'!J${line.row}` }, `${pfx}D${currentRow}`)
+            spreadsheet.updateCell({ formula: `='${demolitionCalcSheet}'!L${line.row}` }, `${pfx}F${currentRow}`)
+            spreadsheet.updateCell({ formula: `='${demolitionCalcSheet}'!M${line.row}` }, `${pfx}G${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'right', format: '#,##0.00' }, `${pfx}D${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'right', format: '#,##0.00' }, `${pfx}F${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'right', format: '#,##0.00' }, `${pfx}G${currentRow}`)
+            const dollarFormula = `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")`
+            spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
+            spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'right', format: '#,##0.00' }, `${pfx}H${currentRow}`)
+            currentRow++
+          })
+          return
+        }
+
       const originalText = linesBySubsection.get(name)
         const subsectionRows = rowsBySubsection.get(name) || []
         const firstRowWithB = subsectionRows.find(r => r[1] && String(r[1]).trim())
@@ -1781,14 +1908,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
         // Demo stair on grade: width from first "Demo stairs on grade" row (G), riser from sum row (M) – full formula when both available
         const stairsRiserPlaceholder = '(## Riser)'
-        const dmRef = getDMReferenceFromRawData(name)
-        const esc = (s) => (s || '').replace(/"/g, '""')
         const useDemoStairsFullFormula = name === 'Demo stair on grade' && sumRowIndex != null && firstDemoStairOnGradeStairsRowIndex != null
         const useStairsRiserFormula = !useDemoStairsFullFormula && templateText.includes(stairsRiserPlaceholder) && sumRowIndex != null
         let valueOrFormulaForB = templateText
         if (useDemoStairsFullFormula) {
+          const calcRow = calculationData[firstDemoStairOnGradeStairsRowIndex - 1]
+          const widthVal = calcRow && calcRow[6] != null && calcRow[6] !== '' ? calcRow[6] : null
+          const widthStr = formatWidthFeetInches(widthVal) || "0'-0\""
+          const widthEsc = widthStr.replace(/"/g, '""')
           valueOrFormulaForB = {
-            formula: `=CONCATENATE("Allow to saw-cut/demo/remove/dispose existing (",'${demolitionCalcSheet}'!G${firstDemoStairOnGradeStairsRowIndex}," wide) stairs on grade (",'${demolitionCalcSheet}'!M${sumRowIndex}," Riser) @ 1st FL as per ",\"${esc(dmRef)}\",\" & details on\")`
+            formula: `=CONCATENATE("Allow to saw-cut/demo/remove/dispose existing (","${widthEsc}"," wide) stairs on grade (",ROUND('${demolitionCalcSheet}'!M${sumRowIndex},0)," Riser) @ 1st FL as per ","${esc(dmRef)}"," & details on")`
           }
         } else if (useStairsRiserFormula) {
           const parts = templateText.split(stairsRiserPlaceholder)
@@ -10449,18 +10578,43 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
       // Generate proposal text - for drilled piles, generate per group; for others, generate once
       if (isDrilledPiles && processorGroups.length > 0) {
-        // Process each group individually for drilled piles
+        // Classify groups: influence + Drilled cassion pile (single Ø) vs influence + Isolation casing (dual Ø) vs no influence
+        const influenceDrilledGroups = [] // Pile within TA Influence Line
+        const influenceIsolationGroups = [] // Isolation casing drilled cassion pile within TA Influence Line
+        const noInfluenceGroups = []
+        const hasInfluenceFromText = (group) => {
+          const firstParticulars = (group.items?.[0]?.particulars || '').toString().toLowerCase()
+          return /influence|\s+rs\s+|ta\s*influence|rs\s*influence/i.test(firstParticulars) || !!(group.hasInflu)
+        }
         processorGroups.forEach((itemOrGroup, groupIndex) => {
           if (!itemOrGroup.items || !Array.isArray(itemOrGroup.items) || itemOrGroup.items.length === 0) return
-
           const groupTakeoff = itemOrGroup.items[0]?.takeoff || 0
           if (groupTakeoff === 0) return
+          if (!itemOrGroup.hasInflu && hasInfluenceFromText(itemOrGroup)) itemOrGroup.hasInflu = true
+          const groupHasInflu = itemOrGroup.hasInflu || false
+          const isIsolationCasing = !!(itemOrGroup.items[0]?.parsed?.isDualDiameter) ||
+            (itemOrGroup.items[0]?.particulars && String(itemOrGroup.items[0].particulars).toLowerCase().includes('isolation casing'))
+          if (groupHasInflu && isIsolationCasing) influenceIsolationGroups.push({ itemOrGroup, groupIndex })
+          else if (groupHasInflu) influenceDrilledGroups.push({ itemOrGroup, groupIndex })
+          else noInfluenceGroups.push({ itemOrGroup, groupIndex })
+        })
 
+        const addInfluenceSectionHeading = (headingText) => {
+          spreadsheet.updateCell({ value: headingText }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, headingText)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat(
+            { fontWeight: 'bold', fontStyle: 'italic', color: '#000000', textAlign: 'left', backgroundColor: '#FCE4D6', textDecoration: 'underline', border: '1px solid #000000' },
+            `${pfx}B${currentRow}`
+          )
+          currentRow++
+        }
+
+        const renderOneDrilledPileGroup = (itemOrGroup, groupIndex) => {
+          const groupTakeoff = itemOrGroup.items[0]?.takeoff || 0
           const groupQty = Math.round(groupTakeoff)
           const groupHasInflu = itemOrGroup.hasInflu || false
 
-
-          // Extract data for this specific group
           const firstItem = itemOrGroup.items[0]
           let groupDiameter = null
           let groupThickness = null
@@ -10579,24 +10733,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             diameterThicknessText = `(${formattedDiam}" ØX${groupThickness}" thick)`
           }
 
-          // If group has Influ, add empty row with background color BEFORE the proposal text
-          if (groupHasInflu) {
-            // Add empty row with background color #FCE4D6
-            spreadsheet.cellFormat(
-              { backgroundColor: '#FCE4D6' },
-              `${pfx}B${currentRow}:${pfx}H${currentRow}`
-            )
-            currentRow++
-          }
-
-          // Generate proposal text for this group: use particulars (e.g. "52/26 Titan pile w/Ø115 mm (H=22'-4", E=12'-0")") when present
+          // Generate proposal text for this group: use particulars when rich (e.g. Titan pile); else use template with parsed design loads, grout, rebar
           const pileDescriptionFromParticulars = (firstItem?.particulars || '').toString().trim()
           const useParticularsAsDescription = pileDescriptionFromParticulars.length > 3 && (pileDescriptionFromParticulars.toLowerCase().includes('pile') || /[\d]+\/[\d]+/.test(pileDescriptionFromParticulars))
           let proposalText
           if (useParticularsAsDescription) {
             proposalText = `F&I new (${groupQty})no ${pileDescriptionFromParticulars} as per ${foReference}, ${soeReference} & details on`
           } else {
-            proposalText = `F&I new (${groupQty})no pile (## tons design compression, ## tons design tension & ## ton design lateral load), ${diameterThicknessText || '(## thick)'}, (##-KSI grout infilled) with (##)qty ###" ## Ksi full length reinforcement (H=${heightText}) as per ${foReference}, ${soeReference} & details on`
+            proposalText = buildDrilledPileTemplateText(pileDescriptionFromParticulars, diameterThicknessText, heightText, rockSocketText, groupQty) + ` ${foReference}, ${soeReference} & details on`
           }
           const afterCountDC = afterCountFromProposalText(proposalText)
           if (afterCountDC) {
@@ -10610,19 +10754,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const pileRateKey = useParticularsAsDescription && /titan\s+pile/i.test(pileDescriptionFromParticulars) ? 'titan pile' : null
           fillRatesForProposalRow(currentRow, proposalText, pileRateKey)
 
-          // Apply color if group has Influ
+          // Data rows stay white; only section headings use #FCE4D6
           const cellFormat = {
             fontWeight: 'bold',
             color: '#000000',
             textAlign: 'left',
-            verticalAlign: 'top'
+            verticalAlign: 'top',
+            backgroundColor: 'white'
           }
-          if (groupHasInflu) {
-            cellFormat.backgroundColor = '#FCE4D6'
-          } else {
-            cellFormat.backgroundColor = 'white'
-          }
-
           spreadsheet.cellFormat(cellFormat, `${pfx}B${currentRow}`)
 
           // Add other columns (FT, LBS, QTY, etc.)
@@ -10659,14 +10798,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             }
           }
 
-          // Format FT column
+          // Format FT column (data rows white; only section headings use #FCE4D6)
           if (groupSumRowIndex > 0 || groupFTSum > 0) {
             spreadsheet.cellFormat(
-              {
-                fontWeight: 'bold',
-                textAlign: 'right',
-                backgroundColor: groupHasInflu ? '#FCE4D6' : 'white'
-              },
+              { fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' },
               `${pfx}C${currentRow}`
             )
           }
@@ -10675,23 +10810,19 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           if (groupSumRowIndex > 0) {
             spreadsheet.updateCell({ formula: `='${calcSheetName}'!K${groupSumRowIndex}` }, `${pfx}E${currentRow}`)
             spreadsheet.cellFormat(
-              {
-                fontWeight: 'bold',
-                textAlign: 'right',
-                backgroundColor: groupHasInflu ? '#FCE4D6' : 'white'
-              },
+              { fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' },
               `${pfx}E${currentRow}`
             )
           }
 
-          // Add QTY
-          spreadsheet.updateCell({ value: groupQty }, `${pfx}G${currentRow}`)
+          // Add QTY from calculation sheet (column M of sum row) when available
+          if (groupSumRowIndex > 0) {
+            spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${groupSumRowIndex}` }, `${pfx}G${currentRow}`)
+          } else {
+            spreadsheet.updateCell({ value: groupQty }, `${pfx}G${currentRow}`)
+          }
           spreadsheet.cellFormat(
-            {
-              fontWeight: 'bold',
-              textAlign: 'right',
-              backgroundColor: groupHasInflu ? '#FCE4D6' : 'white'
-            },
+            { fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white' },
             `${pfx}G${currentRow}`
           )
 
@@ -10699,18 +10830,30 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const dollarFormula = `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")`
           spreadsheet.updateCell({ formula: dollarFormula }, `${pfx}H${currentRow}`)
           spreadsheet.cellFormat(
-            {
-              fontWeight: 'bold',
-              textAlign: 'right',
-              backgroundColor: groupHasInflu ? '#FCE4D6' : 'white',
-              format: '$#,##0.00'
-            },
+            { fontWeight: 'bold', textAlign: 'right', backgroundColor: 'white', format: '$#,##0.00' },
             `${pfx}H${currentRow}`
           )
 
           // Row height already set above based on proposal text
           currentRow++
-        })
+        }
+
+        // Render in order: (1) Pile within TA Influence Line, (2) Isolation casing within TA Influence Line, (3) no-influence
+        if (influenceDrilledGroups.length > 0) {
+          addInfluenceSectionHeading('Pile within TA Influence Line:')
+          influenceDrilledGroups.forEach(({ itemOrGroup, groupIndex }) => renderOneDrilledPileGroup(itemOrGroup, groupIndex))
+        }
+        if (influenceIsolationGroups.length > 0) {
+          if (influenceDrilledGroups.length > 0) {
+            spreadsheet.cellFormat({ backgroundColor: '#FCE4D6' }, `${pfx}B${currentRow}:${pfx}H${currentRow}`)
+            currentRow++
+          }
+          addInfluenceSectionHeading('Isolation casing drilled cassion pile within TA Influence Line:')
+          influenceIsolationGroups.forEach(({ itemOrGroup, groupIndex }) => renderOneDrilledPileGroup(itemOrGroup, groupIndex))
+        }
+        if (noInfluenceGroups.length > 0) {
+          noInfluenceGroups.forEach(({ itemOrGroup, groupIndex }) => renderOneDrilledPileGroup(itemOrGroup, groupIndex))
+        }
       } else if (qtySumValue > 0) {
         // For non-drilled piles, generate single proposal text (existing logic)
         // Get height and other details from groups if available (try canonical key then display header key)
@@ -10906,15 +11049,38 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           diameterThicknessText = `(${formattedDiam}" ØX${thickness}" thick)`
         }
 
-        // Generate proposal text: use first group's particulars (e.g. "52/26 Titan pile w/Ø115 mm (H=22'-4", E=12'-0")") when present
+        // Generate proposal text: use first group's particulars when rich; else template with parsed design loads, grout, rebar, height & rock socket
         const firstGroupFirstItem = processorGroups[0]?.items?.[0]
-        const pileDescFromParticulars = (firstGroupFirstItem?.particulars || '').toString().trim()
+        let pileDescFromParticulars = (firstGroupFirstItem?.particulars || '').toString().trim()
+        // If line contains "influence", add subsection-specific "X within TA Influence Line:" heading and normalize to "... within TA influence line"
+        const hasInfluence = /\binfluence\b/i.test(pileDescFromParticulars)
+        if (hasInfluence) {
+          const influenceHeadingBySubsection = {
+            'CFA pile': 'CFA pile within TA Influence Line:',
+            'Driven foundation pile': 'Driven pile within TA Influence Line:',
+            'Foundation driven piles': 'Driven pile within TA Influence Line:',
+            'Helical foundation pile': 'Helical pile within TA Influence Line:',
+            'Foundation helical piles': 'Helical pile within TA Influence Line:',
+            'Stelcor drilled displacement pile': 'Stelcor pile within TA Influence Line:',
+            'Piles': 'Pile within TA Influence Line:'
+          }
+          const influenceHeading = influenceHeadingBySubsection[subsectionName] || `${subsectionName} within TA Influence Line:`
+          spreadsheet.updateCell({ value: influenceHeading }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, influenceHeading)
+          spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+          spreadsheet.cellFormat(
+            { fontWeight: 'bold', fontStyle: 'italic', color: '#000000', textAlign: 'left', backgroundColor: '#FCE4D6', textDecoration: 'underline', border: '1px solid #000000' },
+            `${pfx}B${currentRow}`
+          )
+          currentRow++
+          pileDescFromParticulars = pileDescFromParticulars.replace(/\binfluence\b/gi, 'within TA influence line').trim()
+        }
         const useParticularsAsDesc = pileDescFromParticulars.length > 3 && (pileDescFromParticulars.toLowerCase().includes('pile') || /[\d]+\/[\d]+/.test(pileDescFromParticulars))
         let proposalText
         if (useParticularsAsDesc) {
           proposalText = `F&I new (${qtySumValue})no ${pileDescFromParticulars} as per ${foReference}, ${soeReference} & details on`
         } else {
-          proposalText = `F&I new (${qtySumValue})no pile (## tons design compression, ## tons design tension & ## ton design lateral load), ${diameterThicknessText || '(## thick)'}, (##-KSI grout infilled) with (##)qty ###" ## Ksi full length reinforcement (H=${heightText}) as per ${foReference}, ${soeReference} & details on`
+          proposalText = buildDrilledPileTemplateText(pileDescFromParticulars, diameterThicknessText, heightText, rockSocketText, qtySumValue) + ` ${foReference}, ${soeReference} & details on`
         }
         const afterCountFP = afterCountFromProposalText(proposalText)
         if (afterCountFP) {
@@ -11386,12 +11552,18 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         if (digitizerIdx === -1 || pageIdx === -1) return '##'
         const subNorm = (sub || '').toLowerCase().replace(/\s+s$/, '') // "Strap beams" -> "strap beam"
         const subAlt = (sub || '').toLowerCase() // "Strap beams" as-is
+        const subWords = (sub || '').toLowerCase().split(/\s+/).filter(w => w.length > 1) // e.g. ["stairs", "on", "grade", "stairs"] -> match "stairs on grade"
         const collected = []
         const seen = new Set()
         for (const row of dataRows) {
           const digitizerItem = (row[digitizerIdx] || '').toString().toLowerCase()
           let matches = digitizerItem.includes(subNorm) || digitizerItem.includes(subAlt) ||
             (subNorm === 'tie beam' && (digitizerItem.includes('tie beam') || digitizerItem.startsWith('tb ')))
+          // Match when subsection is "Stairs on grade Stairs" and raw has "Stairs on grade" (no trailing "Stairs")
+          if (!matches && subWords.length >= 2) {
+            const subCore = subWords.slice(0, -1).join(' ') // "stairs on grade" from "stairs on grade stairs"
+            if (subCore && digitizerItem.includes(subCore)) matches = true
+          }
           // Strap beams: raw data has "ST (3'-10"x2'-9") typ.", "ST (2'-8"x3'-0") (87.86')" etc. – no "strap" in text
           if (!matches && (subAlt === 'strap beams' || subNorm === 'strap beam')) {
             matches = (digitizerItem.startsWith('st ') || /^st\s*\(/.test(digitizerItem)) && !digitizerItem.startsWith('st-')
@@ -11478,6 +11650,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         let out = text
         if (vals.pageRef && vals.pageRef !== '##') {
           out = out.replace(/\s+as\s+per\s+[^&]*&\s*details\s+on/gi, ` as per ${vals.pageRef} & details on`)
+          out = out.replace(/\s+as\s+per\s+##\s*$/gi, ` as per ${vals.pageRef} & details on`)
         }
         if (vals.qtyText && vals.qtyText !== '##') {
           out = out.replace(/\s*\(\d+\)\s*no\./gi, ` (${vals.qtyText})no.`)
@@ -11488,6 +11661,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             const withTyp = /,\s*typ\.?\s*\)$/.test(full)
             return ` (H${avg ? 'avg=' : '='}${vals.heightText}${withTyp ? ', typ.' : ''})`
           })
+        }
+        // Placeholder (#" thick, typ.) – replace with dynamic thickness or default 6"
+        if (out.includes('#" thick, typ.)') || out.includes('##" thick, typ.)')) {
+          const thick = vals.thicknessText || '6"'
+          out = out.replace(/\s*\(#+"?\s*thick,\s*typ\.?\)/gi, () => ` (${thick} thick, typ.)`)
         }
         if (vals.thicknessText) {
           out = out.replace(/\s*\(\d+'\s*-\s*\d+"?\s*thick[^)]*\)/gi, () => ` (${vals.thicknessText} thick)`)
@@ -11515,8 +11693,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       const substructureTemplate = [
         {
           heading: 'Compacted gravel', items: [
-            { text: `F&I new (6" thick) gravel/crushed stone, including 6MIL vapor barrier on top @ SOG, elevator pit slab, detention tank slab, duplex sewage ejector pit slab & mat as per FO-101.00 & details on`, sub: 'SOG', match: p => p.includes('gravel') && !p.includes('geotextile') },
-          { text: 'F&I new geotextile filter fabric below gravel', sub: 'SOG', match: p => p.includes('geotextile'), showIfExists: true }
+            { text: `F&I new (#" thick, typ.) gravel/crushed stone, including 6MIL vapor barrier on top @ SOG, elevator pit mat, detention tank mat as per ##`, sub: 'SOG', match: p => p.includes('gravel') && !p.includes('geotextile'), showIfExists: true }
           ]
         },
         {
@@ -11768,6 +11945,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         return `${f}'-${inch}"`
       }
       const stairsOnGradePageRef = getPageRefForSubsection('Stairs on grade Stairs') || 'A-312.00'
+      const stairsPageRefEsc = (stairsOnGradePageRef || '').replace(/"/g, '""')
       const getStairsOnGradeProposalText = (formulaEntry) => {
         const it = formulaEntry.itemType
         const p = (formulaEntry.parsedData?.particulars || '').trim()
@@ -11778,8 +11956,22 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           if (calculationData && formulaEntry.row) {
             const row = calculationData[formulaEntry.row - 1]
             const particulars = (row?.[1] || '').toString()
-            const m = particulars.match(/(\d+(?:\/\d+)?)"?\s*thick/i) || particulars.match(/(\d+)"\s*thick/i)
-            if (m) thick = m[1].includes('"') ? m[1] : m[1] + '"'
+            const heightRaw = row[7]
+            if (heightRaw != null && heightRaw !== '') {
+              let heightFeet = parseFloat(heightRaw)
+              if (isNaN(heightFeet) && typeof heightRaw === 'string') {
+                const frac = heightRaw.trim().match(/^(\d+)\s*\/\s*(\d+)$/)
+                if (frac) heightFeet = parseInt(frac[1], 10) / parseInt(frac[2], 10)
+              }
+              if (!isNaN(heightFeet) && heightFeet > 0) {
+                const inches = Math.round(heightFeet * 12)
+                thick = `${inches}"`
+              }
+            }
+            if (thick === '8"') {
+              const m = particulars.match(/(\d+(?:\/\d+)?)"?\s*thick/i) || particulars.match(/(\d+)"\s*thick/i)
+              if (m) thick = m[1].includes('"') ? m[1] : m[1] + '"'
+            }
           }
           return `F&I new (${thick} thick) stair landings as per ${stairsOnGradePageRef}`
         }
@@ -11791,8 +11983,28 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const particulars = (row?.[1] || '').toString()
           const widthMatch = particulars.match(/(\d+'-?\d*")\s*wide/i)
           const widthFromParsed = formulaEntry.parsedData?.parsed?.widthFromName
-          widthStr = widthMatch && widthMatch[1] ? widthMatch[1] : (widthFromParsed != null ? formatStairsWidth(widthFromParsed) : (row[6] != null && row[6] !== '' ? String(row[6]).trim() : 'as indicated'))
-          const qtyM = Math.round(parseFloat(row[12]) || 0)
+          const widthFromCol = row[6] != null && row[6] !== '' ? formatWidthFeetInches(row[6]) || String(row[6]).trim() : null
+          widthStr = widthMatch && widthMatch[1] ? widthMatch[1] : (widthFromParsed != null ? formatStairsWidth(widthFromParsed) : (widthFromCol || 'as indicated'))
+          let qtyM = Math.round(parseFloat(row[12]) || 0)
+          if (qtyM <= 0 && row[11] != null && row[11] !== '') qtyM = Math.round(parseFloat(row[11]) || 0)
+          if (qtyM <= 0) {
+            const takeoffVal = parseFloat(row[2])
+            if (Number.isInteger(takeoffVal) && takeoffVal > 0 && takeoffVal < 100) qtyM = takeoffVal
+          }
+          if (qtyM <= 0 && formulaEntry.row < calculationData.length) {
+            const slabRow = calculationData[formulaEntry.row]
+            if (slabRow) {
+              const slabQ = Math.round(parseFloat(slabRow[12]) || 0) || Math.round(parseFloat(slabRow[11]) || 0)
+              if (slabQ > 0) qtyM = slabQ
+            }
+          }
+          if (qtyM <= 0 && formulaEntry.row + 1 < calculationData.length) {
+            const sumRow = calculationData[formulaEntry.row + 1]
+            if (sumRow) {
+              const sumQ = Math.round(parseFloat(sumRow[12]) || 0) || Math.round(parseFloat(sumRow[11]) || 0)
+              if (sumQ > 0) qtyM = sumQ
+            }
+          }
           const rm = particulars.match(/(\d+)\s*Riser/i)
           riserStr = qtyM > 0 ? `${qtyM} Riser` : (rm ? `${rm[1]} Riser` : 'as indicated')
         } else {
@@ -11850,18 +12062,42 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             currentRow++
             group.items.forEach((formulaEntry) => {
               if (formulaEntry.itemType === 'foundation_stairs_on_grade_stair_slab') return
-              const text = getStairsOnGradeProposalText(formulaEntry)
-              if (!text) return
               const sumRow = formulaEntry.row
-              spreadsheet.updateCell({ value: text }, `${pfx}B${currentRow}`)
-              rowBContentMap.set(currentRow, text)
+              const isLanding = formulaEntry.itemType === 'foundation_stairs_on_grade_landing' || (formulaEntry.parsedData?.parsed?.itemSubType === 'landings') || (formulaEntry.parsedData?.particulars || '').toLowerCase().includes('landings')
+              const isStairs = formulaEntry.itemType === 'stairs_on_grade' || formulaEntry.itemType === 'foundation_stairs_on_grade_stairs'
+              let bVal
+              let bDesc
+              if (isLanding) {
+                // Real-time: thickness from column H (height in feet) * 12 → inches; one inch symbol in formula = "" in Excel
+                bVal = {
+                  formula: `=CONCATENATE("F&I new (",ROUND('${substructureCalcSheet}'!H${sumRow}*12,0),"\"\""," thick) stair landings as per ","${stairsPageRefEsc}",")")`
+                }
+                bDesc = `F&I new (… thick) stair landings as per ${stairsOnGradePageRef}`
+              } else if (isStairs) {
+                // Real-time: width from column G (feet) as X'-Y", riser from column M; inch symbol = "" in Excel
+                const gRef = `'${substructureCalcSheet}'!G${sumRow}`
+                const mRef = `'${substructureCalcSheet}'!M${sumRow}`
+                const widthPart = `INT(${gRef})&"'-"&TEXT(ROUND((${gRef}-INT(${gRef}))*12,0),"0")&"\"\""`
+                bVal = {
+                  formula: `=CONCATENATE("F&I new (",${widthPart}," wide) stairs on grade (",ROUND(${mRef},0)," Riser) @ 1st FL as per ","${stairsPageRefEsc}",")")`
+                }
+                bDesc = `F&I new (… wide) stairs on grade (… Riser) @ 1st FL as per ${stairsOnGradePageRef}`
+              } else {
+                const text = getStairsOnGradeProposalText(formulaEntry)
+                if (!text) return
+                bVal = { value: text }
+                bDesc = text
+              }
+              spreadsheet.updateCell(bVal, `${pfx}B${currentRow}`)
+              rowBContentMap.set(currentRow, bDesc)
+              const descForRates = rowBContentMap.get(currentRow)
               spreadsheet.wrap(`${pfx}B${currentRow}`, true)
               spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
               spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!I${sumRow}` }, `${pfx}C${currentRow}`)
               spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!J${sumRow}` }, `${pfx}D${currentRow}`)
               spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!L${sumRow}` }, `${pfx}F${currentRow}`)
               spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!M${sumRow}` }, `${pfx}G${currentRow}`)
-              fillRatesForProposalRow(currentRow, text)
+              fillRatesForProposalRow(currentRow, descForRates)
               spreadsheet.updateCell({ formula: `=IFERROR(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1),"")` }, `${pfx}H${currentRow}`)
               currentRow++
             })
@@ -11893,6 +12129,18 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               usedSumIds.add(rowToUse)
             }
           }
+          // Geotextile filter fabric below gravel: drive SQ FT / QTY from Gravel SOG sum row
+          if (heading === 'Compacted gravel' && text.includes('geotextile filter fabric')) {
+            const gravelSum = allFoundationSums.find(f => {
+              if ((f.subsectionName || '').toLowerCase() !== 'sog') return false
+              const firstP = (getFirstParticulars(f) || '').toLowerCase()
+              return firstP.includes('gravel') && !firstP.includes('geotextile')
+            })
+            if (gravelSum) {
+              rowToUse = gravelSum.row
+              source = gravelSum
+            }
+          }
           if (!rowToUse || !source) return
           if (!showIfExists && !hasNonZeroTakeoff(source, !!formulaItem)) return
           if (!headingAdded) {
@@ -11912,6 +12160,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             : (getTextResult != null && typeof getTextResult === 'string' ? getTextResult : text)
           if (displayText === text && source != null && text) {
             const dynVals = getDynamicValuesFromGroupRows(source, sub, !!formulaItem)
+            // Gravel: if values are 0 and no thickness mentioned, show ## for thickness and as per ##
+            if (text.includes('gravel') && !dynVals.thicknessText && !hasNonZeroTakeoff(source, !!formulaItem)) {
+              dynVals.thicknessText = '##'
+              dynVals.pageRef = '##'
+            }
             displayText = applyDynamicValuesToTemplate(text, dynVals)
           }
           const afterCountSub = afterCountFromProposalText(displayText)
@@ -11924,6 +12177,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!I${sumRow}` }, `${pfx}C${currentRow}`)
+          // D = SQ FT from J only (reference from J, not C)
           spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!J${sumRow}` }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!L${sumRow}` }, `${pfx}F${currentRow}`)
           spreadsheet.updateCell({ formula: `='${substructureCalcSheet}'!M${sumRow}` }, `${pfx}G${currentRow}`)
@@ -13473,7 +13727,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           sumRowKey: 'nonShrinkGrout',
           subsectionName: 'Non-shrink grout',
           sumColumn: 'M',
-          targetCol: 'G'
+          targetCol: 'G',
+          thickStr,
+          sRefs
         })
       }
       const repairScopeLines = []
@@ -13787,31 +14043,46 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           if (ref && !seen.has(ref)) { seen.add(ref); collected.push(ref) }
         }
       }
-      return collected.length === 0 ? '##' : collected.length === 1 ? collected[0] : collected.slice(0, -1).join(', ') + ' & ' + collected[collected.length - 1]
+      return collected.length === 0 ? 'details on' : collected.length === 1 ? collected[0] : collected.slice(0, -1).join(', ') + ' & ' + collected[collected.length - 1]
     }
+    const cipStairsPageRefEsc = (getPageRefSuperstructure('CIP Stairs') || 'details on').replace(/"/g, '""')
+    const infilledPageRefEsc = (getPageRefSuperstructure('Stairs – Infilled tads') || 'details on').replace(/"/g, '""')
     const getCipStairsValuesFromRow = (calcRow) => {
-      if (!calculationData || !calcRow || calcRow < 1) return { thickness: '8"', width: '##', riser: '##', location: '1st FL', asPer: getPageRefSuperstructure('CIP Stairs') || '##' }
+      const defaultAsPer = getPageRefSuperstructure('CIP Stairs') || 'as per details on'
+      if (!calculationData || !calcRow || calcRow < 1) return { thickness: '8"', width: 'as indicated', riser: 'as indicated', location: '1st FL', asPer: defaultAsPer }
       const row = calculationData[calcRow - 1]
-      if (!row || !Array.isArray(row)) return { thickness: '8"', width: '##', riser: '##', location: '1st FL', asPer: getPageRefSuperstructure('CIP Stairs') || '##' }
+      if (!row || !Array.isArray(row)) return { thickness: '8"', width: 'as indicated', riser: 'as indicated', location: '1st FL', asPer: defaultAsPer }
       const p = (row[1] || '').toString()
+      let thickness = '8"'
       const thicknessMatch = p.match(/(\d+(?:\/\d+)?)"?\s*thick/i) || p.match(/(\d+)"\s*thick/i)
-      const thickness = thicknessMatch ? (thicknessMatch[1].includes('"') ? thicknessMatch[1] : thicknessMatch[1] + '"') : '8"'
-      const widthFromCol = row[6] != null && row[6] !== '' ? String(row[6]).trim() : null
+      if (thicknessMatch) thickness = thicknessMatch[1].includes('"') ? thicknessMatch[1] : thicknessMatch[1] + '"'
+      else if (row[7] != null && row[7] !== '') {
+        const heightFeet = parseFloat(row[7])
+        if (!isNaN(heightFeet) && heightFeet > 0) thickness = `${Math.round(heightFeet * 12)}"`
+      }
+      const widthFromColRaw = row[6] != null && row[6] !== '' ? String(row[6]).trim() : null
+      const widthFromCol = widthFromColRaw ? (formatWidthFeetInches(widthFromColRaw) || widthFromColRaw) : null
       const widthMatch = p.match(/(\d+'-?\d*")\s*wide/i)
-      const width = widthFromCol || (widthMatch ? widthMatch[1] : '##')
+      const width = widthFromCol || (widthMatch ? widthMatch[1] : 'as indicated')
       let riserVal = Math.round(parseFloat(row[12]) || 0)
+      if (riserVal <= 0 && row[11] != null && row[11] !== '') riserVal = Math.round(parseFloat(row[11]) || 0)
+      if (riserVal <= 0) {
+        const takeoffVal = parseFloat(row[2])
+        if (Number.isInteger(takeoffVal) && takeoffVal > 0 && takeoffVal < 100) riserVal = takeoffVal
+      }
       if (riserVal <= 0) {
         const rm = p.match(/(\d+)\s*Riser/i)
         if (rm) riserVal = parseInt(rm[1], 10)
       }
-      const riser = riserVal > 0 ? String(riserVal) : '##'
+      const riser = riserVal > 0 ? String(riserVal) : 'as indicated'
       const locationMatch = p.match(/@\s*([^ as per]+?)(?:\s+as\s+per|$)/i) || p.match(/(?:cellar|roof|1st|2nd|\d+th)\s*FL[^,]*(?:,\s*(?:cellar|roof|1st|2nd|\d+th)\s*FL[^,]*)*/i)
       const location = (locationMatch && locationMatch[1] ? locationMatch[1].trim() : null) || (locationMatch && locationMatch[0] ? locationMatch[0].trim() : null) || '1st FL'
-      const asPer = getPageRefSuperstructure('CIP Stairs') || '##'
+      const asPer = getPageRefSuperstructure('CIP Stairs') || 'as per details on'
       return { thickness, width, riser, location, asPer }
     }
     const getCipStairsProposalText = (groupName, lineType, calcRow) => {
-      if (lineType === 'slab') return `F&I new stair slab as per ${getPageRefSuperstructure('CIP Stairs') || '##'}`
+      const asPerDef = getPageRefSuperstructure('CIP Stairs') || 'as per details on'
+      if (lineType === 'slab') return `F&I new stair slab as per ${asPerDef}`
       if (!calcRow) return null
       const v = getCipStairsValuesFromRow(calcRow)
       if (lineType === 'landings') return `F&I new (${v.thickness} thick) stair landings @ ${v.location} as per ${v.asPer}`
@@ -13866,8 +14137,18 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       }
       const groupIndex = line.somdGroupIndex ?? line.shearGroupIndex ?? line.curbGroupIndex ?? line.concretePadGroupIndex ?? 0
       const sumInfo = findSumRowForSubsection(line.subsectionName, line.sumRowKey, groupIndex, line)
-      spreadsheet.updateCell({ value: line.proposalText }, `${pfx}B${currentRow}`)
-      rowBContentMap.set(currentRow, line.proposalText)
+      // Non-shrink grout: CONCATENATE so qty updates in real time from Calculation sheet
+      const isNonShrinkGroutWithFormula = line.sumRowKey === 'nonShrinkGrout' && sumInfo && (sumInfo.type === 'single' && sumInfo.row) && line.thickStr != null && line.sRefs != null
+      if (isNonShrinkGroutWithFormula) {
+        const thickStrEsc = (line.thickStr || '').replace(/"/g, '""')
+        const sRefsEsc = (line.sRefs || '').replace(/"/g, '""')
+        const bFormula = `=CONCATENATE("F&I new (",'${calcSheetName}'!G${sumInfo.row},")no (","${thickStrEsc}"," thick) non-shrink grout @ base plates as per ","${sRefsEsc}",")")`
+        spreadsheet.updateCell({ formula: bFormula }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, line.proposalText)
+      } else {
+        spreadsheet.updateCell({ value: line.proposalText }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, line.proposalText)
+      }
       spreadsheet.wrap(`${pfx}B${currentRow}`, true)
       spreadsheet.cellFormat(
         { fontWeight: lineFontWeight, color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' },
@@ -14110,14 +14391,19 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       if (!calcRow) return
       const showRisersSuffix = options.riserSuffix === true
       const useStairsFormula = options.useStairsFormula === true
+      const useLandingsFormula = options.useLandingsFormula === true
       if (superstructureScopeStartRow == null) superstructureScopeStartRow = currentRow
-      if (useStairsFormula) {
-        const v = getCipStairsValuesFromRow(calcRow)
-        const locEsc = (v.location || '1st FL').replace(/"/g, '""')
-        const asPerEsc = (v.asPer || '##').replace(/"/g, '""')
-        const bFormula = `=CONCATENATE("F&I new (", '${calcSheetName}'!G${calcRow}, " wide) concrete stairs (", G${currentRow}, " Riser) @ ", "\"\"${locEsc}\"\"", " as per ", "\"\"${asPerEsc}\"\"", ")")`
-        spreadsheet.updateCell({ formula: bFormula }, `${pfx}B${currentRow}`)
-        rowBContentMap.set(currentRow, `F&I new (… wide) concrete stairs (… Riser) @ ${v.location} as per ${v.asPer}`)
+      if (useLandingsFormula) {
+        const landFormula = `=CONCATENATE("F&I new (",ROUND('${calcSheetName}'!H${calcRow}*12,0),"\"\""," thick) stair landings @ 1st FL as per ","${cipStairsPageRefEsc}",")")`
+        spreadsheet.updateCell({ formula: landFormula }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, `F&I new (… thick) stair landings @ 1st FL as per ${getPageRefSuperstructure('CIP Stairs') || 'details on'}`)
+      } else if (useStairsFormula) {
+        const gRef = `'${calcSheetName}'!G${calcRow}`
+        const mRef = `'${calcSheetName}'!M${calcRow}`
+        const widthPart = `INT(${gRef})&"'-"&TEXT(ROUND((${gRef}-INT(${gRef}))*12,0),"0")&"\"\""`
+        const stairsFormula = `=CONCATENATE("F&I new (",${widthPart}," wide) concrete stairs (",ROUND(${mRef},0)," Riser) @ 1st FL as per ","${cipStairsPageRefEsc}",")")`
+        spreadsheet.updateCell({ formula: stairsFormula }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, `F&I new (… wide) concrete stairs (… Riser) @ 1st FL as per ${getPageRefSuperstructure('CIP Stairs') || 'details on'}`)
       } else {
         const text = proposalText || getCipStairsProposalText(null, options.lineType, calcRow)
         if (!text) return
@@ -14184,8 +14470,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           `${pfx}B${currentRow}`
         )
         currentRow++
-        const landingsText = getCipStairsProposalText(grp.name, 'landings', grp.landingRow)
-        if (grp.landingRow != null && landingsText) renderCipStairsLineFromFormula(landingsText, grp.landingRow, { lineType: 'landings' })
+        if (grp.landingRow != null) renderCipStairsLineFromFormula(null, grp.landingRow, { lineType: 'landings', useLandingsFormula: true })
         if (grp.stairRow != null) renderCipStairsLineFromFormula(null, grp.stairRow, { riserSuffix: true, useStairsFormula: true })
         const slabText = getCipStairsProposalText(grp.name, 'slab', grp.slabRow)
         if (grp.slabRow != null && slabText && cipStairsSlabRowHasData(grp)) renderCipStairsLineFromFormula(slabText, grp.slabRow, {})
@@ -14211,21 +14496,33 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       })
     }
     const getInfilledValuesFromRow = (calcRow) => {
-      if (!calculationData || !calcRow || calcRow < 1) return { thickness: '##', width: '##', riser: '##', location: '1st FL', asPer: getPageRefSuperstructure('Stairs – Infilled tads') || '##', particulars: '' }
+      const defaultAsPer = getPageRefSuperstructure('Stairs – Infilled tads') || 'as per details on'
+      if (!calculationData || !calcRow || calcRow < 1) return { thickness: '8"', width: 'as indicated', riser: 'as indicated', location: '1st FL', asPer: defaultAsPer, particulars: '' }
       const row = calculationData[calcRow - 1]
-      if (!row || !Array.isArray(row)) return { thickness: '##', width: '##', riser: '##', location: '1st FL', asPer: getPageRefSuperstructure('Stairs – Infilled tads') || '##', particulars: '' }
+      if (!row || !Array.isArray(row)) return { thickness: '8"', width: 'as indicated', riser: 'as indicated', location: '1st FL', asPer: defaultAsPer, particulars: '' }
       const p = (row[1] || '').toString()
+      let thickness = '8"'
       const thicknessMatch = p.match(/(\d+(?:\/\d+)?)"?\s*thick/i) || p.match(/(\d+)"\s*thick/i)
-      const thickness = thicknessMatch ? (thicknessMatch[1].includes('"') ? thicknessMatch[1] : thicknessMatch[1] + '"') : '##'
-      const widthFromCol = row[6] != null && row[6] !== '' ? String(row[6]).trim() : null
+      if (thicknessMatch) thickness = thicknessMatch[1].includes('"') ? thicknessMatch[1] : thicknessMatch[1] + '"'
+      else if (row[7] != null && row[7] !== '') {
+        const heightFeet = parseFloat(row[7])
+        if (!isNaN(heightFeet) && heightFeet > 0) thickness = `${Math.round(heightFeet * 12)}"`
+      }
+      const widthFromColRaw = row[6] != null && row[6] !== '' ? String(row[6]).trim() : null
+      const widthFromCol = widthFromColRaw ? (formatWidthFeetInches(widthFromColRaw) || widthFromColRaw) : null
       const widthMatch = p.match(/(\d+'-?\d*")\s*wide/i)
-      const width = widthFromCol || (widthMatch ? widthMatch[1] : '##')
+      const width = widthFromCol || (widthMatch ? widthMatch[1] : 'as indicated')
       let riserVal = Math.round(parseFloat(row[12]) || 0)
+      if (riserVal <= 0 && row[11] != null && row[11] !== '') riserVal = Math.round(parseFloat(row[11]) || 0)
+      if (riserVal <= 0) {
+        const takeoffVal = parseFloat(row[2])
+        if (Number.isInteger(takeoffVal) && takeoffVal > 0 && takeoffVal < 100) riserVal = takeoffVal
+      }
       if (riserVal <= 0) { const rm = p.match(/(\d+)\s*Riser/i); if (rm) riserVal = parseInt(rm[1], 10) }
-      const riser = riserVal > 0 ? String(riserVal) : '##'
+      const riser = riserVal > 0 ? String(riserVal) : 'as indicated'
       const locationMatch = p.match(/@\s*([^ as per]+?)(?:\s+as\s+per|$)/i) || p.match(/(?:cellar|roof|1st|2nd|\d+th)\s*FL[^,]*(?:,\s*(?:cellar|roof|1st|2nd|\d+th)\s*FL[^,]*)*/i)
       const location = (locationMatch && locationMatch[1] ? locationMatch[1].trim() : null) || (locationMatch && locationMatch[0] ? locationMatch[0].trim() : null) || '1st FL'
-      const asPer = getPageRefSuperstructure('Stairs – Infilled tads') || '##'
+      const asPer = getPageRefSuperstructure('Stairs – Infilled tads') || 'as per details on'
       return { thickness, width, riser, location, asPer, particulars: p }
     }
     const getInfilledLandingProposalText = (calcRow) => {
@@ -14253,17 +14550,18 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           `${pfx}B${currentRow}`
         )
         currentRow++
-        const landingText = grp.landingSumRow != null ? getInfilledLandingProposalText(grp.landingSumRow) : 'F&I new (#" thick) stair landings @ ## as per ##'
-        const stairText = grp.stairRow != null ? getInfilledStairProposalText(grp.stairRow) : 'F&I new (#" wide) concrete stairs (## Riser) @ # as per ##'
+        const infilledLandingDesc = `F&I new (… thick) stair landings @ 1st FL as per ${getPageRefSuperstructure('Stairs – Infilled tads') || 'details on'}`
+        const infilledStairDesc = `F&I new (… wide) concrete stairs (… Riser) @ 1st FL as per ${getPageRefSuperstructure('Stairs – Infilled tads') || 'details on'}`
         if (grp.landingSumRow != null) {
-          spreadsheet.updateCell({ value: landingText }, `${pfx}B${currentRow}`)
-          rowBContentMap.set(currentRow, landingText)
+          const landFormula = `=CONCATENATE("F&I new (",ROUND('${calcSheetName}'!H${grp.landingSumRow}*12,0),"\"\""," thick) stair landings @ 1st FL as per ","${infilledPageRefEsc}",")")`
+          spreadsheet.updateCell({ formula: landFormula }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, infilledLandingDesc)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${grp.landingSumRow}` }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!L${grp.landingSumRow}` }, `${pfx}F${currentRow}`)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${grp.landingSumRow}` }, `${pfx}G${currentRow}`)
-          fillRatesForProposalRow(currentRow, landingText)
+          fillRatesForProposalRow(currentRow, infilledLandingDesc)
           spreadsheet.cellFormat({ fontWeight: 'normal', textAlign: 'right', backgroundColor: 'white' }, `${pfx}D${currentRow}`)
           spreadsheet.cellFormat({ fontWeight: 'normal', textAlign: 'right', backgroundColor: 'white' }, `${pfx}F${currentRow}`)
           spreadsheet.cellFormat({ fontWeight: 'normal', textAlign: 'right', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
@@ -14275,14 +14573,18 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           currentRow++
         }
         if (grp.stairRow != null) {
-          spreadsheet.updateCell({ value: stairText }, `${pfx}B${currentRow}`)
-          rowBContentMap.set(currentRow, stairText)
+          const gRef = `'${calcSheetName}'!G${grp.stairRow}`
+          const mRef = `'${calcSheetName}'!M${grp.stairRow}`
+          const widthPart = `INT(${gRef})&"'-"&TEXT(ROUND((${gRef}-INT(${gRef}))*12,0),"0")&"\"\""`
+          const stairFormula = `=CONCATENATE("F&I new (",${widthPart}," wide) concrete stairs (",ROUND(${mRef},0)," Riser) @ 1st FL as per ","${infilledPageRefEsc}",")")`
+          spreadsheet.updateCell({ formula: stairFormula }, `${pfx}B${currentRow}`)
+          rowBContentMap.set(currentRow, infilledStairDesc)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
           spreadsheet.cellFormat({ fontWeight: 'normal', color: '#000000', textAlign: 'left', backgroundColor: 'white', verticalAlign: 'top', textDecoration: 'none' }, `${pfx}B${currentRow}`)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!J${grp.stairRow}` }, `${pfx}D${currentRow}`)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!L${grp.stairRow}` }, `${pfx}F${currentRow}`)
           spreadsheet.updateCell({ formula: `='${calcSheetName}'!M${grp.stairRow}` }, `${pfx}G${currentRow}`)
-          fillRatesForProposalRow(currentRow, stairText)
+          fillRatesForProposalRow(currentRow, infilledStairDesc)
           spreadsheet.cellFormat({ fontWeight: 'normal', textAlign: 'right', backgroundColor: 'white' }, `${pfx}D${currentRow}`)
           spreadsheet.cellFormat({ fontWeight: 'normal', textAlign: 'right', backgroundColor: 'white' }, `${pfx}F${currentRow}`)
           spreadsheet.cellFormat({ fontWeight: 'normal', textAlign: 'center', backgroundColor: 'white' }, `${pfx}G${currentRow}`)
