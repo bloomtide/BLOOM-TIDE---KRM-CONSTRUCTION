@@ -7,6 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '.env') });
 
 import express from 'express';
+import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import connectDB from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
@@ -19,33 +20,24 @@ connectDB();
 
 const app = express();
 
-// CORS configuration - supports multiple origins (comma-separated in env)
+// CORS — MUST be first middleware so headers are on every response (including 401/5xx).
+// Env: CORS_ORIGINS=https://krmestimators.com,https://www.krmestimators.com (comma-separated; spaces trimmed).
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:5173')
     .split(',')
-    .map(origin => origin.trim());
+    .map(o => o.trim())
+    .filter(Boolean);
 
-// Apply CORS headers to ALL responses (must be first middleware)
-app.use((req, res, next) => {
-    const origin = req.headers.origin;
-    
-    // Check if the request origin is in our allowed list
-    if (origin && allowedOrigins.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-    } else if (allowedOrigins.length === 1) {
-        // Single origin configured, use it directly
-        res.setHeader('Access-Control-Allow-Origin', allowedOrigins[0]);
-    }
-    
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    
-    // Handle preflight requests
-    if (req.method === 'OPTIONS') {
-        return res.sendStatus(204);
-    }
-    next();
-});
+app.use(cors({
+    origin(origin, callback) {
+        // Allow requests with no origin (e.g. curl, Postman, server-to-server)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        callback(null, false);
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
 // Body parser with increased limit for large spreadsheet JSON
 // Syncfusion spreadsheets with 1000+ rows can be 10-50MB
