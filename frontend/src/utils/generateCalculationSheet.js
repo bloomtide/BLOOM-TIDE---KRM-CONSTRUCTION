@@ -10,14 +10,12 @@ import {
   processTangentPileItems,
   processSheetPileItems,
   processTimberLaggingItems,
-  processTimberSheetingItems,
   processTimberSoldierPileItems,
   processTimberPlankItems,
   processTimberWalerItems,
   processTimberRakerItems,
   processTimberBraceItems,
   processTimberPostItems,
-  processTimberSheetsItems,
   processTimberStringerItems,
   processWalerItems,
   processRakerItems,
@@ -73,6 +71,7 @@ import {
   processRetainingWallItems,
   processBarrierWallItems,
   processStemWallItems,
+  processTimberSheetingItems,
   processElevatorPitItems,
   processServiceElevatorPitItems,
   processDetentionTankItems,
@@ -148,16 +147,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let tangentPileItems = []
   let sheetPileItems = []
   let timberLaggingItems = []
-  let timberSheetingItems = []
   let timberSoldierPileGroups = []
   let timberPlankGroups = []
   let timberWalerGroups = []
   let timberRakerGroups = []
   let timberBraceGroups = []
   let timberPostGroups = []
-  let timberSheetsGroups = []
-  let verticalTimberSheetsGroups = [] // alias kept for compatibility
-  let horizontalTimberSheetsGroups = [] // alias kept for compatibility
   let timberStringerGroups = []
   let walerItems = []
   let rakerItems = []
@@ -212,6 +207,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let retainingWallGroups = []
   let barrierWallGroups = []
   let stemWallItems = []
+  let foundationTimberSheetingItems = []
   let elevatorPitItems = []
   let serviceElevatorPitItems = []
   let detentionTankItems = []
@@ -298,16 +294,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     tangentPileItems = processTangentPileItems(dataRows, headers, tracker)
     sheetPileItems = processSheetPileItems(dataRows, headers, tracker)
     timberLaggingItems = processTimberLaggingItems(dataRows, headers, tracker)
-    timberSheetingItems = processTimberSheetingItems(dataRows, headers, tracker)
     timberSoldierPileGroups = processTimberSoldierPileItems(dataRows, headers, tracker)
     timberPlankGroups = processTimberPlankItems(dataRows, headers, tracker)
     timberWalerGroups = processTimberWalerItems(dataRows, headers, tracker)
     timberRakerGroups = processTimberRakerItems(dataRows, headers, tracker)
     timberBraceGroups = processTimberBraceItems(dataRows, headers, tracker)
     timberPostGroups = processTimberPostItems(dataRows, headers, tracker)
-    timberSheetsGroups = processTimberSheetsItems(dataRows, headers, tracker)
-    verticalTimberSheetsGroups = timberSheetsGroups // alias
-    horizontalTimberSheetsGroups = timberSheetsGroups // alias
     timberStringerGroups = processTimberStringerItems(dataRows, headers, tracker)
     walerItems = processWalerItems(dataRows, headers, tracker)
     rakerItems = processRakerItems(dataRows, headers, tracker)
@@ -366,6 +358,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     retainingWallGroups = processRetainingWallItems(dataRows, headers, tracker)
     barrierWallGroups = processBarrierWallItems(dataRows, headers, tracker)
     stemWallItems = processStemWallItems(dataRows, headers, tracker)
+    foundationTimberSheetingItems = processTimberSheetingItems(dataRows, headers, tracker)
     elevatorPitItems = processElevatorPitItems(dataRows, headers, tracker)
     serviceElevatorPitItems = processServiceElevatorPitItems(dataRows, headers, tracker)
     detentionTankItems = processDetentionTankItems(dataRows, headers, tracker)
@@ -433,8 +426,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
       hasSectionData = rockExcavationItems.length > 0 || lineDrillItems.length > 0 || section.subsections.some(sub => sub.name.includes('Extra line item'))
     } else if (section.section === 'SOE') {
       hasSectionData = [
-        soldierPileGroups, timberSoldierPileGroups, timberPlankGroups, timberWalerGroups, timberRakerGroups, timberBraceGroups, timberPostGroups, timberSheetsGroups, timberStringerGroups, primarySecantItems, secondarySecantItems, tangentPileItems, sheetPileItems,
-        timberLaggingItems, timberSheetingItems, walerItems, rakerItems, upperRakerItems, lowerRakerItems,
+        soldierPileGroups, timberSoldierPileGroups, timberPlankGroups, timberWalerGroups, timberRakerGroups, timberBraceGroups, timberPostGroups, timberStringerGroups, primarySecantItems, secondarySecantItems, tangentPileItems, sheetPileItems,
+        timberLaggingItems, walerItems, rakerItems, upperRakerItems, lowerRakerItems,
         standOffItems, kickerItems, channelItems, rollChockItems, studBeamItems, innerCornerBraceItems,
         kneeBraceItems, supportingAngleGroups, pargingItems, heelBlockItems, underpinningItems,
         rockAnchorItems, rockBoltItems, anchorItems, tieBackItems, concreteSoilRetentionPierItems,
@@ -447,7 +440,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         stelcorDrilledDisplacementPileGroups, cfaPileGroups, pileCapItems, stripFootingGroups,
         isolatedFootingItems, pilasterItems, gradeBeamGroups, tieBeamGroups, strapBeamItems, thickenedSlabGroups,
         pierItems, corbelGroups, linearWallGroups, foundationWallGroups, retainingWallGroups,
-        barrierWallGroups, stemWallItems, elevatorPitItems, serviceElevatorPitItems, detentionTankItems, duplexSewageEjectorPitItems,
+        barrierWallGroups, stemWallItems, foundationTimberSheetingItems, elevatorPitItems, serviceElevatorPitItems, detentionTankItems, duplexSewageEjectorPitItems,
         deepSewageEjectorPitItems, sumpPumpPitItems, greaseTrapItems, houseTrapItems, matSlabItems, mudSlabFoundationItems,
         sogItems, stairsOnGradeGroups, electricConduitItems
       ].some(arr => arr && arr.length > 0) || !!buttressItem
@@ -628,9 +621,13 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               itemRow[1] = item.particulars
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
-              itemRow[5] = item.length || ''
-              itemRow[6] = item.width || ''
-              itemRow[7] = item.height || ''
+              // Length (F), Width (G), Height (H) — same as Foundation; use parsed if present, else top-level
+              const len = item.parsed?.length ?? item.length
+              const w = item.parsed?.width ?? item.width
+              const h = item.parsed?.calculatedHeight ?? item.parsed?.height ?? item.height
+              if (len !== undefined && len !== '') itemRow[5] = len
+              if (w !== undefined && w !== '') itemRow[6] = w
+              if (h !== undefined && h !== '') itemRow[7] = h
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'demolition_item', parsedData: item, section: 'demolition', subsection: subsection.name })
             })
@@ -888,16 +885,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Timber raker') headerCheckItems = timberRakerGroups // Group check
         else if (subsection.name === 'Timber brace') headerCheckItems = timberBraceGroups // Group check
         else if (subsection.name === 'Timber post') headerCheckItems = timberPostGroups // Group check
-        else if (subsection.name === 'Timber sheets') headerCheckItems = timberSheetsGroups // Group check
-        else if (subsection.name === 'Vertical timber sheets') headerCheckItems = timberSheetsGroups // legacy alias
-        else if (subsection.name === 'Horizontal timber sheets') headerCheckItems = timberSheetsGroups // legacy alias
         else if (subsection.name === 'Timber stringer') headerCheckItems = timberStringerGroups // Group check
         else if (subsection.name === 'Primary secant piles') headerCheckItems = primarySecantItems
         else if (subsection.name === 'Secondary secant piles') headerCheckItems = secondarySecantItems
         else if (subsection.name === 'Tangent piles') headerCheckItems = tangentPileItems
         else if (subsection.name === 'Sheet pile') headerCheckItems = sheetPileItems
         else if (subsection.name === 'Timber lagging') headerCheckItems = timberLaggingItems
-        else if (subsection.name === 'Timber sheeting') headerCheckItems = timberSheetingItems
         else if (subsection.name === 'Waler') headerCheckItems = walerItems
         else if (subsection.name === 'Raker') headerCheckItems = rakerItems
         else if (subsection.name === 'Upper Raker') headerCheckItems = upperRakerItems
@@ -1082,25 +1075,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'timber_post_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
             if (groupIndex < timberPostGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
           })
-        } else if ((subsection.name === 'Timber sheets' || subsection.name === 'Vertical timber sheets' || subsection.name === 'Horizontal timber sheets') && timberSheetsGroups.length > 0) {
-          // Process each group for timber sheets (vertical, horizontal, wood, wooden, or plain)
-          // Formulas: FT(I)=C, SQ FT(J)=I*H, no column K
-          timberSheetsGroups.forEach((group, groupIndex) => {
-            const firstGroupRow = rows.length + 1
-            group.items.forEach(item => {
-              const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
-              itemRow[2] = item.takeoff
-              itemRow[3] = item.unit
-              itemRow[7] = item.parsed.calculatedHeight || ''
-              rows.push(itemRow)
-              formulas.push({ row: rows.length, itemType: 'soldier_pile_item', parsedData: item, section: 'soe' })
-            })
-            const sumRow = Array(template.columns.length).fill('')
-            rows.push(sumRow)
-            formulas.push({ row: rows.length, itemType: 'vertical_timber_sheets_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1, subsectionName: 'Timber sheets' })
-            if (groupIndex < timberSheetsGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
-          })
         } else if (subsection.name === 'Timber stringer' && timberStringerGroups.length > 0) {
           // Timber stringer: E=qty from (N) or 1, I=C*E. Always create sum row; single-item group -> sum row red, item row black
           timberStringerGroups.forEach((group, groupIndex) => {
@@ -1127,7 +1101,6 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           else if (subsection.name === 'Tangent piles') subsectionItems = tangentPileItems
           else if (subsection.name === 'Sheet pile') subsectionItems = sheetPileItems
           else if (subsection.name === 'Timber lagging') subsectionItems = timberLaggingItems
-          else if (subsection.name === 'Timber sheeting') subsectionItems = timberSheetingItems
           else if (subsection.name === 'Waler') subsectionItems = walerItems
           else if (subsection.name === 'Raker') subsectionItems = rakerItems
           else if (subsection.name === 'Upper Raker') subsectionItems = upperRakerItems
@@ -1537,6 +1510,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Retaining walls') hasSubsectionData = retainingWallGroups.length > 0
         else if (subsection.name === 'Barrier wall') hasSubsectionData = barrierWallGroups.length > 0
         else if (subsection.name === 'Stem wall') hasSubsectionData = stemWallItems.length > 0
+        else if (subsection.name === 'Timber sheeting') hasSubsectionData = foundationTimberSheetingItems.length > 0
         else if (subsection.name === 'Elevator Pit') hasSubsectionData = elevatorPitItems.length > 0
         else if (subsection.name === 'Service elevator pit') hasSubsectionData = serviceElevatorPitItems.length > 0
         else if (subsection.name === 'Detention tank') hasSubsectionData = detentionTankItems.length > 0
@@ -2215,6 +2189,28 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             itemRow[7] = item.parsed.height || '' // Height (H)
             rows.push(itemRow)
             formulas.push({ row: rows.length, itemType: 'stem_wall', parsedData: item, section: 'foundation' })
+          })
+          const sumRow = Array(template.columns.length).fill('')
+          rows.push(sumRow)
+          formulas.push({
+            row: rows.length,
+            itemType: 'foundation_sum',
+            section: 'foundation',
+            firstDataRow: firstItemRow,
+            lastDataRow: rows.length - 1,
+            subsectionName: subsection.name,
+            foundationCySumRow: true
+          })
+        } else if (subsection.name === 'Timber sheeting' && foundationTimberSheetingItems.length > 0) {
+          const firstItemRow = rows.length + 1
+          foundationTimberSheetingItems.forEach(item => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = item.particulars
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit
+            itemRow[7] = item.parsed?.calculatedHeight ?? '' // Height (H)
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'timber_sheeting', parsedData: item, section: 'foundation', subsectionName: subsection.name })
           })
           const sumRow = Array(template.columns.length).fill('')
           rows.push(sumRow)

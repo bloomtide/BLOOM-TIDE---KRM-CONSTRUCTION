@@ -447,8 +447,8 @@ export const processTimberPostItems = (rawDataRows, headers, tracker = null) => 
 }
 
 /**
- * Processes timber sheets items (vertical, horizontal, wood, wooden, or plain)
- * and groups them by dimension + H + E — same logic as before, just one unified section.
+ * Processes timber sheets items (vertical, horizontal, wood, wooden, or plain).
+ * No grouping by height/width/embedment — all items in a single group with one sum row.
  * Formulas: FT(I)=C, SQ FT(J)=I*H, no column K
  * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  */
@@ -483,25 +483,15 @@ export const processTimberSheetsItems = (rawDataRows, headers, tracker = null) =
         }
     })
 
-    const groupMap = new Map()
-    allItems.forEach(item => {
-        const groupKey = item.parsed.groupKey
-        if (!groupMap.has(groupKey)) {
-            groupMap.set(groupKey, {
-                groupKey: groupKey,
-                type: 'timber_sheets',
-                items: [],
-                parsed: item.parsed
-            })
-        }
-        groupMap.get(groupKey).items.push(item)
-    })
+    if (allItems.length === 0) return []
 
-    let groups = Array.from(groupMap.values()).sort((a, b) => {
-        if (a.parsed.heightRaw !== b.parsed.heightRaw) return a.parsed.heightRaw - b.parsed.heightRaw
-        return (a.parsed.embedment || 0) - (b.parsed.embedment || 0)
-    })
-    return mergeSingleItemGroups(groups)
+    // Single group, single calculation — no grouping by size/H/E
+    return [{
+        groupKey: 'timber_sheets',
+        type: 'timber_sheets',
+        items: allItems,
+        parsed: null
+    }]
 }
 
 // Keep old names as aliases so any lingering call-sites don't break

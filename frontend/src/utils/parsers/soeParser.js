@@ -291,22 +291,17 @@ export const isHorizontalTimberSheets = isTimberSheets
 /**
  * Parses timber sheet parameters (vertical, horizontal, wood, wooden, or plain)
  * e.g. 3"x10" Vertical timber sheets H=6'-0", E=4'-0" or H=7'-9" (E optional)
- * Grouping: by size + H + E (same as before). Height from H, no rounding.
+ * No grouping — all timber sheets shown in one block with one sum (groupKey unused).
  * Formulas: FT(I)=C, SQ FT(J)=I*H
  */
 export const parseTimberSheets = (itemName) => {
-    const itemLower = itemName.toLowerCase()
-    // Detect direction keyword to keep group keys stable per item variant
-    const dirMatch = itemLower.match(/\b(vertical|horizontal|wood(?:en)?)/)
-    const dir = dirMatch ? dirMatch[1] : 'timber'
-
     const result = {
         type: 'timber_sheets',
         size: null,
         heightRaw: 0,
         embedment: null,
         calculatedHeight: 0,
-        groupKey: null
+        groupKey: 'timber_sheets'
     }
 
     const sizeMatch = itemName.match(/(\d+)"\s*x\s*(\d+)"/i)
@@ -320,12 +315,7 @@ export const parseTimberSheets = (itemName) => {
     if (hMatch) result.heightRaw = parseDimension(hMatch[1])
     if (eMatch) result.embedment = parseDimension(eMatch[1])
 
-    // Use H from bracket directly, do NOT round up
     result.calculatedHeight = result.heightRaw
-
-    const hValue = Math.round(result.heightRaw * 12)
-    const eValue = result.embedment ? Math.round(result.embedment * 12) : 0
-    result.groupKey = `timber-sheets-${dir}-${result.size || 'other'}-${hValue}-${eValue}`
 
     return result
 }

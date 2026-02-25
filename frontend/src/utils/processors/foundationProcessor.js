@@ -37,6 +37,7 @@ import {
     isROG,
     isStairsOnGrade,
     isElectricConduit,
+    isTimberSheeting,
     parseDrilledFoundationPile,
     parseHelicalFoundationPile,
     parseDrivenFoundationPile,
@@ -70,7 +71,8 @@ import {
     parseSOG,
     parseROG,
     parseStairsOnGrade,
-    parseElectricConduit
+    parseElectricConduit,
+    parseTimberSheeting
 } from '../parsers/foundationParser'
 
 /**
@@ -706,7 +708,8 @@ export const processThickenedSlabItems = (rawDataRows, headers, tracker = null) 
 }
 
 /**
- * Processes buttress items - returns takeoff from Buttress raw data, or { takeoff: 0, unit: 'EA' } if not available (matches Columns subsection logic)
+ * Processes buttress items - sums takeoff from all rows that are standalone buttress (e.g. "buttresses 11", "buttresses 6").
+ * Excludes "buttresses @ detention tank" via isButtress. Returns one item with summed takeoff for display in generateCalculationSheet.
  */
 export const processButtressItems = (rawDataRows, headers, tracker = null) => {
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
@@ -717,27 +720,31 @@ export const processButtressItems = (rawDataRows, headers, tracker = null) => {
         return { particulars: 'Buttress', takeoff: 0, unit: 'EA' }
     }
 
-    let buttressItem = { particulars: 'Buttress', takeoff: 0, unit: 'EA' }
+    let sumTakeoff = 0
+    let firstParticulars = 'Buttress'
+    let unit = 'EA'
+
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const rowUnit = row[unitIdx]
 
         if (isButtress(digitizerItem)) {
-            buttressItem = {
-                particulars: digitizerItem,
-                takeoff: total,
-                unit: unit || 'EA',
-                rawRowNumber: rowIndex + 2
+            sumTakeoff += total
+            if (sumTakeoff === total) {
+                firstParticulars = digitizerItem
+                unit = rowUnit || 'EA'
             }
-            // Mark this row as used
-            if (tracker) {
-                tracker.markUsed(rowIndex)
-            }
+            if (tracker) tracker.markUsed(rowIndex)
         }
     })
 
-    return buttressItem
+    return {
+        particulars: firstParticulars,
+        takeoff: sumTakeoff,
+        unit,
+        rawRowNumber: null
+    }
 }
 
 /**
@@ -883,6 +890,14 @@ export const processBarrierWallItems = (rawDataRows, headers, tracker = null) =>
  */
 export const processStemWallItems = (rawDataRows, headers, tracker = null) => {
     return processGenericFoundationItems(rawDataRows, headers, isStemWall, parseStemWall, tracker)
+}
+
+/**
+ * Processes timber sheeting items (Foundation section).
+ * Merges "Timber sheeting" and "Timber sheets" (vertical/horizontal/wood) into one; H from (H=...) or H=..., E ignored.
+ */
+export const processTimberSheetingItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isTimberSheeting, parseTimberSheeting, tracker)
 }
 
 /**
@@ -1551,6 +1566,15 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
             }
             break
 
+        case 'timber_sheeting':
+            // Timber sheeting (merged with Timber sheets): FT(I)=C, SQ FT(J)=I*H — no L (CY)
+            formulas.ft = `C${rowNum}`
+            formulas.sqFt = `I${rowNum}*H${rowNum}`
+            if (itemData.parsed?.calculatedHeight != null) {
+                formulas.height = itemData.parsed.calculatedHeight
+            }
+            break
+
         case 'electric_conduit':
             // Electric conduit: I (FT) = C (Takeoff)
             formulas.ft = `C${rowNum}`
@@ -1582,6 +1606,7 @@ export default {
     processRetainingWallItems,
     processBarrierWallItems,
     processStemWallItems,
+    processTimberSheetingItems,
     processElevatorPitItems,
     processDetentionTankItems,
     processDuplexSewageEjectorPitItems,

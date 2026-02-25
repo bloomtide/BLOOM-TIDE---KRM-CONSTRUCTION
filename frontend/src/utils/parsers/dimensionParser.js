@@ -43,21 +43,29 @@ export const convertToFeet = (dimStr) => {
 }
 
 /**
- * Extracts dimensions from parentheses in digitizer item
+ * Extracts dimensions from parentheses in digitizer item.
+ * When there are multiple parenthesis groups (e.g. "Pilaster (P3) (22\"x16\"x6'-0\")"),
+ * uses the group that contains 'x' (dimension separator), same as foundation parseBracketDimensions.
  * Examples:
  * - "(2'-0"x1'-0")" → { width: 2, height: 1 }
  * - "(2'-0"x3'-0"x1'-6")" → { length: 2, width: 3, height: 1.5 }
+ * - "Demo Pilaster (P3) (22\"x16\"x6'-0\")" → uses "(22\"x16\"x6'-0\")" → length, width, height
  * @param {string} text - Text containing dimensions
  * @returns {object} - Object with length, width, height (in feet)
  */
 export const extractDimensions = (text) => {
   if (!text) return {}
 
-  // Find content within parentheses
-  const match = text.match(/\(([^)]+)\)/)
-  if (!match) return {}
+  // Find all parenthetical groups (same logic as foundation parseBracketDimensions)
+  const matches = Array.from(text.matchAll(/\(([^)]+)\)/g))
+  if (!matches.length) return {}
 
-  const dimStr = match[1]
+  const candidates = matches.map(m => (m[1] || '').trim()).filter(Boolean)
+  if (!candidates.length) return {}
+
+  // Prefer the bracket that contains 'x' (dimension separator), e.g. "(22\"x16\"x6'-0\")" not "(P3)"
+  const dimStr =
+    [...candidates].reverse().find(c => c.toLowerCase().includes('x')) || candidates[0]
 
   // Split by 'x' (multiplication symbol)
   const parts = dimStr.split('x').map(p => p.trim())
@@ -145,12 +153,18 @@ export const parseDemolitionItem = (digitizerItem, total, unit, subsection) => {
       break
 
     case 'Demo strip footing':
-      // Extract dimensions from brackets (e.g., "(2'-0"x1'-0")")
-      // First value is width, second value is height
+      // Extract dimensions from brackets (e.g., "(2'-0"x1'-0")"); same as Foundation: SF/WF vs ST
       const sfDimensions = extractDimensions(digitizerItem)
       if (sfDimensions.width) result.width = sfDimensions.width  // Column G
       if (sfDimensions.height) result.height = sfDimensions.height  // Column H
-      // Columns E, F remain empty
+      const itemLower = (digitizerItem || '').toLowerCase()
+      if (itemLower.startsWith('st ') || /^st\s*\(/i.test(itemLower) || itemLower.includes('strap')) {
+        result.itemType = 'ST'
+      } else if (itemLower.startsWith('wf') || itemLower.includes('wall footing')) {
+        result.itemType = 'WF'
+      } else {
+        result.itemType = 'SF'
+      }
       break
 
     case 'Demo foundation wall':
@@ -165,12 +179,73 @@ export const parseDemolitionItem = (digitizerItem, total, unit, subsection) => {
 
     case 'Demo isolated footing':
       // Extract dimensions from brackets (e.g., "(2'-0"x3'-0"x1'-6")")
-      // First value is length, second is width, third is height
       const footingDimensions = extractDimensions(digitizerItem)
-      if (footingDimensions.length) result.length = footingDimensions.length  // Column F
-      if (footingDimensions.width) result.width = footingDimensions.width  // Column G
-      if (footingDimensions.height) result.height = footingDimensions.height  // Column H
-      // Column E remains empty
+      if (footingDimensions.length) result.length = footingDimensions.length
+      if (footingDimensions.width) result.width = footingDimensions.width
+      if (footingDimensions.height) result.height = footingDimensions.height
+      break
+
+    // ── Pile caps, pilaster, buttress, pier, corbel: L×W×H (same as isolated footing) ──
+    case 'Demo pile caps':
+    case 'Demo pilaster':
+    case 'Demo buttress':
+    case 'Demo pier':
+    case 'Demo corbel':
+      {
+        const dims = extractDimensions(digitizerItem)
+        if (dims.length) result.length = dims.length
+        if (dims.width) result.width = dims.width
+        if (dims.height) result.height = dims.height
+      }
+      break
+
+    // ── Grade beam, tie beam, strap beam, liner wall, barrier wall, stem wall: W×H (linear; takeoff = length) ──
+    case 'Demo grade beam':
+    case 'Demo tie beam':
+    case 'Demo strap beam':
+    case 'Demo liner wall':
+    case 'Demo barrier wall':
+    case 'Demo stem wall':
+      {
+        const dims = extractDimensions(digitizerItem)
+        if (dims.width) result.width = dims.width
+        if (dims.height) result.height = dims.height
+      }
+      break
+
+    // ── Thickened slab, mat slab: thickness as height (SQ FT = takeoff) ──
+    case 'Demo thickened slab':
+    case 'Demo mat slab':
+      {
+        const thickness = extractThickness(digitizerItem)
+        result.height = thickness > 0 ? thickness : 4 / 12
+      }
+      break
+
+    // ── Mud slab ──
+    case 'Demo mud slab':
+      {
+        const thickness = extractThickness(digitizerItem)
+        result.height = thickness > 0 ? thickness : 4 / 12
+      }
+      break
+
+    // ── Pit items: L×W×H (or W×H; use same extractDimensions) ──
+    case 'Demo elevator pit':
+    case 'Demo service elevator pit':
+    case 'Demo detention tank':
+    case 'Demo duplex sewage ejector pit':
+    case 'Demo deep sewage ejector pit':
+    case 'Demo sewage ejector pit':
+    case 'Demo sump pump pit':
+    case 'Demo grease trap pit':
+    case 'Demo house trap pit':
+      {
+        const dims = extractDimensions(digitizerItem)
+        if (dims.length) result.length = dims.length
+        if (dims.width) result.width = dims.width
+        if (dims.height) result.height = dims.height
+      }
       break
 
     case 'Demo stair on grade':
