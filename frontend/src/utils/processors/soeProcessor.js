@@ -8,6 +8,7 @@ import {
     parseTimberWaler,
     parseTimberStringer,
     parseTimberPost,
+    parseTimberSheets,
     parseVerticalTimberSheets,
     parseHorizontalTimberSheets,
     calculatePileWeight,
@@ -19,6 +20,7 @@ import {
     isTimberWaler,
     isTimberStringer,
     isTimberPost,
+    isTimberSheets,
     isVerticalTimberSheets,
     isHorizontalTimberSheets,
     isPrimarySecantPile,
@@ -445,11 +447,12 @@ export const processTimberPostItems = (rawDataRows, headers, tracker = null) => 
 }
 
 /**
- * Processes vertical timber sheets items and groups them (same structure as timber post / drilled soldier pile)
- * Formulas same as Timber sheeting: FT(I)=C, SQ FT(J)=I*H, no column K
+ * Processes timber sheets items (vertical, horizontal, wood, wooden, or plain)
+ * and groups them by dimension + H + E — same logic as before, just one unified section.
+ * Formulas: FT(I)=C, SQ FT(J)=I*H, no column K
  * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
  */
-export const processVerticalTimberSheetsItems = (rawDataRows, headers, tracker = null) => {
+export const processTimberSheetsItems = (rawDataRows, headers, tracker = null) => {
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
     const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
     const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
@@ -462,8 +465,8 @@ export const processVerticalTimberSheetsItems = (rawDataRows, headers, tracker =
         const total = parseFloat(row[totalIdx]) || 0
         const unit = row[unitIdx]
 
-        if (isVerticalTimberSheets(digitizerItem)) {
-            const parsed = parseVerticalTimberSheets(digitizerItem)
+        if (isTimberSheets(digitizerItem)) {
+            const parsed = parseTimberSheets(digitizerItem)
 
             allItems.push({
                 particulars: digitizerItem,
@@ -486,7 +489,7 @@ export const processVerticalTimberSheetsItems = (rawDataRows, headers, tracker =
         if (!groupMap.has(groupKey)) {
             groupMap.set(groupKey, {
                 groupKey: groupKey,
-                type: 'vertical_timber_sheets',
+                type: 'timber_sheets',
                 items: [],
                 parsed: item.parsed
             })
@@ -501,62 +504,9 @@ export const processVerticalTimberSheetsItems = (rawDataRows, headers, tracker =
     return mergeSingleItemGroups(groups)
 }
 
-/**
- * Processes horizontal timber sheets items and groups them (same structure as vertical timber sheets)
- * Formulas same as Vertical timber sheets: FT(I)=C, SQ FT(J)=I*H, no column K
- * @param {UsedRowTracker} tracker - Optional tracker to mark used row indices
- */
-export const processHorizontalTimberSheetsItems = (rawDataRows, headers, tracker = null) => {
-    const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
-    const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
-    const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
-
-    if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return []
-
-    const allItems = []
-    rawDataRows.forEach((row, rowIndex) => {
-        const digitizerItem = row[digitizerIdx]
-        const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
-
-        if (isHorizontalTimberSheets(digitizerItem)) {
-            const parsed = parseHorizontalTimberSheets(digitizerItem)
-
-            allItems.push({
-                particulars: digitizerItem,
-                takeoff: total,
-                unit: unit,
-                parsed: parsed,
-                weight: 0,
-                rawRowNumber: rowIndex + 2
-            })
-
-            if (tracker) {
-                tracker.markUsed(rowIndex)
-            }
-        }
-    })
-
-    const groupMap = new Map()
-    allItems.forEach(item => {
-        const groupKey = item.parsed.groupKey
-        if (!groupMap.has(groupKey)) {
-            groupMap.set(groupKey, {
-                groupKey: groupKey,
-                type: 'horizontal_timber_sheets',
-                items: [],
-                parsed: item.parsed
-            })
-        }
-        groupMap.get(groupKey).items.push(item)
-    })
-
-    let groups = Array.from(groupMap.values()).sort((a, b) => {
-        if (a.parsed.heightRaw !== b.parsed.heightRaw) return a.parsed.heightRaw - b.parsed.heightRaw
-        return (a.parsed.embedment || 0) - (b.parsed.embedment || 0)
-    })
-    return mergeSingleItemGroups(groups)
-}
+// Keep old names as aliases so any lingering call-sites don't break
+export const processVerticalTimberSheetsItems = processTimberSheetsItems
+export const processHorizontalTimberSheetsItems = processTimberSheetsItems
 
 /**
  * Processes timber waler items and groups them
@@ -1714,9 +1664,10 @@ export const generateSoeFormulas = (itemType, rowNum, itemData) => {
         case 'timber_logging':
         case 'timber_lagging':
         case 'timber_sheeting':
+        case 'timber_sheets':
         case 'vertical_timber_sheets':
         case 'horizontal_timber_sheets':
-            // Timber lagging/sheeting/vertical/horizontal timber sheets: FT(I)=C, SQ FT(J)=I*H
+            // Timber lagging/sheeting/timber sheets: FT(I)=C, SQ FT(J)=I*H
             formulas.ft = `C${rowNum}`
             formulas.sqFt = `I${rowNum}*H${rowNum}`
             break
