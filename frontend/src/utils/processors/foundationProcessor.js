@@ -706,7 +706,8 @@ export const processThickenedSlabItems = (rawDataRows, headers, tracker = null) 
 }
 
 /**
- * Processes buttress items - returns takeoff from Buttress raw data, or { takeoff: 0, unit: 'EA' } if not available (matches Columns subsection logic)
+ * Processes buttress items - sums takeoff from all rows that are standalone buttress (e.g. "buttresses 11", "buttresses 6").
+ * Excludes "buttresses @ detention tank" via isButtress. Returns one item with summed takeoff for display in generateCalculationSheet.
  */
 export const processButtressItems = (rawDataRows, headers, tracker = null) => {
     const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
@@ -717,27 +718,31 @@ export const processButtressItems = (rawDataRows, headers, tracker = null) => {
         return { particulars: 'Buttress', takeoff: 0, unit: 'EA' }
     }
 
-    let buttressItem = { particulars: 'Buttress', takeoff: 0, unit: 'EA' }
+    let sumTakeoff = 0
+    let firstParticulars = 'Buttress'
+    let unit = 'EA'
+
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const rowUnit = row[unitIdx]
 
         if (isButtress(digitizerItem)) {
-            buttressItem = {
-                particulars: digitizerItem,
-                takeoff: total,
-                unit: unit || 'EA',
-                rawRowNumber: rowIndex + 2
+            sumTakeoff += total
+            if (sumTakeoff === total) {
+                firstParticulars = digitizerItem
+                unit = rowUnit || 'EA'
             }
-            // Mark this row as used
-            if (tracker) {
-                tracker.markUsed(rowIndex)
-            }
+            if (tracker) tracker.markUsed(rowIndex)
         }
     })
 
-    return buttressItem
+    return {
+        particulars: firstParticulars,
+        takeoff: sumTakeoff,
+        unit,
+        rawRowNumber: null
+    }
 }
 
 /**

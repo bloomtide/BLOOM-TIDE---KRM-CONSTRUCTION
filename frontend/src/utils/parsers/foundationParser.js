@@ -272,12 +272,15 @@ export const isThickenedSlab = (item) => {
 }
 
 /**
- * Identifies if item is a buttress
+ * Identifies if item is a buttress (standalone only).
+ * Excludes "buttresses @ detention tank" and similar — only match when the line does not contain " @ ".
  */
 export const isButtress = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
-    return itemLower.includes('buttress')
+    if (!itemLower.includes('buttress')) return false
+    if (itemLower.includes('@')) return false
+    return true
 }
 
 /**
