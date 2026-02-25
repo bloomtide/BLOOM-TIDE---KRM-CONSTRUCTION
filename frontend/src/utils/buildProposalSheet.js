@@ -2657,20 +2657,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       ((window.soldierPileGroups || []).length > 0)
 
     if (hasSOEScopeData) {
-      // SOE Scope
-      spreadsheet.updateCell({ value: 'SOE scope:' }, `${pfx}B${currentRow}`)
-      rowBContentMap.set(currentRow, 'SOE scope:')
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'center',
-          backgroundColor: '#BDD7EE',
-          border: '1px solid #000000'
-        },
-        `${pfx}B${currentRow}`
-      )
-      currentRow++
+      // SOE Scope heading is written only after we know there are subsections to display (see below)
 
       // Compute drilled vs HP groups before headings so we know which subsection headings to show
       const collectedGroups = window.drilledSoldierPileGroups || []
@@ -4682,36 +4669,33 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
       }
 
-      // Check if mud slab is in soeSubsectionItems or window
-      const mudSlabGroups = soeSubsectionItems.get('Mud slab') || []
-      const mudSlabItemsFromWindow = window.mudSlabItems || []
-      const hasMudSlabItems = mudSlabGroups.length > 0 && mudSlabGroups.some(g => g.length > 0) || mudSlabItemsFromWindow.length > 0
-
-      // If mud slab items exist but Mud slab is not in collectedSubsections, add it
-      if (hasMudSlabItems && !collectedSubsections.has('Mud slab')) {
-        collectedSubsections.add('Mud slab')
-      }
-
-      // Also check calculationData directly for mud slab
-      if (!hasMudSlabItems && calculationData && calculationData.length > 0) {
-        let foundMudSlab = false
+      // SOE Mud slab: only show when excavation scope has mud slab (e.g. "Slope exc & backfill ... w/ 2" mud slab").
+      // Do NOT use foundation "Mud Slab:" / "Mud slab" (Foundation/Substructure) — only rows that clearly describe excavation (w/, backfill, exc, slope).
+      let foundMudSlab = false
+      if (calculationData && calculationData.length > 0) {
         for (const row of calculationData) {
-          const colB = row[1]
-          if (colB && typeof colB === 'string') {
-            const bText = colB.trim().toLowerCase()
-            if (bText.includes('mud slab') && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
-              foundMudSlab = true
-              break
-            }
+          const cellText = ((row[0] || '') + (row[1] || '')).toString().trim().toLowerCase()
+          if (!cellText.includes('mud slab')) continue
+          // Excavation mud slab only: row must contain mud slab AND an excavation phrase (exclude standalone "Mud slab:" or "Mud slab" under Foundation)
+          const hasExcavationPhrase = cellText.includes("w/") || cellText.includes('backfill') || cellText.includes("exc") || cellText.includes('slope')
+          if (hasExcavationPhrase) {
+            foundMudSlab = true
+            break
           }
         }
         if (foundMudSlab && !collectedSubsections.has('Mud slab')) {
           collectedSubsections.add('Mud slab')
         }
       }
+      const hasMudSlabInCalc = foundMudSlab
 
-      // Always add Misc. subsection to collectedSubsections
-      if (!collectedSubsections.has('Misc.') && !collectedSubsections.has('Misc')) {
+      // Only add Misc. subsection when calculation sheet has Misc.: section
+      const hasMiscInCalc = calculationData && calculationData.length > 0 && calculationData.some((row) => {
+        const b = (row[1] || '').toString().trim()
+        const bLower = b.toLowerCase()
+        return (bLower === 'misc.' || bLower === 'misc') && b.endsWith(':')
+      })
+      if (hasMiscInCalc && !collectedSubsections.has('Misc.') && !collectedSubsections.has('Misc')) {
         collectedSubsections.add('Misc.')
       }
 
@@ -5066,8 +5050,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           // Special handling for Form board - show it if any items exist
           subsectionsToDisplay.push(name)
           collectedSubsections.delete(name)
-        } else if (name === 'Drilled hole grout') {
-          // Always show Drilled hole grout (with template text when empty, like Vertical/Horizontal timber sheets)
+        } else if (name === 'Mud slab' && hasMudSlabInCalc) {
+          // Only show Mud slab when calculation sheet has data
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
+        } else if (name === 'Misc.' || name === 'Misc') {
+          // Misc. is added later only when at least one other SOE subsection exists (see below)
+          collectedSubsections.delete('Misc.')
+          collectedSubsections.delete('Misc')
+        } else if (name === 'Drilled hole grout' && hasDrilledHoleGroutItems) {
+          // Only show Drilled hole grout when calculation sheet has data
           subsectionsToDisplay.push(name)
           collectedSubsections.delete(name)
         } else if ((name === 'Guide wall' || name === 'Guilde wall') && hasGuideWallItems) {
@@ -5110,8 +5102,13 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           // Special handling for Timber sheeting - show it if any items exist
           subsectionsToDisplay.push(name)
           collectedSubsections.delete(name)
-        } else if (name === 'Vertical timber sheets' || name === 'Horizontal timber sheets' || name === 'Timber stringer') {
-          // Always show these three above Bracing (with template text when empty)
+        } else if (name === 'Vertical timber sheets' && hasVerticalTimberSheetsItems) {
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
+        } else if (name === 'Horizontal timber sheets' && hasHorizontalTimberSheetsItems) {
+          subsectionsToDisplay.push(name)
+          collectedSubsections.delete(name)
+        } else if (name === 'Timber stringer' && hasTimberStringerItems) {
           subsectionsToDisplay.push(name)
           collectedSubsections.delete(name)
         } else if (name === 'Timber soldier piles' && hasTimberSoldierPileItems) {
@@ -5301,8 +5298,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         }
       }
 
-      // If drilled hole grout wasn't added yet, add it now (right after Mud slab)
-      if (!subsectionsToDisplay.includes('Drilled hole grout')) {
+      // If drilled hole grout wasn't added yet (and calculation has data), add it now (right after Mud slab)
+      if (hasDrilledHoleGroutItems && !subsectionsToDisplay.includes('Drilled hole grout')) {
         const drilledHoleGroutIndex = subsectionOrder.indexOf('Drilled hole grout')
         if (drilledHoleGroutIndex !== -1) {
           let insertIndex = subsectionsToDisplay.length
@@ -5473,7 +5470,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         { name: 'Timber stringer', has: hasTimberStringerItems }
       ]
       beforeBracingSubsections.forEach(({ name, has }) => {
-        if (!subsectionsToDisplay.includes(name)) {
+        if (has && !subsectionsToDisplay.includes(name)) {
           const idx = subsectionOrder.indexOf(name)
           const bracingIdx = subsectionOrder.indexOf('Bracing')
           let insertIndex = subsectionsToDisplay.length
@@ -5499,6 +5496,28 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           subsectionsToDisplay.push(name)
         }
       })
+
+      // Add hardcoded Misc. when at least one other SOE subsection is already shown
+      if (subsectionsToDisplay.length > 0) {
+        subsectionsToDisplay.push('Misc.')
+      }
+
+      // Only show SOE scope section when there is at least one subsection to display
+      if (subsectionsToDisplay.length > 0) {
+        spreadsheet.updateCell({ value: 'SOE scope:' }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, 'SOE scope:')
+        spreadsheet.cellFormat(
+          {
+            fontWeight: 'bold',
+            color: '#000000',
+            textAlign: 'center',
+            backgroundColor: '#BDD7EE',
+            border: '1px solid #000000'
+          },
+          `${pfx}B${currentRow}`
+        )
+        currentRow++
+      }
 
       // Search for Timber lagging and Timber sheeting in calculation data (always run)
       if (calculationData && calculationData.length > 0) {
@@ -5530,6 +5549,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       let soeScopeStartRow = null
       let soeScopeEndRow = null
 
+      if (subsectionsToDisplay.length > 0) {
       subsectionsToDisplay.forEach((subsectionName) => {
         // Track first subsection row for SOE Total
         if (soeScopeStartRow === null) {
@@ -6925,7 +6945,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           return
         }
 
-        // Special handling for Misc. subsection - handle it early and return
+        // Special handling for Misc. subsection (only added to subsectionsToDisplay when at least one other SOE subsection exists)
         if (subsectionName.toLowerCase() === 'misc.' || subsectionName.toLowerCase() === 'misc') {
           // Add subsection header
           spreadsheet.updateCell({ value: `${subsectionName}:` }, `${pfx}B${currentRow}`)
@@ -6943,7 +6963,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           )
           currentRow++
 
-          // Add hardcoded text items
+          // Hardcoded Misc. items (show only when at least one other SOE subsection exists)
           const miscItems = [
             'Cut-off to grade included',
             'Pilings will be threaded at both ends and installed in 10\' or 15\' increments',
@@ -7518,15 +7538,24 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
         }
 
-        // If no groups found but subsection is in display list, skip processing (except Vertical/Horizontal timber sheets, Timber stringer, Drilled hole grout - show template text when empty)
+        // If no groups found, skip processing. Do not show Vertical/Horizontal timber sheets, Timber stringer, or Drilled hole grout when calculation sheet has no data.
         const isEmpty = groups.length === 0 || groups.every(g => g.length === 0)
         const isVerticalTimberSheets = subsectionName.toLowerCase() === 'vertical timber sheets'
         const isHorizontalTimberSheets = subsectionName.toLowerCase() === 'horizontal timber sheets'
         const isTimberStringer = subsectionName.toLowerCase() === 'timber stringer'
         const isDrilledHoleGrout = subsectionName.toLowerCase() === 'drilled hole grout'
-        const emptyTemplateSubsections = isVerticalTimberSheets || isHorizontalTimberSheets || isTimberStringer || isDrilledHoleGrout
+        const soeSubsectionsOnlyWithData = isVerticalTimberSheets || isHorizontalTimberSheets || isTimberStringer || isDrilledHoleGrout
 
-        if (isEmpty && emptyTemplateSubsections) {
+        if (isEmpty && soeSubsectionsOnlyWithData) {
+          // Do not show subsection when calculation sheet has no data for it
+          return
+        }
+        if (isEmpty) {
+          return
+        }
+
+        // (SOE subsections Vertical/Horizontal timber sheets, Timber stringer, Drilled hole grout are only added to subsectionsToDisplay when they have calculation data, so no empty-template path here.)
+        if (false) {
           // Fill template text; pull dimensions/Havg/embedment from Calculation sheet data when present
           let proposalText = ''
           let calcRefSubsectionName = ''
@@ -8820,8 +8849,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               }
             }
 
-            // Format: Allow to (2" thick) mud slab as per SOE-101.00
-            proposalText = `Allow to (${thickness} thick) mud slab as per ${soePageMain} & details on`
+            // Format: Allow to (2" thick) mud slab as per SOE-101.00 & details on SOE-204.00
+            proposalText = `Allow to (${thickness} thick) mud slab as per ${soePageMain} & details on SOE-204.00`
           } else if (subsectionName.toLowerCase() === 'sheet pile' || subsectionName.toLowerCase() === 'sheet piles') {
             // Extract sheet pile type (e.g., "NZ-14", "PZC-12", etc.)
             let sheetPileType = ''
@@ -9908,6 +9937,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         currentRow++
         currentRow++ // Empty row after SOE Total
       }
+      } // end if (subsectionsToDisplay.length > 0)
     } // end if (hasSOEScopeData)
 
     // Process Rock anchor items from calculation data (check before showing section)
