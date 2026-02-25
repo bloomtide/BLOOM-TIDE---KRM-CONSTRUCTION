@@ -273,24 +273,35 @@ export const parseTimberPost = (itemName) => {
 }
 
 /**
- * Identifies if item is a vertical timber sheet
+ * Identifies if item is a timber sheet (vertical, horizontal, wood, wooden, or plain timber sheet/sheets)
  * e.g. 3"x10" Vertical timber sheets H=6'-0", E=4'-0"
+ *      3"x10" Horizontal timber sheets H=6'-0", E=4'-0"
+ *      3"x10" Wood timber sheets H=6'-0"
  */
-export const isVerticalTimberSheets = (digitizerItem) => {
+export const isTimberSheets = (digitizerItem) => {
     if (!digitizerItem || typeof digitizerItem !== 'string') return false
     const itemLower = digitizerItem.toLowerCase()
-    return /\b(?:vertical|wood|wooden)?\s*timber\s+sheets?\b/.test(itemLower)
+    return /\b(?:vertical|horizontal|wood(?:en)?)\s+timber\s+sheets?\b|\btimber\s+sheets?\b/.test(itemLower)
 }
 
+// Keep old names as aliases so any lingering imports don't break
+export const isVerticalTimberSheets = isTimberSheets
+export const isHorizontalTimberSheets = isTimberSheets
+
 /**
- * Parses vertical timber sheets parameters
+ * Parses timber sheet parameters (vertical, horizontal, wood, wooden, or plain)
  * e.g. 3"x10" Vertical timber sheets H=6'-0", E=4'-0" or H=7'-9" (E optional)
- * Same grouping as Drilled soldier pile (size, H, E). Height from H, no rounding.
- * Formulas same as Timber sheeting: FT(I)=C, SQ FT(J)=I*H
+ * Grouping: by size + H + E (same as before). Height from H, no rounding.
+ * Formulas: FT(I)=C, SQ FT(J)=I*H
  */
-export const parseVerticalTimberSheets = (itemName) => {
+export const parseTimberSheets = (itemName) => {
+    const itemLower = itemName.toLowerCase()
+    // Detect direction keyword to keep group keys stable per item variant
+    const dirMatch = itemLower.match(/\b(vertical|horizontal|wood(?:en)?)/)
+    const dir = dirMatch ? dirMatch[1] : 'timber'
+
     const result = {
-        type: 'vertical_timber_sheets',
+        type: 'timber_sheets',
         size: null,
         heightRaw: 0,
         embedment: null,
@@ -314,57 +325,14 @@ export const parseVerticalTimberSheets = (itemName) => {
 
     const hValue = Math.round(result.heightRaw * 12)
     const eValue = result.embedment ? Math.round(result.embedment * 12) : 0
-    result.groupKey = `vertical-timber-sheets-${result.size || 'other'}-${hValue}-${eValue}`
+    result.groupKey = `timber-sheets-${dir}-${result.size || 'other'}-${hValue}-${eValue}`
 
     return result
 }
 
-/**
- * Identifies if item is a horizontal timber sheet
- * e.g. 3"x10" Horizontal timber sheets H=6'-0", E=4'-0"
- */
-export const isHorizontalTimberSheets = (digitizerItem) => {
-    if (!digitizerItem || typeof digitizerItem !== 'string') return false
-    const itemLower = digitizerItem.toLowerCase()
-    return /\b(?:horizontal|wood|wooden)?\s*timber\s+sheets?\b/.test(itemLower)
-}
-
-/**
- * Parses horizontal timber sheets parameters
- * e.g. 3"x10" Horizontal timber sheets H=6'-0", E=4'-0" or H=7'-9" (E optional)
- * Same grouping as Vertical timber sheets (size, H, E). Height from H, no rounding.
- * Formulas same as Vertical timber sheets: FT(I)=C, SQ FT(J)=I*H
- */
-export const parseHorizontalTimberSheets = (itemName) => {
-    const result = {
-        type: 'horizontal_timber_sheets',
-        size: null,
-        heightRaw: 0,
-        embedment: null,
-        calculatedHeight: 0,
-        groupKey: null
-    }
-
-    const sizeMatch = itemName.match(/(\d+)"\s*x\s*(\d+)"/i)
-    if (sizeMatch) {
-        result.size = `${sizeMatch[1]}x${sizeMatch[2]}`
-    }
-
-    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
-    const eMatch = itemName.match(/E=([0-9'"\-]+)/)
-
-    if (hMatch) result.heightRaw = parseDimension(hMatch[1])
-    if (eMatch) result.embedment = parseDimension(eMatch[1])
-
-    // Use H from bracket directly, do NOT round up
-    result.calculatedHeight = result.heightRaw
-
-    const hValue = Math.round(result.heightRaw * 12)
-    const eValue = result.embedment ? Math.round(result.embedment * 12) : 0
-    result.groupKey = `horizontal-timber-sheets-${result.size || 'other'}-${hValue}-${eValue}`
-
-    return result
-}
+// Keep old parsers as aliases so any lingering imports don't break
+export const parseVerticalTimberSheets = parseTimberSheets
+export const parseHorizontalTimberSheets = parseTimberSheets
 
 /**
  * Identifies if item is a timber raker (wood raker)
@@ -898,7 +866,7 @@ export const parseSoeItem = (itemName) => {
                     let inchesStr = ''
                     const wholeInches = widthMatch[2] ? parseFloat(widthMatch[2]) : 0
                     const fraction = widthMatch[3]
-                    
+
                     if (fraction) {
                         if (fraction === '½' || fraction === '1/2' || fraction === '1/2') {
                             inches = wholeInches + 0.5
@@ -926,7 +894,7 @@ export const parseSoeItem = (itemName) => {
                         inches = wholeInches
                         inchesStr = `${wholeInches}`
                     }
-                    
+
                     result.width = feet + (inches / 12)
                     // Create formula for width: =feet+(inches/12)
                     if (inchesStr) {

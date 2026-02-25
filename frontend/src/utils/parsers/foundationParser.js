@@ -417,7 +417,7 @@ export const isDeepSewageEjectorPit = (item) => {
     // Explicit check
     if (itemLower.includes('deep sewage ejector pit')) return true
     // Make pit optional: deep sewage ejector + keyword
-    const deepPattern = /deep\s+sewage\s+ejector\s+(slab|mat|wall|slope|haunch|sump)/i
+    const deepPattern = /(?:deep\s+sewage\s+)?ejector\s+(slab|mat|wall|slope|haunch|sump|pit)/i
     return deepPattern.test(itemLower)
 }
 

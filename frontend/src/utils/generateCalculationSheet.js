@@ -17,8 +17,7 @@ import {
   processTimberRakerItems,
   processTimberBraceItems,
   processTimberPostItems,
-  processVerticalTimberSheetsItems,
-  processHorizontalTimberSheetsItems,
+  processTimberSheetsItems,
   processTimberStringerItems,
   processWalerItems,
   processRakerItems,
@@ -156,8 +155,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let timberRakerGroups = []
   let timberBraceGroups = []
   let timberPostGroups = []
-  let verticalTimberSheetsGroups = []
-  let horizontalTimberSheetsGroups = []
+  let timberSheetsGroups = []
+  let verticalTimberSheetsGroups = [] // alias kept for compatibility
+  let horizontalTimberSheetsGroups = [] // alias kept for compatibility
   let timberStringerGroups = []
   let walerItems = []
   let rakerItems = []
@@ -305,8 +305,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     timberRakerGroups = processTimberRakerItems(dataRows, headers, tracker)
     timberBraceGroups = processTimberBraceItems(dataRows, headers, tracker)
     timberPostGroups = processTimberPostItems(dataRows, headers, tracker)
-    verticalTimberSheetsGroups = processVerticalTimberSheetsItems(dataRows, headers, tracker)
-    horizontalTimberSheetsGroups = processHorizontalTimberSheetsItems(dataRows, headers, tracker)
+    timberSheetsGroups = processTimberSheetsItems(dataRows, headers, tracker)
+    verticalTimberSheetsGroups = timberSheetsGroups // alias
+    horizontalTimberSheetsGroups = timberSheetsGroups // alias
     timberStringerGroups = processTimberStringerItems(dataRows, headers, tracker)
     walerItems = processWalerItems(dataRows, headers, tracker)
     rakerItems = processRakerItems(dataRows, headers, tracker)
@@ -432,7 +433,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
       hasSectionData = rockExcavationItems.length > 0 || lineDrillItems.length > 0 || section.subsections.some(sub => sub.name.includes('Extra line item'))
     } else if (section.section === 'SOE') {
       hasSectionData = [
-        soldierPileGroups, timberSoldierPileGroups, timberPlankGroups, timberWalerGroups, timberRakerGroups, timberBraceGroups, timberPostGroups, verticalTimberSheetsGroups, horizontalTimberSheetsGroups, timberStringerGroups, primarySecantItems, secondarySecantItems, tangentPileItems, sheetPileItems,
+        soldierPileGroups, timberSoldierPileGroups, timberPlankGroups, timberWalerGroups, timberRakerGroups, timberBraceGroups, timberPostGroups, timberSheetsGroups, timberStringerGroups, primarySecantItems, secondarySecantItems, tangentPileItems, sheetPileItems,
         timberLaggingItems, timberSheetingItems, walerItems, rakerItems, upperRakerItems, lowerRakerItems,
         standOffItems, kickerItems, channelItems, rollChockItems, studBeamItems, innerCornerBraceItems,
         kneeBraceItems, supportingAngleGroups, pargingItems, heelBlockItems, underpinningItems,
@@ -887,8 +888,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Timber raker') headerCheckItems = timberRakerGroups // Group check
         else if (subsection.name === 'Timber brace') headerCheckItems = timberBraceGroups // Group check
         else if (subsection.name === 'Timber post') headerCheckItems = timberPostGroups // Group check
-        else if (subsection.name === 'Vertical timber sheets') headerCheckItems = verticalTimberSheetsGroups // Group check
-        else if (subsection.name === 'Horizontal timber sheets') headerCheckItems = horizontalTimberSheetsGroups // Group check
+        else if (subsection.name === 'Timber sheets') headerCheckItems = timberSheetsGroups // Group check
+        else if (subsection.name === 'Vertical timber sheets') headerCheckItems = timberSheetsGroups // legacy alias
+        else if (subsection.name === 'Horizontal timber sheets') headerCheckItems = timberSheetsGroups // legacy alias
         else if (subsection.name === 'Timber stringer') headerCheckItems = timberStringerGroups // Group check
         else if (subsection.name === 'Primary secant piles') headerCheckItems = primarySecantItems
         else if (subsection.name === 'Secondary secant piles') headerCheckItems = secondarySecantItems
@@ -1080,9 +1082,10 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             formulas.push({ row: rows.length, itemType: 'timber_post_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1 })
             if (groupIndex < timberPostGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
           })
-        } else if (subsection.name === 'Vertical timber sheets' && verticalTimberSheetsGroups.length > 0) {
-          // Process each group for vertical timber sheets (same grouping as drilled soldier pile, formulas like Timber sheeting: FT=C, SQ FT=I*H)
-          verticalTimberSheetsGroups.forEach((group, groupIndex) => {
+        } else if ((subsection.name === 'Timber sheets' || subsection.name === 'Vertical timber sheets' || subsection.name === 'Horizontal timber sheets') && timberSheetsGroups.length > 0) {
+          // Process each group for timber sheets (vertical, horizontal, wood, wooden, or plain)
+          // Formulas: FT(I)=C, SQ FT(J)=I*H, no column K
+          timberSheetsGroups.forEach((group, groupIndex) => {
             const firstGroupRow = rows.length + 1
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
@@ -1095,26 +1098,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
             const sumRow = Array(template.columns.length).fill('')
             rows.push(sumRow)
-            formulas.push({ row: rows.length, itemType: 'vertical_timber_sheets_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1, subsectionName: 'Vertical timber sheets' })
-            if (groupIndex < verticalTimberSheetsGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
-          })
-        } else if (subsection.name === 'Horizontal timber sheets' && horizontalTimberSheetsGroups.length > 0) {
-          // Process each group for horizontal timber sheets (same as vertical timber sheets)
-          horizontalTimberSheetsGroups.forEach((group, groupIndex) => {
-            const firstGroupRow = rows.length + 1
-            group.items.forEach(item => {
-              const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
-              itemRow[2] = item.takeoff
-              itemRow[3] = item.unit
-              itemRow[7] = item.parsed.calculatedHeight || ''
-              rows.push(itemRow)
-              formulas.push({ row: rows.length, itemType: 'soldier_pile_item', parsedData: item, section: 'soe' })
-            })
-            const sumRow = Array(template.columns.length).fill('')
-            rows.push(sumRow)
-            formulas.push({ row: rows.length, itemType: 'horizontal_timber_sheets_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1, subsectionName: 'Horizontal timber sheets' })
-            if (groupIndex < horizontalTimberSheetsGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
+            formulas.push({ row: rows.length, itemType: 'vertical_timber_sheets_group_sum', section: 'soe', firstDataRow: firstGroupRow, lastDataRow: rows.length - 1, subsectionName: 'Timber sheets' })
+            if (groupIndex < timberSheetsGroups.length - 1) rows.push(Array(template.columns.length).fill(''))
           })
         } else if (subsection.name === 'Timber stringer' && timberStringerGroups.length > 0) {
           // Timber stringer: E=qty from (N) or 1, I=C*E. Always create sum row; single-item group -> sum row red, item row black
