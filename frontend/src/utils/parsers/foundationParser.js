@@ -489,7 +489,7 @@ export const isMudSlabFoundation = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
     // Only match exact "mud slab" for Foundation section (not "w/ X" mud slab" which is Excavation)
-    return itemLower === 'mud slab' || itemLower.trim() === 'mud slab'
+    return itemLower === 'mud slab' || itemLower.trim() === 'mud slab' || itemLower === 'mud mat' || itemLower.trim() === 'mud mat'
 }
 
 /**
@@ -500,7 +500,7 @@ export const isSOG = (item) => {
     const itemLower = item.toLowerCase()
     // Exclude items with "Demo" in the name
     if (itemLower.includes('demo')) return false
-    return itemLower.includes('sog') || itemLower.includes('gravel') || itemLower.includes('geotextile filter fabric')
+    return itemLower.includes('sog') || itemLower.includes('gravel') || itemLower.includes('geotextile filter fabric') || itemLower.includes('slab on grade')
 }
 
 /**
@@ -510,7 +510,7 @@ export const isROG = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
     if (itemLower.includes('demo')) return false
-    return itemLower.includes('rog')
+    return itemLower.includes('rog') || itemLower.includes('ramp on grade')
 }
 
 /**
@@ -1843,7 +1843,7 @@ export const parseMudSlabFoundation = (itemName) => {
  * Parses SOG items
  * Handles: Gravel, Gravel backfill, Geotextile filter fabric, SOG slabs, SOG step
  */
-export const parseSOG = (itemName) => {
+export const parseSOG = (itemName) => {    
     const result = {
         type: 'sog',
         itemSubType: null, // 'gravel', 'gravel_backfill', 'geotextile', 'sog_slab', 'sog_step'
@@ -1883,7 +1883,7 @@ export const parseSOG = (itemName) => {
             result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
         }
         return result
-    } else if (itemLower.includes('sog')) {
+    } else if (itemLower.includes('sog') || itemLower.includes('slab on grade') || itemLower.includes('pressure slab')) {
         result.itemSubType = 'sog_slab'
         // Extract height from name like "SOG 4"", "SOG 6"", "Patio SOG 6"", "Patch SOG 5""
         const inchMatch = itemName.match(/(\d+)"\s*(?:thick)?/i)

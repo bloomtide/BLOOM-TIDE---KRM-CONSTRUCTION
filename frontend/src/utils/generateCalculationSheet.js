@@ -4136,6 +4136,15 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const p = (item.particulars || '').toLowerCase()
             return p.includes('trench drain') || p.includes('perforated pipe')
           })
+          // Split conduitGroup2 into separate sub-groups for different calculations
+          const trenchDrainItems = conduitGroup2.filter(item =>
+            (item.particulars || '').toLowerCase().includes('trench drain')
+          )
+          const perforatedPipeItems = conduitGroup2.filter(item =>
+            (item.particulars || '').toLowerCase().includes('perforated pipe')
+          )
+
+          // Group 1: underground electric conduit / electric conduit in slab
           const electricFirstRow = rows.length + 1
           conduitGroup1.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
@@ -4158,15 +4167,54 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               subsectionName: subsection.name
             })
           }
-          if (conduitGroup2.length > 0) {
+
+          // Group 2: trench drain (separate group with its own sum)
+          if (trenchDrainItems.length > 0) {
             rows.push(Array(template.columns.length).fill(''))
-            conduitGroup2.forEach(item => {
+            const trenchFirstRow = rows.length + 1
+            trenchDrainItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
               itemRow[1] = item.particulars
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'FT'
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'electric_conduit', parsedData: item, section: 'foundation' })
+            })
+            const trenchLastRow = rows.length
+            const trenchSumRow = Array(template.columns.length).fill('')
+            rows.push(trenchSumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: trenchFirstRow,
+              lastDataRow: trenchLastRow,
+              subsectionName: subsection.name
+            })
+          }
+
+          // Group 3: perforated pipe (separate group with its own sum)
+          if (perforatedPipeItems.length > 0) {
+            rows.push(Array(template.columns.length).fill(''))
+            const perfFirstRow = rows.length + 1
+            perforatedPipeItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = item.particulars
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit || 'FT'
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'electric_conduit', parsedData: item, section: 'foundation' })
+            })
+            const perfLastRow = rows.length
+            const perfSumRow = Array(template.columns.length).fill('')
+            rows.push(perfSumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: perfFirstRow,
+              lastDataRow: perfLastRow,
+              subsectionName: subsection.name
             })
           }
         } else if (subsection.name === 'For foundation Extra line item use this') {
