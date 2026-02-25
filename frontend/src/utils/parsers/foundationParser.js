@@ -221,7 +221,7 @@ export const isIsolatedFooting = (item) => {
   const itemLower = item.toLowerCase()
 
   return (
-    (itemLower.startsWith('f-') || itemLower.includes('footing')) && !itemLower.includes('foundation')
+    (itemLower.startsWith('f-') || itemLower.includes('footing') || /^f\d/i.test(itemLower)) && !itemLower.includes('foundation')
   )
 }
 
@@ -503,7 +503,12 @@ export const isSOG = (item) => {
     const itemLower = item.toLowerCase()
     // Exclude items with "Demo" in the name
     if (itemLower.includes('demo')) return false
-    return itemLower.includes('sog') || itemLower.includes('gravel') || itemLower.includes('geotextile filter fabric') || itemLower.includes('slab on grade')
+    return itemLower.includes('sog') ||
+        itemLower.includes('gravel') ||
+        itemLower.includes('geotextile filter fabric') ||
+        itemLower.includes('slab on grade') ||
+        itemLower.includes('pressure slab') ||
+        itemLower.includes('pressure sog')
 }
 
 /**
