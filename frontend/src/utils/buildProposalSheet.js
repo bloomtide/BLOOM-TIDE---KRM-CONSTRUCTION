@@ -16067,7 +16067,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         `${pfx}B${currentRow}:E${currentRow}`
       )
       spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
-      spreadsheet.updateCell({ value: 10000 }, `${pfx}F${currentRow}`)
+      spreadsheet.updateCell({ formula: `=SUM(H${stormWaterDataStartRow}:H${stormWaterEndRow})*1000` }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat(
         { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', format: '$#,##0.00' },
         `${pfx}F${currentRow}:G${currentRow}`
