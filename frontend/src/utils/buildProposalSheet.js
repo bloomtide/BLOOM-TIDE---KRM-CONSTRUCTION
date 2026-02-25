@@ -65,19 +65,20 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     }
   }
 
+  // Hardcoded template for all items in foundation drilled piles scope (placeholders # filled from data when available)
   const buildDrilledPileTemplateText = (particulars, diameterThicknessText, heightText, rockSocketText, qtyPlaceholder) => {
     const parsed = parseDrilledPileTemplateFromParticulars(particulars)
-    const comp = parsed.designCompression ?? '##'
-    const tension = parsed.designTension ?? '##'
-    const lateral = parsed.designLateral ?? '##'
-    const grout = parsed.groutKsi ?? '##'
-    const rebarQty = parsed.rebarQty ?? '##'
-    const rebarSize = parsed.rebarSize ?? '###'
-    const rebarKsi = parsed.rebarKsi ?? '##'
-    const thickPart = diameterThicknessText || '(## thick)'
-    const heightPart = (rockSocketText && rockSocketText !== "0'-0\"")
+    const comp = parsed.designCompression ?? '140' // hardcoded 140 tons design compression per user
+    const tension = parsed.designTension ?? '#'
+    const lateral = parsed.designLateral ?? '#'
+    const grout = parsed.groutKsi ?? '#'
+    const rebarQty = parsed.rebarQty ?? '#'
+    const rebarSize = parsed.rebarSize ?? '#'
+    const rebarKsi = parsed.rebarKsi ?? '#'
+    const thickPart = diameterThicknessText || '(#" ØX#" thick)'
+    const heightPart = (heightText && rockSocketText && rockSocketText !== "0'-0\"")
       ? `(H=${heightText}, ${rockSocketText} rock socket)`
-      : `(H=${heightText})`
+      : (heightText ? `(H=${heightText})` : "(H=#'-#\", #'-#\" rock socket)")
     return `F&I new (${qtyPlaceholder})no drilled caisson pile (${comp} tons design compression, ${tension} tons design tension & ${lateral} ton design lateral load), ${thickPart}, (${grout}-KSI grout infilled) with (${rebarQty})qty #${rebarSize}" ${rebarKsi} Ksi full length reinforcement ${heightPart} as per`
   }
 
@@ -2397,15 +2398,18 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       }
     }
 
-    // When there is rock but no soil excavation scope, add an empty row between Excavation and Rock
-    if (hasRockExcavation && !hasSoilScopeItems) {
+    // When both soil and rock exist, we add sub-headings and an empty row between Excavation scope and Rock. When only rock, show scope then rock lines directly (no extra blank).
+    if (hasRockExcavation && hasSoilScopeItems) {
       currentRow++
     }
 
     // -------------------------------------------------------------------------
     // ROCK EXCAVATION SECTION (only when rock has values)
+    // When only one scope (rock only), don't show "Rock excavation scope:" or "Rock excavation Total" — go straight to Excavation Total
     // -------------------------------------------------------------------------
     let rockExcavationTotalRow = null
+    let rockOnlyFirstRow = null
+    let rockOnlyLastRow = null
     // Resolve rock excavation / line drill sum rows from formulaData so we use formulas (not hardcoded values)
     if (hasRockExcavation && formulaData && Array.isArray(formulaData)) {
       const rockExcSum = formulaData.find(f => f.itemType === 'rock_excavation_sum' && f.section === 'rock_excavation')
@@ -2414,21 +2418,25 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       if (lineDrillSum && lineDrillSum.row) rockExcavationLine2RowIndex = lineDrillSum.row
     }
     if (hasRockExcavation) {
-      // Rock excavation scope heading
-      spreadsheet.updateCell({ value: 'Rock excavation scope:' }, `${pfx}B${currentRow}`)
-      rowBContentMap.set(currentRow, 'Rock excavation scope:')
-      spreadsheet.cellFormat({
-        backgroundColor: '#FFF2CC',
-        textAlign: 'center',
-        verticalAlign: 'middle',
-        textDecoration: 'underline',
-        fontWeight: 'bold',
-        border: '1px solid #000000'
-      }, `${pfx}B${currentRow}`)
-      // Green background for scope row
+      // Rock excavation scope heading — only when both soil and rock exist; when only rock, show just Excavation scope + items + Excavation Total
+      const showRockSubHeading = hasSoilScopeItems
+      if (showRockSubHeading) {
+        spreadsheet.updateCell({ value: 'Rock excavation scope:' }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, 'Rock excavation scope:')
+        spreadsheet.cellFormat({
+          backgroundColor: '#FFF2CC',
+          textAlign: 'center',
+          verticalAlign: 'middle',
+          textDecoration: 'underline',
+          fontWeight: 'bold',
+          border: '1px solid #000000'
+        }, `${pfx}B${currentRow}`)
+        // Green background for scope row
+        const columns33 = ['I', 'J', 'K', 'L', 'M', 'N']
+        columns33.forEach(col => spreadsheet.cellFormat({ backgroundColor: '#E2EFDA' }, `${pfx}${col}${currentRow}`))
+        currentRow++
+      }
       const columns33 = ['I', 'J', 'K', 'L', 'M', 'N']
-      columns33.forEach(col => spreadsheet.cellFormat({ backgroundColor: '#E2EFDA' }, `${pfx}${col}${currentRow}`))
-      currentRow++
 
       // Resolve rock excavation line descriptions from calculation sheet (like other sections)
       let rockExcavationTextFromCalc = null
@@ -2482,6 +2490,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         ? lineDrillingTextFromCalc.replace(/\s+as per [^&]*&\s*details on.*$/i, '').replace(/\s+as per .*$/i, '').trim()
         : 'Allow to perform line drilling'
       const lineDrillingText = `${lineDrillingBase} as per ${rockAsPerPart} & details on`
+      const hasLineDrillInRockScope = (parseFloat(lineDrillTotalFT) || 0) > 0 || !!rockExcavationLine2RowIndex || !!lineDrillingTextFromCalc
 
       // First rock excavation line
       const rockRow1 = currentRow
@@ -2523,76 +2532,86 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       columns33.forEach(col => spreadsheet.cellFormat({ backgroundColor: '#E2EFDA' }, `${pfx}${col}${currentRow}`))
       currentRow++
 
-      // Second rock excavation line
-      const rockRow2 = currentRow
-      spreadsheet.updateCell({ value: lineDrillingText }, `${pfx}B${currentRow}`)
-      rowBContentMap.set(currentRow, lineDrillingText)
-      spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'left',
-          backgroundColor: 'white',
-          verticalAlign: 'top',
-          textDecoration: 'none'
-        },
-        `${pfx}B${currentRow}`
-      )
-      fillRatesForProposalRow(currentRow, lineDrillingText)
-      // LF (C) and CY (F) from calculation sheet - second data row in rock excavation subsection
-      if (rockExcavationLine2RowIndex) {
-        spreadsheet.updateCell({ formula: `='Calculations Sheet'!I${rockExcavationLine2RowIndex}` }, `${pfx}C${currentRow}`)
-        spreadsheet.updateCell({ formula: `='Calculations Sheet'!L${rockExcavationLine2RowIndex}` }, `${pfx}F${currentRow}`)
-      } else {
-        const formattedLineDrillFT = parseFloat((lineDrillTotalFT * 2).toFixed(2))
-        const formattedRockExcavationCY35 = parseFloat(rockExcavationTotals.totalCY.toFixed(2))
-        spreadsheet.updateCell({ value: formattedLineDrillFT }, `${pfx}C${currentRow}`)
-        spreadsheet.updateCell({ value: formattedRockExcavationCY35 }, `${pfx}F${currentRow}`)
+      // Second rock excavation line (line drilling) — only when line drill exists in rock excavation scope
+      let rockRow2 = rockRow1
+      if (hasLineDrillInRockScope) {
+        rockRow2 = currentRow
+        spreadsheet.updateCell({ value: lineDrillingText }, `${pfx}B${currentRow}`)
+        rowBContentMap.set(currentRow, lineDrillingText)
+        spreadsheet.wrap(`${pfx}B${currentRow}`, true)
+        spreadsheet.cellFormat(
+          {
+            fontWeight: 'bold',
+            color: '#000000',
+            textAlign: 'left',
+            backgroundColor: 'white',
+            verticalAlign: 'top',
+            textDecoration: 'none'
+          },
+          `${pfx}B${currentRow}`
+        )
+        fillRatesForProposalRow(currentRow, lineDrillingText)
+        // LF (C) and CY (F) from calculation sheet - second data row in rock excavation subsection
+        if (rockExcavationLine2RowIndex) {
+          spreadsheet.updateCell({ formula: `='Calculations Sheet'!I${rockExcavationLine2RowIndex}` }, `${pfx}C${currentRow}`)
+          spreadsheet.updateCell({ formula: `='Calculations Sheet'!L${rockExcavationLine2RowIndex}` }, `${pfx}F${currentRow}`)
+        } else {
+          const formattedLineDrillFT = parseFloat((lineDrillTotalFT * 2).toFixed(2))
+          const formattedRockExcavationCY35 = parseFloat(rockExcavationTotals.totalCY.toFixed(2))
+          spreadsheet.updateCell({ value: formattedLineDrillFT }, `${pfx}C${currentRow}`)
+          spreadsheet.updateCell({ value: formattedRockExcavationCY35 }, `${pfx}F${currentRow}`)
+        }
+        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'right', format: '#,##0.00' }, `${pfx}C${currentRow}`)
+        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'right', format: '#,##0.00' }, `${pfx}F${currentRow}`)
+
+        // Dollar Formula
+        const dollarFormulaRock2 = `=IFERROR(IF(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)=0,"",ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)),"")`
+        spreadsheet.updateCell({ formula: dollarFormulaRock2 }, `${pfx}H${currentRow}`)
+        spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'right', format: '$#,##0.00' }, `${pfx}H${currentRow}`)
+        columns33.forEach(col => spreadsheet.cellFormat({ backgroundColor: '#E2EFDA' }, `${pfx}${col}${currentRow}`))
+        currentRow++
       }
-      spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'right', format: '#,##0.00' }, `${pfx}C${currentRow}`)
-      spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'right', format: '#,##0.00' }, `${pfx}F${currentRow}`)
 
-      // Dollar Formula
-      const dollarFormulaRock2 = `=IFERROR(IF(ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)=0,"",ROUNDUP(MAX(C${currentRow}*I${currentRow},D${currentRow}*J${currentRow},E${currentRow}*K${currentRow},F${currentRow}*L${currentRow},G${currentRow}*M${currentRow},N${currentRow})/1000,1)),"")`
-      spreadsheet.updateCell({ formula: dollarFormulaRock2 }, `${pfx}H${currentRow}`)
-      spreadsheet.cellFormat({ fontWeight: 'bold', color: '#000000', textAlign: 'right', format: '$#,##0.00' }, `${pfx}H${currentRow}`)
-      columns33.forEach(col => spreadsheet.cellFormat({ backgroundColor: '#E2EFDA' }, `${pfx}${col}${currentRow}`))
-      currentRow++
+      // When only rock (no soil), skip "Rock excavation Total" — Excavation Total will sum rock H range directly
+      if (!showRockSubHeading) {
+        rockOnlyFirstRow = rockRow1
+        rockOnlyLastRow = rockRow2
+      }
+      if (showRockSubHeading) {
+        // Rock Excavation Total
+        spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
+        spreadsheet.updateCell({ value: 'Rock excavation Total:' }, `${pfx}D${currentRow}`)
+        spreadsheet.cellFormat(
+          {
+            fontWeight: 'bold',
+            color: '#000000',
+            textAlign: 'left',
+            backgroundColor: '#FFF2CC'
+          },
+          `${pfx}D${currentRow}:E${currentRow}`
+        )
 
-      // Rock Excavation Total
-      spreadsheet.merge(`${pfx}D${currentRow}:E${currentRow}`)
-      spreadsheet.updateCell({ value: 'Rock excavation Total:' }, `${pfx}D${currentRow}`)
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'left',
-          backgroundColor: '#FFF2CC'
-        },
-        `${pfx}D${currentRow}:E${currentRow}`
-      )
+        spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
+        const rockTotalFormula = `=SUM(H${rockRow1}:H${rockRow2})*1000`
+        spreadsheet.updateCell({ formula: rockTotalFormula }, `${pfx}F${currentRow}`)
+        spreadsheet.cellFormat(
+          {
+            fontWeight: 'bold',
+            color: '#000000',
+            textAlign: 'right',
+            backgroundColor: '#FFF2CC',
+            format: '$#,##0.00'
+          },
+          `${pfx}F${currentRow}:G${currentRow}`
+        )
+        applyTotalRowBorders(spreadsheet, pfx, currentRow, '#FFF2CC')
+        baseBidTotalRows.push(currentRow) // Rock Excavation Total
+        totalRows.push(currentRow)
 
-      spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
-      const rockTotalFormula = `=SUM(H${rockRow1}:H${rockRow2})*1000`
-      spreadsheet.updateCell({ formula: rockTotalFormula }, `${pfx}F${currentRow}`)
-      spreadsheet.cellFormat(
-        {
-          fontWeight: 'bold',
-          color: '#000000',
-          textAlign: 'right',
-          backgroundColor: '#FFF2CC',
-          format: '$#,##0.00'
-        },
-        `${pfx}F${currentRow}:G${currentRow}`
-      )
-      applyTotalRowBorders(spreadsheet, pfx, currentRow, '#FFF2CC')
-      baseBidTotalRows.push(currentRow) // Rock Excavation Total
-      totalRows.push(currentRow)
-
-      rockExcavationTotalRow = currentRow
-      currentRow++ // Empty row
-      currentRow++ // Extra line after Rock Excavation Total
+        rockExcavationTotalRow = currentRow
+        currentRow++ // Empty row
+        currentRow++ // Extra line after Rock Excavation Total
+      }
     }
 
     // Excavation Total (only when there is any excavation data: soil and/or rock)
@@ -2610,9 +2629,22 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       )
 
       spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
-      const excavationFullTotalFormula = hasRockExcavation
-        ? `=SUM(F${soilExcavationTotalRow},F${rockExcavationTotalRow})`
-        : (soilExcavationRow1 != null ? `=SUM(H${soilExcavationRow1}:H${currentRow - 1})*1000` : '=0')
+      // Build Excavation Total formula safely:
+      // - If soil/rock total rows exist, sum only the existing ones (avoid Fnull)
+      // - If no total rows yet but soil scope exists, fall back to summing H (scope-to-total) * 1000
+      const excavationTotalRefs = []
+      if (soilExcavationTotalRow != null) excavationTotalRefs.push(`F${soilExcavationTotalRow}`)
+      if (rockExcavationTotalRow != null) excavationTotalRefs.push(`F${rockExcavationTotalRow}`)
+      let excavationFullTotalFormula
+      if (excavationTotalRefs.length > 0) {
+        excavationFullTotalFormula = `=SUM(${excavationTotalRefs.join(',')})`
+      } else if (soilExcavationRow1 != null) {
+        excavationFullTotalFormula = `=SUM(H${soilExcavationRow1}:H${currentRow - 1})*1000`
+      } else if (rockOnlyFirstRow != null && rockOnlyLastRow != null) {
+        excavationFullTotalFormula = `=SUM(H${rockOnlyFirstRow}:H${rockOnlyLastRow})*1000`
+      } else {
+        excavationFullTotalFormula = '=0'
+      }
       spreadsheet.updateCell({ formula: excavationFullTotalFormula }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat(
         {
@@ -4427,7 +4459,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               currentGroup = []
               continue
             }
-            if (colA === 'foundation' || (colA && colA !== 'soe' && colA !== 'demolition' && colA !== 'excavation' && colA !== 'rock excavation')) {
+            if (colA === 'foundation' || colA === 'foundation/substructure' || (colA && colA !== 'soe' && colA !== 'demolition' && colA !== 'excavation' && colA !== 'rock excavation')) {
               inSubsection = false
               if (currentGroup.length > 0) {
                 groups.push(currentGroup)
@@ -10782,15 +10814,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             diameterThicknessText = `(${formattedDiam}" ØX${groupThickness}" thick)`
           }
 
-          // Generate proposal text for this group: use particulars when rich (e.g. Titan pile); else use template with parsed design loads, grout, rebar
+          // Hardcoded template for all items in foundation drilled piles scope
           const pileDescriptionFromParticulars = (firstItem?.particulars || '').toString().trim()
-          const useParticularsAsDescription = pileDescriptionFromParticulars.length > 3 && (pileDescriptionFromParticulars.toLowerCase().includes('pile') || /[\d]+\/[\d]+/.test(pileDescriptionFromParticulars))
-          let proposalText
-          if (useParticularsAsDescription) {
-            proposalText = `F&I new (${groupQty})no ${pileDescriptionFromParticulars} as per ${foReference}, ${soeReference} & details on`
-          } else {
-            proposalText = buildDrilledPileTemplateText(pileDescriptionFromParticulars, diameterThicknessText, heightText, rockSocketText, groupQty) + ` ${foReference}, ${soeReference} & details on`
-          }
+          const proposalText = buildDrilledPileTemplateText(pileDescriptionFromParticulars, diameterThicknessText, heightText, rockSocketText, groupQty) + ` ${foReference}, ${soeReference} & details on`
           const afterCountDC = afterCountFromProposalText(proposalText)
           if (afterCountDC) {
             spreadsheet.updateCell({ formula: proposalFormulaWithQtyRef(currentRow, afterCountDC) }, `${pfx}B${currentRow}`)
@@ -10799,9 +10825,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
           rowBContentMap.set(currentRow, proposalText)
           spreadsheet.wrap(`${pfx}B${currentRow}`, true)
-          // Use proposal_mapped "titan pile" (LF 150) for Titan pile lines – matches CONCATENATE formula in B
-          const pileRateKey = useParticularsAsDescription && /titan\s+pile/i.test(pileDescriptionFromParticulars) ? 'titan pile' : null
-          fillRatesForProposalRow(currentRow, proposalText, pileRateKey)
+          fillRatesForProposalRow(currentRow, proposalText)
 
           // Data rows stay white; only section headings use #FCE4D6
           const cellFormat = {
@@ -11639,7 +11663,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     const getDynamicValuesFromGroupRows = (source, sub, isFormulaItem) => {
       const rows = getGroupDataRows(source, sub, isFormulaItem)
       const heightValues = rows.map(r => parseFloat(r[7])).filter(v => !Number.isNaN(v) && v > 0)
-      const heightText = formatHeightAsFeetInches(heightValues)
+      let heightText = formatHeightAsFeetInches(heightValues)
+      let elevatorPitWallThicknessFromBracket = ''
+      let elevatorPitWallHeightFromBracket = ''
       let qty = 0
       for (const r of rows) {
         qty += Math.round(parseFloat(r[12]) || 0) || Math.round(parseFloat(r[2]) || 0) // M then C (takeoff)
@@ -11694,7 +11720,20 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const wwmMatch = p.match(/\b(\d+x\d+-\d+\/\d+)\s*W\.?W\.?M\.?/i) || p.match(/\b(\d+x\d+-\d+\/\d+)\b/i)
           if (wwmMatch) wireMeshText = wwmMatch[1]
         }
+        // Elevator pit wall / Elev. pit wall: (1'-4"x8'-0") -> thickness = 1st dim, height = 2nd dim
+        const pl = (p || '').toLowerCase()
+        if ((pl.includes('elev. pit wall') || pl.includes('elevator pit wall')) && !pl.includes('service')) {
+          const bracketMatch = p.match(/\(\s*(\d+'\s*-\s*\d+"?)\s*x\s*(\d+'\s*-\s*\d+"?)\s*\)/i)
+          if (bracketMatch) {
+            elevatorPitWallThicknessFromBracket = bracketMatch[1].trim()
+            if (!/"/.test(elevatorPitWallThicknessFromBracket)) elevatorPitWallThicknessFromBracket += '"'
+            elevatorPitWallHeightFromBracket = bracketMatch[2].trim()
+            if (!/"/.test(elevatorPitWallHeightFromBracket)) elevatorPitWallHeightFromBracket += '"'
+          }
+        }
       }
+      if (elevatorPitWallThicknessFromBracket && !thicknessText) thicknessText = elevatorPitWallThicknessFromBracket
+      if (elevatorPitWallHeightFromBracket) heightText = heightText || elevatorPitWallHeightFromBracket
       const pageRef = getPageRefForSubsection(sub)
       return { qtyText, heightText: heightText || '##', thicknessText, widthText, dimensionsText, wireMeshText: wireMeshText || '', pageRef }
     }
@@ -11723,6 +11762,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         out = out.replace(/\s*\(#+"?\s*thick,\s*typ\.?\)/gi, () => ` (${thick} thick, typ.)`)
       }
       if (vals.thicknessText) {
+        out = out.replace(/\s*\(##\s+thick\)/gi, () => ` (${vals.thicknessText} thick)`)
         out = out.replace(/\s*\(\d+'\s*-\s*\d+"?\s*thick[^)]*\)/gi, () => ` (${vals.thicknessText} thick)`)
         out = out.replace(/\s*\(\d+(?:\/\d+)?"\s*thick[^)]*\)/gi, () => ` (${vals.thicknessText} thick)`)
         out = out.replace(/\s*\(\d+'\s*-\s*\d+"?\s*thick,\s*typ\.?\)/gi, () => ` (${vals.thicknessText} thick, typ.)`)
@@ -11756,8 +11796,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           { text: `F&I new (2)no. (1'-0" thick) sump pit (2'-0"x2'-0"x2'-0") reinf w/ #4@12"O.C., T&B/E.F., E.W. typ`, sub: 'Elevator Pit', match: p => (p || '').toLowerCase().includes('sump pit') && !(p || '').toLowerCase().includes('service elevator'), formulaItem: { itemType: 'elevator_pit', match: p => (p || '').toLowerCase().includes('sump') } },
           { text: `F&I new (3'-0" thick) elevator pit slab, reinf w/#5@12"O.C. & #5@12"O.C., as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => (p || '').toLowerCase().includes('elev') && (p || '').toLowerCase().includes('pit slab') && !(p || '').toLowerCase().includes('service') },
           { text: `F&I new (3'-0" thick) elevator pit mat, reinf w/#5@12"O.C. & #5@12"O.C., as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => (p || '').toLowerCase().includes('elev') && (p || '').toLowerCase().includes('pit mat') && !(p || '').toLowerCase().includes('service') },
-          { text: `F&I new (1'-0" thick) elevator pit walls (H=5'-0") as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => (p || '').toLowerCase().includes('elev') && (p || '').toLowerCase().includes('pit wall') && (p.includes("1'-0") || p.includes('1-0"')) && !(p || '').toLowerCase().includes('service') },
-          { text: `F&I new (1'-2" thick) elevator pit walls (H=5'-0") as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => (p || '').toLowerCase().includes('elev') && (p || '').toLowerCase().includes('pit wall') && (p.includes("1'-2") || p.includes('1-2"') || p.includes('1.17')) && !(p || '').toLowerCase().includes('service') },
+          { text: `F&I new (1'-0" thick) elevator pit walls (H=5'-0") as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => ((p || '').toLowerCase().includes('elev. pit wall') || ((p || '').toLowerCase().includes('elevator pit wall') || ((p || '').toLowerCase().includes('elev') && (p || '').toLowerCase().includes('pit wall')))) && (p.includes("1'-0") || p.includes('1-0"')) && !(p || '').toLowerCase().includes('service') },
+          { text: `F&I new (1'-2" thick) elevator pit walls (H=5'-0") as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => ((p || '').toLowerCase().includes('elev. pit wall') || ((p || '').toLowerCase().includes('elevator pit wall') || ((p || '').toLowerCase().includes('elev') && (p || '').toLowerCase().includes('pit wall')))) && (p.includes("1'-2") || p.includes('1-2"') || p.includes('1.17')) && !(p || '').toLowerCase().includes('service') },
+          { text: `F&I new (## thick) elevator pit walls (H=##) as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => ((p || '').toLowerCase().includes('elev. pit wall') || (p || '').toLowerCase().includes('elevator pit wall')) && !(p || '').toLowerCase().includes('service') },
           { text: `F&I new (1'-2" thick) elevator pit slope transition/haunch (H=2'-3") as per FO-101.00 & details on`, sub: 'Elevator Pit', match: p => ((p || '').toLowerCase().includes('slope') || (p || '').toLowerCase().includes('haunch')) && !(p || '').toLowerCase().includes('service') }
         ]
       },
@@ -12375,6 +12416,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         'house trap pit wall': 'house trap pit wall',
         'detention tank wall': 'detention tank wall',
         'elevator pit walls': 'elevator pit walls',
+        'elev. pit wall': 'elevator pit wall',
+        'elev. pit walls': 'elevator pit walls',
         'duplex sewage ejector pit wall': 'duplex sewage ejector pit wall'
       }
 
@@ -12491,6 +12534,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const negativeSideDisplayMap = {
           'detention tank wall': 'detention tank wall',
           'elevator pit walls': 'elevator pit walls',
+          'elev. pit wall': 'elevator pit wall',
+          'elev. pit walls': 'elevator pit walls',
           'detention tank slab': 'detention tank slab',
           'duplex sewage ejector pit wall': 'duplex sewage ejector pit wall',
           'duplex sewage ejector pit slab': 'duplex sewage ejector pit slab',
@@ -12794,12 +12839,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       currentRow++
     }
 
-    // Add empty row above Superstructure concrete scope
-    currentRow++
+    // Superstructure concrete scope – only when calculation sheet has Superstructure section (formulaData has section === 'superstructure')
+    const hasSuperstructureInCalculation = !!(formulaData && Array.isArray(formulaData) && formulaData.some(f => f.section === 'superstructure'))
+    if (hasSuperstructureInCalculation) {
+      // Add empty row above Superstructure concrete scope
+      currentRow++
 
-    // Superstructure concrete scope – add new subsections at the end (before the empty row after scope)
-    // Add Superstructure concrete scope header (below Below grade waterproofing)
-    spreadsheet.updateCell({ value: 'Superstructure concrete scope:' }, `${pfx}B${currentRow}`)
+      // Superstructure concrete scope – add new subsections at the end (before the empty row after scope)
+      // Add Superstructure concrete scope header (below Below grade waterproofing)
+      spreadsheet.updateCell({ value: 'Superstructure concrete scope:' }, `${pfx}B${currentRow}`)
     spreadsheet.cellFormat(
       {
         fontWeight: 'bold',
@@ -14744,8 +14792,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       currentRow++ // Empty row after Superstructure Concrete Total
     }
 
-    // Add empty row after Superstructure concrete scope
-    currentRow++
+      // Add empty row after Superstructure concrete scope
+      currentRow++
+    }
 
     // Plumbing/Electrical trenching scope section
     {

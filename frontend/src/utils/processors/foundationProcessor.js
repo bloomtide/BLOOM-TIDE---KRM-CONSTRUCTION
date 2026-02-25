@@ -1028,7 +1028,7 @@ export const processStairsOnGradeItems = (rawDataRows, headers, tracker = null) 
             const heading = key !== 'NO_AT' ? key : null
 
             if (!groupMap.has(key)) {
-                groupMap.set(key, { heading, stairs: null, landings: null })
+                groupMap.set(key, { heading, groupKey: key, stairs: null, landings: null })
             }
             const g = groupMap.get(key)
             if (parsed.itemSubType === 'stairs') {
@@ -1040,7 +1040,20 @@ export const processStairsOnGradeItems = (rawDataRows, headers, tracker = null) 
         }
     })
 
-    return Array.from(groupMap.values()).filter(g => g.stairs || g.landings)
+    const groups = Array.from(groupMap.values()).filter(g => g.stairs || g.landings)
+    // Stair col (or group key containing "stair col") should come last, after normal stairs (Stair A1, A2, etc.)
+    const isStairCol = (g) => {
+        const k = (g.groupKey || g.heading || '').toLowerCase()
+        return k.includes('stair col') || k === 'col'
+    }
+    groups.sort((a, b) => {
+        const aLast = isStairCol(a)
+        const bLast = isStairCol(b)
+        if (aLast && !bLast) return 1
+        if (!aLast && bLast) return -1
+        return 0
+    })
+    return groups
 }
 
 /**
