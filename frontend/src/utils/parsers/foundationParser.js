@@ -201,6 +201,7 @@ export const isMiscellaneousFoundationPile = (item) => {
 export const isPileCap = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     return itemLower.includes('pile cap') || itemLower.startsWith('pc-')
 }
 
@@ -210,6 +211,7 @@ export const isPileCap = (item) => {
 export const isStripFooting = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     return itemLower.includes('strip footing') || itemLower.startsWith('sf') || itemLower.startsWith('st-') || itemLower.startsWith('wf-') || itemLower.includes('wall footing')
 }
 
@@ -219,7 +221,7 @@ export const isStripFooting = (item) => {
 export const isIsolatedFooting = (item) => {
   if (!item || typeof item !== 'string') return false
   const itemLower = item.toLowerCase()
-
+  if (itemLower.includes('demo')) return false
   return (
     (itemLower.startsWith('f-') || itemLower.includes('footing') || /^f\d/i.test(itemLower)) && !itemLower.includes('foundation')
   )
@@ -231,6 +233,7 @@ export const isIsolatedFooting = (item) => {
 export const isPilaster = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     return itemLower.includes('pilaster')
 }
 
@@ -240,6 +243,7 @@ export const isPilaster = (item) => {
 export const isGradeBeam = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     return itemLower.includes('grade beam') || itemLower.startsWith('gb') || itemLower.startsWith('gb-')
 }
 
@@ -249,6 +253,7 @@ export const isGradeBeam = (item) => {
 export const isTieBeam = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     return itemLower.includes('tie beam') || itemLower.startsWith('tb')
 }
 
@@ -259,6 +264,7 @@ export const isTieBeam = (item) => {
 export const isStrapBeam = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase().trim()
+    if (itemLower.includes('demo')) return false
     return (itemLower.startsWith('st ') || /^st\s*\(/i.test(itemLower) || itemLower.includes('strap beam')) && !itemLower.startsWith('st-')
 }
 
@@ -268,6 +274,7 @@ export const isStrapBeam = (item) => {
 export const isThickenedSlab = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     return itemLower.includes('thickened slab')
 }
 
@@ -278,6 +285,7 @@ export const isThickenedSlab = (item) => {
 export const isButtress = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     if (!itemLower.includes('buttress')) return false
     if (itemLower.includes('@')) return false
     return true
@@ -289,8 +297,7 @@ export const isButtress = (item) => {
 export const isPier = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase().trim()
-    // Only treat items explicitly named "Pier ..." as piers.
-    // This excludes things like "Concrete soil retention pier".
+    if (itemLower.includes('demo')) return false
     return itemLower.startsWith('pier') || itemLower.startsWith('concrete pier')
 }
 
@@ -300,6 +307,7 @@ export const isPier = (item) => {
 export const isCorbel = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     return itemLower.includes('corbel')
 }
 
@@ -309,6 +317,7 @@ export const isCorbel = (item) => {
 export const isLinearWall = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     return itemLower.includes('linear wall') || itemLower.includes('liner wall')
 }
 
@@ -318,6 +327,7 @@ export const isLinearWall = (item) => {
 export const isFoundationWall = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     return (itemLower.includes('foundation wall') || itemLower.startsWith('fw') || itemLower.includes('fndt wall')) && !itemLower.includes('retaining')
 }
 
@@ -327,6 +337,7 @@ export const isFoundationWall = (item) => {
 export const isRetainingWall = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     return itemLower.includes('retaining wall') || itemLower.startsWith('rw')
 }
 
@@ -336,6 +347,7 @@ export const isRetainingWall = (item) => {
 export const isBarrierWall = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     return itemLower.includes('barrier wall') || itemLower.includes('vehicle barrier')
 }
 
@@ -345,6 +357,7 @@ export const isBarrierWall = (item) => {
 export const isStemWall = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     return itemLower.includes('stem wall')
 }
 
@@ -356,6 +369,7 @@ export const isStemWall = (item) => {
 export const isElevatorPit = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     // Exclude service elevator pit items
     if (itemLower.includes('sump pit @ service elevator')) return false
     if (itemLower.includes('service elev. pit') || itemLower.includes('service elevator pit')) return false
@@ -366,7 +380,7 @@ export const isElevatorPit = (item) => {
     if (itemLower.includes('sump pit @ elevator')) return true
     if (itemLower.includes('sump pit')) return true
     // Check for elev/elevator followed by keywords (pit is optional)
-    const elevPattern = /(elev\.?|elevator)\s+(slab|mat|wall|slope|haunch|sump)/i
+    const elevPattern = /(elev\.?|elevator)\s+(?:pit\s+)?(slab|mat|wall|slope|haunch|sump)/i
     return elevPattern.test(itemLower)
 }
 
@@ -378,12 +392,13 @@ export const isElevatorPit = (item) => {
 export const isServiceElevatorPit = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     // Check for "sump pit @ service elevator" variants
     if (itemLower.includes('sump pit @ service elevator')) return true
     // Check for explicit service elevator pit
     if (itemLower.includes('service elev. pit') || itemLower.includes('service elevator pit')) return true
     // Check for service elev/elevator followed by keywords (pit is optional)
-    const serviceElevPattern = /service\s+(elev\.?|elevator)\s+(slab|mat|wall|slope|haunch|sump)/i
+    const serviceElevPattern = /service\s+(elev\.?|elevator)\s+(?:pit\s+)?(slab|mat|wall|slope|haunch|sump)/i
     return serviceElevPattern.test(itemLower)
 }
 
@@ -393,6 +408,7 @@ export const isServiceElevatorPit = (item) => {
 export const isDetentionTank = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     return itemLower.includes('detention tank')
 }
 
@@ -403,6 +419,7 @@ export const isDetentionTank = (item) => {
 export const isDuplexSewageEjectorPit = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     // Explicit check
     if (itemLower.includes('duplex sewage ejector pit')) return true
     // Make pit optional: duplex sewage ejector + keyword
@@ -417,6 +434,7 @@ export const isDuplexSewageEjectorPit = (item) => {
 export const isDeepSewageEjectorPit = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     // Explicit check
     if (itemLower.includes('deep sewage ejector pit')) return true
     // Make pit optional: deep sewage ejector + keyword
@@ -431,6 +449,7 @@ export const isDeepSewageEjectorPit = (item) => {
 export const isSumpPumpPit = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     // Exclude items if they're pumps but not pits (e.g., sump pump equipment)
     if (itemLower.includes('sump pump') && !itemLower.includes('pit')) {
         // Check if it has pit-related keywords
@@ -447,6 +466,7 @@ export const isSumpPumpPit = (item) => {
 export const isGreaseTrap = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     // Explicit check
     if (itemLower.includes('grease trap')) return true
     // Make pit optional: grease trap + keyword
@@ -461,6 +481,7 @@ export const isGreaseTrap = (item) => {
 export const isHouseTrap = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     // Explicit check
     if (itemLower.includes('house trap')) return true
     // Make pit optional: house trap + keyword
@@ -474,6 +495,7 @@ export const isHouseTrap = (item) => {
 export const isMatSlab = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     // Exclude all pit-type items as they should be handled by their specific identifiers
     if (itemLower.includes('elevator pit') || itemLower.includes('elev. pit') || 
         itemLower.includes('service elevator pit') ||
@@ -491,7 +513,7 @@ export const isMatSlab = (item) => {
 export const isMudSlabFoundation = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
-    // Only match exact "mud slab" for Foundation section (not "w/ X" mud slab" which is Excavation)
+    if (itemLower.includes('demo')) return false
     return itemLower === 'mud slab' || itemLower.trim() === 'mud slab' || itemLower === 'mud mat' || itemLower.trim() === 'mud mat'
 }
 
@@ -527,6 +549,7 @@ export const isROG = (item) => {
 export const isStairsOnGrade = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
     return itemLower.includes('stairs on grade') || itemLower.includes('landings on grade')
 }
 
@@ -548,6 +571,46 @@ export const isElectricConduit = (item) => {
 export const parseElectricConduit = (itemName) => ({
     type: 'electric_conduit'
 })
+
+/**
+ * Identifies if item is timber sheeting (Foundation section).
+ * Matches both formats: "3"x10" Timber sheeting (H=11'-5")" and "3"x10" Vertical timber sheets H=6'-0", E=4'-0"" — merged into one subsection.
+ */
+export const isTimberSheeting = (item) => {
+    if (!item || typeof item !== 'string') return false
+    const lower = item.toLowerCase()
+    return /\b(timber|wood|wooden)\s+sheeting\b/.test(lower) ||
+        /\b(?:vertical|horizontal|wood(?:en)?)\s+timber\s+sheets?\b|\btimber\s+sheets\b/.test(lower)
+}
+
+/**
+ * Parses timber sheeting item (Foundation section).
+ * Extracts H from: (H=11'-5") or H=6'-0" (E is ignored).
+ * Raw formats: "3"x10" Timber sheeting (H=11'-5")" or "3"x10" Vertical timber sheets H=6'-0", E=4'-0""
+ */
+export const parseTimberSheeting = (itemName) => {
+    const result = {
+        type: 'timber_sheeting',
+        size: null,
+        heightRaw: 0,
+        calculatedHeight: 0,
+        groupKey: 'timber_sheeting'
+    }
+
+    const sizeMatch = itemName.match(/(\d+)"\s*x\s*(\d+)"/i)
+    if (sizeMatch) {
+        result.size = `${sizeMatch[1]}x${sizeMatch[2]}`
+    }
+
+    // H can appear as (H=11'-5") or H=6'-0" — same regex matches both; E is ignored
+    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
+    if (hMatch) {
+        result.heightRaw = parseDimension(hMatch[1])
+        result.calculatedHeight = result.heightRaw
+    }
+
+    return result
+}
 
 /**
  * Builds groupKey for drilled foundation pile based on H and RS values only.
@@ -2020,6 +2083,7 @@ export default {
     isROG,
     isStairsOnGrade,
     isElectricConduit,
+    isTimberSheeting,
     parseDrilledFoundationPile,
     parseHelicalFoundationPile,
     parseDrivenFoundationPile,
@@ -2054,5 +2118,6 @@ export default {
     parseROG,
     parseStairsOnGrade,
     parseElectricConduit,
+    parseTimberSheeting,
     calculatePileWeight
 }

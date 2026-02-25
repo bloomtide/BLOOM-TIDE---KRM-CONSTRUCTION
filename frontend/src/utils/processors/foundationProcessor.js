@@ -37,6 +37,7 @@ import {
     isROG,
     isStairsOnGrade,
     isElectricConduit,
+    isTimberSheeting,
     parseDrilledFoundationPile,
     parseHelicalFoundationPile,
     parseDrivenFoundationPile,
@@ -70,7 +71,8 @@ import {
     parseSOG,
     parseROG,
     parseStairsOnGrade,
-    parseElectricConduit
+    parseElectricConduit,
+    parseTimberSheeting
 } from '../parsers/foundationParser'
 
 /**
@@ -891,6 +893,14 @@ export const processStemWallItems = (rawDataRows, headers, tracker = null) => {
 }
 
 /**
+ * Processes timber sheeting items (Foundation section).
+ * Merges "Timber sheeting" and "Timber sheets" (vertical/horizontal/wood) into one; H from (H=...) or H=..., E ignored.
+ */
+export const processTimberSheetingItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isTimberSheeting, parseTimberSheeting, tracker)
+}
+
+/**
  * Processes elevator pit items
  */
 export const processElevatorPitItems = (rawDataRows, headers, tracker = null) => {
@@ -1543,6 +1553,15 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
             }
             break
 
+        case 'timber_sheeting':
+            // Timber sheeting (merged with Timber sheets): FT(I)=C, SQ FT(J)=I*H — no L (CY)
+            formulas.ft = `C${rowNum}`
+            formulas.sqFt = `I${rowNum}*H${rowNum}`
+            if (itemData.parsed?.calculatedHeight != null) {
+                formulas.height = itemData.parsed.calculatedHeight
+            }
+            break
+
         case 'electric_conduit':
             // Electric conduit: I (FT) = C (Takeoff)
             formulas.ft = `C${rowNum}`
@@ -1574,6 +1593,7 @@ export default {
     processRetainingWallItems,
     processBarrierWallItems,
     processStemWallItems,
+    processTimberSheetingItems,
     processElevatorPitItems,
     processDetentionTankItems,
     processDuplexSewageEjectorPitItems,
