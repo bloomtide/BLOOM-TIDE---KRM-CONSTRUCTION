@@ -28,6 +28,84 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     return ''
   }
 
+  // Normalize abbreviations when reading from calculation sheet (case-insensitive)
+  // Thick: thk; Height: Ht, H; Width: W, Wide; Length: L, LF; No.: EA, No; Demolition: Demo; Excavation: Exc;
+  // Slope/Soil/Rock exc; Line drill; Embedment: E; Rock socket: RS; Dowel: Dower/Dowels; Concrete soil retention pier: Concrete pier; Heel block: Foot block; Caisson: cassion
+  // Foundation: PC, SF, WF, Wal->Wall, GB, TB, ST, F->Isolated footing, Liner wall->Concrete liner wall, FW; Elev.->Elevator; SOG, ROG, EAmp->Ramp; X P->X Perforated; SOMD, Insualtion->Insulation, Hanger->Concrete hanger, SW->Shear wall; Curb->Concrete curb, Pad->Concrete pad, Misc/Ext stair->Concrete stair
+  const normalizeCalcSheetAbbreviations = (text) => {
+    if (text == null || typeof text !== 'string') return text === undefined ? '' : text
+    let s = String(text)
+    s = s.replace(/\bthk\b/gi, 'Thick')
+    s = s.replace(/\bHt\b/gi, 'Height')
+    s = s.replace(/\bH\b/gi, 'Height')
+    s = s.replace(/\bW\b/gi, 'Width')
+    s = s.replace(/\bWide\b/gi, 'Width')
+    s = s.replace(/\bLF\b/gi, 'Length')
+    s = s.replace(/\bL\b/gi, 'Length')
+    s = s.replace(/\bEA\b/gi, 'No.')
+    s = s.replace(/\bNo\b(?!\.)/gi, 'No.') // No -> No. but not when already No.
+    s = s.replace(/\bDemo\b/gi, 'Demolition') // Demo and Demolition treated as one
+    s = s.replace(/\bExc\b/gi, 'Excavation') // Exc and Excavation treated as one
+    s = s.replace(/\bSlope\s+exc\s+&\s+backfill\b/gi, 'Slope excavation & backfill') // Slope exc & backfill and Slope excavation & backfill treated as one (longer phrase first)
+    s = s.replace(/\bSlope\s+exc\b/gi, 'Slope excavation') // Slope exc and Slope excavation treated as one
+    s = s.replace(/\bSoil\s+slope\s+exc\s+&\s+backfill\b/gi, 'Soil slope excavation & backfill') // Soil slope exc & backfill (longer first)
+    s = s.replace(/\bSoil\s+slope\s+exc\b/gi, 'Soil slope excavation') // Soil slope exc and Soil slope excavation treated as one
+    s = s.replace(/\bSoil\s+exc\b/gi, 'Soil excavation') // Soil exc and Soil excavation treated as one
+    s = s.replace(/\bLine\s+drill\b/gi, 'Line drilling') // Line drill and Line drilling treated as one
+    s = s.replace(/\bRock\s+slope\s+exc\s+&\s+backfill\b/gi, 'Rock slope excavation & backfill') // Rock slope exc & backfill (longer first)
+    s = s.replace(/\bRock\s+slope\s+exc\b/gi, 'Rock slope excavation') // Rock slope exc and Rock slope excavation treated as one
+    s = s.replace(/\bRock\s+exc\b/gi, 'Rock excavation') // Rock exc and Rock excavation treated as one
+    s = s.replace(/\bLine\s+drill\b/gi, 'Line drilling') // Line drill and Line drilling treated as one
+    s = s.replace(/\bE\s*=\s*/gi, 'Embedment=') // E=##'-##" (embedment) so matching finds Embedment
+    s = s.replace(/\bRS\s*=\s*/gi, 'Rock socket=') // RS=##'-##" so matching finds Rock socket
+    s = s.replace(/\bDower\b/gi, 'Dowel') // Fix common misspelling: Dower bar / Steel dower bar -> Dowel
+    s = s.replace(/\bDowels\b/gi, 'Dowel') // Dowels bar / Steel dowels bar -> Dowel
+    s = s.replace(/\bConcrete\s+pier\b/gi, 'Concrete soil retention pier') // Concrete pier -> Concrete soil retention pier
+    s = s.replace(/\bFoot\s+block\b/gi, 'Heel block') // Foot block -> Heel block
+    s = s.replace(/\bcassion\b/gi, 'caisson') // Drilled cassion pile -> Drilled caisson pile
+    // Foundation item abbreviations (case-insensitive)
+    s = s.replace(/\bPC\b/gi, 'Pile cap') // Pile cap
+    s = s.replace(/\bSF\b/gi, 'Strip footing') // Strip footing
+    s = s.replace(/\bWF\b/gi, 'Wall footing') // Wall footing
+    s = s.replace(/\bWal\b/gi, 'Wall') // Wal footing -> Wall footing
+    s = s.replace(/\bGB\b/gi, 'Grade beam') // Grade beam
+    s = s.replace(/\bTB\b/gi, 'Tie beam') // Tie beam
+    s = s.replace(/\bST\b/gi, 'Strap beam') // Strap beam
+    s = s.replace(/\bF\b/gi, 'Isolated footing') // Isolated footing (standalone F in particulars)
+    s = s.replace(/\bLiner\s+wall\b/gi, 'Concrete liner wall') // Liner wall -> Concrete liner wall
+    s = s.replace(/\bFW\b/gi, 'Foundation wall') // Foundation wall
+    // Elevator / pit: Elev. -> Elevator (Elev. pit slab, Elev. pit wall, etc.)
+    s = s.replace(/\bElev\.\b/gi, 'Elevator')
+    // Slab/grade: SOG, ROG; typo EAmp -> Ramp
+    s = s.replace(/\bSOG\b/gi, 'Slab on grade') // SOG ##", Patch SOG, SOG step
+    s = s.replace(/\bROG\b/gi, 'Ramp on grade') // ROG ##", ROG ##'-##"
+    s = s.replace(/\bEAmp\b/gi, 'Ramp') // typo: EAmp on grade -> Ramp on grade
+    // Perforated pipe: X P -> X Perforated (so "X P" matches "X Perforated pipe")
+    s = s.replace(/\bX\s+P\b/gi, 'X Perforated')
+    // Slab on metal deck, topping/superstructure
+    s = s.replace(/\bSOMD\b/gi, 'Slab on metal deck')
+    s = s.replace(/\bInsualtion\b/gi, 'Insulation') // typo: Insualtion -> Insulation
+    s = s.replace(/(?<!Concrete\s)\bHanger\b/gi, 'Concrete hanger') // Hanger -> Concrete hanger (not when already "Concrete hanger")
+    s = s.replace(/\bSW\b/gi, 'Shear wall') // Shear wall (SW @ ^^, SW (##'x##'))
+    // Curb, pad, stair variants
+    s = s.replace(/(?<!Concrete\s)\bCurb\b/gi, 'Concrete curb') // Curb -> Concrete curb (not when already "Concrete curb")
+    s = s.replace(/(?<!Housekeeping\s)(?<!Transformer\s)\bPad\b/gi, 'Concrete pad') // Pad -> Concrete pad (not Housekeeping/Transformer pad)
+    s = s.replace(/\bMisc\.?\s*stair\b/gi, 'Concrete stair') // Misc. stair / Misc stair -> Concrete stair
+    s = s.replace(/\bExt\.?\s*stair\b/gi, 'Concrete stair') // Ext. stair / Ext stair -> Concrete stair
+    return s
+  }
+
+  // Case-insensitive abbreviation/display name lookup for whole proposal sheet (handles upper/lower/mixed case)
+  const getDisplayNameForAbbreviation = (item, map) => {
+    if (item == null || item === '') return item
+    const s = String(item).trim()
+    if (!map || typeof map !== 'object') return s
+    if (map[s] !== undefined) return map[s]
+    const lower = s.toLowerCase()
+    const entry = Object.entries(map).find(([k]) => (k || '').toLowerCase() === lower)
+    return entry ? entry[1] : s
+  }
+
   // Format multiple page refs for template text: "102 & 105" or "102, 103 & 105" (used in all scopes)
   const formatPageRefList = (refs) => {
     const list = Array.isArray(refs) ? refs.filter(Boolean) : []
@@ -11676,7 +11754,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       let dimensionsText = ''
       let wireMeshText = ''
       for (const r of rows) {
-        const p = (r && r[1] || '').toString()
+        const p = normalizeCalcSheetAbbreviations((r && r[1] || '').toString())
         if (!thicknessText) {
           const feetInch = p.match(/(\d+'\s*-\s*\d+"?)\s*thick/i) || p.match(/(\d+'\s*-\s*\d+"?)(?=\s|,|\)|$)/i)
           const inchOnly = p.match(/(\d+(?:\/\d+)?)"?\s*thick/i) || p.match(/(\d+(?:\/\d+)?)"(?=\s|,|\)|$)/i)
@@ -12421,8 +12499,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         'duplex sewage ejector pit wall': 'duplex sewage ejector pit wall'
       }
 
-      // Convert to display names
-      const displayItems = waterproofingItems.map(item => itemDisplayMap[item] || item)
+      // Convert to display names (case-insensitive abbreviation lookup)
+      const displayItems = waterproofingItems.map(item => getDisplayNameForAbbreviation(item, itemDisplayMap))
 
       // Join with " & " for the last two, and commas for others
       let itemsText = ''
@@ -12542,8 +12620,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           'elevator pit slab': 'elevator pit slab'
         }
 
-        // Convert to display names
-        const displayNegativeItems = negativeSideItems.map(item => negativeSideDisplayMap[item] || item)
+        // Convert to display names (case-insensitive abbreviation lookup)
+        const displayNegativeItems = negativeSideItems.map(item => getDisplayNameForAbbreviation(item, negativeSideDisplayMap))
 
         // Join with " & " for the last two, and commas for others
         let negativeItemsText = ''
