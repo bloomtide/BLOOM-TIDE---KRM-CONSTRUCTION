@@ -479,7 +479,7 @@ export const isMatSlab = (item) => {
         itemLower.includes('sump pump pit') ||
         itemLower.includes('grease trap') ||
         itemLower.includes('house trap')) return false
-    return itemLower.includes('mat') && (itemLower.includes('haunch') || itemLower.match(/mat[-\s]*\d+/i))
+    return itemLower.includes('mat') && (itemLower.includes('haunch') || itemLower.match(/mat(?:[-\s]+slab)?[-\s]*\d+/i))
 }
 
 /**
