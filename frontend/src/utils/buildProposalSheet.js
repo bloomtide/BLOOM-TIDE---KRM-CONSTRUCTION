@@ -15453,7 +15453,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       if (hasExcOrGravel) {
         spreadsheet.updateCell({ value: 'Excavation, backfill & grading scope:' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', verticalAlign: 'middle', textDecoration: 'underline', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'center', backgroundColor: '#FEF2CB', verticalAlign: 'middle', textDecoration: 'underline', border: '1px solid #000000' },
           `${pfx}B${currentRow}`
         )
         currentRow++
@@ -15562,7 +15562,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       currentRow++
       spreadsheet.updateCell({ value: 'Dewatering:' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#FEF2CB', verticalAlign: 'middle', textDecoration: 'underline', border: '1px solid #000000' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'center', backgroundColor: '#FEF2CB', verticalAlign: 'middle', textDecoration: 'underline', border: '1px solid #000000' },
         `${pfx}B${currentRow}`
       )
       currentRow++
@@ -16067,7 +16067,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         `${pfx}B${currentRow}:E${currentRow}`
       )
       spreadsheet.merge(`${pfx}F${currentRow}:G${currentRow}`)
-      spreadsheet.updateCell({ value: 10000 }, `${pfx}F${currentRow}`)
+      spreadsheet.updateCell({ formula: '$10000' }, `${pfx}F${currentRow}`)
       spreadsheet.cellFormat(
         { fontWeight: 'bold', color: '#000000', textAlign: 'right', backgroundColor: '#FEF2CB', verticalAlign: 'middle', format: '$#,##0.00' },
         `${pfx}F${currentRow}:G${currentRow}`
@@ -16457,7 +16457,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         spreadsheet.merge(`${pfx}B${currentRow}:G${currentRow}`)
         spreadsheet.updateCell({ value: 'Add Alternate #2 : B.P.P. scope: as per C-4' }, `${pfx}B${currentRow}`)
         spreadsheet.cellFormat(
-          { fontWeight: 'bold', color: '#000000', textAlign: 'center', backgroundColor: '#BDD6EE', border: '1px solid #000000' },
+          { fontWeight: 'bold', color: '#000000', textAlign: 'center', verticalAlign: 'middle', backgroundColor: '#BDD6EE', border: '1px solid #000000' },
           `${pfx}B${currentRow}:G${currentRow}`
         )
         currentRow++
@@ -16798,7 +16798,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     {
       spreadsheet.updateCell({ value: 'Labor:' }, `${pfx}B${currentRow}`)
       spreadsheet.cellFormat(
-        { fontWeight: 'bold', color: '#000000', textAlign: 'center', backgroundColor: '#AECBED', border: '1px solid #000000' },
+        { fontWeight: 'bold', color: '#000000', textAlign: 'left', backgroundColor: '#D0CECE', border: '1px solid #000000' },
         `${pfx}B${currentRow}`
       )
       currentRow++
