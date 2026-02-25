@@ -7538,24 +7538,21 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           }
         }
 
-        // If no groups found, skip processing. Do not show Vertical/Horizontal timber sheets, Timber stringer, or Drilled hole grout when calculation sheet has no data.
+        // If no groups found, handle special SOE subsections (Vertical/Horizontal timber sheets, Timber stringer, Drilled hole grout)
+        // via template text when Calculation sheet has the subsection; otherwise skip.
         const isEmpty = groups.length === 0 || groups.every(g => g.length === 0)
         const isVerticalTimberSheets = subsectionName.toLowerCase() === 'vertical timber sheets'
         const isHorizontalTimberSheets = subsectionName.toLowerCase() === 'horizontal timber sheets'
         const isTimberStringer = subsectionName.toLowerCase() === 'timber stringer'
         const isDrilledHoleGrout = subsectionName.toLowerCase() === 'drilled hole grout'
-        const soeSubsectionsOnlyWithData = isVerticalTimberSheets || isHorizontalTimberSheets || isTimberStringer || isDrilledHoleGrout
+        const isTemplateSubsection = isVerticalTimberSheets || isHorizontalTimberSheets || isTimberStringer || isDrilledHoleGrout
 
-        if (isEmpty && soeSubsectionsOnlyWithData) {
-          // Do not show subsection when calculation sheet has no data for it
-          return
-        }
         if (isEmpty) {
-          return
-        }
+          if (!isTemplateSubsection) {
+            // For non-template subsections with no items, skip entirely
+            return
+          }
 
-        // (SOE subsections Vertical/Horizontal timber sheets, Timber stringer, Drilled hole grout are only added to subsectionsToDisplay when they have calculation data, so no empty-template path here.)
-        if (false) {
           // Fill template text; pull dimensions/Havg/embedment from Calculation sheet data when present
           let proposalText = ''
           let calcRefSubsectionName = ''
@@ -7731,9 +7728,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const dynamicHeight = calculateRowHeight(proposalText)
           try { spreadsheet.setRowHeight(dynamicHeight, currentRow - 1, proposalSheetIndex) } catch (e) { }
           currentRow++
-          return
-        }
-        if (isEmpty) {
           return
         }
 
@@ -11835,8 +11829,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           { text: 'F&I new tie beams as per FO-101.00, FO-102.00 & details on', sub: 'Tie beam', match: () => true },
           { text: 'F&I new strap beams as per FO-102.00 & details on', sub: 'Strap beams', match: () => true },
           { text: `F&I new (8" thick) thickened slab as per FO-101.00 & details on`, sub: 'Thickened slab', match: () => true },
-          { text: `F&I new (24" thick) mat slab reinforced as per FO-101.00 & details on`, sub: 'Mat slab', match: p => p.includes('2\'') || p.includes('24') },
-          { text: `F&I new (36" thick) mat slab reinforced as per FO-101.00 & details on`, sub: 'Mat slab', match: p => p.includes('3\'') || p.includes('36') },
+          { text: `F&I new (24" thick) mat slab reinforced as per FO-101.00 & details on`, sub: 'Mat slab', match: p => (p || '').includes('2\'') || (p || '').includes('24') },
+          { text: `F&I new (36" thick) mat slab reinforced as per FO-101.00 & details on`, sub: 'Mat slab', match: p => (p || '').includes('3\'') || (p || '').includes('36') },
+          { text: `F&I new mat slab reinforced as per FO-101.00 & details on`, sub: 'Mat slab', match: p => (p || '').toLowerCase().includes('mat') && (p || '').toLowerCase().includes('slab') },
           { text: `F&I new (3" thick) mud/rat slab as per FO-101.00 & details on`, sub: 'Mud Slab', match: () => true },
           {
             text: `F&I new (4" thick) slab on grade reinforced w/6x6-10/10 W.W.M. @ cellar FL as per FO-101.00 & details on`, sub: 'SOG', match: p => {

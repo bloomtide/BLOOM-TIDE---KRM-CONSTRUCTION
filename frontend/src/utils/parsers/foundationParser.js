@@ -466,20 +466,22 @@ export const isHouseTrap = (item) => {
 }
 
 /**
- * Identifies if item is a mat slab item
+ * Identifies if item is a mat slab item.
+ * Matches any item containing "mat" and "slab" (case insensitive), or "mat" and "haunch".
+ * Excludes pit-type items (elevator pit, sump pump pit, etc.) which have their own subsections.
  */
 export const isMatSlab = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
     // Exclude all pit-type items as they should be handled by their specific identifiers
-    if (itemLower.includes('elevator pit') || itemLower.includes('elev. pit') || 
+    if (itemLower.includes('elevator pit') || itemLower.includes('elev. pit') ||
         itemLower.includes('service elevator pit') ||
         itemLower.includes('duplex sewage ejector') ||
         itemLower.includes('deep sewage ejector') ||
         itemLower.includes('sump pump pit') ||
         itemLower.includes('grease trap') ||
         itemLower.includes('house trap')) return false
-    return itemLower.includes('mat') && (itemLower.includes('haunch') || itemLower.match(/mat(?:[-\s]+slab)?[-\s]*\d+/i))
+    return itemLower.includes('mat') && (itemLower.includes('haunch') || itemLower.includes('slab'))
 }
 
 /**
