@@ -5510,8 +5510,9 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           }
         })
       }
-    } else if (section.section === 'Civil / Sitework') {
-      // Civil / Sitework section
+    } else if (section.section === 'Civil / Sitework' && hasSectionData) {
+      console.log(section.section, hasSectionData)
+      // Civil / Sitework section — only render when section has content
       section.subsections.forEach((subsection) => {
         // Check if subsection has items (Civil)
         let hasSubsectionData = false
@@ -5525,11 +5526,11 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Fence') hasSubsectionData = Object.values(civilOtherItems['Fence']).some(arr => arr.length > 0)
         else if (subsection.name === 'Concrete filled steel pipe bollard') hasSubsectionData = Object.values(civilOtherItems['Concrete filled steel pipe bollard']).some(arr => arr.length > 0)
         else if (subsection.name === 'Site') hasSubsectionData = Object.values(civilOtherItems['Site']).some(val => Array.isArray(val) ? val.length > 0 : Object.values(val).some(v => Array.isArray(v) && v.length > 0))
-        else if (subsection.name === 'Ele') hasSubsectionData = true // Always show - content (Excavation, Backfill, Gravel) is always rendered
-        else if (subsection.name === 'Gas') hasSubsectionData = true // Always show - content is always rendered
-        else if (subsection.name === 'Water') hasSubsectionData = true // Always show - content is always rendered
+        else if (subsection.name === 'Ele') hasSubsectionData = civilOtherItems['Drains & Utilities'] && civilOtherItems['Drains & Utilities'].some(i => String(i.particulars || '').toLowerCase().includes('electrical conduit'))
+        else if (subsection.name === 'Gas') hasSubsectionData = civilOtherItems['Drains & Utilities'] && civilOtherItems['Drains & Utilities'].some(i => String(i.particulars || '').toLowerCase().includes('gas'))
+        else if (subsection.name === 'Water') hasSubsectionData = civilOtherItems['Drains & Utilities'] && civilOtherItems['Drains & Utilities'].some(i => { const p = String(i.particulars || '').toLowerCase(); return p.includes('water') || p.includes('sanitary') })
         else if (subsection.name === 'Drains & Utilities') hasSubsectionData = civilOtherItems['Drains & Utilities'] && civilOtherItems['Drains & Utilities'].length > 0
-        else if (subsection.name === 'Alternate') hasSubsectionData = true // Handled inside
+        else if (subsection.name === 'Alternate') hasSubsectionData = civilOtherItems['Alternate'] && civilOtherItems['Alternate'].length > 0
 
         // Add subsection header for all subsections except Alternate,
         // which has custom header/spacing handled in its own block below.
@@ -5539,12 +5540,12 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           rows.push(subsectionRow)
         }
 
-        if (subsection.name === 'Demo' && subsection.subSubsections) {
-          // Demo subsection with sub-subsections
+        if (subsection.name === 'Demo' && hasSubsectionData && subsection.subSubsections) {
+          // Demo subsection with sub-subsections — only run when Demo has data; only add each sub-subsection when it has data
           subsection.subSubsections.forEach((subSubsection) => {
             const subSubName = subSubsection.name
 
-            // Determine if sub-subsection has data
+            // Determine if sub-subsection has data — only show header and content when this specific sub-subsection has items
             let hasSubData = false
             if (subSubName === 'Demo asphalt') hasSubData = civilDemoItems['Demo asphalt'].length > 0
             else if (subSubName === 'Demo curb') hasSubData = civilDemoItems['Demo curb'].length > 0
@@ -5559,12 +5560,13 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             else if (subSubName === 'Demo valve') hasSubData = civilDemoItems['Demo valve'].length > 0
             else if (subSubName === 'Demo inlet') hasSubData = civilDemoItems['Demo inlet']['protect'].length > 0 || civilDemoItems['Demo inlet']['remove'].length > 0
 
-            if (hasSubData) {
-              // Add sub-subsection header
-              const subSubsectionRow = Array(template.columns.length).fill('')
-              subSubsectionRow[1] = subSubName + ':'
-              rows.push(subSubsectionRow)
-            }
+            // Skip this sub-subsection entirely if it has no data (no header, no empty row)
+            if (!hasSubData) return
+
+            // Add sub-subsection header only when it has data
+            const subSubsectionRow = Array(template.columns.length).fill('')
+            subSubsectionRow[1] = subSubName + ':'
+            rows.push(subSubsectionRow)
 
             // Handle Demo asphalt
             if (subSubName === 'Demo asphalt' && civilDemoItems['Demo asphalt'].length > 0) {
@@ -5881,8 +5883,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             }
 
           })
-        } else if (subsection.name === 'Excavation') {
-          // Excavation subsection
+        } else if (subsection.name === 'Excavation' && hasSubsectionData) {
+          // Excavation subsection — only render when it has data
           const excItems = civilOtherItems['Excavation']
           let hasItems = false
           const firstDataRow = rows.length + 1
@@ -5939,8 +5941,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           } else {
             rows.push(Array(template.columns.length).fill(''))
           }
-        } else if (subsection.name === 'Gravel') {
-          // Gravel subsection
+        } else if (subsection.name === 'Gravel' && hasSubsectionData) {
+          // Gravel subsection — only render when it has data
           const gravelItems = civilOtherItems['Gravel']
           let hasItems = false
           const firstDataRow = rows.length + 1
@@ -6023,7 +6025,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           } else if (hasItems) {
             rows.push(Array(template.columns.length).fill(''))
           }
-        } else if (subsection.name === 'Concrete Pavement') {
+        } else if (subsection.name === 'Concrete Pavement' && hasSubsectionData) {
           // Concrete Pavement subsection
           const cpItems = civilOtherItems['Concrete Pavement']
           if (cpItems.length > 0) {
@@ -6045,7 +6047,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           } else {
             rows.push(Array(template.columns.length).fill(''))
           }
-        } else if (subsection.name === 'Asphalt') {
+        } else if (subsection.name === 'Asphalt' && hasSubsectionData) {
           // Asphalt subsection
           const asphaltItems = civilOtherItems['Asphalt']
           if (asphaltItems.length > 0) {
@@ -6066,7 +6068,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           } else {
             rows.push(Array(template.columns.length).fill(''))
           }
-        } else if (subsection.name === 'Pads') {
+        } else if (subsection.name === 'Pads' && hasSubsectionData) {
           // Pads subsection
           const padsItems = civilOtherItems['Pads']
           if (padsItems.length > 0) {
@@ -6089,7 +6091,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           } else {
             rows.push(Array(template.columns.length).fill(''))
           }
-        } else if (subsection.name === 'Soil Erosion') {
+        } else if (subsection.name === 'Soil Erosion' && hasSubsectionData) {
           // Soil Erosion subsection
           const seItems = civilOtherItems['Soil Erosion']
           let hasItems = false
@@ -6138,7 +6140,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           if (hasItems) {
             rows.push(Array(template.columns.length).fill(''))
           }
-        } else if (subsection.name === 'Fence') {
+        } else if (subsection.name === 'Fence' && hasSubsectionData) {
           // Fence subsection
           const fenceItems = civilOtherItems['Fence']
           let hasItems = false
@@ -6204,7 +6206,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           }
 
 
-        } else if (subsection.name === 'Concrete filled steel pipe bollard') {
+        } else if (subsection.name === 'Concrete filled steel pipe bollard' && hasSubsectionData) {
           // Bollard subsection
           const bollardGroups = civilOtherItems['Concrete filled steel pipe bollard']
 
@@ -6247,7 +6249,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           }
 
 
-        } else if (subsection.name === 'Site') {
+        } else if (subsection.name === 'Site' && hasSubsectionData) {
           const siteItems = civilOtherItems['Site']
           const siteOrder = ['Hydrant', 'Wheel stop', 'Drain', 'Protection', 'Signages', 'Main line']
 
@@ -6317,7 +6319,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               rows.push(Array(template.columns.length).fill(''))
             }
           })
-        } else if (subsection.name === 'Drains & Utilities') {
+        } else if (subsection.name === 'Drains & Utilities' && hasSubsectionData) {
           const items = civilOtherItems['Drains & Utilities']
           if (items && items.length > 0) {
             items.forEach(item => {
@@ -6357,8 +6359,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               formulas.push({ row: rows.length, itemType: 'civil_alternate_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Alternate' })
             })
           }
-        } else if (subsection.name === 'Ele') {
-          // Civil/Sitework Ele subsection with Excavation, Backfill, Gravel
+        } else if (subsection.name === 'Ele' && hasSubsectionData) {
+          // Civil/Sitework Ele subsection with Excavation, Backfill, Gravel — only when Drains & Utilities has electrical conduit
           const createCivilEleGroup = (subSubName, takeoffSourceType) => {
             // Sub-subsection header - Ele in column A, sub-subsection name in column B
             const headerRow = Array(template.columns.length).fill('')
@@ -6403,8 +6405,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           createCivilEleGroup('Backfill', 'ele_excavation')
           // Gravel - takeoff from C of Proposed underground electrical conduit item from Drains & Utilities
           createCivilEleGroup('Gravel', 'drains_conduit')
-        } else if (subsection.name === 'Gas') {
-          // Civil/Sitework Gas subsection with Excavation, Backfill, Gravel
+        } else if (subsection.name === 'Gas' && hasSubsectionData) {
+          // Civil/Sitework Gas subsection with Excavation, Backfill, Gravel — only when Drains & Utilities has gas
 
           // Excavation sub-subsection
           const excavationHeaderRow = Array(template.columns.length).fill('')
@@ -6526,8 +6528,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           rows.push(Array(template.columns.length).fill(''))
 
-        } else if (subsection.name === 'Water') {
-          // Civil/Sitework Water subsection with Excavation, Backfill, Gravel
+        } else if (subsection.name === 'Water' && hasSubsectionData) {
+          // Civil/Sitework Water subsection with Excavation, Backfill, Gravel — only when Drains & Utilities has water/sanitary
 
           // Excavation sub-subsection
           const excavationHeaderRow = Array(template.columns.length).fill('')
@@ -6667,21 +6669,21 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           rows.push(Array(template.columns.length).fill(''))
 
-        } else if (subsection.subSubsections && subsection.subSubsections.length > 0) {
-          // Other subsections with sub-subsections
+        } else if (hasSubsectionData && subsection.subSubsections && subsection.subSubsections.length > 0) {
+          // Other subsections with sub-subsections — only when subsection has data
           subsection.subSubsections.forEach((subSubsection) => {
             const subSubsectionRow = Array(template.columns.length).fill('')
             subSubsectionRow[1] = '  ' + subSubsection.name + ':'
             rows.push(subSubsectionRow)
             rows.push(Array(template.columns.length).fill(''))
           })
-        } else {
-          // Simple subsection without sub-subsections
+        } else if (hasSubsectionData) {
+          // Simple subsection without sub-subsections — only when subsection has data
           rows.push(Array(template.columns.length).fill(''))
         }
       })
-    } else if (section.subsections && section.subsections.length > 0) {
-      // Handle other sections with subsections
+    } else if (section.section !== 'Civil / Sitework' && section.subsections && section.subsections.length > 0) {
+      // Handle other sections with subsections (exclude Civil / Sitework — it has its own block and must not render when empty)
       section.subsections.forEach((subsection) => {
         // Add subsection header (indented)
         const subsectionRow = Array(template.columns.length).fill('')
@@ -6701,8 +6703,8 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           rows.push(Array(template.columns.length).fill(''))
         }
       })
-    } else {
-      // For sections without defined subsections in template
+    } else if (section.section !== 'Civil / Sitework') {
+      // For sections without defined subsections in template (exclude Civil — when empty it adds nothing)
       rows.push(Array(template.columns.length).fill(''))
     }
   })
