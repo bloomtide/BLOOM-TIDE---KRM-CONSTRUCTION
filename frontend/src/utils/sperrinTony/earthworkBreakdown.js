@@ -6,6 +6,7 @@
 
 import { generateDemolitionFormulas } from '../processors/demolitionProcessor'
 import { generateExcavationFormulas } from '../processors/excavationProcessor'
+import { generateFoundationFormulas } from '../processors/foundationProcessor'
 import { generateRockExcavationFormulas } from '../processors/rockExcavationProcessor'
 
 const EARTHWORK_SECTIONS = ['Demolition', 'Excavation', 'Rock Excavation']
@@ -119,9 +120,8 @@ function applyEarthworkFormulas(spreadsheet, pfx, formulaData) {
     try {
       if (section === 'demolition') {
         if (itemType === 'demolition_sum') {
-          const { firstDataRow, lastDataRow, subsection: subName } = formulaInfo
-          const hasFtColumn = ['Demo strip footing', 'Demo foundation wall', 'Demo retaining wall'].includes(subName)
-          if (hasFtColumn) {
+          const { firstDataRow, lastDataRow, subsection: subName, excludeISum } = formulaInfo
+          if (!excludeISum) {
             spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, cell('I'))
           }
           spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, cell('J'))
@@ -249,6 +249,15 @@ function applyEarthworkFormulas(spreadsheet, pfx, formulaData) {
           spreadsheet.updateCell({ formula: `=C${row}*F${row}*G${row}` }, cell('J'))
           spreadsheet.updateCell({ formula: `=J${row}*H${row}/27` }, cell('K'))
           spreadsheet.updateCell({ formula: `=K${row}*1.3` }, cell('L'))
+          return
+        }
+        if (itemType === 'excavation_item' && parsedData?.foundationType) {
+          const formulas = generateFoundationFormulas(parsedData.foundationType, row, parsedData)
+          if (formulas?.ft) spreadsheet.updateCell({ formula: `=${formulas.ft}` }, cell('I'))
+          if (formulas?.sqFt) spreadsheet.updateCell({ formula: `=${formulas.sqFt}` }, cell('J'))
+          if (formulas?.cy) spreadsheet.updateCell({ formula: `=${formulas.cy}` }, cell('K'))
+          if (formulas?.qtyFinal) spreadsheet.updateCell({ formula: `=${formulas.qtyFinal}` }, cell('L'))
+          if (formulas?.lbs) spreadsheet.updateCell({ formula: `=${formulas.lbs}` }, cell('M'))
           return
         }
         const formulas = generateExcavationFormulas(itemType === 'excavation_item' ? (parsedData?.itemType || itemType) : itemType, row, parsedData)

@@ -452,20 +452,74 @@ export const generateDemolitionFormulas = (type, rowNum, parsedData) => {
       formulas.qtyFinal = `C${rowNum}`
       break
 
-    // ── new: pit items (L×W footprint, CY, QTY) ────────────────────────────
+    // ── Pit items: same formulas as Foundation (slab/mat/mat_slab → J=C, L=J*H/27; wall/slope → I=C, J=I*H, L=J*G/27; sump_pit/lid_slab as per Foundation) ────────────────────────────
     case 'Demo elevator pit':
-    case 'Demo service elevator pit':
-    case 'Demo detention tank':
+    case 'Demo service elevator pit': {
+      const elevSub = parsedData?.itemSubType
+      if (elevSub === 'sump_pit') {
+        formulas.sqFt = `16*C${rowNum}`
+        formulas.cy = `C${rowNum}*1.3`
+        formulas.qtyFinal = `C${rowNum}`
+      } else if (elevSub === 'slab' || elevSub === 'mat' || elevSub === 'mat_slab') {
+        formulas.sqFt = `C${rowNum}`
+        if (parsedData?.height !== undefined && parsedData?.height !== '') formulas.height = parsedData.height
+        formulas.cy = `J${rowNum}*H${rowNum}/27`
+      } else if (elevSub === 'wall' || elevSub === 'slope_transition') {
+        formulas.ft = `C${rowNum}`
+        formulas.sqFt = `I${rowNum}*H${rowNum}`
+        if (parsedData?.width !== undefined && parsedData?.width !== '') formulas.width = parsedData.width
+        if (parsedData?.height !== undefined && parsedData?.height !== '') formulas.height = parsedData.height
+        formulas.cy = `J${rowNum}*G${rowNum}/27`
+      } else {
+        formulas.sqFt = `C${rowNum}`
+        if (parsedData?.height !== undefined && parsedData?.height !== '') formulas.height = parsedData.height
+        formulas.cy = `J${rowNum}*H${rowNum}/27`
+      }
+      break
+    }
+    case 'Demo detention tank': {
+      const dtSub = parsedData?.itemSubType
+      if (dtSub === 'slab' || dtSub === 'lid_slab') {
+        formulas.sqFt = `C${rowNum}`
+        if (parsedData?.height !== undefined && parsedData?.height !== '') formulas.height = parsedData.height
+        formulas.cy = `J${rowNum}*H${rowNum}/27`
+      } else if (dtSub === 'wall') {
+        formulas.ft = `C${rowNum}`
+        formulas.sqFt = `I${rowNum}*H${rowNum}`
+        if (parsedData?.width !== undefined && parsedData?.width !== '') formulas.width = parsedData.width
+        if (parsedData?.height !== undefined && parsedData?.height !== '') formulas.height = parsedData.height
+        formulas.cy = `J${rowNum}*G${rowNum}/27`
+      } else {
+        formulas.sqFt = `C${rowNum}`
+        if (parsedData?.height !== undefined && parsedData?.height !== '') formulas.height = parsedData.height
+        formulas.cy = `J${rowNum}*H${rowNum}/27`
+      }
+      break
+    }
     case 'Demo duplex sewage ejector pit':
     case 'Demo deep sewage ejector pit':
     case 'Demo sewage ejector pit':
     case 'Demo sump pump pit':
     case 'Demo grease trap pit':
-    case 'Demo house trap pit':
-      formulas.sqFt = `F${rowNum}*G${rowNum}*C${rowNum}`
-      formulas.cy = `J${rowNum}*H${rowNum}/27`
-      formulas.qtyFinal = `C${rowNum}`
+    case 'Demo house trap pit': {
+      const pitSub = parsedData?.itemSubType
+      if (pitSub === 'slab' || pitSub === 'mat' || pitSub === 'mat_slab') {
+        formulas.sqFt = `C${rowNum}`
+        if (parsedData?.height !== undefined && parsedData?.height !== '') formulas.height = parsedData.height
+        formulas.cy = `J${rowNum}*H${rowNum}/27`
+      } else if (pitSub === 'wall' || pitSub === 'slope_transition') {
+        formulas.ft = `C${rowNum}`
+        formulas.sqFt = `I${rowNum}*H${rowNum}`
+        if (parsedData?.width !== undefined && parsedData?.width !== '') formulas.width = parsedData.width
+        if (parsedData?.height !== undefined && parsedData?.height !== '') formulas.height = parsedData.height
+        formulas.cy = `J${rowNum}*G${rowNum}/27`
+      } else {
+        formulas.sqFt = `C${rowNum}`
+        if (parsedData?.height !== undefined && parsedData?.height !== '') formulas.height = parsedData.height
+        formulas.cy = `J${rowNum}*H${rowNum}/27`
+      }
       break
+    }
 
     default:
       break
@@ -521,6 +575,11 @@ export const processDemolitionItems = (rawDataRows, headers, tracker = null) => 
       // Group by first dimension bracket value for all subsections that use brackets
       const bracketMatch = digitizerItem.match(/\(([^x)]+)/)
       if (bracketMatch) groupKey = `DIM_${bracketMatch[1].trim()}`
+    }
+    // For pit wall/slope, use dimension-based groupKey (same as Foundation) so grouping matches
+    const pitSubsections = ['Demo elevator pit', 'Demo service elevator pit', 'Demo detention tank', 'Demo duplex sewage ejector pit', 'Demo deep sewage ejector pit', 'Demo sewage ejector pit', 'Demo sump pump pit', 'Demo grease trap pit', 'Demo house trap pit']
+    if (pitSubsections.includes(subsection) && parsed.groupKey) {
+      groupKey = parsed.groupKey
     }
 
     demolitionItemsBySubsection[subsection].push({

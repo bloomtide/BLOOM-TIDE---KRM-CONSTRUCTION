@@ -11777,6 +11777,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         ]
       },
       {
+        heading: 'Sewage ejector pit', items: [
+          { text: `F&I new sewage ejector pit slab as per details on`, sub: 'Sewage ejector pit', match: p => (p || '').toLowerCase().includes('sewage ejector') && !(p || '').toLowerCase().includes('duplex') && !(p || '').toLowerCase().includes('deep') && (p || '').toLowerCase().includes('slab') },
+          { text: `F&I new sewage ejector pit wall as per details on`, sub: 'Sewage ejector pit', match: p => (p || '').toLowerCase().includes('sewage ejector') && !(p || '').toLowerCase().includes('duplex') && !(p || '').toLowerCase().includes('deep') && (p || '').toLowerCase().includes('wall') }
+        ]
+      },
+      {
         heading: 'Sump pump pit', items: [
           { text: `F&I new (0'-8" thick, typ.) sump pump pit slab as per P-301.01`, sub: 'Sump pump pit', match: p => (p || '').toLowerCase().includes('sump pump') && (p || '').toLowerCase().includes('slab') },
           { text: `F&I new (0'-8" thick, typ.) sump pump pit wall (H=5'-0", typ.) as per P-301.01`, sub: 'Sump pump pit', match: p => (p || '').toLowerCase().includes('sump pump') && (p || '').toLowerCase().includes('wall') }

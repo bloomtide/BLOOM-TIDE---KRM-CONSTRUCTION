@@ -443,6 +443,20 @@ export const isDeepSewageEjectorPit = (item) => {
 }
 
 /**
+ * Identifies if item is a generic sewage ejector pit item (different dimensions; not duplex or deep)
+ * Note: "pit" is optional. Must be checked after isDuplexSewageEjectorPit and isDeepSewageEjectorPit.
+ */
+export const isSewageEjectorPit = (item) => {
+    if (!item || typeof item !== 'string') return false
+    const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
+    if (itemLower.includes('duplex sewage ejector') || itemLower.includes('deep sewage ejector')) return false
+    if (itemLower.includes('sewage ejector pit')) return true
+    const genericPattern = /sewage\s+ejector\s+(slab|mat|wall|slope|haunch|sump)/i
+    return genericPattern.test(itemLower)
+}
+
+/**
  * Identifies if item is a sump pump pit item
  * Note: "pit" is optional - "sump pump slab" = "sump pump pit slab"
  */
@@ -501,6 +515,7 @@ export const isMatSlab = (item) => {
         itemLower.includes('service elevator pit') ||
         itemLower.includes('duplex sewage ejector') ||
         itemLower.includes('deep sewage ejector') ||
+        itemLower.includes('sewage ejector') ||
         itemLower.includes('sump pump pit') ||
         itemLower.includes('grease trap') ||
         itemLower.includes('house trap')) return false
@@ -1548,6 +1563,73 @@ export const parseDetentionTank = (itemName) => {
 export const parseDuplexSewageEjectorPit = (itemName) => {
     const result = {
         type: 'duplex_sewage_ejector_pit',
+        itemSubType: null, // 'slab', 'mat', 'mat_slab', 'wall', 'slope_transition'
+        width: 0,
+        height: 0,
+        heightFromName: null,
+        groupKey: null
+    }
+
+    const itemLower = itemName.toLowerCase()
+
+    if (itemLower.includes('mat slab')) {
+        result.itemSubType = 'mat_slab'
+        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        if (hMatch) {
+            result.heightFromName = parseDimension(hMatch[1])
+        }
+        return result
+    } else if (itemLower.includes('mat')) {
+        result.itemSubType = 'mat'
+        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        if (hMatch) {
+            result.heightFromName = parseDimension(hMatch[1])
+        } else {
+            const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
+            if (inchMatch) {
+                const inches = parseFloat(inchMatch[1])
+                result.heightFromName = inches / 12
+            }
+        }
+        return result
+    } else if (itemLower.includes('slab')) {
+        result.itemSubType = 'slab'
+        const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
+        if (inchMatch) {
+            const inches = parseFloat(inchMatch[1])
+            result.heightFromName = inches / 12
+        }
+        return result
+    } else if (itemLower.includes('wall')) {
+        result.itemSubType = 'wall'
+        const dims = parseBracketDimensions(itemName)
+        if (dims && dims.length >= 2) {
+            result.width = dims[0]
+            result.height = dims[1]
+            result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        }
+        return result
+    } else if (itemLower.includes('slope transition') || itemLower.includes('haunch')) {
+        result.itemSubType = 'slope_transition'
+        const dims = parseBracketDimensions(itemName)
+        if (dims && dims.length >= 2) {
+            result.width = dims[0]
+            result.height = dims[1]
+            result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        }
+        return result
+    }
+
+    return result
+}
+
+/**
+ * Parses generic sewage ejector pit items (different dimensions; same structure as duplex/deep)
+ * Handles: slab, mat, mat_slab, wall, slope items with flexible naming (pit is optional)
+ */
+export const parseSewageEjectorPit = (itemName) => {
+    const result = {
+        type: 'sewage_ejector_pit',
         itemSubType: null, // 'slab', 'mat', 'mat_slab', 'wall', 'slope_transition'
         width: 0,
         height: 0,

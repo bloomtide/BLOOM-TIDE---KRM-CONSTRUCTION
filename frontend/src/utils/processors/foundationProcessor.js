@@ -28,6 +28,7 @@ import {
     isDetentionTank,
     isDuplexSewageEjectorPit,
     isDeepSewageEjectorPit,
+    isSewageEjectorPit,
     isSumpPumpPit,
     isGreaseTrap,
     isHouseTrap,
@@ -63,6 +64,7 @@ import {
     parseDetentionTank,
     parseDuplexSewageEjectorPit,
     parseDeepSewageEjectorPit,
+    parseSewageEjectorPit,
     parseSumpPumpPit,
     parseGreaseTrap,
     parseHouseTrap,
@@ -936,6 +938,13 @@ export const processDeepSewageEjectorPitItems = (rawDataRows, headers, tracker =
 }
 
 /**
+ * Processes generic sewage ejector pit items (different dimensions; same formulas as duplex/deep)
+ */
+export const processSewageEjectorPitItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isSewageEjectorPit, parseSewageEjectorPit, tracker)
+}
+
+/**
  * Process sump pump pit items (same grouping and formulas as Duplex sewage ejector pit)
  */
 export const processSumpPumpPitItems = (rawDataRows, headers, tracker = null) => {
@@ -1383,6 +1392,25 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
             }
             break
 
+        case 'sewage_ejector_pit':
+            const sepSubType = itemData.parsed?.itemSubType
+            if (sepSubType === 'slab' || sepSubType === 'mat' || sepSubType === 'mat_slab') {
+                // Sewage ejector pit slab/mat/mat_slab: J=C, L=J*H/27
+                formulas.sqFt = `C${rowNum}`
+                if (itemData.parsed?.heightFromName !== undefined) {
+                    formulas.height = itemData.parsed.heightFromName
+                }
+                formulas.cy = `J${rowNum}*H${rowNum}/27`
+            } else if (sepSubType === 'wall' || sepSubType === 'slope_transition') {
+                // Sewage ejector pit wall/slope: I=C, J=I*H, L=J*G/27
+                formulas.ft = `C${rowNum}`
+                formulas.sqFt = `I${rowNum}*H${rowNum}`
+                if (itemData.parsed?.width !== undefined) formulas.width = itemData.parsed.width
+                if (itemData.parsed?.height !== undefined) formulas.height = itemData.parsed.height
+                formulas.cy = `J${rowNum}*G${rowNum}/27`
+            }
+            break
+
         case 'sump_pump_pit':
             const sppSubType = itemData.parsed?.itemSubType
             if (sppSubType === 'slab' || sppSubType === 'mat' || sppSubType === 'mat_slab') {
@@ -1598,6 +1626,7 @@ export default {
     processDetentionTankItems,
     processDuplexSewageEjectorPitItems,
     processDeepSewageEjectorPitItems,
+    processSewageEjectorPitItems,
     processSumpPumpPitItems,
     processGreaseTrapItems,
     processHouseTrapItems,

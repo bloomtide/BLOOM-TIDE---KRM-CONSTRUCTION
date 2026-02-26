@@ -110,6 +110,23 @@ export const extractThickness = (text) => {
 }
 
 /**
+ * Extracts height (in feet) from pit/slab names like "House trap pit slab 12"" or "slab 8" typ."
+ * Same pattern as Foundation: (\d+)" with optional "typ." - no "thick" required.
+ * @param {string} text - Item name
+ * @returns {number} - Height in feet, or 0 if not found
+ */
+export const extractInchesFromName = (text) => {
+  if (!text) return 0
+  // Same as Foundation parseHouseTrap/parseSumpPumpPit slab: (\d+)" optional typ.
+  const match = text.match(/(\d+(?:\.\d+)?)\s*["']\s*(?:typ\.)?/i)
+  if (match) {
+    const inches = parseFloat(match[1])
+    return inches / 12 // Convert inches to feet (e.g. "12"" -> 1)
+  }
+  return 0
+}
+
+/**
  * Extracts quantity from digitizer item for EA units
  * For items like "Demo isolated footing", the quantity comes from the Total column
  * @param {number} total - Total value from raw data
@@ -145,11 +162,9 @@ export const parseDemolitionItem = (digitizerItem, total, unit, subsection) => {
   switch (subsection) {
     case 'Demo slab on grade':
     case 'Demo Ramp on grade':
-      // Extract thickness from item name (e.g., "Demo SOG 4" thick", "Demo ROG 4" thick")
-      // If thickness not mentioned, use 4" typ. (0.33 feet)
-      const thickness = extractThickness(digitizerItem)
-      result.height = thickness > 0 ? thickness : 4 / 12 // Default to 4" = 0.33 feet
-      // Columns E, F, G remain empty
+      // Same as Foundation SOG/ROG: height from "4" thick", "6"" or "4" thick" — match Foundation parseSOG/parseROG
+      const sogRogThickness = extractThickness(digitizerItem) || extractInchesFromName(digitizerItem)
+      result.height = sogRogThickness > 0 ? sogRogThickness : 4 / 12 // Default to 4" = 0.33 feet
       break
 
     case 'Demo strip footing':
@@ -213,24 +228,36 @@ export const parseDemolitionItem = (digitizerItem, total, unit, subsection) => {
       }
       break
 
-    // ── Thickened slab, mat slab: thickness as height (SQ FT = takeoff) ──
+    // ── Thickened slab: same as Foundation — width & height from brackets (2 values), or thickness from name ──
     case 'Demo thickened slab':
+      {
+        const tsDims = extractDimensions(digitizerItem)
+        if (tsDims.width != null) result.width = tsDims.width
+        if (tsDims.height != null) result.height = tsDims.height
+        if (!result.height) {
+          const th = extractThickness(digitizerItem) || extractInchesFromName(digitizerItem)
+          result.height = th > 0 ? th : 4 / 12
+        }
+      }
+      break
+
+    // ── Mat slab: same as Foundation — thickness as height from "24"" or "8" thick" ──
     case 'Demo mat slab':
       {
-        const thickness = extractThickness(digitizerItem)
-        result.height = thickness > 0 ? thickness : 4 / 12
+        const matThickness = extractThickness(digitizerItem) || extractInchesFromName(digitizerItem)
+        result.height = matThickness > 0 ? matThickness : 4 / 12
       }
       break
 
-    // ── Mud slab ──
+    // ── Mud slab: same as Foundation — thickness from "4"" or "mud mat 4"" ──
     case 'Demo mud slab':
       {
-        const thickness = extractThickness(digitizerItem)
-        result.height = thickness > 0 ? thickness : 4 / 12
+        const mudThickness = extractThickness(digitizerItem) || extractInchesFromName(digitizerItem)
+        result.height = mudThickness > 0 ? mudThickness : 4 / 12
       }
       break
 
-    // ── Pit items: L×W×H (or W×H; use same extractDimensions) ──
+    // ── Pit items: same sub-types and formulas as Foundation (slab/mat/mat_slab → J=C, L=J*H/27; wall/slope → I=C, J=I*H, L=J*G/27) ──
     case 'Demo elevator pit':
     case 'Demo service elevator pit':
     case 'Demo detention tank':
@@ -245,6 +272,45 @@ export const parseDemolitionItem = (digitizerItem, total, unit, subsection) => {
         if (dims.length) result.length = dims.length
         if (dims.width) result.width = dims.width
         if (dims.height) result.height = dims.height
+        const pitLower = (digitizerItem || '').toLowerCase()
+        // Sub-type for formula alignment with Foundation (slab/mat/wall/slope get different formulas)
+        // Height for slab/mat: same as Foundation — from bracket dims, or from "12"" / "8" typ." in name (extractInchesFromName), or extractThickness ("12" thick")
+        const slabHeightFromName = () => {
+          if (dims.height) return dims.height
+          const fromInches = extractInchesFromName(digitizerItem)
+          if (fromInches > 0) return fromInches
+          const th = extractThickness(digitizerItem)
+          return th > 0 ? th : 0
+        }
+        if (pitLower.includes('mat slab')) {
+          result.itemSubType = 'mat_slab'
+          if (!result.height) result.height = slabHeightFromName()
+        } else if (pitLower.includes('mat') && !pitLower.includes('mat slab')) {
+          result.itemSubType = 'mat'
+          if (!result.height) result.height = slabHeightFromName()
+        } else if (subsection === 'Demo detention tank' && (pitLower.includes('lid') || pitLower.includes('lid slab'))) {
+          result.itemSubType = 'lid_slab'
+          if (!result.height) result.height = slabHeightFromName()
+        } else if ((subsection === 'Demo elevator pit' || subsection === 'Demo service elevator pit') && pitLower.includes('sump')) {
+          result.itemSubType = 'sump_pit'
+        } else if (pitLower.includes('slope') || pitLower.includes('haunch') || pitLower.includes('transition')) {
+          result.itemSubType = 'slope_transition'
+          if (dims.width) result.width = dims.width
+          if (dims.height) result.height = dims.height
+          if (dims.width != null && dims.height != null) result.groupKey = `${Number(dims.width).toFixed(2)}x${Number(dims.height).toFixed(2)}`
+        } else if (pitLower.includes('wall')) {
+          result.itemSubType = 'wall'
+          if (dims.width) result.width = dims.width
+          if (dims.height) result.height = dims.height
+          if (dims.width != null && dims.height != null) result.groupKey = `${Number(dims.width).toFixed(2)}x${Number(dims.height).toFixed(2)}`
+        } else if (pitLower.includes('slab')) {
+          result.itemSubType = 'slab'
+          if (!result.height) result.height = slabHeightFromName()
+        } else {
+          // Default: treat as slab (J=C, L=J*H/27) when no keyword found
+          result.itemSubType = 'slab'
+          if (!result.height) result.height = slabHeightFromName()
+        }
       }
       break
 
