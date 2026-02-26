@@ -3495,14 +3495,40 @@ const ProposalDetail = () => {
           if (!proposal?._id) return
           try {
             const response = await proposalAPI.getById(proposal._id)
-            setProposal(response.proposal)
+            let p = response.proposal
+            // Backend returns rawExcelData.rows = [] when raw file is on S3; re-fetch and parse so we don't show blank sheets
+            if (p.rawExcelFileUrl || (p.rawExcelData && (!p.rawExcelData.rows || p.rawExcelData.rows.length === 0))) {
+              try {
+                const ab = await proposalAPI.getRawFile(proposal._id)
+                const wb = XLSX.read(ab, { type: 'array' })
+                const firstSheetName = wb.SheetNames[0]
+                const ws = wb.Sheets[firstSheetName]
+                const jsonData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+                const headers = jsonData[0] || []
+                const rows = jsonData.slice(1)
+                p = {
+                  ...p,
+                  rawExcelData: {
+                    ...(p.rawExcelData || {}),
+                    fileName: p.rawExcelData?.fileName || 'upload.xlsx',
+                    sheetName: firstSheetName,
+                    headers,
+                    rows,
+                  },
+                }
+              } catch (e) {
+                console.error('Error fetching/parsing raw Excel after save:', e)
+                toast.error('Raw data saved but could not reload file – refresh the page')
+              }
+            }
+            setProposal(p)
             needReapplyAfterRawSave.current = true
             rawDataJustChangedRef.current = true
             // After raw data save, force a rebuild of Calculations + Proposal sheets
             setTimeout(() => {
               const override = generatedDataRef.current
               if (override?.rows?.length && spreadsheetRef.current) {
-                const template = proposal?.template ?? proposalTemplateRef.current
+                const template = p?.template ?? proposalTemplateRef.current
                 applyDataToSpreadsheet(override, template)
               }
             }, 0)

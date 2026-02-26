@@ -705,6 +705,77 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     }
     return formatPageRefList(collected)
   }
+
+  // For demolition pits/mat slabs, estimate an average height/depth from calculation rows
+  const getAverageHeightForDemoSubsection = (subsectionName) => {
+    if (!rowsBySubsection || !subsectionName) return null
+    const subsectionRows = rowsBySubsection.get(subsectionName) || []
+    if (!subsectionRows.length) return null
+
+    const toInches = (token) => {
+      if (!token) return null
+      const s = String(token).trim()
+      let m = s.match(/^(-?\d+)'-(\d+)"?$/)
+      if (m) {
+        const feet = parseInt(m[1], 10)
+        const inches = parseInt(m[2], 10)
+        return feet * 12 + inches
+      }
+      m = s.match(/^(-?\d+)'$/)
+      if (m) {
+        const feet = parseInt(m[1], 10)
+        return feet * 12
+      }
+      m = s.match(/^(\d+)"$/)
+      if (m) {
+        return parseInt(m[1], 10)
+      }
+      m = s.match(/^(\d+(?:\.\d+)?)$/)
+      if (m) {
+        return parseFloat(m[1])
+      }
+      return null
+    }
+
+    const formatInches = (valueInInches) => {
+      if (valueInInches == null || Number.isNaN(valueInInches)) return null
+      const total = Math.round(valueInInches)
+      const feet = Math.floor(total / 12)
+      const inches = total % 12
+      if (feet > 0 && inches > 0) return `${feet}'-${inches}"`
+      if (feet > 0) return `${feet}'-0"`
+      return `${inches}"`
+    }
+
+    const extractHeightToken = (text) => {
+      if (!text) return null
+      const t = String(text)
+      const hMatch = t.match(/H\s*=\s*([^)]+)/i)
+      if (hMatch) return hMatch[1].trim()
+      const bracketMatch = t.match(/\(([^)]+)\)/)
+      if (bracketMatch) {
+        const parts = bracketMatch[1].split(/\s*x\s*/i).map((p) => p.trim()).filter(Boolean)
+        if (parts.length >= 2) return parts[parts.length - 1]
+      }
+      return null
+    }
+
+    const heightsInInches = []
+    subsectionRows.forEach((row) => {
+      const bVal = row && row[1] != null ? row[1] : ''
+      const token = extractHeightToken(bVal)
+      const inches = toInches(token)
+      if (inches != null && !Number.isNaN(inches) && inches > 0) {
+        heightsInInches.push(inches)
+      }
+    })
+
+    if (!heightsInInches.length) return null
+    const sum = heightsInInches.reduce((t, v) => t + v, 0)
+    const avg = sum / heightsInInches.length
+    return formatInches(avg)
+  }
+
   const buildDemolitionTemplate = (subsectionName, itemText, fallbackText) => {
     const slabTypeMatch = subsectionName.match(/^Demo\s+(.+)$/i)
     const slabType = slabTypeMatch ? slabTypeMatch[1].trim() : subsectionName.replace(/^Demo\s+/i, '').trim()
@@ -712,6 +783,54 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     const dmSuffix = ` as per ${dmReference} & details on`
     const dmSuffixStripFooting = ` as per ${dmReference} & details on `
     const textToParse = (itemText ? String(itemText).trim() : '') || (fallbackText ? String(fallbackText).trim() : '')
+
+    // For pits and mat slab, always use the average height/depth from calculation rows for the (##) placeholder
+    if (subsectionName === 'Demo elevator pit') {
+      const avgH = getAverageHeightForDemoSubsection(subsectionName)
+      const hPart = avgH ? avgH : '##'
+      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) elevator pit @ existing building${dmSuffix}`
+    }
+    if (subsectionName === 'Demo service elevator pit') {
+      const avgH = getAverageHeightForDemoSubsection(subsectionName)
+      const hPart = avgH ? avgH : '##'
+      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) service elevator pit @ existing building${dmSuffix}`
+    }
+    if (subsectionName === 'Demo detention tank') {
+      const avgH = getAverageHeightForDemoSubsection(subsectionName)
+      const hPart = avgH ? avgH : '##'
+      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) detention tank @ existing building${dmSuffix}`
+    }
+    if (subsectionName === 'Demo duplex sewage ejector pit') {
+      const avgH = getAverageHeightForDemoSubsection(subsectionName)
+      const hPart = avgH ? avgH : '##'
+      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) duplex sewage ejector pit @ existing building${dmSuffix}`
+    }
+    if (subsectionName === 'Demo deep sewage ejector pit') {
+      const avgH = getAverageHeightForDemoSubsection(subsectionName)
+      const hPart = avgH ? avgH : '##'
+      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) deep sewage ejector pit @ existing building${dmSuffix}`
+    }
+    if (subsectionName === 'Demo sump pump pit') {
+      const avgH = getAverageHeightForDemoSubsection(subsectionName)
+      const hPart = avgH ? avgH : '##'
+      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) sump pump pit @ existing building${dmSuffix}`
+    }
+    if (subsectionName === 'Demo grease trap pit') {
+      const avgH = getAverageHeightForDemoSubsection(subsectionName)
+      const hPart = avgH ? avgH : '##'
+      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) grease trap pit @ existing building${dmSuffix}`
+    }
+    if (subsectionName === 'Demo house trap pit') {
+      const avgH = getAverageHeightForDemoSubsection(subsectionName)
+      const hPart = avgH ? avgH : '##'
+      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) house trap pit @ existing building${dmSuffix}`
+    }
+    if (subsectionName === 'Demo mat slab') {
+      const avgH = getAverageHeightForDemoSubsection(subsectionName)
+      const hPart = avgH ? `H=${avgH}` : 'H=##'
+      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) mat slab @ existing building${dmSuffix}`
+    }
+
     if (!textToParse) {
       if (slabType.toLowerCase().includes('slab on grade')) {
         return `Allow to saw-cut/demo/remove/dispose existing (## thick) ${slabType} @ existing building${dmSuffix}`
@@ -733,6 +852,51 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       }
       if (slabType.toLowerCase().includes('stair on grade') || slabType.toLowerCase().includes('stairs on grade')) {
         return `Allow to saw-cut/demo/remove/dispose existing (## wide) stairs on grade (## Riser) @ 1st FL${dmSuffix}`
+      }
+      if (subsectionName === 'Demo elevator pit') {
+        const avgH = getAverageHeightForDemoSubsection(subsectionName)
+        const hPart = avgH ? avgH : '##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) elevator pit @ existing building${dmSuffix}`
+      }
+      if (subsectionName === 'Demo service elevator pit') {
+        const avgH = getAverageHeightForDemoSubsection(subsectionName)
+        const hPart = avgH ? avgH : '##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) service elevator pit @ existing building${dmSuffix}`
+      }
+      if (subsectionName === 'Demo detention tank') {
+        const avgH = getAverageHeightForDemoSubsection(subsectionName)
+        const hPart = avgH ? avgH : '##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) detention tank @ existing building${dmSuffix}`
+      }
+      if (subsectionName === 'Demo duplex sewage ejector pit') {
+        const avgH = getAverageHeightForDemoSubsection(subsectionName)
+        const hPart = avgH ? avgH : '##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) duplex sewage ejector pit @ existing building${dmSuffix}`
+      }
+      if (subsectionName === 'Demo deep sewage ejector pit') {
+        const avgH = getAverageHeightForDemoSubsection(subsectionName)
+        const hPart = avgH ? avgH : '##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) deep sewage ejector pit @ existing building${dmSuffix}`
+      }
+      if (subsectionName === 'Demo sump pump pit') {
+        const avgH = getAverageHeightForDemoSubsection(subsectionName)
+        const hPart = avgH ? avgH : '##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) sump pump pit @ existing building${dmSuffix}`
+      }
+      if (subsectionName === 'Demo grease trap pit') {
+        const avgH = getAverageHeightForDemoSubsection(subsectionName)
+        const hPart = avgH ? avgH : '##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) grease trap pit @ existing building${dmSuffix}`
+      }
+      if (subsectionName === 'Demo house trap pit') {
+        const avgH = getAverageHeightForDemoSubsection(subsectionName)
+        const hPart = avgH ? avgH : '##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) house trap pit @ existing building${dmSuffix}`
+      }
+      if (subsectionName === 'Demo mat slab') {
+        const avgH = getAverageHeightForDemoSubsection(subsectionName)
+        const hPart = avgH ? `H=${avgH}` : 'H=##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) mat slab @ existing building${dmSuffix}`
       }
       if (slabType.toLowerCase().includes('pile cap')) {
         return `Allow to saw-cut/demo/remove/dispose existing (##x## wide) pile cap (H=##) @ existing building${dmSuffix}`
@@ -12570,6 +12734,25 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       currentRow++
     }
 
+    // Below grade waterproofing scope – only show when calculation sheet has waterproofing data
+    const waterproofingItems = window.waterproofingPresentItems || []
+    const negativeSideItems = window.waterproofingNegativeSideItems || []
+    const calcSheetNameWP = 'Calculations Sheet'
+    let hasHorizontalWP = false
+    let horizontalWPSumRow = 0
+    if (formulaData && Array.isArray(formulaData)) {
+      const horizontalWPSumFormula = formulaData.find(f =>
+        f.itemType === 'waterproofing_horizontal_wp_sum' && f.section === 'waterproofing'
+      )
+      if (horizontalWPSumFormula) {
+        hasHorizontalWP = true
+        horizontalWPSumRow = horizontalWPSumFormula.row
+      }
+    }
+    // Only show Below grade waterproofing scope when calculation sheet has exterior-side or negative-side items (not just horizontal WP/insulation formulas which may exist with 0)
+    const hasAnyWaterproofingData = (waterproofingItems.length > 0) || (negativeSideItems.length > 0)
+
+    if (hasAnyWaterproofingData) {
     // Add Below grade waterproofing scope header
     spreadsheet.updateCell({ value: 'Below grade waterproofing scope:' }, `${pfx}B${currentRow}`)
     spreadsheet.cellFormat(
@@ -12590,21 +12773,6 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     const wpScopeStartRow = currentRow
 
     // Add proposal text with present waterproofing items
-    const waterproofingItems = window.waterproofingPresentItems || []
-    const negativeSideItems = window.waterproofingNegativeSideItems || []
-    const calcSheetNameWP = 'Calculations Sheet'
-    let hasHorizontalWP = false
-    let horizontalWPSumRow = 0
-    if (formulaData && Array.isArray(formulaData)) {
-      const horizontalWPSumFormula = formulaData.find(f =>
-        f.itemType === 'waterproofing_horizontal_wp_sum' && f.section === 'waterproofing'
-      )
-      if (horizontalWPSumFormula) {
-        hasHorizontalWP = true
-        horizontalWPSumRow = horizontalWPSumFormula.row
-      }
-    }
-
     if (waterproofingItems.length > 0) {
       // Map item names to display format
       const itemDisplayMap = {
@@ -13038,6 +13206,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       applyTotalRowBorders(spreadsheet, pfx, currentRow, '#BDD7EE')
       totalRows.push(currentRow)
       currentRow++
+    }
     }
 
     // Superstructure concrete scope – only when calculation sheet has Superstructure section (formulaData has section === 'superstructure')
