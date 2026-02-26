@@ -87,21 +87,21 @@ export const extractDimensions = (text) => {
 }
 
 /**
- * Extracts thickness from text like "SOG 4" thick" or "SOG 6" thick"
+ * Extracts thickness from text like "SOG 4" thick", "6" thk", etc.
  * @param {string} text - Text containing thickness
  * @returns {number} - Thickness in feet
  */
 export const extractThickness = (text) => {
   if (!text) return 0
 
-  // Match patterns like "4" thick", '6" thick', etc.
-  const match = text.match(/(\d+(?:\.\d+)?)\s*["']\s*thick/i)
+  // Match patterns like "4" thick", "6" thk", etc. (thick or thk)
+  const match = text.match(/(\d+(?:\.\d+)?)\s*["']\s*(?:thick|thk)/i)
   if (match) {
     const value = parseFloat(match[1])
     // Check if it has double quote (inches) or single quote (feet)
-    if (text.includes('" thick')) {
+    if (text.includes('" thick') || text.includes('" thk')) {
       return value / 12 // Convert inches to feet
-    } else if (text.includes("' thick")) {
+    } else if (text.includes("' thick") || text.includes("' thk")) {
       return value
     }
   }
@@ -127,6 +127,20 @@ export const extractInchesFromName = (text) => {
 }
 
 /**
+ * Normalizes unit from raw data. No. can be EA, No, or No. — all treated as EA for downstream use.
+ * Use this when reading unit from row[unitIdx] so that all sections treat No/No. like EA.
+ * @param {string} unit - Raw unit value (e.g. "EA", "No", "No.", "SF", "LF")
+ * @returns {string} - Normalized unit ("EA" for No/No./EA, otherwise trimmed original)
+ */
+export const normalizeUnit = (unit) => {
+  if (unit == null || unit === '') return ''
+  const u = String(unit).trim()
+  const norm = u.replace(/\.$/, '').toUpperCase()
+  if (norm === 'EA' || norm === 'NO') return 'EA'
+  return u
+}
+
+/**
  * Extracts quantity from digitizer item for EA units
  * For items like "Demo isolated footing", the quantity comes from the Total column
  * @param {number} total - Total value from raw data
@@ -134,7 +148,9 @@ export const extractInchesFromName = (text) => {
  * @returns {number} - Quantity
  */
 export const extractQuantity = (total, unit) => {
-  if (unit === 'EA') {
+  // No. can be EA, No, or No.
+  const unitNorm = (unit && String(unit).trim().replace(/\.$/, '').toUpperCase())
+  if (unitNorm === 'EA' || unitNorm === 'NO') {
     return total
   }
   return 0

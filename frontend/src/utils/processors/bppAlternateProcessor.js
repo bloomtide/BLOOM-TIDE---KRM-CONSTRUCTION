@@ -13,6 +13,8 @@
  * - Full depth asphalt pavement
  */
 
+import { normalizeUnit } from '../parsers/dimensionParser'
+
 /**
  * Identifies if a digitizer item belongs to B.P.P. Alternate #2 scope section
  * @param {string} digitizerItem - The digitizer item text
@@ -59,8 +61,8 @@ export const getBPPSubsection = (digitizerItem) => {
  * @returns {number|null}
  */
 const parseThicknessInches = (particulars) => {
-  // Match patterns like "4" thick" or "7" thick"
-  const match = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*thick/i)
+  // Match patterns like "4" thick", "7" thk", etc.
+  const match = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick|thk)/i)
   return match ? parseFloat(match[1]) : null
 }
 
@@ -70,10 +72,10 @@ const parseThicknessInches = (particulars) => {
  * @returns {{ widthInches: number, heightFeet: number }|null}
  */
 const parseCurbDimensions = (particulars) => {
-  // Match width like "8" wide" or "6" wide"
-  const widthMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*wide/i)
-  // Match height like "Height=1'-6"" -> 1.5 feet
-  const heightMatch = particulars.match(/Height\s*=\s*(\d+)'\s*-?\s*(\d+)"/i)
+  // Match width like "8" wide", "Width=8"", or "W=8""
+  const widthMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*wide/i) || particulars.match(/(?:Width|W|Wide)=(\d+(?:\.\d+)?)"?/i)
+  // Match height like "Height/Ht/H=1'-6"" -> 1.5 feet
+  const heightMatch = particulars.match(/(?:Height|Ht|H)\s*=\s*(\d+)'\s*-?\s*(\d+)"/i)
 
   if (!widthMatch || !heightMatch) return null
 
@@ -90,9 +92,9 @@ const parseCurbDimensions = (particulars) => {
  * @returns {{ surfaceInches: number, baseInches: number, gravelInches: number }|null}
  */
 const parseAsphaltDimensions = (particulars) => {
-  const surfaceMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick\s+)?surface/i)
-  const baseMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick\s+)?base/i)
-  const gravelMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick\s+)?gravel/i)
+  const surfaceMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:(?:thick|thk)\s+)?surface/i)
+  const baseMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:(?:thick|thk)\s+)?base/i)
+  const gravelMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:(?:thick|thk)\s+)?gravel/i)
 
   return {
     surfaceInches: surfaceMatch ? parseFloat(surfaceMatch[1]) : 0,
@@ -192,7 +194,7 @@ export const processBPPAlternateItems = (rawDataRows, headers, tracker = null) =
     const digitizerItem = row[digitizerIdx]
     const total = row[totalIdx]
     const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
-    const unit = unitIdx >= 0 ? (row[unitIdx] || '') : ''
+    const unit = unitIdx >= 0 ? normalizeUnit(row[unitIdx] || '') : ''
 
     // Check if this is a BPP item (either by estimate column or by item name)
     if (estimateIdx >= 0 && row[estimateIdx]) {

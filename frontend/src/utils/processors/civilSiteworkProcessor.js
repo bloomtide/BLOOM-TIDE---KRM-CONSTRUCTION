@@ -31,6 +31,8 @@
  * - Alternate
  */
 
+import { normalizeUnit } from '../parsers/dimensionParser'
+
 /**
  * Identifies if a digitizer item belongs to Civil / Sitework section
  * @param {string} digitizerItem - The digitizer item text
@@ -291,7 +293,7 @@ export const processCivilDemoItems = (rawDataRows, headers, tracker = null) => {
     const digitizerItem = row[digitizerIdx]
     const total = row[totalIdx]
     const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
-    const unit = unitIdx >= 0 ? (row[unitIdx] || '') : ''
+    const unit = unitIdx >= 0 ? normalizeUnit(row[unitIdx] || '') : ''
     const estimate = estimateIdx >= 0 ? row[estimateIdx] : ''
 
     // Check if this is a Civil/Sitework Demo item
@@ -441,13 +443,13 @@ export const parseQtyFromBracket = (particulars) => {
  * @returns {number|null}
  */
 export const parseHeightFromName = (particulars) => {
-  // Match "Height=X'-Y"" pattern
-  const match = particulars.match(/Height\s*=\s*(\d+)'\s*-?\s*(\d+)"/i)
+  // Match "Height/Ht/H=X'-Y"" pattern
+  const match = particulars.match(/(?:Height|Ht|H)\s*=\s*(\d+)'\s*-?\s*(\d+)"/i)
   if (match) {
     return parseInt(match[1]) + parseInt(match[2]) / 12
   }
-  // Match "Height=X'-Y" typ" pattern
-  const match2 = particulars.match(/Height\s*=\s*(\d+)'\s*-?\s*(\d+)"\s*typ/i)
+  // Match "Height/Ht/H=X'-Y" typ" pattern
+  const match2 = particulars.match(/(?:Height|Ht|H)\s*=\s*(\d+)'\s*-?\s*(\d+)"\s*typ/i)
   if (match2) {
     return parseInt(match2[1]) + parseInt(match2[2]) / 12
   }
@@ -460,7 +462,7 @@ export const parseHeightFromName = (particulars) => {
  * @returns {number|null} - thickness in inches
  */
 export const parseThicknessFromName = (particulars) => {
-  const match = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*thick/i)
+  const match = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick|thk)/i)
   return match ? parseFloat(match[1]) : null
 }
 
@@ -470,8 +472,8 @@ export const parseThicknessFromName = (particulars) => {
  * @returns {{ surface: number, base: number }|null}
  */
 export const parseAsphaltThicknesses = (particulars) => {
-  const surfaceMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick\s+)?surface/i)
-  const baseMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick\s+)?base/i)
+  const surfaceMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:(?:thick|thk)\s+)?surface/i)
+  const baseMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:(?:thick|thk)\s+)?base/i)
 
   if (surfaceMatch && baseMatch) {
     return {
@@ -489,9 +491,9 @@ export const parseAsphaltThicknesses = (particulars) => {
  */
 export const parseBollardDimensions = (particulars) => {
   // Match bollard diameter and height
-  const bollardMatch = particulars.match(/\((\d+(?:\.\d+)?)\s*"\s*[∅Ø],\s*H\s*=\s*(\d+)'\s*-?\s*(\d+)"\)/i)
+  const bollardMatch = particulars.match(/\((\d+(?:\.\d+)?)\s*"\s*[∅Ø],\s*(?:Height|Ht|H)\s*=\s*(\d+)'\s*-?\s*(\d+)"\)/i)
   // Match footing diameter and height
-  const footingMatch = particulars.match(/footing\s*\((\d+(?:\.\d+)?)\s*"\s*[∅Ø],\s*H\s*=\s*(\d+)'\s*-?\s*(\d+)"\)/i)
+  const footingMatch = particulars.match(/footing\s*\((\d+(?:\.\d+)?)\s*"\s*[∅Ø],\s*(?:Height|Ht|H)\s*=\s*(\d+)'\s*-?\s*(\d+)"\)/i)
 
   if (bollardMatch && footingMatch) {
     return {
@@ -510,7 +512,7 @@ export const parseBollardDimensions = (particulars) => {
  * @returns {number|null}
  */
 export const parseSiltFenceHeight = (particulars) => {
-  const match = particulars.match(/Height\s*=\s*(\d+)'\s*-?\s*(\d+)"/i)
+  const match = particulars.match(/(?:Height|Ht|H)\s*=\s*(\d+)'\s*-?\s*(\d+)"/i)
   if (match) {
     return parseInt(match[1]) + parseInt(match[2]) / 12
   }
@@ -616,7 +618,7 @@ export const processCivilOtherItems = (rawDataRows, headers, tracker = null) => 
 
     const total = row[totalIdx]
     const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
-    const unit = unitIdx >= 0 ? (row[unitIdx] || '') : ''
+    const unit = unitIdx >= 0 ? normalizeUnit(row[unitIdx] || '') : ''
     const estimate = estimateIdx >= 0 ? row[estimateIdx] : ''
     const qtyVal = qtyIdx >= 0 && row[qtyIdx] !== '' && row[qtyIdx] != null ? parseFloat(row[qtyIdx]) : null
 
@@ -722,7 +724,7 @@ export const processCivilOtherItems = (rawDataRows, headers, tracker = null) => 
         parsed: { qty: qty }
       })
       // Gravel: 8" thick items (e.g. "Proposed transformer concrete pad 8" thick (2 No.)") go to transformer_pad_8, others to transformer_pad
-      if (itemLower.includes('8" thick') || thickness === 8) {
+      if (itemLower.includes('8" thick') || itemLower.includes('8" thk') || thickness === 8) {
         items['Gravel']['transformer_pad_8'].push(gravelItem)
       } else {
         items['Gravel']['transformer_pad'].push(gravelItem)

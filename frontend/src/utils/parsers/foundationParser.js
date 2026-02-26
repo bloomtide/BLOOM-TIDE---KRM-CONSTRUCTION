@@ -139,7 +139,7 @@ export const isDrilledFoundationPile = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
     return (itemLower.includes('drilled') && itemLower.includes('foundation pile')) ||
-           (itemLower.includes('drilled') && itemLower.includes('cassion pile')) ||
+           (itemLower.includes('drilled') && (itemLower.includes('cassion pile') || itemLower.includes('caisson pile'))) ||
            /\b(drilled|structural|foundation|fndt)\s+piles?\b/i.test(item)
 }
 
@@ -620,7 +620,7 @@ export const parseTimberSheeting = (itemName) => {
     }
 
     // H can appear as (H=11'-5") or H=6'-0" — same regex matches both; E is ignored
-    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
+    const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
     if (hMatch) {
         result.heightRaw = parseDimension(hMatch[1])
         result.calculatedHeight = result.heightRaw
@@ -658,6 +658,7 @@ export const parseDrilledFoundationPile = (itemName) => {
         thickness: null,
         height: 0,
         rockSocket: null,
+        embedment: null,
         calculatedHeight: 0,
         weight: 0,
         isDualDiameter: false,
@@ -672,65 +673,43 @@ export const parseDrilledFoundationPile = (itemName) => {
         result.hasInfluence = true
     }
 
-    // Extract H and RS values
-    // Supports formats like:
-    // - "H=32'-6\"+ 7'-0\" RS"  (RS without '=', after +)
-    // - "H=32'-6\" RS=7'-0\""  (RS with '=')
-    // - "H=32'-6\"+18'-3\" RS"  (no space after +)
+    // Extract H, E (embedment), and RS (rock socket). Supports:
+    // Drilled caisson pile H=##'-##", E=##'-##"; Height=##'-##", Embedment=##'-##"; Ht=##'-##", embedment=##'-##"
+    // + RS=##'-##" or + Rock socket=##'-##"; and combinations with embedment.
     let hStr = null
     let rsStr = null
+    let eStr = null
 
-    // First, try to match the full pattern: H=<dim>+ <dim> RS or H=<dim>+<dim> RS
-    // Match H= followed by dimension (digits, dash, digits, quote, dash, digits, quote), 
-    // then optionally + followed by dimension and RS
-    // Pattern: H=32'-6"+ 7'-0" RS or H=32'-6"+18'-3" RS
-    // Use a more specific pattern: match the exact dimension format
-    // Dimension format: \d+'-\d+" (e.g., "32'-6"")
-    // This ensures we capture the full dimension, not just the first digit
-    const fullMatch = itemName.match(/H\s*=\s*(\d+'-\d+")\s*(?:\+\s*(\d+'-\d+")\s*RS\b)?/i)
-    if (fullMatch) {
-        hStr = (fullMatch[1] || '').trim()
-        // Remove trailing quote if present
-        hStr = hStr.replace(/["\s]+$/, '').trim()
-        if (fullMatch[2]) {
-            rsStr = (fullMatch[2] || '').trim()
-            rsStr = rsStr.replace(/["\s]+$/, '').trim()
-        }
-    }
+    // Standalone matches (Height|Ht|H)=, (E|Embedment|embedment)=, (RS|Rock socket)=
+    const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*([0-9'"\-]+)/i)
+    if (hMatch) hStr = hMatch[1].trim().replace(/["\s]+$/, '').trim()
+    const eMatch = itemName.match(/(?:E|Embedment|embedment)\s*=\s*([0-9'"\-]+)/i)
+    if (eMatch) eStr = eMatch[1].trim().replace(/["\s]+$/, '').trim()
+    const rsMatch = itemName.match(/(?:RS|Rock\s*socket)\s*=\s*([0-9'"\-]+)/i)
+    if (rsMatch) rsStr = rsMatch[1].trim().replace(/["\s]+$/, '').trim()
 
-    // If RS wasn't captured above, try "RS=<dim>" format
+    // Legacy: full pattern H=<dim>+ <dim> RS (if RS not already set)
     if (!rsStr) {
-        const rsEqMatch = itemName.match(/RS\s*=\s*(\d+'-\d+")/i)
-        if (rsEqMatch) {
-            rsStr = (rsEqMatch[1] || '').trim()
-            rsStr = rsStr.replace(/["\s]+$/, '').trim()
+        const fullMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")\s*\+\s*([0-9'"\-]+)\s*(?:RS|Rock\s*socket)\b/i)
+        if (fullMatch) {
+            if (!hStr) hStr = (fullMatch[1] || '').trim().replace(/["\s]+$/, '').trim()
+            rsStr = (fullMatch[2] || '').trim().replace(/["\s]+$/, '').trim()
         }
     }
-
-    // Fallback: try to find "+ <dim> RS" pattern anywhere (more flexible)
     if (!rsStr) {
-        // Match: + followed by dimension followed by RS
-        // Dimension pattern: \d+'-\d+" which matches "7'-0"" or "18'-3""
-        const rsPlusMatch = itemName.match(/\+\s*(\d+'-\d+")\s*RS\b/i)
-        if (rsPlusMatch) {
-            rsStr = (rsPlusMatch[1] || '').trim()
-            rsStr = rsStr.replace(/["\s]+$/, '').trim()
-        }
+        const rsPlusMatch = itemName.match(/\+\s*([0-9'"\-]+)\s*(?:RS|Rock\s*socket)\b/i)
+        if (rsPlusMatch) rsStr = rsPlusMatch[1].trim().replace(/["\s]+$/, '').trim()
     }
 
-    // Parse the extracted strings using convertToFeet
-    if (hStr) {
-        result.height = parseDimension(hStr)
-    }
-    if (rsStr) {
-        result.rockSocket = parseDimension(rsStr)
-    }
+    // Parse
+    if (hStr) result.height = parseDimension(hStr)
+    if (eStr) result.embedment = parseDimension(eStr)
+    if (rsStr) result.rockSocket = parseDimension(rsStr)
 
-    // Calculate total height
-    if (result.rockSocket && result.height) {
-        const total = result.height + result.rockSocket
-        result.calculatedHeight = roundToMultipleOf5(total)
-    } else if (result.height) {
+    // Calculated height: H + RS when both present; else H
+    if (result.rockSocket != null && result.rockSocket > 0 && result.height > 0) {
+        result.calculatedHeight = roundToMultipleOf5(result.height + result.rockSocket)
+    } else if (result.height > 0) {
         result.calculatedHeight = roundToMultipleOf5(result.height)
     }
 
@@ -793,7 +772,7 @@ export const parseHelicalFoundationPile = (itemName) => {
     }
 
     // Extract H value
-    const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
+    const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
     if (hMatch) {
         result.height = parseDimension(hMatch[1])
         result.calculatedHeight = roundToMultipleOf5(result.height)
@@ -841,7 +820,7 @@ export const parseDrivenFoundationPile = (itemName) => {
     }
 
     // Extract H value
-    const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
+    const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
     if (hMatch) {
         result.height = parseDimension(hMatch[1])
         result.calculatedHeight = roundToMultipleOf5(result.height)
@@ -855,7 +834,8 @@ export const parseDrivenFoundationPile = (itemName) => {
 }
 
 /**
- * Parses stelcor drilled displacement pile
+ * Parses stelcor drilled displacement pile.
+ * Same H/Height/Ht, E/Embedment/embedment, RS/Rock socket formats as drilled foundation / caisson pile.
  */
 export const parseStelcorDrilledDisplacementPile = (itemName) => {
     const result = {
@@ -863,22 +843,36 @@ export const parseStelcorDrilledDisplacementPile = (itemName) => {
         diameter: null,
         thickness: null,
         height: 0,
+        rockSocket: null,
+        embedment: null,
         calculatedHeight: 0,
         weight: 0,
         hasInfluence: false,
         groupKey: null
     }
 
-    // Detect influence keyword
     const itemLower = itemName.toLowerCase()
     if (itemLower.includes('influence')) {
         result.hasInfluence = true
     }
 
-    // Extract H value
-    const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
-    if (hMatch) {
-        result.height = parseDimension(hMatch[1])
+    // H/Height/Ht=, E/Embedment/embedment=, RS/Rock socket= (same as drilled foundation pile)
+    const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*([0-9'"\-]+)/i)
+    if (hMatch) result.height = parseDimension(hMatch[1].trim().replace(/["\s]+$/, '').trim())
+    const eMatch = itemName.match(/(?:E|Embedment|embedment)\s*=\s*([0-9'"\-]+)/i)
+    if (eMatch) result.embedment = parseDimension(eMatch[1].trim().replace(/["\s]+$/, '').trim())
+    let rsStr = null
+    const rsMatch = itemName.match(/(?:RS|Rock\s*socket)\s*=\s*([0-9'"\-]+)/i)
+    if (rsMatch) rsStr = rsMatch[1].trim().replace(/["\s]+$/, '').trim()
+    if (!rsStr) {
+        const rsPlus = itemName.match(/\+\s*([0-9'"\-]+)\s*(?:RS|Rock\s*socket)\b/i)
+        if (rsPlus) rsStr = rsPlus[1].trim().replace(/["\s]+$/, '').trim()
+    }
+    if (rsStr) result.rockSocket = parseDimension(rsStr)
+
+    if (result.rockSocket != null && result.rockSocket > 0 && result.height > 0) {
+        result.calculatedHeight = roundToMultipleOf5(result.height + result.rockSocket)
+    } else if (result.height > 0) {
         result.calculatedHeight = roundToMultipleOf5(result.height)
     }
 
@@ -913,7 +907,7 @@ export const parseCFAPile = (itemName) => {
     }
 
     // Extract H value
-    const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
+    const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
     if (hMatch) {
         result.height = parseDimension(hMatch[1])
         result.calculatedHeight = roundToMultipleOf5(result.height)
@@ -1389,7 +1383,7 @@ export const parseElevatorPit = (itemName) => {
     } else if (itemLower.includes('mat slab')) {
         result.itemSubType = 'mat_slab'
         // Extract height from H=3'-0" format
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromH = parseDimension(hMatch[1])
         }
@@ -1397,7 +1391,7 @@ export const parseElevatorPit = (itemName) => {
     } else if (itemLower.includes('mat')) {
         result.itemSubType = 'mat'
         // Extract height from H=3'-0" format or thickness like "30""
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromH = parseDimension(hMatch[1])
         } else {
@@ -1411,7 +1405,7 @@ export const parseElevatorPit = (itemName) => {
     } else if (itemLower.includes('slab')) {
         result.itemSubType = 'slab'
         // Extract height from H=3'-0" format
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromH = parseDimension(hMatch[1])
         }
@@ -1465,14 +1459,14 @@ export const parseServiceElevatorPit = (itemName) => {
     } else if (itemLower.includes('mat slab')) {
         // New group: mat slab 
         result.itemSubType = 'mat_slab'
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromH = parseDimension(hMatch[1])
         }
         return result
     } else if (itemLower.includes('mat')) {
         result.itemSubType = 'mat'
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromH = parseDimension(hMatch[1])
         } else {
@@ -1484,7 +1478,7 @@ export const parseServiceElevatorPit = (itemName) => {
         return result
     } else if (itemLower.includes('slab')) {
         result.itemSubType = 'slab'
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromH = parseDimension(hMatch[1])
         }
@@ -1576,14 +1570,14 @@ export const parseDuplexSewageEjectorPit = (itemName) => {
 
     if (itemLower.includes('mat slab')) {
         result.itemSubType = 'mat_slab'
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromName = parseDimension(hMatch[1])
         }
         return result
     } else if (itemLower.includes('mat')) {
         result.itemSubType = 'mat'
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromName = parseDimension(hMatch[1])
         } else {
@@ -1643,14 +1637,14 @@ export const parseSewageEjectorPit = (itemName) => {
 
     if (itemLower.includes('mat slab')) {
         result.itemSubType = 'mat_slab'
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromName = parseDimension(hMatch[1])
         }
         return result
     } else if (itemLower.includes('mat')) {
         result.itemSubType = 'mat'
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromName = parseDimension(hMatch[1])
         } else {
@@ -1710,14 +1704,14 @@ export const parseDeepSewageEjectorPit = (itemName) => {
 
     if (itemLower.includes('mat slab')) {
         result.itemSubType = 'mat_slab'
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromName = parseDimension(hMatch[1])
         }
         return result
     } else if (itemLower.includes('mat')) {
         result.itemSubType = 'mat'
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromName = parseDimension(hMatch[1])
         } else {
@@ -1773,14 +1767,14 @@ export const parseSumpPumpPit = (itemName) => {
 
     if (itemLower.includes('mat slab')) {
         result.itemSubType = 'mat_slab'
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromName = parseDimension(hMatch[1])
         }
         return result
     } else if (itemLower.includes('mat')) {
         result.itemSubType = 'mat'
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromName = parseDimension(hMatch[1])
         } else {
@@ -1835,14 +1829,14 @@ export const parseGreaseTrap = (itemName) => {
 
     if (itemLower.includes('mat slab')) {
         result.itemSubType = 'mat_slab'
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromName = parseDimension(hMatch[1])
         }
         return result
     } else if (itemLower.includes('mat')) {
         result.itemSubType = 'mat'
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromName = parseDimension(hMatch[1])
         } else {
@@ -1897,14 +1891,14 @@ export const parseHouseTrap = (itemName) => {
 
     if (itemLower.includes('mat slab')) {
         result.itemSubType = 'mat_slab'
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromName = parseDimension(hMatch[1])
         }
         return result
     } else if (itemLower.includes('mat')) {
         result.itemSubType = 'mat'
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromName = parseDimension(hMatch[1])
         } else {
@@ -1970,7 +1964,7 @@ export const parseMatSlab = (itemName) => {
     } else if (itemLower.includes('mat')) {
         result.itemSubType = 'mat'
         // Extract height from H=X'-Y" format
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromH = parseDimension(hMatch[1])
             result.groupKey = `H${result.heightFromH.toFixed(2)}` // Group by height
@@ -2014,7 +2008,7 @@ export const parseSOG = (itemName) => {
     if (itemLower.includes('gravel backfill')) {
         result.itemSubType = 'gravel_backfill'
         // Extract height from H=X'-Y" format
-        const hMatch = itemName.match(/H\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
         if (hMatch) {
             result.heightFromH = parseDimension(hMatch[1])
         }
@@ -2041,7 +2035,7 @@ export const parseSOG = (itemName) => {
     } else if (itemLower.includes('sog') || itemLower.includes('slab on grade') || itemLower.includes('pressure slab')) {
         result.itemSubType = 'sog_slab'
         // Extract height from name like "SOG 4"", "SOG 6"", "Patio SOG 6"", "Patch SOG 5""
-        const inchMatch = itemName.match(/(\d+)"\s*(?:thick)?/i)
+        const inchMatch = itemName.match(/(\d+)"\s*(?:thick|thk)?/i)
         if (inchMatch) {
             const inches = parseFloat(inchMatch[1])
             result.heightFromName = inches / 12 // Convert to feet
@@ -2076,7 +2070,7 @@ export const parseROG = (itemName) => {
 
     const itemLower = itemName.toLowerCase()
     // Extract height from name like "ROG 6"", "ROG 4""
-    const inchMatch = itemName.match(/(\d+)"\s*(?:thick)?/i)
+    const inchMatch = itemName.match(/(\d+)"\s*(?:thick|thk)?/i)
     if (inchMatch) {
         const inches = parseFloat(inchMatch[1])
         result.heightFromName = inches / 12 // Convert to feet
@@ -2115,8 +2109,8 @@ export const parseStairsOnGrade = (itemName) => {
         return result
     } else if (itemLower.includes('stairs on grade')) {
         result.itemSubType = 'stairs'
-        // Extract width from name like "Stairs on grade 5'-5" wide"
-        const widthMatch = itemName.match(/(\d+'-?\d*")\s*wide/i)
+        // Extract width from name like "5'-5" wide" or "Width=5'-5"" or "W=5'-5"" or "Wide=5'-5""
+        const widthMatch = itemName.match(/(\d+'-?\d*")\s*wide/i) || itemName.match(/(?:Width|W|Wide)=([0-9'"\-]+)/i)
         if (widthMatch) {
             result.widthFromName = parseDimension(widthMatch[1])
         }

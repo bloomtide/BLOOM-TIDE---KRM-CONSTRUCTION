@@ -1,4 +1,5 @@
 import { parseExcavationItem, getExcavationItemType } from '../parsers/excavationParser'
+import { normalizeUnit } from '../parsers/dimensionParser'
 
 /**
  * Identifies if a digitizer item belongs to Rock Excavation section
@@ -10,11 +11,12 @@ export const isRockExcavationItem = (digitizerItem) => {
 
     const itemLower = digitizerItem.toLowerCase()
 
-    // Rock excavation specific keywords
+    // Rock excavation specific keywords (excavation, exc, or exc.)
     const rockKeywords = [
-        'concrete pier',
         'duplex sewage ejector pit slab',
         'rock excavation',
+        'rock exc',
+        'rock exc.',
         'line drill'
     ]
 
@@ -97,7 +99,7 @@ export const processRockExcavationItems = (rawDataRows, headers, tracker = null)
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const unit = normalizeUnit(row[unitIdx] || '')
 
         if (isRockExcavationItem(digitizerItem)) {
             const itemLower = digitizerItem.toLowerCase()
@@ -188,7 +190,7 @@ export const processLineDrillItems = (rawDataRows, headers, tracker = null) => {
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const unit = normalizeUnit(row[unitIdx] || '')
 
         const itemLower = digitizerItem?.toLowerCase() || ''
         if (itemLower.includes('line drill')) {

@@ -52,7 +52,7 @@ export const parseSoldierPile = (itemName) => {
         result.hpWeight = parseFloat(hpMatch[2])
 
         // Extract H value - move hyphen to end of character class
-        const hMatch = itemName.match(/H=([0-9'"\-]+)/)
+        const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
         if (hMatch) {
             result.heightRaw = parseDimension(hMatch[1])
             result.calculatedHeight = roundToMultipleOf5(result.heightRaw)
@@ -70,9 +70,10 @@ export const parseSoldierPile = (itemName) => {
         result.thickness = parseFloat(drilledMatch[2])
 
         // Extract H, E, RS values - move hyphen to end of character class
-        const hMatch = itemName.match(/H=([0-9'"\-]+)/)
-        const eMatch = itemName.match(/E=([0-9'"\-]+)/)
-        const rsMatch = itemName.match(/RS=([0-9'"\-]+)/)
+        const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        // E= or Embedment=; RS= or Rock socket=
+        const eMatch = itemName.match(/(?:E|Embedment)=([0-9'"\-]+)/i)
+        const rsMatch = itemName.match(/(?:RS|Rock\s*socket)=([0-9'"\-]+)/i)
 
         if (hMatch) result.heightRaw = parseDimension(hMatch[1])
         if (eMatch) result.embedment = parseDimension(eMatch[1])
@@ -178,7 +179,7 @@ export const parseTimberPlank = (itemName) => {
         result.size = `${sizeMatch[1]}x${sizeMatch[2]}`
     }
 
-    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
+    const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
     if (hMatch) result.heightRaw = parseDimension(hMatch[1])
 
     // Timber planks: use H from bracket directly, do NOT round up
@@ -211,8 +212,8 @@ export const parseTimberSoldierPile = (itemName) => {
         result.size = `${sizeMatch[1]}x${sizeMatch[2]}`
     }
 
-    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
-    const eMatch = itemName.match(/E=([0-9'"\-]+)/)
+    const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
+    const eMatch = itemName.match(/(?:E|Embedment)=([0-9'"\-]+)/i)
 
     if (hMatch) result.heightRaw = parseDimension(hMatch[1])
     if (eMatch) result.embedment = parseDimension(eMatch[1])
@@ -256,8 +257,8 @@ export const parseTimberPost = (itemName) => {
         result.size = `${sizeMatch[1]}x${sizeMatch[2]}`
     }
 
-    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
-    const eMatch = itemName.match(/E=([0-9'"\-]+)/)
+    const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
+    const eMatch = itemName.match(/(?:E|Embedment)=([0-9'"\-]+)/i)
 
     if (hMatch) result.heightRaw = parseDimension(hMatch[1])
     if (eMatch) result.embedment = parseDimension(eMatch[1])
@@ -309,8 +310,8 @@ export const parseTimberSheets = (itemName) => {
         result.size = `${sizeMatch[1]}x${sizeMatch[2]}`
     }
 
-    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
-    const eMatch = itemName.match(/E=([0-9'"\-]+)/)
+    const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
+    const eMatch = itemName.match(/(?:E|Embedment)=([0-9'"\-]+)/i)
 
     if (hMatch) result.heightRaw = parseDimension(hMatch[1])
     if (eMatch) result.embedment = parseDimension(eMatch[1])
@@ -353,7 +354,7 @@ export const parseTimberRaker = (itemName) => {
         result.size = `${sizeMatch[1]}x${sizeMatch[2]}`
     }
 
-    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
+    const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
     if (hMatch) result.heightRaw = parseDimension(hMatch[1])
 
     // Timber raker: use H from bracket directly, do NOT round up
@@ -406,7 +407,7 @@ export const parseTimberBrace = (itemName) => {
         result.groupKey = `timber-brace-corner-${result.size || 'other'}-${result.qty}`
     } else {
         // 2"x4" Horizontal wood brace (H=2'-0" typ.)
-        const hMatch = itemName.match(/H=([0-9'"\-]+)/)
+        const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
         if (hMatch) result.heightRaw = parseDimension(hMatch[1])
         result.calculatedHeight = result.heightRaw
         const hValue = Math.round(result.heightRaw * 12)
@@ -573,10 +574,16 @@ export const isRockBolt = (item) => item?.toLowerCase().includes('rock bolt')
 export const isAnchor = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
-    return itemLower.includes('anchor') && !itemLower.includes('rock anchor') && !itemLower.includes('tie back') && !itemLower.includes('hollow down anchor')
+    return itemLower.includes('anchor') && !itemLower.includes('rock anchor') && !itemLower.includes('tie back') && !itemLower.includes('hollow down anchor') && !itemLower.includes('hollow bar anchor') && !itemLower.includes('tie down anchor')
 }
-export const isTieBack = (item) => item?.toLowerCase().includes('tie back') || item?.toLowerCase().includes('hollow down anchor')
-export const isConcreteSoilRetentionPier = (item) => item?.toLowerCase().includes('concrete soil retention pier')
+export const isTieBack = (item) => {
+    const lower = item?.toLowerCase() || ''
+    return lower.includes('tie back') || lower.includes('hollow down anchor') || lower.includes('hollow bar anchor') || lower.includes('tie down anchor')
+}
+export const isConcreteSoilRetentionPier = (item) => {
+    const lower = item?.toLowerCase() || ''
+    return lower.includes('concrete soil retention pier') || lower.includes('concrete pier')
+}
 export const isGuideWall = (item) => item?.toLowerCase().includes('guide wall') || item?.toLowerCase().includes('guilde wall')
 export const isDowelBar = (item) => item?.toLowerCase().includes('dowel bar') || item?.toLowerCase().includes('steel dowels bar')
 export const isRockPin = (item) => item?.toLowerCase().includes('rock pin') || item?.toLowerCase().includes('rock pins')
@@ -585,7 +592,7 @@ export const isPermissionGrouting = (item) => item?.toLowerCase().includes('perm
 export const isButton = (item) => item?.toLowerCase().includes('concrete button') || item?.toLowerCase().includes('buttons')
 export const isRockStabilization = (item) => item?.toLowerCase().includes('rock stabilization')
 export const isFormBoard = (item) => item?.toLowerCase().includes('form board')
-export const isDrilledHoleGrout = (item) => item?.toLowerCase().includes('drilled hole grout') || item?.toLowerCase().includes('drill hole grout')
+export const isDrilledHoleGrout = (item) => item?.toLowerCase().includes('drilled hole grout') || item?.toLowerCase().includes('drill hole grout') || item?.toLowerCase().includes('drilled grout hole')
 
 /**
  * Parses diameter in inches from string like "5-5/8" Ø" or "6" Ø"
@@ -612,7 +619,7 @@ const parseDiameterInches = (str) => {
 
 /**
  * Parses drilled hole grout parameters
- * e.g. 5-5/8" Ø Drilled hole grout H=22'-6", typ.
+ * Drilled hole grout (H=##'-##"), Height=##'-##", Ht=##'-##"; e.g. 5-5/8" Ø Drilled hole grout H=22'-6", typ.
  * Grouping by H. F=G=SQRT((d/12)^2*3.14/4), H=height, I=C*H, J=G*F*C, L=J*H/27, M=C
  */
 export const parseDrilledHoleGrout = (itemName) => {
@@ -626,7 +633,8 @@ export const parseDrilledHoleGrout = (itemName) => {
 
     result.diameter = parseDiameterInches(itemName)
 
-    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
+    // (H=...), Height=..., or Ht=...
+    const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
     if (hMatch) result.heightRaw = parseDimension(hMatch[1])
 
     result.calculatedHeight = result.heightRaw
@@ -653,8 +661,8 @@ export const parseSoeItem = (itemName) => {
     // Height/LF extraction patterns
     // 1. H=XX'-XX"
     // 2. LF=XX'-XX"
-    const hMatch = itemName.match(/H=([0-9'"\-]+)/)
-    const lfMatch = itemName.match(/LF=([0-9'"\-]+)/)
+    const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
+    const lfMatch = itemName.match(/(?:Length|LF|L)=([0-9'"\-]+)/i)
 
     if (hMatch) {
         result.heightRaw = parseDimension(hMatch[1])
@@ -672,6 +680,11 @@ export const parseSoeItem = (itemName) => {
     // Type classification and rounding logic
     if (itemLower.includes('supporting angle')) {
         result.type = 'supporting_angle'
+        // Supporting angle (H=##'-##"), Height=##'-##", or Ht=##'-##" — ensure height is set
+        if (!result.heightRaw) {
+            const supportingHMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
+            if (supportingHMatch) result.heightRaw = parseDimension(supportingHMatch[1])
+        }
         // Extract group key from @ part
         const groupMatch = itemName.match(/@\s*([^)]+)/)
         if (groupMatch) {
@@ -750,12 +763,32 @@ export const parseSoeItem = (itemName) => {
         result.type = 'channel'
     } else if (itemLower.includes('roll chock')) {
         result.type = 'roll_chock'
+        // Roll chock (LF=##'-##"), (L=##'-##"), or (Length=##'-##")
+        if (!result.heightRaw) {
+            const lengthMatch = itemName.match(/(?:Length|LF|L)=([0-9'"\-]+)/i)
+            if (lengthMatch) {
+                result.heightRaw = parseDimension(lengthMatch[1])
+                result.calculatedHeight = result.heightRaw
+            }
+        } else {
+            result.calculatedHeight = result.heightRaw
+        }
     } else if (itemLower.includes('stud beam')) {
         result.type = 'stud_beam'
     } else if (itemLower.includes('corner brace')) {
         result.type = 'corner_brace'
     } else if (itemLower.includes('knee brace')) {
         result.type = 'knee_brace'
+        // Knee brace (LF=##'-##"), (L=##'-##"), or (Length=##'-##")
+        if (!result.heightRaw) {
+            const lengthMatch = itemName.match(/(?:Length|LF|L)=([0-9'"\-]+)/i)
+            if (lengthMatch) {
+                result.heightRaw = parseDimension(lengthMatch[1])
+                result.calculatedHeight = result.heightRaw
+            }
+        } else {
+            result.calculatedHeight = result.heightRaw
+        }
     } else if (itemLower.startsWith('parging')) {
         result.type = 'parging'
     } else if (itemLower.includes('heel block')) {
@@ -772,13 +805,47 @@ export const parseSoeItem = (itemName) => {
         }
     } else if (itemLower.includes('underpinning')) {
         result.type = 'underpinning'
-        // Underpinning 2'-4"x1'-0" wide, Height=4'-7"
-        const lengthMatch = itemName.match(/Underpinning\s*([0-9'"\-]+)/i)
-        const widthMatch = itemName.match(/([0-9'"\-]+)\s*wide/i)
-        const hMatchUnder = itemName.match(/Height=([0-9'"\-]+)/i)
-        if (lengthMatch) result.length = parseDimension(lengthMatch[1])
-        if (widthMatch) result.width = parseDimension(widthMatch[1])
-        if (hMatchUnder) result.heightRaw = parseDimension(hMatchUnder[1])
+        // Height/width aliases: Height|Ht|H=, wide|width, Width|W|Wide=
+        const hMatchUnder = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        const bracketMatch = itemName.match(/Underpinning\s*\(([^)]+)\)/i) || itemName.match(/\(([^)]+)\)\s*EA/i)
+        if (bracketMatch) {
+            const dims = bracketMatch[1].split('x').map(p => parseDimension(p.trim()))
+            if (dims.length === 3) {
+                // Underpinning (##'-##"x##'-##"x##'-##") EA
+                result.length = dims[0]
+                result.width = dims[1]
+                result.height = dims[2]
+                result.heightRaw = dims[2]
+            } else if (dims.length === 2) {
+                // Underpinning (##'-##"x##'-##") FT
+                result.length = dims[0]
+                result.width = dims[1]
+                if (hMatchUnder) result.heightRaw = parseDimension(hMatchUnder[1])
+            }
+        } else {
+            // Two dimensions + wide/width: Underpinning ##'-##"x##'-##" wide, Height=... or ... width, Ht=...
+            const twoDimWide = itemName.match(/Underpinning\s*([0-9'"\-]+)\s*x\s*([0-9'"\-]+)\s*(?:wide|width)/i) || itemName.match(/([0-9'"\-]+)\s*x\s*([0-9'"\-]+)\s*(?:wide|width)/i)
+            if (twoDimWide) {
+                result.length = parseDimension(twoDimWide[1])
+                result.width = parseDimension(twoDimWide[2])
+                if (hMatchUnder) result.heightRaw = parseDimension(hMatchUnder[1])
+            } else {
+                // One dimension + wide/width: Underpinning ##'-##" wide, Height=... or ... width, Ht=... (FT)
+                const oneDimWide = itemName.match(/Underpinning\s*([0-9'"\-]+)\s*(?:wide|width)/i)
+                if (oneDimWide) {
+                    result.length = parseDimension(oneDimWide[1])
+                    result.width = 1 // linear FT: treat width as 1 for SQ FT formula
+                    if (hMatchUnder) result.heightRaw = parseDimension(hMatchUnder[1])
+                } else {
+                    // Fallback: Length/LF/L=, (dim) wide or Width/W/Wide=, Height/Ht/H=
+                    const lengthMatch = itemName.match(/Underpinning\s*([0-9'"\-]+)/i) || itemName.match(/(?:Length|LF|L)=([0-9'"\-]+)/i)
+                    const widthMatch = itemName.match(/([0-9'"\-]+)\s*(?:wide|width)/i) || itemName.match(/(?:Width|W|Wide)=([0-9'"\-]+)/i)
+                    if (lengthMatch) result.length = parseDimension(lengthMatch[1])
+                    if (widthMatch) result.width = parseDimension(widthMatch[1])
+                    if (hMatchUnder) result.heightRaw = parseDimension(hMatchUnder[1])
+                }
+            }
+        }
     } else if (itemLower.includes('rock anchor')) {
         result.type = 'rock_anchor'
         // Rock anchor (Free length=13'-3" + Bond length= 10'-6")
@@ -803,7 +870,7 @@ export const parseSoeItem = (itemName) => {
             result.bondLength = bondLength // Store bond length for formula
             result.calculatedLength = bondLength + 5
         }
-    } else if (itemLower.includes('anchor') && !itemLower.includes('rock anchor') && !itemLower.includes('tie back') && !itemLower.includes('hollow down anchor')) {
+    } else if (itemLower.includes('anchor') && !itemLower.includes('rock anchor') && !itemLower.includes('tie back') && !itemLower.includes('hollow down anchor') && !itemLower.includes('hollow bar anchor') && !itemLower.includes('tie down anchor')) {
         result.type = 'anchor'
         // DSI R51N Hollow bar anchor (Free length=28'-0" + Bond length=20'-0")
         const freeLengthMatch = itemName.match(/Free length=([0-9'"\-]+)/i)
@@ -815,9 +882,9 @@ export const parseSoeItem = (itemName) => {
             result.heightRaw = total
             result.calculatedHeight = roundToMultipleOf5(total) + 5
         }
-    } else if (itemLower.includes('tie back') || itemLower.includes('hollow down anchor')) {
+    } else if (itemLower.includes('tie back') || itemLower.includes('hollow down anchor') || itemLower.includes('hollow bar anchor') || itemLower.includes('tie down anchor')) {
         result.type = 'tie_back'
-        // Hollow down anchor (Free length=28'-0" + Bond length=20'-0")
+        // Tie back anchor (Free length=##'-##" + Bond length=##'-##") — existing
         const freeLengthMatch = itemName.match(/Free length=([0-9'"\-]+)/i)
         const bondLengthMatch = itemName.match(/Bond length=\s*([0-9'"\-]+)/i)
         if (freeLengthMatch && bondLengthMatch) {
@@ -826,17 +893,35 @@ export const parseSoeItem = (itemName) => {
             const total = freeLength + bondLength
             result.heightRaw = total
             result.calculatedHeight = roundToMultipleOf5(total) + 5
+        } else {
+            // Tie back anchor (Length=##'-##"), (L=##'-##"), or (LF=##'-##") — single length
+            const singleLengthMatch = itemName.match(/(?:Length|LF|L)=([0-9'"\-]+)/i)
+            if (singleLengthMatch) {
+                const lengthVal = parseDimension(singleLengthMatch[1])
+                result.heightRaw = lengthVal
+                result.calculatedHeight = roundToMultipleOf5(lengthVal) + 5
+                result.singleLengthStr = singleLengthMatch[1].trim()
+            }
         }
-    } else if (itemLower.includes('concrete soil retention pier') || itemLower.includes('retention pier')) {
+    } else if (itemLower.includes('concrete soil retention pier') || itemLower.includes('retention pier') || itemLower.includes('concrete pier')) {
         result.type = 'concrete_soil_retention_pier'
-        // Concrete soil retention pier (4'-0"x4'-0"x14'-2")
-        const bracketMatch = itemName.match(/\(([^)]+)\)/)
+        // Concrete soil retention pier / Concrete pier: (##'-##"x##'-##"x##'-##"), or ##'-##"x##'-##" wide/width, Height/Ht=##'-##"
+        const bracketMatch = itemName.match(/(?:concrete soil retention pier|concrete pier)\s*\(([^)]+)\)/i) || itemName.match(/\(([^)]+)\)/)
         if (bracketMatch) {
             const dims = bracketMatch[1].split('x').map(p => parseDimension(p.trim()))
             if (dims.length === 3) {
                 result.length = dims[0]
                 result.width = dims[1]
                 result.height = dims[2]
+            }
+        }
+        if (result.length == null || result.width == null) {
+            const twoDimWide = itemName.match(/(?:concrete soil retention pier|concrete pier)\s*([0-9'"\-]+)\s*x\s*([0-9'"\-]+)\s*(?:wide|width)/i) || itemName.match(/([0-9'"\-]+)\s*x\s*([0-9'"\-]+)\s*(?:wide|width)/i)
+            const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
+            if (twoDimWide) {
+                result.length = parseDimension(twoDimWide[1])
+                result.width = parseDimension(twoDimWide[2])
+                if (hMatch) result.height = parseDimension(hMatch[1])
             }
         }
     } else if (itemLower.includes('guide wall')) {
@@ -895,11 +980,19 @@ export const parseSoeItem = (itemName) => {
                 result.heightRaw = parseDimension(parts[1].trim())
             }
         }
+        // Guide wall ##'-##" wide, Height=##'-##" or ##'-##" width, Ht=##'-##" (add if bracket did not set both)
+        if (result.width == null || result.heightRaw == null) {
+            const wideWidthMatch = itemName.match(/guide wall\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+            if (wideWidthMatch) {
+                result.width = parseDimension(wideWidthMatch[1])
+                result.heightRaw = parseDimension(wideWidthMatch[2])
+            }
+        }
     } else if (itemLower.includes('dowel bar') || itemLower.includes('steel dowels bar')) {
         result.type = 'dowel_bar'
         // 4 - #9 Steel dowels bar (H=1'-0" + RS=4'-0")
-        const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
-        const rsMatch = itemName.match(/RS=([0-9'"\-]+)/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        const rsMatch = itemName.match(/(?:RS|Rock\s*socket)=([0-9'"\-]+)/i)
         const qtyMatch = itemName.match(/^(\d+)\s*-/)
         if (hMatch) result.hValue = parseDimension(hMatch[1])
         if (rsMatch) result.rsValue = parseDimension(rsMatch[1])
@@ -910,8 +1003,8 @@ export const parseSoeItem = (itemName) => {
     } else if (itemLower.includes('rock pin') || itemLower.includes('rock pins')) {
         result.type = 'rock_pin'
         // Rock pin (H=1'-0" + RS=4'-0")
-        const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
-        const rsMatch = itemName.match(/RS=([0-9'"\-]+)/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        const rsMatch = itemName.match(/(?:RS|Rock\s*socket)=([0-9'"\-]+)/i)
         if (hMatch) result.hValue = parseDimension(hMatch[1])
         if (rsMatch) result.rsValue = parseDimension(rsMatch[1])
         if (result.hValue && result.rsValue) {
@@ -920,25 +1013,23 @@ export const parseSoeItem = (itemName) => {
         result.qty = 1 // Rock pins typically have QTY = 1
     } else if (itemLower.includes('shotcrete')) {
         result.type = 'shotcrete'
-        // Shotcrete w/ wire mesh H=15'-0"
-        const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
-        if (hMatch) {
-            result.heightRaw = parseDimension(hMatch[1])
-            // Group by H value
-            result.groupKey = `H_${hMatch[1].trim()}`
+        // Shotcrete (H=##'-##"), Height=##'-##", Ht=##'-##"; Shotcrete w/wire mesh (same)
+        const hMatchShotcrete = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        if (hMatchShotcrete) {
+            result.heightRaw = parseDimension(hMatchShotcrete[1])
+            result.groupKey = `H_${hMatchShotcrete[1].trim()}`
         }
     } else if (itemLower.includes('permission grouting')) {
         result.type = 'permission_grouting'
-        // Permission grouting H=18'-0"
-        const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
-        if (hMatch) {
-            result.heightRaw = parseDimension(hMatch[1])
-            // Group by H value
-            result.groupKey = `H_${hMatch[1].trim()}`
+        // Permission grouting (H=##'-##"), Height=##'-##", Ht=##'-##"
+        const hMatchPerm = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        if (hMatchPerm) {
+            result.heightRaw = parseDimension(hMatchPerm[1])
+            result.groupKey = `H_${hMatchPerm[1].trim()}`
         }
-    } else if (itemLower.includes('concrete button')) {
+    } else if (itemLower.includes('concrete button') || itemLower.includes('concrete buttons')) {
         result.type = 'button'
-        // Concrete button (3'-0"x3'-0"x1'-0")
+        // Concrete button (##'-##"x##'-##"x##'-##")
         const bracketMatch = itemName.match(/\(([^)]+)\)/)
         if (bracketMatch) {
             const dims = bracketMatch[1].split('x').map(p => parseDimension(p.trim()))
@@ -948,20 +1039,28 @@ export const parseSoeItem = (itemName) => {
                 result.height = dims[2]
             }
         }
+        // Concrete button ##'-##"x##'-##" wide, Height=##'-##" or width, Ht=##'-##"
+        if (result.length == null || result.width == null) {
+            const wideWidthMatch = itemName.match(/(?:concrete button|concrete buttons)\s*([0-9'"\-]+)\s*x\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+            if (wideWidthMatch) {
+                result.length = parseDimension(wideWidthMatch[1])
+                result.width = parseDimension(wideWidthMatch[2])
+                result.height = parseDimension(wideWidthMatch[3])
+            }
+        }
     } else if (itemLower.includes('rock stabilization')) {
         result.type = 'rock_stabilization'
-        // Rock stabilization (H=2'-4")
-        const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
-        if (hMatch) {
-            result.heightRaw = parseDimension(hMatch[1])
-            // Group by H value
-            result.groupKey = `H_${hMatch[1].trim()}`
+        // Rock stabilization (H=##'-##"), Height=##'-##", Ht=##'-##"
+        const hMatchRock = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        if (hMatchRock) {
+            result.heightRaw = parseDimension(hMatchRock[1])
+            result.groupKey = `H_${hMatchRock[1].trim()}`
         }
     } else if (itemLower.includes('form board')) {
         result.type = 'form_board'
-        // 1" form board (H=14'-2")
+        // Form board (H=##'-##"), Height=##'-##", Ht=##'-##"; 1" form board (H=14'-2")
         const thickMatch = itemName.match(/^(\d+["'])/)
-        const hMatch = itemName.match(/H=([0-9'"\-]+)/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
         if (thickMatch) {
             // Group by thickness at start
             result.thickness = thickMatch[1]

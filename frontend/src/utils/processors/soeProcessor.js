@@ -62,6 +62,7 @@ import {
     parseSoeItem
 } from '../parsers/soeParser'
 import { SHEET_PILE_WEIGHTS } from '../constants/sheetPileWeight'
+import { normalizeUnit } from '../parsers/dimensionParser'
 
 /**
  * Processes soldier pile items and groups them appropriately
@@ -78,7 +79,7 @@ export const processSoldierPileItems = (rawDataRows, headers, tracker = null) =>
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const unit = normalizeUnit(row[unitIdx] || '')
 
         if (isSoldierPile(digitizerItem)) {
             const parsed = parseSoldierPile(digitizerItem)
@@ -181,7 +182,7 @@ export const processTimberSoldierPileItems = (rawDataRows, headers, tracker = nu
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const unit = normalizeUnit(row[unitIdx] || '')
 
         if (isTimberSoldierPile(digitizerItem)) {
             const parsed = parseTimberSoldierPile(digitizerItem)
@@ -237,7 +238,7 @@ export const processTimberPlankItems = (rawDataRows, headers, tracker = null) =>
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const unit = normalizeUnit(row[unitIdx] || '')
 
         if (isTimberPlank(digitizerItem)) {
             const parsed = parseTimberPlank(digitizerItem)
@@ -292,7 +293,7 @@ export const processTimberRakerItems = (rawDataRows, headers, tracker = null) =>
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const unit = normalizeUnit(row[unitIdx] || '')
 
         if (isTimberRaker(digitizerItem)) {
             const parsed = parseTimberRaker(digitizerItem)
@@ -347,7 +348,7 @@ export const processTimberBraceItems = (rawDataRows, headers, tracker = null) =>
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const unit = normalizeUnit(row[unitIdx] || '')
 
         if (isTimberBrace(digitizerItem)) {
             const parsed = parseTimberBrace(digitizerItem)
@@ -405,7 +406,7 @@ export const processTimberPostItems = (rawDataRows, headers, tracker = null) => 
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const unit = normalizeUnit(row[unitIdx] || '')
 
         if (isTimberPost(digitizerItem)) {
             const parsed = parseTimberPost(digitizerItem)
@@ -463,7 +464,7 @@ export const processTimberSheetsItems = (rawDataRows, headers, tracker = null) =
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const unit = normalizeUnit(row[unitIdx] || '')
 
         if (isTimberSheets(digitizerItem)) {
             const parsed = parseTimberSheets(digitizerItem)
@@ -513,7 +514,7 @@ export const processTimberWalerItems = (rawDataRows, headers, tracker = null) =>
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const unit = normalizeUnit(row[unitIdx] || '')
 
         if (isTimberWaler(digitizerItem)) {
             const parsed = parseTimberWaler(digitizerItem)
@@ -569,7 +570,7 @@ export const processTimberStringerItems = (rawDataRows, headers, tracker = null)
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const unit = normalizeUnit(row[unitIdx] || '')
 
         if (isTimberStringer(digitizerItem)) {
             const parsed = parseTimberStringer(digitizerItem)
@@ -628,7 +629,7 @@ export const processDrilledHoleGroutItems = (rawDataRows, headers, tracker = nul
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const unit = normalizeUnit(row[unitIdx] || '')
 
         if (isDrilledHoleGrout(digitizerItem)) {
             const parsed = parseDrilledHoleGrout(digitizerItem)
@@ -684,7 +685,7 @@ const processGenericSoeItems = (rawDataRows, headers, identifierFn, tracker = nu
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const unit = normalizeUnit(row[unitIdx] || '')
         const qty = qtyIdx !== -1 ? parseFloat(row[qtyIdx]) || '' : ''
 
         if (identifierFn(digitizerItem)) {
@@ -758,7 +759,7 @@ export const processPrimarySecantItems = (rawDataRows, headers, tracker = null) 
         let embedmentCount = 0
         items.forEach(item => {
             const particulars = item.particulars || ''
-            const eMatch = particulars.match(/E=([0-9'"\-]+)/i)
+            const eMatch = particulars.match(/(?:E|Embedment)=([0-9'"\-]+)/i)
             if (eMatch) {
                 const embedmentStr = eMatch[1]
                 const embedmentMatch = embedmentStr.match(/(\d+)(?:'-?)?(\d+)?/)
@@ -960,7 +961,7 @@ export const processDowelBarItems = (rawDataRows, headers, tracker = null) => {
                 barSize = `#${barMatch[1]}`
             }
             // Extract rock socket: "RS=4'-0""
-            const rsMatch = particulars.match(/RS=([0-9'"\-]+)/i)
+            const rsMatch = particulars.match(/(?:RS|Rock\s*socket)=([0-9'"\-]+)/i)
             if (rsMatch && !rockSocket) {
                 rockSocket = rsMatch[1]
             }
@@ -1031,7 +1032,7 @@ export const processRockPinItems = (rawDataRows, headers, tracker = null) => {
         items.forEach(item => {
             const particulars = item.particulars || ''
             // Extract rock socket: "RS=4'-0""
-            const rsMatch = particulars.match(/RS=([0-9'"\-]+)/i)
+            const rsMatch = particulars.match(/(?:RS|Rock\s*socket)=([0-9'"\-]+)/i)
             if (rsMatch && !rockSocket) {
                 rockSocket = rsMatch[1]
             }
@@ -1133,8 +1134,8 @@ export const processShotcreteItems = (rawDataRows, headers, tracker = null) => {
         let wireMesh = ''
         allItems.forEach(item => {
             const particulars = item.particulars || ''
-            // Extract thickness: "6" thick"
-            const thickMatch = particulars.match(/(\d+(?:\/\d+)?)"?\s*thick/i)
+            // Extract thickness: "6" thick" or "6" thk"
+            const thickMatch = particulars.match(/(\d+(?:\/\d+)?)"?\s*(?:thick|thk)/i)
             if (thickMatch && !thickness) {
                 thickness = `${thickMatch[1]}"`
             }

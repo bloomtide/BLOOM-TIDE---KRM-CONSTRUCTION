@@ -1,4 +1,5 @@
 import { parseExcavationItem, getExcavationItemType } from '../parsers/excavationParser'
+import { normalizeUnit } from '../parsers/dimensionParser'
 import {
   isPileCap,
   isStripFooting,
@@ -61,7 +62,7 @@ export const isExcavationItem = (digitizerItem) => {
 
   const itemLower = digitizerItem.toLowerCase()
 
-  // Check for excavation keywords
+  // Check for excavation keywords (excavation, exc, or exc.)
   const excavationKeywords = [
     'underground piping',
     /^sf\s*\(/,
@@ -70,9 +71,13 @@ export const isExcavationItem = (digitizerItem) => {
     'heel block',
     /^pc-\d+/,
     /^f-\d+\s*\(/,
-    /^exc\s*\(/,
+    /^(?:exc|excavation|exc\.)\s*\(/,
     'slope exc',
+    'slope excavation',
+    'slope exc.',
     'exc & backfill',
+    'excavation & backfill',
+    'exc. & backfill',
     'duplex sewage ejector pit slab',
     'sewage ejector pit slab'
   ]
@@ -81,8 +86,8 @@ export const isExcavationItem = (digitizerItem) => {
   if (itemLower.includes('gravel')) return false
   if (itemLower.startsWith('backfill')) return false
 
-  // Exclude rock excavation items (they belong to Rock Excavation section)
-  if (itemLower.includes('rock excavation')) return false
+  // Exclude rock excavation items (they belong to Rock Excavation section) — excavation, exc, or exc.
+  if (itemLower.includes('rock excavation') || itemLower.includes('rock exc') || itemLower.includes('rock exc.')) return false
   if (itemLower.includes('concrete pier')) return false
 
   return excavationKeywords.some(keyword => {
@@ -104,12 +109,16 @@ export const isBackfillItem = (digitizerItem) => {
 
   const itemLower = digitizerItem.toLowerCase()
 
-  // Check for backfill keywords
+  // Check for backfill keywords (excavation, exc, or exc.)
   const backfillKeywords = [
     'underground piping',
     /^backfill\s*\(/,
     'slope exc',
-    'exc & backfill'
+    'slope excavation',
+    'slope exc.',
+    'exc & backfill',
+    'excavation & backfill',
+    'exc. & backfill'
   ]
 
   return backfillKeywords.some(keyword => {
@@ -131,8 +140,8 @@ export const isMudSlabItem = (digitizerItem) => {
 
   const itemLower = digitizerItem.toLowerCase()
 
-  // Check for mud slab pattern (e.g., "w/ 2" mud slab")
-  return /w\/\s*\d+["']?\s*mud\s*slab/.test(itemLower)
+  // Check for mud slab pattern: "w/ 2" mud slab", "Mud slab 2"", "Mud slab 2" thick", "Mud slab 2" thk"
+  return /w\/\s*\d+["']?\s*mud\s*slab/.test(itemLower) || /mud\s*slab\s+\d+/.test(itemLower)
 }
 
 /**
@@ -183,7 +192,8 @@ export const generateExcavationFormulas = (itemType, rowNum, parsedData) => {
     case 'pc':
     case 'f':
       // SQ FT = Length * Width * Takeoff, CY = SQ FT * Height / 27, 1.3*CY = CY * 1.3
-      if (unit === 'EA') {
+      const unitNorm = (unit && String(unit).trim().replace(/\.$/, '').toUpperCase())
+      if (unitNorm === 'EA' || unitNorm === 'NO') {
         formulas.sqFt = `F${rowNum}*G${rowNum}*C${rowNum}`
         formulas.lbs = `J${rowNum}*H${rowNum}/27`  // CY in column K
         formulas.cy = `K${rowNum}*1.3`              // 1.3*CY in column L
@@ -275,7 +285,7 @@ export const processExcavationItems = (rawDataRows, headers, tracker = null) => 
   rawDataRows.forEach((row, rowIndex) => {
     const digitizerItem = row[digitizerIdx]
     const total = parseFloat(row[totalIdx]) || 0
-    const unit = row[unitIdx]
+    const unit = normalizeUnit(row[unitIdx] || '')
 
     if (isExcavationItem(digitizerItem)) {
       const itemType = getExcavationItemType(digitizerItem, 'excavation')
@@ -340,7 +350,7 @@ export const processBackfillItems = (rawDataRows, headers, tracker = null) => {
   rawDataRows.forEach((row, rowIndex) => {
     const digitizerItem = row[digitizerIdx]
     const total = parseFloat(row[totalIdx]) || 0
-    const unit = row[unitIdx]
+    const unit = normalizeUnit(row[unitIdx] || '')
 
     if (isBackfillItem(digitizerItem)) {
       const itemType = getExcavationItemType(digitizerItem, 'backfill')
@@ -387,7 +397,7 @@ export const processMudSlabItems = (rawDataRows, headers, tracker = null) => {
   rawDataRows.forEach((row, rowIndex) => {
     const digitizerItem = row[digitizerIdx]
     const total = parseFloat(row[totalIdx]) || 0
-    const unit = row[unitIdx]
+    const unit = normalizeUnit(row[unitIdx] || '')
 
     if (isMudSlabItem(digitizerItem)) {
       const itemType = getExcavationItemType(digitizerItem, 'mud_slab')
@@ -459,7 +469,7 @@ export const processExcavationFoundationTypeItems = (rawDataRows, headers, track
     if (tracker && tracker.isUsed(rowIndex)) return
     const digitizerItem = row[digitizerIdx]
     const total = parseFloat(row[totalIdx]) || 0
-    const unit = row[unitIdx]
+    const unit = normalizeUnit(row[unitIdx] || '')
     if (!digitizerItem || typeof digitizerItem !== 'string') return
     const itemLower = digitizerItem.toLowerCase()
     if (itemLower.startsWith('demo ') || itemLower.startsWith('demo.') || itemLower.startsWith('demolition ') || itemLower.startsWith('remove ')) return

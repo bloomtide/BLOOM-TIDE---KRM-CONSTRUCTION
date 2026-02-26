@@ -1,4 +1,4 @@
-import { convertToFeet } from '../parsers/dimensionParser'
+import { convertToFeet, normalizeUnit } from '../parsers/dimensionParser'
 
 /**
  * Processes Superstructure section items from raw data.
@@ -82,12 +82,12 @@ const parseThermalBreakQtyFromName = (particulars) => {
 }
 
 /**
- * Parses H= value from text like "LW concrete fill, H=1'-1""
+ * Parses Height/Ht/H= value from text like "LW concrete fill, H=1'-1"" or "Height=1'-1""
  * @param {string} particulars - Digitizer item text
  * @returns {number|null}
  */
 const parseHeightFromName = (particulars) => {
-  const match = particulars.match(/H\s*=\s*([^,\s]+)/i)
+  const match = particulars.match(/(?:Height|Ht|H)\s*=\s*([^,\s]+)/i)
   if (!match) return null
   return convertToFeet(match[1].trim())
 }
@@ -244,8 +244,8 @@ export const getSuperstructureItemType = (particulars) => {
   if (p.includes('patch slab')) {
     return { subsection: 'Patch slab', groupKey: 'patch', heightFormula: null, heightValue: 0.5, widthValue: null, qty: null }
   }
-  if ((p.includes('topping slab') || p.includes('overpour slab')) && (p.includes('thick') || p.includes('"'))) {
-    const thickMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*thick/i) || particulars.match(/(\d+(?:\.\d+)?)\s*"/)
+  if ((p.includes('topping slab') || p.includes('overpour slab')) && (p.includes('thick') || p.includes('thk') || p.includes('"'))) {
+    const thickMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick|thk)/i) || particulars.match(/(\d+(?:\.\d+)?)\s*"/)
     const inches = thickMatch ? parseFloat(thickMatch[1]) : 2
     return { subsection: 'Topping slab', groupKey: 'toppingSlab', heightFormula: null, heightValue: inches / 12, widthValue: null, qty: null }
   }
@@ -269,7 +269,7 @@ export const getSuperstructureItemType = (particulars) => {
     return { subsection: 'Built-up stair', groupKey: 'builtUpStairs', heightFormula: '7/12', heightValue: null, widthFormula: '11/12', widthValue: null, lengthValue: 3, qty: null }
   }
   if (p.includes('builtup ramp') || p.includes('built up ramp')) {
-    const thickMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*thick/i) || particulars.match(/(\d+(?:\.\d+)?)\s*"/)
+    const thickMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick|thk)/i) || particulars.match(/(\d+(?:\.\d+)?)\s*"/)
     const inches = thickMatch ? parseFloat(thickMatch[1]) : 3
     const groupId = parseTrailingGroupId(particulars)
     return { subsection: 'Builtup ramps', groupKey: 'builtupRamp', heightFormula: null, heightValue: inches / 12, widthValue: null, qty: null, groupId: groupId ?? 1 }
@@ -287,13 +287,13 @@ export const getSuperstructureItemType = (particulars) => {
       return { subsection: 'Raised slab', groupKey: 'raisedKneeWall', heightFormula: null, heightValue: dims.second, widthValue: dims.first, qty: null }
     }
   }
-  if (p.includes('raised slab') && (p.includes('"') || p.includes('thick'))) {
-    const thickMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"/) || particulars.match(/(\d+(?:\.\d+)?)\s*thick/i)
+  if (p.includes('raised slab') && (p.includes('"') || p.includes('thick') || p.includes('thk'))) {
+    const thickMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"/) || particulars.match(/(\d+(?:\.\d+)?)\s*(?:thick|thk)/i)
     const inches = thickMatch ? parseFloat(thickMatch[1]) : 4
     return { subsection: 'Raised slab', groupKey: 'raisedSlab', heightFormula: null, heightValue: inches / 12, widthValue: null, qty: null }
   }
-  if ((p.includes('builtup slab') || p.includes('built up slab')) && (p.includes('"') || p.includes('thick'))) {
-    const thickMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*thick/i) || particulars.match(/(\d+(?:\.\d+)?)\s*"/) || particulars.match(/(\d+(?:\.\d+)?)\s*thick/i)
+  if ((p.includes('builtup slab') || p.includes('built up slab')) && (p.includes('"') || p.includes('thick') || p.includes('thk'))) {
+    const thickMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick|thk)/i) || particulars.match(/(\d+(?:\.\d+)?)\s*"/) || particulars.match(/(\d+(?:\.\d+)?)\s*(?:thick|thk)/i)
     const inches = thickMatch ? parseFloat(thickMatch[1]) : 3
     return { subsection: 'Built-up slab', groupKey: 'builtUpSlab', heightFormula: null, heightValue: inches / 12, widthValue: null, qty: null }
   }
@@ -333,7 +333,7 @@ export const getSuperstructureItemType = (particulars) => {
       return { subsection: 'Drop panel', groupKey: 'dropPanelBracket', heightFormula: null, heightValue: dims.height, widthValue: dims.width, lengthValue: dims.length, qty: null }
     }
   }
-  if (p.includes('drop panel') && particulars.match(/H\s*=/i)) {
+  if (p.includes('drop panel') && particulars.match(/(?:Height|Ht|H)\s*=/i)) {
     const heightValue = parseHeightFromName(particulars)
     return { subsection: 'Drop panel', groupKey: 'dropPanelH', heightFormula: null, heightValue: heightValue ?? 0.67, widthValue: null, qty: null }
   }
@@ -438,7 +438,7 @@ export const processSuperstructureItems = (rawDataRows, headers, tracker = null)
     const particulars = row[digitizerIdx]
     const total = row[totalIdx]
     const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
-    const unit = unitIdx >= 0 ? (row[unitIdx] || '') : 'SQ FT'
+    const unit = unitIdx >= 0 ? normalizeUnit(row[unitIdx] || '') : 'SQ FT'
 
     if (estimateIdx >= 0 && row[estimateIdx]) {
       const estimateVal = String(row[estimateIdx]).trim()
