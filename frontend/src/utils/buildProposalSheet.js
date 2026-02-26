@@ -654,7 +654,29 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       'Demo Ramp on grade': /demo\s+rog|demo\s+ramp\s+on\s+grade/i,
       'Demo retaining wall': /demo\s+rw|demo\s+retaining\s+wall/i,
       // Match "Demo stair landings on grade @ Stair A1", "Demo stairs on grade", "Demo landings on grade" etc. in Digitizer Item
-      'Demo stair on grade': /demo\s+(?:stair\s+)?(?:stairs|landings)\s+on\s+grade/i
+      'Demo stair on grade': /demo\s+(?:stair\s+)?(?:stairs|landings)\s+on\s+grade/i,
+      'Demo pile cap': /demo\s+(?:pile\s+caps?|PC)/i,
+      'Demo pile caps': /demo\s+(?:pile\s+caps?|PC)/i,
+      'Demo pilaster': /demo\s+pilaster/i,
+      'Demo grade beam': /demo\s+(?:grade\s+beam|GB)/i,
+      'Demo tie beam': /demo\s+(?:tie\s+beam|TB)/i,
+      'Demo strap beam': /demo\s+(?:strap\s+beam|ST)/i,
+      'Demo thickened slab': /demo\s+thickened\s+slab/i,
+      'Demo buttress': /demo\s+buttress/i,
+      'Demo pier': /demo\s+pier/i,
+      'Demo corbel': /demo\s+corbel/i,
+      'Demo liner wall': /demo\s+(?:concrete\s+)?liner\s+wall/i,
+      'Demo barrier wall': /demo\s+(?:vehicle\s+)?barrier\s+wall/i,
+      'Demo stem wall': /demo\s+stem\s+wall/i,
+      'Demo elevator pit': /demo\s+(?:sump\s+pit\s+@\s+)?elevator\s+pit|demo\s+elev\.?\s+pit\b|demo\s+elevator\s+pit/i,
+      'Demo service elevator pit': /demo\s+service\s+elevator\s+pit|demo\s+service\s+elev\.?\s+pit/i,
+      'Demo detention tank': /demo\s+detention\s+tank/i,
+      'Demo duplex sewage ejector pit': /demo\s+duplex\s+sewage\s+ejector/i,
+      'Demo deep sewage ejector pit': /demo\s+deep\s+sewage\s+ejector/i,
+      'Demo sump pump pit': /demo\s+sump\s+pump\s+(?:pit|wall)/i,
+      'Demo grease trap pit': /demo\s+grease\s+trap\s+pit/i,
+      'Demo house trap pit': /demo\s+house\s+trap/i,
+      'Demo mat slab': /demo\s+mat(?:\s+slab|-\d)/i
     }
     const pattern = subsectionPatterns[subsectionName]
     if (!pattern) return '##'
@@ -712,6 +734,21 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       if (slabType.toLowerCase().includes('stair on grade') || slabType.toLowerCase().includes('stairs on grade')) {
         return `Allow to saw-cut/demo/remove/dispose existing (## wide) stairs on grade (## Riser) @ 1st FL${dmSuffix}`
       }
+      if (slabType.toLowerCase().includes('pile cap')) {
+        return `Allow to saw-cut/demo/remove/dispose existing (##x## wide) pile cap (H=##) @ existing building${dmSuffix}`
+      }
+      if (slabType.toLowerCase().includes('pilaster')) {
+        return `Allow to saw-cut/demo/remove/dispose existing (##x## wide) pilaster (H=##) @ existing building${dmSuffix}`
+      }
+      if (slabType.toLowerCase().includes('grade beam')) {
+        return `Allow to saw-cut/demo/remove/dispose existing (## wide) grade beam (H=##) @ existing building${dmSuffix}`
+      }
+      if (slabType.toLowerCase().includes('tie beam')) {
+        return `Allow to saw-cut/demo/remove/dispose existing (## wide) tie beam (H=##) @ existing building${dmSuffix}`
+      }
+      if (slabType.toLowerCase().includes('strap beam')) {
+        return `Allow to saw-cut/demo/remove/dispose existing (## wide) strap beam (H=##) @ existing building${dmSuffix}`
+      }
       return `Allow to saw-cut/demo/remove/dispose existing ${slabType} @ existing building${dmSuffix}`
     }
     const text = textToParse
@@ -764,6 +801,61 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         return `Allow to saw-cut/demo/remove/dispose existing (${widthPart} wide) isolated footing (H=${height}) @ existing building${dmSuffix}`
       }
       return `Allow to saw-cut/demo/remove/dispose existing (##x## wide) isolated footing (H=##) @ existing building${dmSuffix}`
+    }
+    // Demo pile caps: (4'-6"x4'-6"x3'-4") or (4'-6"x4'-6" wide, Height=3'-4") -> same line style as foundation pile cap
+    if (slabType.toLowerCase().includes('pile cap')) {
+      const bracketMatch = text.match(/\(([^)]+)\)/)
+      if (bracketMatch) {
+        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
+        const widthPart = parts.length >= 2 ? `${parts[0]}x${parts[1]}` : (parts[0] || '##')
+        const height = parts.length >= 3 ? parts[2] : (parts[1] || '##')
+        return `Allow to saw-cut/demo/remove/dispose existing (${widthPart} wide) pile cap (H=${height}) @ existing building${dmSuffix}`
+      }
+      return `Allow to saw-cut/demo/remove/dispose existing (##x## wide) pile cap (H=##) @ existing building${dmSuffix}`
+    }
+    // Demo pilaster: (22"x16"x6'-0") -> "(22"x16" wide) pilaster (H=6'-0")"
+    if (slabType.toLowerCase().includes('pilaster')) {
+      const bracketMatch = text.match(/\(([^)]+)\)/)
+      if (bracketMatch) {
+        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
+        const widthPart = parts.length >= 2 ? `${parts[0]}x${parts[1]}` : (parts[0] || '##')
+        const height = parts.length >= 3 ? parts[2] : '##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${widthPart} wide) pilaster (H=${height}) @ existing building${dmSuffix}`
+      }
+      return `Allow to saw-cut/demo/remove/dispose existing (##x## wide) pilaster (H=##) @ existing building${dmSuffix}`
+    }
+    // Demo grade beam: (3'-10"x2'-9") -> "(3'-10" wide) grade beam (H=2'-9")"
+    if (slabType.toLowerCase().includes('grade beam')) {
+      const bracketMatch = text.match(/\(([^)]+)\)/)
+      if (bracketMatch) {
+        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
+        const width = parts[0] || '##'
+        const height = parts[1] || '##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${width} wide) grade beam (H=${height}) @ existing building${dmSuffix}`
+      }
+      return `Allow to saw-cut/demo/remove/dispose existing (## wide) grade beam (H=##) @ existing building${dmSuffix}`
+    }
+    // Demo tie beam: (20"x32") -> "(20" wide) tie beam (H=32")"
+    if (slabType.toLowerCase().includes('tie beam')) {
+      const bracketMatch = text.match(/\(([^)]+)\)/)
+      if (bracketMatch) {
+        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
+        const width = parts[0] || '##'
+        const height = parts[1] || '##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${width} wide) tie beam (H=${height}) @ existing building${dmSuffix}`
+      }
+      return `Allow to saw-cut/demo/remove/dispose existing (## wide) tie beam (H=##) @ existing building${dmSuffix}`
+    }
+    // Demo strap beam: (1'-10"x1'-6") -> "(1'-10" wide) strap beam (H=1'-6")"
+    if (slabType.toLowerCase().includes('strap beam')) {
+      const bracketMatch = text.match(/\(([^)]+)\)/)
+      if (bracketMatch) {
+        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
+        const width = parts[0] || '##'
+        const height = parts[1] || '##'
+        return `Allow to saw-cut/demo/remove/dispose existing (${width} wide) strap beam (H=${height}) @ existing building${dmSuffix}`
+      }
+      return `Allow to saw-cut/demo/remove/dispose existing (## wide) strap beam (H=##) @ existing building${dmSuffix}`
     }
     let thicknessPart = ''
     if (slabType.toLowerCase().includes('slab on grade') || slabType.toLowerCase().includes('ramp on grade')) {
@@ -1176,7 +1268,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
       // Subsection header (ends with ':')
       if (bText.endsWith(':')) {
-        currentSubsection = bText.slice(0, -1).trim()
+        let subName = bText.slice(0, -1).trim()
+        // Normalize "Demo pile cap" / "Demo pile caps" to single key so we don't duplicate demolition lines
+        if (subName.toLowerCase() === 'demo pile cap') subName = 'Demo pile caps'
+        currentSubsection = subName
         if (!rowsBySubsection.has(currentSubsection)) {
           rowsBySubsection.set(currentSubsection, [])
         }
@@ -1832,7 +1927,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             const checkBValue = calculationData[checkRow][1] || ''
             const checkBText = String(checkBValue).trim()
             if (checkBText.endsWith(':')) {
-              const subsectionName = checkBText.slice(0, -1).trim()
+              let subsectionName = checkBText.slice(0, -1).trim()
+              if (subsectionName.toLowerCase() === 'demo pile cap') subsectionName = 'Demo pile caps'
               if (subsectionName.startsWith('Demo')) {
                 foundSubsection = subsectionName
                 break
@@ -1870,6 +1966,27 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       'Demo foundation wall',
       'Demo retaining wall',
       'Demo isolated footing',
+      'Demo pile caps',
+      'Demo pilaster',
+      'Demo grade beam',
+      'Demo tie beam',
+      'Demo strap beam',
+      'Demo thickened slab',
+      'Demo buttress',
+      'Demo pier',
+      'Demo corbel',
+      'Demo liner wall',
+      'Demo barrier wall',
+      'Demo stem wall',
+      'Demo elevator pit',
+      'Demo service elevator pit',
+      'Demo detention tank',
+      'Demo duplex sewage ejector pit',
+      'Demo deep sewage ejector pit',
+      'Demo sump pump pit',
+      'Demo grease trap pit',
+      'Demo house trap pit',
+      'Demo mat slab',
       'Demo stair on grade'
     ]
 
