@@ -776,261 +776,200 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     return formatInches(avg)
   }
 
-  const buildDemolitionTemplate = (subsectionName, itemText, fallbackText) => {
+  const buildDemolitionTemplate = (subsectionName, itemText, fallbackText, subsectionRows = []) => {
     const slabTypeMatch = subsectionName.match(/^Demo\s+(.+)$/i)
     const slabType = slabTypeMatch ? slabTypeMatch[1].trim() : subsectionName.replace(/^Demo\s+/i, '').trim()
     const dmReference = getDMReferenceFromRawData(subsectionName)
     const dmSuffix = ` as per ${dmReference} & details on`
     const dmSuffixStripFooting = ` as per ${dmReference} & details on `
-    const textToParse = (itemText ? String(itemText).trim() : '') || (fallbackText ? String(fallbackText).trim() : '')
+    const stLower = slabType.toLowerCase()
+    const pfxText = 'Allow to saw-cut/demo/remove/dispose existing'
 
-    // For pits and mat slab, always use the average height/depth from calculation rows for the (##) placeholder
-    if (subsectionName === 'Demo elevator pit') {
-      const avgH = getAverageHeightForDemoSubsection(subsectionName)
-      const hPart = avgH ? avgH : '##'
-      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) elevator pit @ existing building${dmSuffix}`
+    // Shared helpers for averaging dimensions across all subsection rows
+    const _toInches = (token) => {
+      if (!token) return null
+      const s = String(token).trim()
+      const m1 = s.match(/^(-?\d+)'-(\d+)"?$/)
+      if (m1) return parseInt(m1[1], 10) * 12 + parseInt(m1[2], 10)
+      const m2 = s.match(/^(-?\d+)'$/)
+      if (m2) return parseInt(m2[1], 10) * 12
+      const m3 = s.match(/^(\d+)"$/)
+      if (m3) return parseInt(m3[1], 10)
+      const m4 = s.match(/^(\d+(?:\.\d+)?)$/)
+      if (m4) return parseFloat(m4[1])
+      return null
     }
-    if (subsectionName === 'Demo service elevator pit') {
-      const avgH = getAverageHeightForDemoSubsection(subsectionName)
-      const hPart = avgH ? avgH : '##'
-      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) service elevator pit @ existing building${dmSuffix}`
+    const _fmtInches = (val) => {
+      if (val == null || Number.isNaN(val)) return '##'
+      const total = Math.round(val)
+      const feet = Math.floor(total / 12)
+      const inches = total % 12
+      if (feet > 0 && inches > 0) return `${feet}'-${inches}"`
+      if (feet > 0) return `${feet}'-0"`
+      return `${inches}"`
     }
-    if (subsectionName === 'Demo detention tank') {
-      const avgH = getAverageHeightForDemoSubsection(subsectionName)
-      const hPart = avgH ? avgH : '##'
-      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) detention tank @ existing building${dmSuffix}`
+    const _findDimParen = (str) => {
+      const regex = /\(([^)]+)\)/g
+      let best = null
+      let m
+      while ((m = regex.exec(str)) !== null) {
+        if (/\d/.test(m[1]) && /x/i.test(m[1])) best = m[1]
+      }
+      return best
     }
-    if (subsectionName === 'Demo duplex sewage ejector pit') {
-      const avgH = getAverageHeightForDemoSubsection(subsectionName)
-      const hPart = avgH ? avgH : '##'
-      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) duplex sewage ejector pit @ existing building${dmSuffix}`
+    const _parseDims2 = (str) => {
+      const content = _findDimParen(str)
+      if (!content) return null
+      const parts = content.split(/\s*x\s*/i).map(s => s.trim())
+      if (parts.length < 2) return null
+      const a = _toInches(parts[0])
+      const b = _toInches(parts[1])
+      if (a == null || b == null) return null
+      return [a, b]
     }
-    if (subsectionName === 'Demo deep sewage ejector pit') {
-      const avgH = getAverageHeightForDemoSubsection(subsectionName)
-      const hPart = avgH ? avgH : '##'
-      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) deep sewage ejector pit @ existing building${dmSuffix}`
+    const _parseDims3 = (str) => {
+      const content = _findDimParen(str)
+      if (!content) return null
+      const parts = content.split(/\s*x\s*/i).map(s => s.trim())
+      if (parts.length < 3) return null
+      const a = _toInches(parts[0])
+      const b = _toInches(parts[1])
+      const c = _toInches(parts[2])
+      if (a == null || b == null || c == null) return null
+      return [a, b, c]
     }
-    if (subsectionName === 'Demo sump pump pit') {
-      const avgH = getAverageHeightForDemoSubsection(subsectionName)
-      const hPart = avgH ? avgH : '##'
-      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) sump pump pit @ existing building${dmSuffix}`
+    const _parseThickness = (str) => {
+      const m = str.match(/(\d+)(?:"|")\s*(?:thick|thk)?/i) || str.match(/(\d+'-?\d*"?)/)
+      if (!m) return null
+      return _toInches(m[1])
     }
-    if (subsectionName === 'Demo grease trap pit') {
-      const avgH = getAverageHeightForDemoSubsection(subsectionName)
-      const hPart = avgH ? avgH : '##'
-      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) grease trap pit @ existing building${dmSuffix}`
+    const _avg2FromRows = () => {
+      if (!subsectionRows || !subsectionRows.length) return null
+      const dims = []
+      subsectionRows.forEach((row) => {
+        const bVal = row && row[1] != null ? String(row[1]) : ''
+        const parsed = _parseDims2(bVal)
+        if (parsed) dims.push(parsed)
+      })
+      if (!dims.length) return null
+      const n = dims.length
+      return [dims.reduce((t, d) => t + d[0], 0) / n, dims.reduce((t, d) => t + d[1], 0) / n]
     }
-    if (subsectionName === 'Demo house trap pit') {
+    const _avg3FromRows = () => {
+      if (!subsectionRows || !subsectionRows.length) return null
+      const dims = []
+      subsectionRows.forEach((row) => {
+        const bVal = row && row[1] != null ? String(row[1]) : ''
+        const parsed = _parseDims3(bVal)
+        if (parsed) dims.push(parsed)
+      })
+      if (!dims.length) return null
+      const n = dims.length
+      return [dims.reduce((t, d) => t + d[0], 0) / n, dims.reduce((t, d) => t + d[1], 0) / n, dims.reduce((t, d) => t + d[2], 0) / n]
+    }
+    const _avgThicknessFromRows = () => {
+      if (!subsectionRows || !subsectionRows.length) return null
+      const vals = []
+      subsectionRows.forEach((row) => {
+        const bVal = row && row[1] != null ? String(row[1]) : ''
+        const v = _parseThickness(bVal)
+        if (v != null && v > 0) vals.push(v)
+      })
+      if (!vals.length) return null
+      return vals.reduce((t, v) => t + v, 0) / vals.length
+    }
+
+    // Pits and mat slab: always use average height/depth from all rows
+    const pitTypes = ['Demo elevator pit', 'Demo service elevator pit', 'Demo detention tank', 'Demo duplex sewage ejector pit', 'Demo deep sewage ejector pit', 'Demo sump pump pit', 'Demo grease trap pit', 'Demo house trap pit']
+    if (pitTypes.includes(subsectionName)) {
       const avgH = getAverageHeightForDemoSubsection(subsectionName)
-      const hPart = avgH ? avgH : '##'
-      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) house trap pit @ existing building${dmSuffix}`
+      const hPart = avgH || '##'
+      return `${pfxText} (${hPart}) ${slabType} @ existing building${dmSuffix}`
     }
     if (subsectionName === 'Demo mat slab') {
       const avgH = getAverageHeightForDemoSubsection(subsectionName)
       const hPart = avgH ? `H=${avgH}` : 'H=##'
-      return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) mat slab @ existing building${dmSuffix}`
+      return `${pfxText} (${hPart}) mat slab @ existing building${dmSuffix}`
     }
 
-    if (!textToParse) {
-      if (slabType.toLowerCase().includes('slab on grade')) {
-        return `Allow to saw-cut/demo/remove/dispose existing (## thick) ${slabType} @ existing building${dmSuffix}`
-      }
-      if (slabType.toLowerCase().includes('ramp on grade')) {
-        return `Allow to saw-cut/demo/remove/dispose existing (## thick) ramp on grade @ existing building${dmSuffix}`
-      }
-      if (slabType.toLowerCase().includes('retaining wall')) {
-        return `Allow to saw-cut/demo/remove/dispose existing (## wide) retaining wall (H=##) @ existing building${dmSuffix}`
-      }
-      if (slabType.toLowerCase().includes('foundation wall')) {
-        return `Allow to saw-cut/demo/remove/dispose existing (## wide) foundation wall (H=##) @ existing building${dmSuffix}`
-      }
-      if (slabType.toLowerCase().includes('strip footing')) {
-        return `Allow to saw-cut/demo/remove/dispose existing (## wide) strip footing (H=##) @ existing building${dmSuffixStripFooting}`
-      }
-      if (slabType.toLowerCase().includes('isolated footing')) {
-        return `Allow to saw-cut/demo/remove/dispose existing (##x## wide) isolated footing (H=##) @ existing building${dmSuffix}`
-      }
-      if (slabType.toLowerCase().includes('stair on grade') || slabType.toLowerCase().includes('stairs on grade')) {
-        return `Allow to saw-cut/demo/remove/dispose existing (## wide) stairs on grade (## Riser) @ 1st FL${dmSuffix}`
-      }
-      if (subsectionName === 'Demo elevator pit') {
-        const avgH = getAverageHeightForDemoSubsection(subsectionName)
-        const hPart = avgH ? avgH : '##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) elevator pit @ existing building${dmSuffix}`
-      }
-      if (subsectionName === 'Demo service elevator pit') {
-        const avgH = getAverageHeightForDemoSubsection(subsectionName)
-        const hPart = avgH ? avgH : '##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) service elevator pit @ existing building${dmSuffix}`
-      }
-      if (subsectionName === 'Demo detention tank') {
-        const avgH = getAverageHeightForDemoSubsection(subsectionName)
-        const hPart = avgH ? avgH : '##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) detention tank @ existing building${dmSuffix}`
-      }
-      if (subsectionName === 'Demo duplex sewage ejector pit') {
-        const avgH = getAverageHeightForDemoSubsection(subsectionName)
-        const hPart = avgH ? avgH : '##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) duplex sewage ejector pit @ existing building${dmSuffix}`
-      }
-      if (subsectionName === 'Demo deep sewage ejector pit') {
-        const avgH = getAverageHeightForDemoSubsection(subsectionName)
-        const hPart = avgH ? avgH : '##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) deep sewage ejector pit @ existing building${dmSuffix}`
-      }
-      if (subsectionName === 'Demo sump pump pit') {
-        const avgH = getAverageHeightForDemoSubsection(subsectionName)
-        const hPart = avgH ? avgH : '##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) sump pump pit @ existing building${dmSuffix}`
-      }
-      if (subsectionName === 'Demo grease trap pit') {
-        const avgH = getAverageHeightForDemoSubsection(subsectionName)
-        const hPart = avgH ? avgH : '##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) grease trap pit @ existing building${dmSuffix}`
-      }
-      if (subsectionName === 'Demo house trap pit') {
-        const avgH = getAverageHeightForDemoSubsection(subsectionName)
-        const hPart = avgH ? avgH : '##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) house trap pit @ existing building${dmSuffix}`
-      }
-      if (subsectionName === 'Demo mat slab') {
-        const avgH = getAverageHeightForDemoSubsection(subsectionName)
-        const hPart = avgH ? `H=${avgH}` : 'H=##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${hPart}) mat slab @ existing building${dmSuffix}`
-      }
-      if (slabType.toLowerCase().includes('pile cap')) {
-        return `Allow to saw-cut/demo/remove/dispose existing (##x## wide) pile cap (H=##) @ existing building${dmSuffix}`
-      }
-      if (slabType.toLowerCase().includes('pilaster')) {
-        return `Allow to saw-cut/demo/remove/dispose existing (##x## wide) pilaster (H=##) @ existing building${dmSuffix}`
-      }
-      if (slabType.toLowerCase().includes('grade beam')) {
-        return `Allow to saw-cut/demo/remove/dispose existing (## wide) grade beam (H=##) @ existing building${dmSuffix}`
-      }
-      if (slabType.toLowerCase().includes('tie beam')) {
-        return `Allow to saw-cut/demo/remove/dispose existing (## wide) tie beam (H=##) @ existing building${dmSuffix}`
-      }
-      if (slabType.toLowerCase().includes('strap beam')) {
-        return `Allow to saw-cut/demo/remove/dispose existing (## wide) strap beam (H=##) @ existing building${dmSuffix}`
-      }
-      return `Allow to saw-cut/demo/remove/dispose existing ${slabType} @ existing building${dmSuffix}`
-    }
-    const text = textToParse
-    // Demo stair(s) on grade: width from text, riser count from QTY (placeholder here; formula in caller)
-    if (slabType.toLowerCase().includes('stair on grade') || slabType.toLowerCase().includes('stairs on grade')) {
-      const widthMatch = text.match(/(\d+'-?\d*"?)\s*wide/i) || text.match(/\(([^)]+)\)/)
+    // Stair on grade: width from text, riser from QTY (caller handles formula)
+    if (stLower.includes('stair on grade') || stLower.includes('stairs on grade')) {
+      const textToParse = (itemText ? String(itemText).trim() : '') || (fallbackText ? String(fallbackText).trim() : '')
+      if (!textToParse) return `${pfxText} (## wide) stairs on grade (## Riser) @ 1st FL${dmSuffix}`
+      const widthMatch = textToParse.match(/(\d+'-?\d*"?)\s*wide/i) || textToParse.match(/\(([^)]+)\)/)
       const width = widthMatch ? String(widthMatch[1]).replace(/^\(|\)$/g, '').trim() : '##'
-      return `Allow to saw-cut/demo/remove/dispose existing (${width} wide) stairs on grade (## Riser) @ 1st FL${dmSuffix}`
+      return `${pfxText} (${width} wide) stairs on grade (## Riser) @ 1st FL${dmSuffix}`
     }
-    // Demo retaining wall: calculation has "Demo RW (1'-0"x3'-0")" -> proposal "(1'-0" wide) retaining wall (H=3'-0")"
-    if (slabType.toLowerCase().includes('retaining wall')) {
-      const bracketMatch = text.match(/\(([^)]+)\)/)
-      if (bracketMatch) {
-        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
-        const width = parts[0] || '##'
-        const height = parts[1] || '##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${width} wide) retaining wall (H=${height}) @ existing building${dmSuffix}`
+
+    // Slab on grade / ramp on grade: average thickness from all rows
+    if (stLower.includes('slab on grade') || stLower.includes('ramp on grade')) {
+      const displayType = stLower.includes('ramp on grade') ? 'ramp on grade' : slabType
+      const avgThick = _avgThicknessFromRows()
+      const thickStr = avgThick != null ? _fmtInches(avgThick) : '##'
+      return `${pfxText} (${thickStr} thick) ${displayType} @ existing building${dmSuffix}`
+    }
+
+    // 2-dimension types (WxH): retaining wall, foundation wall, strip footing, grade beam, tie beam, strap beam, corbel, liner wall, barrier wall, stem wall
+    const twoD = [
+      { match: 'retaining wall', label: 'retaining wall', suffix: dmSuffix },
+      { match: 'foundation wall', label: 'foundation wall', suffix: dmSuffix },
+      { match: 'strip footing', label: 'strip footing', suffix: dmSuffixStripFooting },
+      { match: 'grade beam', label: 'grade beam', suffix: dmSuffix },
+      { match: 'tie beam', label: 'tie beam', suffix: dmSuffix },
+      { match: 'strap beam', label: 'strap beam', suffix: dmSuffix },
+      { match: 'corbel', label: 'corbel', suffix: dmSuffix },
+      { match: 'liner wall', label: 'liner wall', suffix: dmSuffix },
+      { match: 'barrier wall', label: 'barrier wall', suffix: dmSuffix },
+      { match: 'stem wall', label: 'stem wall', suffix: dmSuffix }
+    ]
+    for (const t of twoD) {
+      if (stLower.includes(t.match)) {
+        const avg = _avg2FromRows()
+        const w = avg ? _fmtInches(avg[0]) : '##'
+        const h = avg ? _fmtInches(avg[1]) : '##'
+        return `${pfxText} (${w} wide) ${t.label} (H=${h}) @ existing building${t.suffix}`
       }
-      return `Allow to saw-cut/demo/remove/dispose existing (## wide) retaining wall (H=##) @ existing building${dmSuffix}`
     }
-    // Demo strip footing: calculation has "(2'-0"x1'-0")" -> proposal "(2'-0" wide) strip footing (H=1'-0") @ existing building as per DM-106.00 & details on DM-107.00"
-    if (slabType.toLowerCase().includes('strip footing')) {
-      const bracketMatch = text.match(/\(([^)]+)\)/)
-      if (bracketMatch) {
-        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
-        const width = parts[0] || '##'
-        const height = parts[1] || '##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${width} wide) strip footing (H=${height}) @ existing building${dmSuffixStripFooting}`
+
+    // 3-dimension types (WxW2xH): isolated footing, pile cap, pilaster, pier, thickened slab
+    const threeD = [
+      { match: 'isolated footing', label: 'isolated footing', suffix: dmSuffix },
+      { match: 'pile cap', label: 'pile cap', suffix: dmSuffix },
+      { match: 'pilaster', label: 'pilaster', suffix: dmSuffix },
+      { match: 'pier', label: 'pier', suffix: dmSuffix },
+      { match: 'thickened slab', label: 'thickened slab', suffix: dmSuffix }
+    ]
+    for (const t of threeD) {
+      if (stLower.includes(t.match)) {
+        const avg = _avg3FromRows()
+        if (avg) {
+          const widthPart = `${_fmtInches(avg[0])}x${_fmtInches(avg[1])}`
+          const height = _fmtInches(avg[2])
+          return `${pfxText} (${widthPart} wide) ${t.label} (H=${height}) @ existing building${t.suffix}`
+        }
+        const avg2 = _avg2FromRows()
+        if (avg2) {
+          return `${pfxText} (${_fmtInches(avg2[0])} wide) ${t.label} (H=${_fmtInches(avg2[1])}) @ existing building${t.suffix}`
+        }
+        return `${pfxText} (##x## wide) ${t.label} (H=##) @ existing building${t.suffix}`
       }
-      return `Allow to saw-cut/demo/remove/dispose existing (## wide) strip footing (H=##) @ existing building${dmSuffixStripFooting}`
     }
-    // Demo foundation wall: (1'-0"x3'-0") -> "(1'-0" wide) foundation wall (H=3'-0")"
-    if (slabType.toLowerCase().includes('foundation wall')) {
-      const bracketMatch = text.match(/\(([^)]+)\)/)
-      if (bracketMatch) {
-        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
-        const width = parts[0] || '##'
-        const height = parts[1] || '##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${width} wide) foundation wall (H=${height}) @ existing building${dmSuffix}`
-      }
-      return `Allow to saw-cut/demo/remove/dispose existing (## wide) foundation wall (H=##) @ existing building${dmSuffix}`
+
+    // Buttress: no dimensions
+    if (stLower.includes('buttress')) {
+      return `${pfxText} ${slabType} @ existing building${dmSuffix}`
     }
-    // Demo isolated footing: (2'-0"x3'-0"x1'-6") -> "(2'-0"x3'-0" wide) isolated footing (H=1'-6")"
-    if (slabType.toLowerCase().includes('isolated footing')) {
-      const bracketMatch = text.match(/\(([^)]+)\)/)
-      if (bracketMatch) {
-        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
-        const widthPart = parts.length >= 2 ? `${parts[0]}x${parts[1]}` : (parts[0] || '##')
-        const height = parts.length >= 3 ? parts[2] : '##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${widthPart} wide) isolated footing (H=${height}) @ existing building${dmSuffix}`
-      }
-      return `Allow to saw-cut/demo/remove/dispose existing (##x## wide) isolated footing (H=##) @ existing building${dmSuffix}`
+
+    // Generic fallback: try to get a thickness or dimension from all rows
+    const avgThick = _avgThicknessFromRows()
+    if (avgThick != null) {
+      return `${pfxText} (${_fmtInches(avgThick)} thick) ${slabType} @ existing building${dmSuffix}`
     }
-    // Demo pile caps: (4'-6"x4'-6"x3'-4") or (4'-6"x4'-6" wide, Height=3'-4") -> same line style as foundation pile cap
-    if (slabType.toLowerCase().includes('pile cap')) {
-      const bracketMatch = text.match(/\(([^)]+)\)/)
-      if (bracketMatch) {
-        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
-        const widthPart = parts.length >= 2 ? `${parts[0]}x${parts[1]}` : (parts[0] || '##')
-        const height = parts.length >= 3 ? parts[2] : (parts[1] || '##')
-        return `Allow to saw-cut/demo/remove/dispose existing (${widthPart} wide) pile cap (H=${height}) @ existing building${dmSuffix}`
-      }
-      return `Allow to saw-cut/demo/remove/dispose existing (##x## wide) pile cap (H=##) @ existing building${dmSuffix}`
+    const avg2 = _avg2FromRows()
+    if (avg2) {
+      return `${pfxText} (${_fmtInches(avg2[0])} wide) ${slabType} (H=${_fmtInches(avg2[1])}) @ existing building${dmSuffix}`
     }
-    // Demo pilaster: (22"x16"x6'-0") -> "(22"x16" wide) pilaster (H=6'-0")"
-    if (slabType.toLowerCase().includes('pilaster')) {
-      const bracketMatch = text.match(/\(([^)]+)\)/)
-      if (bracketMatch) {
-        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
-        const widthPart = parts.length >= 2 ? `${parts[0]}x${parts[1]}` : (parts[0] || '##')
-        const height = parts.length >= 3 ? parts[2] : '##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${widthPart} wide) pilaster (H=${height}) @ existing building${dmSuffix}`
-      }
-      return `Allow to saw-cut/demo/remove/dispose existing (##x## wide) pilaster (H=##) @ existing building${dmSuffix}`
-    }
-    // Demo grade beam: (3'-10"x2'-9") -> "(3'-10" wide) grade beam (H=2'-9")"
-    if (slabType.toLowerCase().includes('grade beam')) {
-      const bracketMatch = text.match(/\(([^)]+)\)/)
-      if (bracketMatch) {
-        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
-        const width = parts[0] || '##'
-        const height = parts[1] || '##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${width} wide) grade beam (H=${height}) @ existing building${dmSuffix}`
-      }
-      return `Allow to saw-cut/demo/remove/dispose existing (## wide) grade beam (H=##) @ existing building${dmSuffix}`
-    }
-    // Demo tie beam: (20"x32") -> "(20" wide) tie beam (H=32")"
-    if (slabType.toLowerCase().includes('tie beam')) {
-      const bracketMatch = text.match(/\(([^)]+)\)/)
-      if (bracketMatch) {
-        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
-        const width = parts[0] || '##'
-        const height = parts[1] || '##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${width} wide) tie beam (H=${height}) @ existing building${dmSuffix}`
-      }
-      return `Allow to saw-cut/demo/remove/dispose existing (## wide) tie beam (H=##) @ existing building${dmSuffix}`
-    }
-    // Demo strap beam: (1'-10"x1'-6") -> "(1'-10" wide) strap beam (H=1'-6")"
-    if (slabType.toLowerCase().includes('strap beam')) {
-      const bracketMatch = text.match(/\(([^)]+)\)/)
-      if (bracketMatch) {
-        const parts = bracketMatch[1].split(/\s*x\s*/i).map(s => s.trim())
-        const width = parts[0] || '##'
-        const height = parts[1] || '##'
-        return `Allow to saw-cut/demo/remove/dispose existing (${width} wide) strap beam (H=${height}) @ existing building${dmSuffix}`
-      }
-      return `Allow to saw-cut/demo/remove/dispose existing (## wide) strap beam (H=##) @ existing building${dmSuffix}`
-    }
-    let thicknessPart = ''
-    if (slabType.toLowerCase().includes('slab on grade') || slabType.toLowerCase().includes('ramp on grade')) {
-      const thicknessMatch = text.match(/(\d+["\"]?\s*thick)/i) || text.match(/(\d+["\"]?)/)
-      thicknessPart = thicknessMatch ? `(${thicknessMatch[1]})` : '(## thick)'
-    } else {
-      const dimMatch = text.match(/\(([^)]+)\)/)
-      thicknessPart = dimMatch ? `(${dimMatch[1]})` : '(##)'
-    }
-    const displaySlabType = slabType.toLowerCase().includes('ramp on grade') ? 'ramp on grade' : slabType
-    return `Allow to saw-cut/demo/remove/dispose existing ${thicknessPart} ${displaySlabType} @ existing building${dmSuffix}`
+    return `${pfxText} ${slabType} @ existing building${dmSuffix}`
   }
 
   // Soil excavation scope: SOE ref, P ref from raw data (Page column), like demolition.
@@ -2216,8 +2155,14 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       const demolitionCalcSheet = 'Calculations Sheet'
       orderedSubsections.forEach((name, index) => {
         const rowCount = (rowsBySubsection.get(name) || []).length
-        // Do not show "Demo stair on grade" when there is no data (neither rows nor formulaData lines)
-        if (name === 'Demo stair on grade' && rowCount === 0 && demoStairOnGradeLines.length === 0) return
+        // Do not show this demolition line if subsection has no data in calculation sheet
+        if (rowCount === 0) {
+          if (name === 'Demo stair on grade' && demoStairOnGradeLines.length > 0) {
+            // Demo stair on grade: show when formulaData has lines even if no direct rows
+          } else {
+            return
+          }
+        }
 
         const dmRef = getDMReferenceFromRawData(name)
         const esc = (s) => (s || '').replace(/"/g, '""')
@@ -2283,7 +2228,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const subsectionRows = rowsBySubsection.get(name) || []
         const firstRowWithB = subsectionRows.find(r => r[1] && String(r[1]).trim())
         const fallbackText = originalText ? null : (firstRowWithB ? String(firstRowWithB[1]).trim() : null)
-        const templateText = buildDemolitionTemplate(name, originalText, fallbackText)
+        const templateText = buildDemolitionTemplate(name, originalText, fallbackText, subsectionRows)
         const cellRef = `${pfx}B${currentRow}`
 
         // Sum row in Calculations Sheet: either from detection (sumRowIndexBySubsection) or last data row + 1 (sum is next row)
