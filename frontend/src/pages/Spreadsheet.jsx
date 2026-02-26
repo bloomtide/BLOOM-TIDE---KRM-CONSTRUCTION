@@ -237,18 +237,17 @@ const Spreadsheet = () => {
       let formulas
       if (section === 'demolition') {
         if (itemType === 'demolition_sum') {
-          // Handle sum formulas for demolition subsection
-          const { firstDataRow, lastDataRow, subsection } = formulaInfo
+          // Handle sum formulas for demolition subsection (same as Foundation: exclude I when excludeISum for slab-only groups)
+          const { firstDataRow, lastDataRow, subsection, excludeISum } = formulaInfo
           try {
-            // Sum for SQ FT (column J) - sum all items in subsection
+            if (!excludeISum) {
+              spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
+              spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `I${row}`)
+            }
             spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
             spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
-
-            // Sum for CY (column L) - sum all items in subsection
             spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
             spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
-
-            // For Demo isolated footing, also sum column M (QTY)
             if (subsection === 'Demo isolated footing') {
               spreadsheet.updateCell({ formula: `=SUM(M${firstDataRow}:M${lastDataRow})` }, `M${row}`)
               spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `M${row}`)
@@ -977,7 +976,7 @@ const Spreadsheet = () => {
           }
           return
         }
-        if (['drilled_foundation_pile', 'helical_foundation_pile', 'driven_foundation_pile', 'stelcor_drilled_displacement_pile', 'cfa_pile', 'pile_cap', 'strip_footing', 'isolated_footing', 'pilaster', 'grade_beam', 'tie_beam', 'strap_beam', 'thickened_slab', 'buttress_takeoff', 'buttress_final', 'pier', 'corbel', 'linear_wall', 'foundation_wall', 'retaining_wall', 'barrier_wall', 'stem_wall', 'timber_sheeting', 'elevator_pit', 'service_elevator_pit', 'detention_tank', 'duplex_sewage_ejector_pit', 'deep_sewage_ejector_pit', 'sump_pump_pit', 'grease_trap', 'house_trap', 'mat_slab', 'mud_slab_foundation', 'sog', 'rog', 'stairs_on_grade', 'electric_conduit'].includes(itemType)) {
+        if (['drilled_foundation_pile', 'helical_foundation_pile', 'driven_foundation_pile', 'stelcor_drilled_displacement_pile', 'cfa_pile', 'pile_cap', 'strip_footing', 'isolated_footing', 'pilaster', 'grade_beam', 'tie_beam', 'strap_beam', 'thickened_slab', 'buttress_takeoff', 'buttress_final', 'pier', 'corbel', 'linear_wall', 'foundation_wall', 'retaining_wall', 'barrier_wall', 'stem_wall', 'timber_sheeting', 'elevator_pit', 'service_elevator_pit', 'detention_tank', 'duplex_sewage_ejector_pit', 'deep_sewage_ejector_pit', 'sewage_ejector_pit', 'sump_pump_pit', 'grease_trap', 'house_trap', 'mat_slab', 'mud_slab_foundation', 'sog', 'rog', 'stairs_on_grade', 'electric_conduit'].includes(itemType)) {
           try {
             const foundationFormulas = generateFoundationFormulas(itemType, row, parsedData || formulaInfo)
             if (foundationFormulas.takeoff) spreadsheet.updateCell({ formula: `=${foundationFormulas.takeoff}` }, `C${row}`)
@@ -1135,7 +1134,7 @@ const Spreadsheet = () => {
 
             // Sum for FT (I) - exclude if excludeISum is true (for slab items)
             if (!excludeISum) {
-              const ftSumSubsections = ['Piles', 'Helical foundation pile', 'Driven foundation pile', 'Drilled displacement pile', 'CFA pile', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Drilled foundation pile', 'Strip Footings', 'Stem wall', 'Timber sheeting', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs', 'Electric conduit']
+              const ftSumSubsections = ['Piles', 'Helical foundation pile', 'Driven foundation pile', 'Drilled displacement pile', 'CFA pile', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Drilled foundation pile', 'Strip Footings', 'Stem wall', 'Timber sheeting', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs', 'Electric conduit']
               if (ftSumSubsections.includes(subsectionName)) {
                 spreadsheet.updateCell({ formula: `=SUM(I${firstDataRow}:I${lastDataRow})` }, `I${row}`)
                 spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `I${row}`)
@@ -1153,7 +1152,7 @@ const Spreadsheet = () => {
             // Sum for SQ FT (J) - exclude Drilled foundation pile (single diameter)
             // For Mat slab, only sum J for mat items (not haunch)
             if (!excludeJSum && !cySumOnly) {
-              const sqFtSubsections = ['Piles', 'Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Strip Footings', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Stem wall', 'Timber sheeting', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'Mat slab', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs']
+              const sqFtSubsections = ['Piles', 'Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Strip Footings', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Stem wall', 'Timber sheeting', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'Mat slab', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs']
               if (sqFtSubsections.includes(subsectionName)) {
                 spreadsheet.updateCell({ formula: `=SUM(J${firstDataRow}:J${lastDataRow})` }, `J${row}`)
                 spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `J${row}`)
@@ -1189,7 +1188,7 @@ const Spreadsheet = () => {
               spreadsheet.updateCell({ formula: `=SUM(L${firstDataRow}:L${lastDataRow})` }, `L${row}`)
               spreadsheet.cellFormat({ color: '#FF0000', fontWeight: 'bold' }, `L${row}`)
             } else if (!formulaInfo.excludeLSum) {
-              const cySubsections = ['Piles', 'Pile caps', 'Strip Footings', 'Isolated Footings', 'Pilaster', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Pier', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Stem wall', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'Mat slab', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs']
+              const cySubsections = ['Piles', 'Pile caps', 'Strip Footings', 'Isolated Footings', 'Pilaster', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Pier', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Stem wall', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'Mat slab', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs']
               if (cySubsections.includes(subsectionName)) {
                 const lFormula = lSumRange ? `=SUM(${lSumRange})` : `=SUM(L${lStartRow}:L${lEndRow})`
                 deferredFoundationSumL.push({ row, lFormula })

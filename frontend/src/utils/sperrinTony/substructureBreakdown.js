@@ -215,7 +215,7 @@ function applySubstructureFormulas(spreadsheet, pfx, formulaData, foundationStar
           return
         }
         if (!excludeISum) {
-          const ftSumSubsections = ['Piles', 'Helical foundation pile', 'Driven foundation pile', 'Drilled displacement pile', 'CFA pile', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Drilled foundation pile', 'Strip Footings', 'Stem wall', 'Timber sheeting', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs', 'Electric conduit']
+          const ftSumSubsections = ['Piles', 'Helical foundation pile', 'Driven foundation pile', 'Drilled displacement pile', 'CFA pile', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Drilled foundation pile', 'Strip Footings', 'Stem wall', 'Timber sheeting', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs', 'Electric conduit']
           if (ftSumSubsections.includes(subName)) {
             spreadsheet.updateCell({ formula: `=SUM(I${first}:I${last})` }, cell('I'))
             spreadsheet.cellFormat({ color: RED_TEXT, fontWeight: 'bold' }, cell('I'))
@@ -228,7 +228,7 @@ function applySubstructureFormulas(spreadsheet, pfx, formulaData, foundationStar
           spreadsheet.cellFormat({ color: RED_TEXT, fontWeight: 'bold' }, cell('J'))
         }
         if (!excludeJSum && !cySumOnly) {
-          const sqFtSubsections = ['Piles', 'Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Strip Footings', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Stem wall', 'Timber sheeting', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'Mat slab', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs']
+          const sqFtSubsections = ['Piles', 'Pile caps', 'Isolated Footings', 'Pilaster', 'Pier', 'Strip Footings', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Stem wall', 'Timber sheeting', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'Mat slab', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs']
           if (sqFtSubsections.includes(subName)) {
             spreadsheet.updateCell({ formula: `=SUM(J${first}:J${last})` }, cell('J'))
             spreadsheet.cellFormat({ color: RED_TEXT, fontWeight: 'bold' }, cell('J'))
@@ -248,7 +248,7 @@ function applySubstructureFormulas(spreadsheet, pfx, formulaData, foundationStar
           spreadsheet.updateCell({ formula: `=SUM(K${first}:K${last})` }, cell('K'))
           spreadsheet.cellFormat({ color: RED_TEXT, fontWeight: 'bold' }, cell('K'))
         } else if (!excludeLSum) {
-          const cySubsections = ['Piles', 'Pile caps', 'Strip Footings', 'Isolated Footings', 'Pilaster', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Pier', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Stem wall', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'Mat slab', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs']
+          const cySubsections = ['Piles', 'Pile caps', 'Strip Footings', 'Isolated Footings', 'Pilaster', 'Grade beams', 'Tie beam', 'Strap beams', 'Thickened slab', 'Pier', 'Corbel', 'Linear Wall', 'Foundation Wall', 'Retaining walls', 'Barrier wall', 'Stem wall', 'Elevator Pit', 'Service elevator pit', 'Detention tank', 'Duplex sewage ejector pit', 'Deep sewage ejector pit', 'Sewage ejector pit', 'Sump pump pit', 'Grease trap', 'House trap', 'Mat slab', 'SOG', 'Ramp on grade', 'Stairs on grade Stairs']
           if (cySubsections.includes(subName)) {
             const kFormula = lSumRange
               ? '=SUM(' + lSumRange.replace(/L(\d+)/gi, (_, n) => `K${toRow(Number(n))}`) + ')'
@@ -316,7 +316,7 @@ function applySubstructureFormulas(spreadsheet, pfx, formulaData, foundationStar
         spreadsheet.cellFormat({ color: RED_TEXT, fontWeight: 'bold' }, cell('L'))
         return
       }
-      const foundationItemTypes = ['drilled_foundation_pile', 'helical_foundation_pile', 'driven_foundation_pile', 'stelcor_drilled_displacement_pile', 'cfa_pile', 'pile_cap', 'strip_footing', 'isolated_footing', 'pilaster', 'grade_beam', 'tie_beam', 'strap_beam', 'thickened_slab', 'buttress_takeoff', 'buttress_final', 'pier', 'corbel', 'linear_wall', 'foundation_wall', 'retaining_wall', 'barrier_wall', 'stem_wall', 'timber_sheeting', 'elevator_pit', 'service_elevator_pit', 'detention_tank', 'duplex_sewage_ejector_pit', 'deep_sewage_ejector_pit', 'sump_pump_pit', 'grease_trap', 'house_trap', 'mat_slab', 'mud_slab_foundation', 'sog', 'rog', 'stairs_on_grade', 'electric_conduit']
+      const foundationItemTypes = ['drilled_foundation_pile', 'helical_foundation_pile', 'driven_foundation_pile', 'stelcor_drilled_displacement_pile', 'cfa_pile', 'pile_cap', 'strip_footing', 'isolated_footing', 'pilaster', 'grade_beam', 'tie_beam', 'strap_beam', 'thickened_slab', 'buttress_takeoff', 'buttress_final', 'pier', 'corbel', 'linear_wall', 'foundation_wall', 'retaining_wall', 'barrier_wall', 'stem_wall', 'timber_sheeting', 'elevator_pit', 'service_elevator_pit', 'detention_tank', 'duplex_sewage_ejector_pit', 'deep_sewage_ejector_pit', 'sewage_ejector_pit', 'sump_pump_pit', 'grease_trap', 'house_trap', 'mat_slab', 'mud_slab_foundation', 'sog', 'rog', 'stairs_on_grade', 'electric_conduit']
       if (foundationItemTypes.includes(itemType)) {
         const foundationFormulas = generateFoundationFormulas(itemType, calcRow, parsedData || formulaInfo)
         const f = (str) => (typeof str === 'string' ? formulaCalcRowsToSheetRows(str, toRow) : str)

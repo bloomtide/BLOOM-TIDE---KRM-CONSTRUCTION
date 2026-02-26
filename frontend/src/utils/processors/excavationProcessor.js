@@ -1,4 +1,55 @@
 import { parseExcavationItem, getExcavationItemType } from '../parsers/excavationParser'
+import {
+  isPileCap,
+  isStripFooting,
+  isIsolatedFooting,
+  isPilaster,
+  isGradeBeam,
+  isTieBeam,
+  isStrapBeam,
+  isThickenedSlab,
+  isButtress,
+  isPier,
+  isCorbel,
+  isElevatorPit,
+  isServiceElevatorPit,
+  isDetentionTank,
+  isDuplexSewageEjectorPit,
+  isDeepSewageEjectorPit,
+  isSewageEjectorPit,
+  isSumpPumpPit,
+  isGreaseTrap,
+  isHouseTrap,
+  isMatSlab,
+  isMudSlabFoundation,
+  isSOG,
+  isROG,
+  isStairsOnGrade,
+  parsePileCap,
+  parseStripFooting,
+  parseIsolatedFooting,
+  parsePilaster,
+  parseGradeBeam,
+  parseTieBeam,
+  parseStrapBeam,
+  parseThickenedSlab,
+  parsePier,
+  parseCorbel,
+  parseElevatorPit,
+  parseServiceElevatorPit,
+  parseDetentionTank,
+  parseDuplexSewageEjectorPit,
+  parseDeepSewageEjectorPit,
+  parseSewageEjectorPit,
+  parseSumpPumpPit,
+  parseGreaseTrap,
+  parseHouseTrap,
+  parseMatSlab,
+  parseMudSlabFoundation,
+  parseSOG,
+  parseROG,
+  parseStairsOnGrade
+} from '../parsers/foundationParser'
 
 /**
  * Identifies if a digitizer item belongs to Excavation section
@@ -22,7 +73,8 @@ export const isExcavationItem = (digitizerItem) => {
     /^exc\s*\(/,
     'slope exc',
     'exc & backfill',
-    'duplex sewage ejector pit slab'
+    'duplex sewage ejector pit slab',
+    'sewage ejector pit slab'
   ]
 
   // Exclude gravel items and pure backfill items from excavation subsection
@@ -359,9 +411,111 @@ export const processMudSlabItems = (rawDataRows, headers, tracker = null) => {
   return mudSlabItems
 }
 
+/**
+ * Excavation foundation-type: exclude items that contain "wall" (e.g. linear wall, pit wall, elev. pit wall).
+ * Items like "elev. pit mat slab", "elev slab" do not contain "wall" and are included.
+ */
+const excavationExcludeWall = (digitizerItem) => {
+  if (!digitizerItem || typeof digitizerItem !== 'string') return true
+  return digitizerItem.toLowerCase().includes('wall')
+}
+
+/**
+ * Exclude rows that belong to other sections (BPP Alternate, Civil asphalt, etc.).
+ * Only Foundation subsection types (pile cap, strip footing, pilaster, SOG, pits, etc.) should be added to Excavation.
+ */
+const excavationExcludeNonFoundationSections = (digitizerItem) => {
+  if (!digitizerItem || typeof digitizerItem !== 'string') return true
+  const itemLower = digitizerItem.toLowerCase()
+  if (itemLower.includes('bpp alternate') || itemLower.includes('- bpp ') || itemLower.includes(' bpp ')) return true
+  if (itemLower.includes('full depth asphalt pavement') || itemLower.includes('full depth asphalt')) return true
+  if (itemLower.includes('surface course') && itemLower.includes('base course')) return true
+  if (itemLower.includes('asphalt pavement') && (itemLower.includes('surface course') || itemLower.includes('base course') || itemLower.includes('thick'))) return true
+  if (itemLower.includes('bpp concrete sidewalk') || itemLower.includes('bpp concrete driveway') || itemLower.includes('bpp concrete curb')) return true
+  if (itemLower.includes('bpp expansion joint') || itemLower.includes('bpp roadway')) return true
+  return false
+}
+
+/**
+ * Collects foundation-type items from UNUSED rows for the Excavation subsection.
+ * Same types as Demolition/Foundation (pile caps, strip footings, pilaster, grade beam, pits, SOG, etc.)
+ * but excludes: demolition items, and any item whose name contains "wall" (e.g. linear wall, pit wall).
+ * Renders in one Excavation subsection with Foundation-style calculations.
+ * Does NOT mark rows as used, so the same rows also appear in the Foundation section (e.g. Deep sewage ejector pit).
+ * Call before Foundation so items are collected for Excavation; Foundation will then process the same rows for its subsections.
+ * @param {Array} rawDataRows
+ * @param {Array} headers
+ * @param {UsedRowTracker} tracker
+ * @returns {Array} Items with { particulars, takeoff, unit, parsed, foundationType, rawRowNumber }
+ */
+export const processExcavationFoundationTypeItems = (rawDataRows, headers, tracker = null) => {
+  const items = []
+  const digitizerIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'digitizer item')
+  const totalIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'total')
+  const unitIdx = headers.findIndex(h => h && h.toLowerCase().trim() === 'units')
+  if (digitizerIdx === -1 || totalIdx === -1 || unitIdx === -1) return items
+
+  rawDataRows.forEach((row, rowIndex) => {
+    if (tracker && tracker.isUsed(rowIndex)) return
+    const digitizerItem = row[digitizerIdx]
+    const total = parseFloat(row[totalIdx]) || 0
+    const unit = row[unitIdx]
+    if (!digitizerItem || typeof digitizerItem !== 'string') return
+    const itemLower = digitizerItem.toLowerCase()
+    if (itemLower.startsWith('demo ') || itemLower.startsWith('demo.') || itemLower.startsWith('demolition ') || itemLower.startsWith('remove ')) return
+    if (excavationExcludeWall(digitizerItem)) return
+    if (excavationExcludeNonFoundationSections(digitizerItem)) return
+
+    let foundationType = null
+    let parsed = {}
+
+    if (isPileCap(digitizerItem)) { foundationType = 'pile_cap'; parsed = parsePileCap(digitizerItem) }
+    else if (isStripFooting(digitizerItem)) { foundationType = 'strip_footing'; parsed = parseStripFooting(digitizerItem) }
+    else if (isIsolatedFooting(digitizerItem)) { foundationType = 'isolated_footing'; parsed = parseIsolatedFooting(digitizerItem) }
+    else if (isPilaster(digitizerItem)) { foundationType = 'pilaster'; parsed = parsePilaster(digitizerItem) }
+    else if (isGradeBeam(digitizerItem)) { foundationType = 'grade_beam'; parsed = parseGradeBeam(digitizerItem) }
+    else if (isTieBeam(digitizerItem)) { foundationType = 'tie_beam'; parsed = parseTieBeam(digitizerItem) }
+    else if (isStrapBeam(digitizerItem)) { foundationType = 'strap_beam'; parsed = parseStrapBeam(digitizerItem) }
+    else if (isThickenedSlab(digitizerItem)) { foundationType = 'thickened_slab'; parsed = parseThickenedSlab(digitizerItem) }
+    else if (isButtress(digitizerItem)) { foundationType = 'buttress_takeoff'; parsed = {} }
+    else if (isPier(digitizerItem)) { foundationType = 'pier'; parsed = parsePier(digitizerItem) }
+    else if (isCorbel(digitizerItem)) { foundationType = 'corbel'; parsed = parseCorbel(digitizerItem) }
+    else if (isElevatorPit(digitizerItem)) { foundationType = 'elevator_pit'; parsed = parseElevatorPit(digitizerItem) }
+    else if (isServiceElevatorPit(digitizerItem)) { foundationType = 'service_elevator_pit'; parsed = parseServiceElevatorPit(digitizerItem) }
+    else if (isDetentionTank(digitizerItem)) { foundationType = 'detention_tank'; parsed = parseDetentionTank(digitizerItem) }
+    else if (isDuplexSewageEjectorPit(digitizerItem)) { foundationType = 'duplex_sewage_ejector_pit'; parsed = parseDuplexSewageEjectorPit(digitizerItem) }
+    else if (isDeepSewageEjectorPit(digitizerItem)) { foundationType = 'deep_sewage_ejector_pit'; parsed = parseDeepSewageEjectorPit(digitizerItem) }
+    else if (isSewageEjectorPit(digitizerItem)) { foundationType = 'sewage_ejector_pit'; parsed = parseSewageEjectorPit(digitizerItem) }
+    else if (isSumpPumpPit(digitizerItem)) { foundationType = 'sump_pump_pit'; parsed = parseSumpPumpPit(digitizerItem) }
+    else if (isGreaseTrap(digitizerItem)) { foundationType = 'grease_trap'; parsed = parseGreaseTrap(digitizerItem) }
+    else if (isHouseTrap(digitizerItem)) { foundationType = 'house_trap'; parsed = parseHouseTrap(digitizerItem) }
+    else if (isMatSlab(digitizerItem)) { foundationType = 'mat_slab'; parsed = parseMatSlab(digitizerItem) }
+    else if (isMudSlabFoundation(digitizerItem)) { foundationType = 'mud_slab_foundation'; parsed = parseMudSlabFoundation(digitizerItem) }
+    else if (isSOG(digitizerItem)) { foundationType = 'sog'; parsed = parseSOG(digitizerItem) }
+    else if (isROG(digitizerItem)) { foundationType = 'rog'; parsed = parseROG(digitizerItem) }
+    else if (isStairsOnGrade(digitizerItem)) { foundationType = 'stairs_on_grade'; parsed = parseStairsOnGrade(digitizerItem) }
+
+    if (!foundationType) return
+
+    items.push({
+      particulars: digitizerItem,
+      takeoff: total,
+      unit: unit || '',
+      parsed,
+      foundationType,
+      rawRowNumber: rowIndex + 2,
+      subsection: 'excavation'
+    })
+    // Do NOT mark as used — same row should also appear in Foundation section (e.g. Deep sewage ejector pit subsection)
+  })
+
+  return items
+}
+
 export default {
   isExcavationItem,
   getExcavationItemType,
   generateExcavationFormulas,
-  processExcavationItems
+  processExcavationItems,
+  processExcavationFoundationTypeItems
 }
