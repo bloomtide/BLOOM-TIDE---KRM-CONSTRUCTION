@@ -1,4 +1,4 @@
-import { parseDemolitionItem } from '../parsers/dimensionParser'
+import { parseDemolitionItem, normalizeUnit } from '../parsers/dimensionParser'
 
 /**
  * Identifies if a digitizer item belongs to Demolition section
@@ -548,7 +548,7 @@ export const processDemolitionItems = (rawDataRows, headers, tracker = null) => 
   rawDataRows.forEach((row, rowIndex) => {
     const digitizerItem = row[digitizerIdx]
     const total = parseFloat(row[totalIdx]) || 0
-    const unit = row[unitIdx]
+    const unit = normalizeUnit(row[unitIdx] || '')
 
     if (!isDemolitionItem(digitizerItem)) return
 
@@ -569,7 +569,7 @@ export const processDemolitionItems = (rawDataRows, headers, tracker = null) => 
       (subsection === 'Demo slab on grade' || subsection === 'Demo Ramp on grade') &&
       itemLower.includes('"')
     ) {
-      const thickMatch = digitizerItem.match(/(\d+)["']?\s*thick/i)
+      const thickMatch = digitizerItem.match(/(\d+)["']?\s*(?:thick|thk)/i)
       if (thickMatch) groupKey = `THICK_${thickMatch[1]}`
     } else if (digitizerItem.includes('(')) {
       // Group by first dimension bracket value for all subsections that use brackets

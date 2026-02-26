@@ -587,7 +587,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 formulas.push({ row: rows.length, itemType: 'demo_stair_on_grade_heading', section: 'demolition', subsection: 'Demo stair on grade' })
               }
               if (landings) {
-                const unitD = (landings.unit || '').toUpperCase() === 'EA' ? 'Treads' : (landings.unit || 'SQ FT')
+                const unitD = /^(EA|NO)$/i.test((landings.unit || '').trim().replace(/\.$/, '')) ? 'Treads' : (landings.unit || 'SQ FT')
                 const landingRow = Array(template.columns.length).fill('')
                 landingRow[1] = landings.particulars
                 landingRow[2] = landings.takeoff
@@ -598,7 +598,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 rows.push(Array(template.columns.length).fill(''))
               }
               if (stairs) {
-                const unitD = (stairs.unit || '').toUpperCase() === 'EA' ? 'Treads' : (stairs.unit || 'SQ FT')
+                const unitD = /^(EA|NO)$/i.test((stairs.unit || '').trim().replace(/\.$/, '')) ? 'Treads' : (stairs.unit || 'SQ FT')
                 const stairsRow = Array(template.columns.length).fill('')
                 stairsRow[1] = stairs.particulars
                 stairsRow[2] = stairs.takeoff
@@ -1346,7 +1346,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               itemRow[3] = item.unit
               itemRow[5] = item.parsed.length || ''
               itemRow[6] = item.parsed.width || ''
-              itemRow[7] = item.parsed.heightRaw || ''
+              itemRow[7] = item.parsed.height ?? item.parsed.heightRaw ?? ''
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'underpinning', parsedData: item, section: 'soe' })
             })
@@ -4398,7 +4398,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               formulas.push({ row: rows.length, itemType: 'foundation_stairs_on_grade_heading', section: 'foundation', subsectionName: 'Stairs on grade Stairs' })
             }
             if (landings) {
-              const unitD = (landings.unit || '').toUpperCase() === 'EA' ? 'Treads' : (landings.unit || 'SQ FT')
+              const unitD = /^(EA|NO)$/i.test((landings.unit || '').trim().replace(/\.$/, '')) ? 'Treads' : (landings.unit || 'SQ FT')
               const landingRow = Array(template.columns.length).fill('')
               landingRow[1] = landings.particulars
               landingRow[2] = landings.takeoff
@@ -4409,7 +4409,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               rows.push(Array(template.columns.length).fill(''))
             }
             if (stairs) {
-              const unitD = (stairs.unit || '').toUpperCase() === 'EA' ? 'Treads' : (stairs.unit || 'SQ FT')
+              const unitD = /^(EA|NO)$/i.test((stairs.unit || '').trim().replace(/\.$/, '')) ? 'Treads' : (stairs.unit || 'SQ FT')
               const stairsRow = Array(template.columns.length).fill('')
               stairsRow[1] = stairs.particulars
               stairsRow[2] = stairs.takeoff

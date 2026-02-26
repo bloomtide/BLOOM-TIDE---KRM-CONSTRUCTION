@@ -1,5 +1,6 @@
 
 import { isExteriorSideItem, parseExteriorSideHeight, isExteriorSidePitItem, parseExteriorSidePitDimensions, isNegativeSideWallItem, parseNegativeSideWallHeight, getExteriorSidePitRefKey, isNegativeSideSlabItem, extractWaterproofingGroupKey } from '../parsers/waterproofingParser.js'
+import { normalizeUnit } from '../parsers/dimensionParser'
 
 /**
  * Processes Waterproofing - Exterior side items from raw data
@@ -23,7 +24,7 @@ export const processExteriorSideItems = (rawDataRows, headers, tracker = null) =
     const particulars = row[digitizerIdx]
     const total = row[totalIdx]
     const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
-    const unit = unitIdx >= 0 ? (row[unitIdx] || '') : ''
+    const unit = unitIdx >= 0 ? normalizeUnit(row[unitIdx] || '') : ''
 
     if (estimateIdx >= 0 && row[estimateIdx]) {
       const estimateVal = String(row[estimateIdx]).trim()
@@ -100,7 +101,7 @@ export const processExteriorSidePitItems = (rawDataRows, headers, tracker = null
     const particulars = row[digitizerIdx]
     const total = row[totalIdx]
     const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
-    const unit = unitIdx >= 0 ? (row[unitIdx] || '') : ''
+    const unit = unitIdx >= 0 ? normalizeUnit(row[unitIdx] || '') : ''
 
     if (estimateIdx >= 0 && row[estimateIdx]) {
       const estimateVal = String(row[estimateIdx]).trim()
@@ -150,7 +151,7 @@ export const processNegativeSideWallItems = (rawDataRows, headers, tracker = nul
     const particulars = row[digitizerIdx]
     const total = row[totalIdx]
     const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
-    const unit = unitIdx >= 0 ? (row[unitIdx] || '') : 'FT'
+    const unit = unitIdx >= 0 ? normalizeUnit(row[unitIdx] || '') : 'FT'
 
     if (estimateIdx >= 0 && row[estimateIdx]) {
       const estimateVal = String(row[estimateIdx]).trim()
@@ -197,7 +198,7 @@ export const processNegativeSideSlabItems = (rawDataRows, headers, tracker = nul
     const particulars = row[digitizerIdx]
     const total = row[totalIdx]
     const takeoff = total !== '' && total !== null && total !== undefined ? parseFloat(total) : ''
-    const unit = unitIdx >= 0 ? (row[unitIdx] || '') : 'SQ FT'
+    const unit = unitIdx >= 0 ? normalizeUnit(row[unitIdx] || '') : 'SQ FT'
 
     if (estimateIdx >= 0 && row[estimateIdx]) {
       const estimateVal = String(row[estimateIdx]).trim()

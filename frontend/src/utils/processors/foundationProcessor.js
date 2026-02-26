@@ -76,6 +76,7 @@ import {
     parseElectricConduit,
     parseTimberSheeting
 } from '../parsers/foundationParser'
+import { normalizeUnit } from '../parsers/dimensionParser'
 
 /**
  * Generic process function for Foundation items
@@ -94,7 +95,7 @@ const processGenericFoundationItems = (rawDataRows, headers, identifierFn, parse
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[itemNameIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const unit = normalizeUnit(row[unitIdx] || '')
 
         if (identifierFn(digitizerItem)) {
             const parsed = parserFn ? parserFn(digitizerItem) : {}
@@ -159,7 +160,7 @@ export const processDrilledFoundationPileItems = (rawDataRows, headers, tracker 
         // Check if this is a drilled foundation pile
         if (isDrilledFoundationPile(digitizerItem)) {
             const total = parseFloat(row[totalIdx]) || 0
-            const unit = row[unitIdx]
+            const unit = normalizeUnit(row[unitIdx] || '')
             const parsed = parseDrilledFoundationPile(digitizerItem)
             
             const influValue = influIdx !== -1 ? row[influIdx] : null
@@ -362,7 +363,7 @@ export const processStelcorDrilledDisplacementPileItems = (rawDataRows, headers,
         // Check if this is a stelcor drilled displacement pile
         if (isStelcorDrilledDisplacementPile(digitizerItem)) {
             const total = parseFloat(row[totalIdx]) || 0
-            const unit = row[unitIdx]
+            const unit = normalizeUnit(row[unitIdx] || '')
             const parsed = parseStelcorDrilledDisplacementPile(digitizerItem)
 
             // Mark this row as used
@@ -467,7 +468,7 @@ export const processCFAPileItems = (rawDataRows, headers, tracker = null) => {
         // Check if this is a CFA pile
         if (isCFAPile(digitizerItem)) {
             const total = parseFloat(row[totalIdx]) || 0
-            const unit = row[unitIdx]
+            const unit = normalizeUnit(row[unitIdx] || '')
             const parsed = parseCFAPile(digitizerItem)
 
             // Mark this row as used
@@ -556,7 +557,7 @@ export const processMiscellaneousPileItems = (rawDataRows, headers, tracker = nu
             const match = tryMatchPileStructure(digitizerItem)
             if (match) {
                 const total = parseFloat(row[totalIdx]) || 0
-                const unit = row[unitIdx]
+                const unit = normalizeUnit(row[unitIdx] || '')
                 const hasInflu = match.parsed.hasInfluence || false
 
                 // Mark this row as used
@@ -729,7 +730,7 @@ export const processButtressItems = (rawDataRows, headers, tracker = null) => {
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const rowUnit = row[unitIdx]
+        const rowUnit = normalizeUnit(row[unitIdx] || '')
 
         if (isButtress(digitizerItem)) {
             sumTakeoff += total
@@ -1038,7 +1039,7 @@ export const processStairsOnGradeItems = (rawDataRows, headers, tracker = null) 
     rawDataRows.forEach((row, rowIndex) => {
         const digitizerItem = row[digitizerIdx]
         const total = parseFloat(row[totalIdx]) || 0
-        const unit = row[unitIdx]
+        const unit = normalizeUnit(row[unitIdx] || '')
 
         // Exclude demo stair items - they belong in Demolition section only
         const itemLower = (digitizerItem || '').toLowerCase()

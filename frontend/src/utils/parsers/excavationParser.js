@@ -1,14 +1,17 @@
 import { convertToFeet, extractDimensions } from './dimensionParser'
 
+// Height label aliases: Height, Ht, H
+const HEIGHT_LABEL_REGEX = /(?:Height|Ht|H)=([^)]+)/i
+
 /**
- * Extracts height from patterns like "H=11'-0"" or "H=2'-4""
+ * Extracts height from patterns like "H=11'-0"", "Height=11'-0"", "Ht=2'-4""
  * @param {string} text - Text containing height
  * @returns {number} - Height in feet
  */
 export const extractHeightFromH = (text) => {
   if (!text) return 0
 
-  const match = text.match(/H=([^)]+)/)
+  const match = text.match(HEIGHT_LABEL_REGEX)
   if (match) {
     return convertToFeet(match[1])
   }
@@ -16,18 +19,25 @@ export const extractHeightFromH = (text) => {
 }
 
 /**
- * Extracts height from mud slab specification like "w/ 2" mud slab"
+ * Extracts height from mud slab specification.
+ * Supports: "w/ 2" mud slab", "Mud slab 2"", "Mud slab 2" thick", "Mud slab 2" thk"
  * @param {string} text - Text containing mud slab specification
  * @returns {number} - Height in feet
  */
 export const extractMudSlabHeight = (text) => {
   if (!text) return 0
 
-  // Match patterns like "w/ 2" mud slab" or "w/ 2\" mud slab"
-  const match = text.match(/w\/\s*(\d+)["']?\s*mud\s*slab/i)
+  // Match "w/ 2" mud slab" or "w/ 2\" mud slab"
+  let match = text.match(/w\/\s*(\d+(?:\/\d+)?)["']?\s*mud\s*slab/i)
   if (match) {
     const inches = parseFloat(match[1]) || 0
     return inches / 12 // Convert inches to feet
+  }
+  // Match "Mud slab 2"", "Mud slab 2" thick", "Mud slab 2" thk"
+  match = text.match(/mud\s*slab\s+(\d+(?:\/\d+)?)\s*["']?\s*(?:thick|thk)?/i)
+  if (match) {
+    const inches = parseFloat(match[1]) || 0
+    return inches / 12
   }
   return 0
 }
@@ -58,28 +68,29 @@ export const getExcavationItemType = (digitizerItem, subsection = 'excavation') 
   if (itemLower.match(/^f-\d+\s*\(/)) return 'f'
 
   // Prioritize excavation/backfill types in their respective subsections
-  // This ensures items like "Slope exc & backfill ... w/ 2" mud slab" get the depth H from bracket
+  // Excavation matching: excavation, exc, or exc.
   if (subsection === 'excavation' || subsection === 'backfill') {
-    // Exc items with H= pattern
-    if (itemLower.match(/^exc\s*\(h=/)) return 'exc'
+    // Exc items with H= pattern (exc, excavation, or exc.)
+    if (itemLower.match(/^(?:exc|excavation|exc\.)\s*\(h=/i)) return 'exc'
 
-    // Slope exc & backfill items
-    if (itemLower.includes('slope exc') || itemLower.includes('slope excavation')) return 'slope_exc'
+    // Slope exc & backfill items (slope exc, slope excavation, slope exc.)
+    if (itemLower.includes('slope exc') || itemLower.includes('slope excavation') || itemLower.includes('slope exc.')) return 'slope_exc'
 
-    // Exc & backfill
-    if (itemLower.includes('exc & backfill') || itemLower.includes('excavation & backfill')) return 'exc_backfill'
+    // Exc & backfill (exc, excavation, or exc.)
+    if (itemLower.includes('exc & backfill') || itemLower.includes('excavation & backfill') || itemLower.includes('exc. & backfill')) return 'exc_backfill'
 
     // Backfill items (just "Backfill" with H=)
     if (itemLower.match(/^backfill\s*\(h=/)) return 'backfill'
   }
 
-  // Mud slab items
+  // Mud slab items: "w/ 2" mud slab", "Mud slab 2"", "Mud slab 2" thick", "Mud slab 2" thk"
   if (itemLower.match(/w\/\s*\d+["']?\s*mud\s*slab/)) return 'mud_slab'
+  if (itemLower.match(/mud\s*slab\s+\d+/)) return 'mud_slab'
 
   // If not handled by subsection priority, check these types anyway
-  if (itemLower.match(/^exc\s*\(h=/)) return 'exc'
-  if (itemLower.includes('slope exc') || itemLower.includes('slope excavation')) return 'slope_exc'
-  if (itemLower.includes('exc & backfill') || itemLower.includes('excavation & backfill')) return 'exc_backfill'
+  if (itemLower.match(/^(?:exc|excavation|exc\.)\s*\(h=/i)) return 'exc'
+  if (itemLower.includes('slope exc') || itemLower.includes('slope excavation') || itemLower.includes('slope exc.')) return 'slope_exc'
+  if (itemLower.includes('exc & backfill') || itemLower.includes('excavation & backfill') || itemLower.includes('exc. & backfill')) return 'exc_backfill'
   if (itemLower.match(/^backfill\s*\(h=/)) return 'backfill'
 
   // Duplex sewage ejector pit slab
@@ -88,8 +99,8 @@ export const getExcavationItemType = (digitizerItem, subsection = 'excavation') 
   // Concrete pier
   if (itemLower.includes('concrete pier')) return 'concrete_pier'
 
-  // Rock excavation
-  if (itemLower.startsWith('rock excavation')) return 'rock_exc'
+  // Rock excavation (excavation, exc, or exc.)
+  if (itemLower.startsWith('rock excavation') || itemLower.startsWith('rock exc') || itemLower.startsWith('rock exc.')) return 'rock_exc'
 
   // Sump pit
   if (itemLower === 'sump pit') return 'sump_pit'
@@ -210,8 +221,9 @@ export const parseExcavationItem = (digitizerItem, total, unit, itemType, subsec
       if (genericDims.height) result.height = genericDims.height
   }
 
-  // For EA items, set QTY (but leave column E empty)
-  if (unit === 'EA') {
+  // For EA/No/No. items, set QTY (but leave column E empty)
+  const unitNorm = (unit && String(unit).trim().replace(/\.$/, '').toUpperCase())
+  if (unitNorm === 'EA' || unitNorm === 'NO') {
     result.qty = total
   }
 
