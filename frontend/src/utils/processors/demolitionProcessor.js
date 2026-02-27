@@ -110,7 +110,7 @@ export const getDemolitionSubsection = (digitizerItem) => {
   // Demo pile caps — PC-, pile cap (mirrors isPileCap)
   if (
     hasDemoPrefix(itemLower, 'pc-') ||
-    hasDemoPrefix(itemLower, 'pc ') ||
+    hasDemoPrefix(itemLower, 'pc') ||
     hasDemoPrefix(itemLower, 'pile cap')
   ) {
     return 'Demo pile caps'
