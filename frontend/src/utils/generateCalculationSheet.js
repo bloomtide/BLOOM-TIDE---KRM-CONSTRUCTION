@@ -1,4 +1,4 @@
-
+import { normalizeThickForDisplay } from './parsers/dimensionParser'
 import capstoneTemplate from './templates/capstoneTemplate'
 import { processDemolitionItems } from './processors/demolitionProcessor'
 import { processExcavationItems, processBackfillItems, processMudSlabItems, processExcavationFoundationTypeItems } from './processors/excavationProcessor'
@@ -73,6 +73,7 @@ import {
   processStemWallItems,
   processTimberSheetingItems,
   processElevatorPitItems,
+  processEjectorPitItems,
   processServiceElevatorPitItems,
   processDetentionTankItems,
   processDuplexSewageEjectorPitItems,
@@ -211,6 +212,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let stemWallItems = []
   let foundationTimberSheetingItems = []
   let elevatorPitItems = []
+  let ejectorPitItems = []
   let serviceElevatorPitItems = []
   let detentionTankItems = []
   let duplexSewageEjectorPitItems = []
@@ -230,7 +232,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
   let negativeSideWallItems = []
   let negativeSideSlabItems = []
   let trenchingTakeoff = ''
-  let superstructureItems = { cipSlab8: [], cipRoofSlab8: [], cipCastInPlaceSlab8: [], cipCIPSlabVar: [], balconySlab: [], terraceSlab: [], patchSlab: [], slabSteps: [], lwConcreteFill: [], slabOnMetalDeck: [], infilledLandingItems: [], toppingSlab: [], thermalBreak: [], raisedSlab: { kneeWall: [], raisedSlab: [] }, builtUpSlab: { kneeWall: [], builtUpSlab: [] }, builtUpStair: { kneeWall: [], builtUpStairs: [] }, builtupRamps: { kneeWall: [], ramp: [] }, concreteHanger: [], shearWalls: [], parapetWalls: [], columnsTakeoff: [], concretePost: [], concreteEncasement: [], dropPanelBracket: [], dropPanelH: [], beams: [], curbs: [], concretePad: [], nonShrinkGrout: [], repairScope: [] }
+  let superstructureItems = { cipSlab8: [], cipRoofSlab8: [], cipCastInPlaceSlab8: [], cipCIPSlabVar: [], balconySlab: [], terraceSlab: [], patchSlab: [], slabSteps: [], lwConcreteFill: [], slabOnMetalDeck: [], infilledLandingItems: [], toppingSlab: [], thermalBreak: [], raisedSlab: { kneeWall: [], raisedSlab: [] }, builtUpSlab: { kneeWall: [], builtUpSlab: [] }, builtUpStair: { kneeWall: [], builtUpStairs: [] }, builtupRamps: { kneeWall: [], ramp: [] }, concreteHanger: [], shearWalls: [], parapetWalls: [], columnsTakeoff: [], cipStairsGroups: [], concretePost: [], concreteEncasement: [], dropPanelBracket: [], dropPanelH: [], beams: [], curbs: [], concretePad: [], nonShrinkGrout: [], repairScope: [] }
   let bppAlternateItemsByStreet = {}
   let civilDemoItems = {
     'Demo asphalt': [],
@@ -366,6 +368,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
     stemWallItems = processStemWallItems(dataRows, headers, tracker)
     foundationTimberSheetingItems = processTimberSheetingItems(dataRows, headers, tracker)
     elevatorPitItems = processElevatorPitItems(dataRows, headers, tracker)
+    ejectorPitItems = processEjectorPitItems(dataRows, headers, tracker)
     serviceElevatorPitItems = processServiceElevatorPitItems(dataRows, headers, tracker)
     detentionTankItems = processDetentionTankItems(dataRows, headers, tracker)
     duplexSewageEjectorPitItems = processDuplexSewageEjectorPitItems(dataRows, headers, tracker)
@@ -447,7 +450,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         stelcorDrilledDisplacementPileGroups, cfaPileGroups, pileCapItems, stripFootingGroups,
         isolatedFootingItems, pilasterItems, gradeBeamGroups, tieBeamGroups, strapBeamItems, thickenedSlabGroups,
         pierItems, corbelGroups, linearWallGroups, foundationWallGroups, retainingWallGroups,
-        barrierWallGroups, stemWallItems, foundationTimberSheetingItems, elevatorPitItems, serviceElevatorPitItems, detentionTankItems, duplexSewageEjectorPitItems,
+        barrierWallGroups, stemWallItems, foundationTimberSheetingItems, elevatorPitItems, ejectorPitItems, serviceElevatorPitItems, detentionTankItems, duplexSewageEjectorPitItems,
         deepSewageEjectorPitItems, sewageEjectorPitItems, sumpPumpPitItems, greaseTrapItems, houseTrapItems, matSlabItems, mudSlabFoundationItems,
         sogItems, stairsOnGradeGroups, electricConduitItems
       ].some(arr => arr && arr.length > 0) || !!buttressItem
@@ -589,7 +592,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               if (landings) {
                 const unitD = /^(EA|NO)$/i.test((landings.unit || '').trim().replace(/\.$/, '')) ? 'Treads' : (landings.unit || 'SQ FT')
                 const landingRow = Array(template.columns.length).fill('')
-                landingRow[1] = landings.particulars
+                landingRow[1] = normalizeThickForDisplay(landings.particulars)
                 landingRow[2] = landings.takeoff
                 landingRow[3] = unitD
                 landingRow[7] = 0.67
@@ -600,7 +603,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               if (stairs) {
                 const unitD = /^(EA|NO)$/i.test((stairs.unit || '').trim().replace(/\.$/, '')) ? 'Treads' : (stairs.unit || 'SQ FT')
                 const stairsRow = Array(template.columns.length).fill('')
-                stairsRow[1] = stairs.particulars
+                stairsRow[1] = normalizeThickForDisplay(stairs.particulars)
                 stairsRow[2] = stairs.takeoff
                 stairsRow[3] = unitD
                 stairsRow[5] = '11/12'
@@ -645,7 +648,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const hasDim = (v) => v != null && v !== '' && (typeof v !== 'number' || v !== 0)
             const pushDemoPitRow = (item, excludeISum = false) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               const len = item.parsed?.length ?? item.length
@@ -731,7 +734,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const hasDim = (v) => v != null && v !== '' && (typeof v !== 'number' || v !== 0)
             subsectionItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               const len = item.parsed?.length ?? item.length
@@ -817,7 +820,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             subsectionItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               if (item.foundationType) {
@@ -910,7 +913,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             subsectionItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[5] = item.length || ''
@@ -947,7 +950,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             rockExcavationItems.forEach(item => {
               if (['concrete_pier', 'sewage_pit_slab', 'sump_pit'].includes(item.itemType)) {
                 const itemRow = Array(template.columns.length).fill('')
-                itemRow[1] = item.particulars // Manually set label
+                itemRow[1] = normalizeThickForDisplay(item.particulars) // Manually set label
                 rows.push(itemRow)
                 const refRow = rockExcavationRowRefs[item.id]
                 let type = item.itemType === 'concrete_pier' ? 'line_drill_concrete_pier' :
@@ -966,7 +969,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             // 2. Standalone Line drill items from raw data
             lineDrillItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.height || ''
@@ -1066,7 +1069,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstGroupRow = rows.length + 1
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.calculatedHeight || ''
@@ -1084,7 +1087,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstGroupRow = rows.length + 1
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.calculatedHeight || ''
@@ -1102,7 +1105,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstGroupRow = rows.length + 1
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.calculatedHeight || ''
@@ -1123,7 +1126,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstGroupRow = rows.length + 1
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[4] = item.parsed.qty ?? 1
@@ -1142,7 +1145,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstGroupRow = rows.length + 1
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.calculatedHeight || ''
@@ -1161,7 +1164,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const isSingleItemGroup = group.items.length === 1 && !group.isMerged
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               if (item.parsed.type === 'timber_brace_corner') {
@@ -1184,7 +1187,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstGroupRow = rows.length + 1
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.calculatedHeight || ''
@@ -1203,7 +1206,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const isSingleItemGroup = group.items.length === 1 && !group.isMerged
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[4] = item.parsed.qty ?? 1
@@ -1256,7 +1259,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             subsectionItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
 
@@ -1294,7 +1297,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               const firstGroupRow = rows.length + 1
               group.items.forEach(item => {
                 const itemRow = Array(template.columns.length).fill('')
-                itemRow[1] = item.particulars
+                itemRow[1] = normalizeThickForDisplay(item.particulars)
                 itemRow[2] = item.takeoff
                 itemRow[3] = item.unit
                 itemRow[4] = (item.parsed.qty !== undefined && item.parsed.qty !== null) ? item.parsed.qty : 1
@@ -1311,7 +1314,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             pargingItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightRaw || ''
@@ -1325,7 +1328,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             heelBlockItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[5] = item.parsed.length || ''
@@ -1341,7 +1344,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             underpinningItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[5] = item.parsed.length || ''
@@ -1368,7 +1371,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             rockAnchorItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[5] = item.parsed.calculatedHeight || '' // Length (F) = calculated height
@@ -1386,7 +1389,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               : rockBoltItems
             itemsToRender.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[5] = item.parsed?.calculatedLength || '' // Length (F) = bond length + 5
@@ -1400,7 +1403,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             anchorItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.calculatedHeight || '' // Height (H)
@@ -1414,7 +1417,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             tieBackItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.calculatedHeight || '' // Height (H)
@@ -1428,7 +1431,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             concreteSoilRetentionPierItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[5] = item.parsed.length || ''
@@ -1444,7 +1447,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             guideWallItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G) - calculated from bracket
@@ -1459,7 +1462,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             dowelBarItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[4] = item.parsed.qty || ''
@@ -1474,7 +1477,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             rockPinItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[4] = item.parsed.qty || 1
@@ -1489,7 +1492,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             shotcreteItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               // Length (F) and Width (G) should be empty
@@ -1504,7 +1507,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             permissionGroutingItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightRaw || '' // Height (H)
@@ -1518,7 +1521,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             buttonItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[5] = item.parsed.length || ''
@@ -1534,7 +1537,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             rockStabilizationItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightRaw || '' // Height (H)
@@ -1548,7 +1551,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstItemRow = rows.length + 1
             formBoardItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightRaw || '' // Height (H)
@@ -1566,7 +1569,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               const isSingleItemGroup = group.items.length === 1 && !group.isMerged
               group.items.forEach(item => {
                 const itemRow = Array(template.columns.length).fill('')
-                itemRow[1] = item.particulars
+                itemRow[1] = normalizeThickForDisplay(item.particulars)
                 itemRow[2] = item.takeoff
                 itemRow[3] = item.unit
                 itemRow[7] = item.parsed.heightRaw || item.parsed.calculatedHeight || ''
@@ -1623,7 +1626,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Tie beam') hasSubsectionData = tieBeamGroups.length > 0
         else if (subsection.name === 'Strap beams') hasSubsectionData = strapBeamItems.length > 0
         else if (subsection.name === 'Thickened slab') hasSubsectionData = thickenedSlabGroups.length > 0
-        else if (subsection.name === 'Buttresses') hasSubsectionData = true // Always show - same as Columns subsection
+        else if (subsection.name === 'Buttresses') hasSubsectionData = !!buttressItem
         else if (subsection.name === 'Pier') hasSubsectionData = pierItems.length > 0
         else if (subsection.name === 'Corbel') hasSubsectionData = corbelGroups.length > 0
         else if (subsection.name === 'Linear Wall') hasSubsectionData = linearWallGroups.length > 0
@@ -1633,6 +1636,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Stem wall') hasSubsectionData = stemWallItems.length > 0
         else if (subsection.name === 'Timber sheeting') hasSubsectionData = foundationTimberSheetingItems.length > 0
         else if (subsection.name === 'Elevator Pit') hasSubsectionData = elevatorPitItems.length > 0
+        else if (subsection.name === 'Ejector pit') hasSubsectionData = ejectorPitItems.length > 0
         else if (subsection.name === 'Service elevator pit') hasSubsectionData = serviceElevatorPitItems.length > 0
         else if (subsection.name === 'Detention tank') hasSubsectionData = detentionTankItems.length > 0
         else if (subsection.name === 'Duplex sewage ejector pit') hasSubsectionData = duplexSewageEjectorPitItems.length > 0
@@ -1642,7 +1646,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Grease trap') hasSubsectionData = greaseTrapItems.length > 0
         else if (subsection.name === 'House trap') hasSubsectionData = houseTrapItems.length > 0
         else if (subsection.name === 'Mat slab') hasSubsectionData = matSlabItems.length > 0
-        else if (subsection.name === 'Mud Slab') hasSubsectionData = true // Always show heading - manual entry subsection
+        else if (subsection.name === 'Mud Slab') hasSubsectionData = mudSlabFoundationItems.length > 0
         else if (subsection.name === 'SOG') hasSubsectionData = sogItems.length > 0
         else if (subsection.name === 'Ramp on grade') hasSubsectionData = rogItems.length > 0
         else if (subsection.name === 'Stairs on grade Stairs') hasSubsectionData = stairsOnGradeGroups.length > 0
@@ -1665,7 +1669,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               if (item.hasInflu || group.hasInflu) {
                 itemRow[0] = 'Influ'
               }
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || ''
               itemRow[7] = item.parsed?.calculatedHeight || item.parsed?.height || '' // Height (H)
@@ -1715,7 +1719,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               if (item.hasInflu) {
                 itemRow[0] = 'Influ'
               }
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
 
@@ -1753,7 +1757,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               if (item.hasInflu) {
                 itemRow[0] = 'Influ'
               }
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.calculatedHeight || '' // Height (G)
@@ -1785,7 +1789,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 if (item.hasInflu) {
                   itemRow[0] = 'Influ'
                 }
-                itemRow[1] = item.particulars
+                itemRow[1] = normalizeThickForDisplay(item.particulars)
                 itemRow[2] = item.takeoff
                 itemRow[3] = item.unit
                 itemRow[7] = item.parsed.calculatedHeight || ''
@@ -1814,7 +1818,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               if (item.hasInflu) {
                 itemRow[0] = 'Influ'
               }
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.calculatedHeight || '' // Height (G)
@@ -1842,7 +1846,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               if (item.hasInflu || group.hasInflu) {
                 itemRow[0] = 'Influ'
               }
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.calculatedHeight || '' // Height (G)
@@ -1873,7 +1877,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               if (item.hasInflu || group.hasInflu) {
                 itemRow[0] = 'Influ'
               }
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.calculatedHeight || '' // Height (G)
@@ -1900,7 +1904,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstItemRow = rows.length + 1
           pileCapItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             itemRow[5] = item.parsed.length || '' // Length (F)
@@ -1926,7 +1930,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           stripFootingGroups.forEach((group, groupIndex) => {
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G) - from first bracket value
@@ -1950,7 +1954,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstItemRow = rows.length + 1
           isolatedFootingItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             itemRow[5] = item.parsed.length || '' // Length (F)
@@ -1974,7 +1978,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstItemRow = rows.length + 1
           pilasterItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             itemRow[4] = 1 // QTY (E) = 1
@@ -2000,7 +2004,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstItemRow = rows.length + 1
           gradeBeamGroups.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             itemRow[6] = item.parsed.width || '' // Width (G)
@@ -2025,7 +2029,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstGroupRow = rows.length + 1
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -2053,7 +2057,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstItemRow = rows.length + 1
           strapBeamItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             itemRow[6] = item.parsed.width || '' // Width (G)
@@ -2078,7 +2082,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstGroupRow = rows.length + 1
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -2101,7 +2105,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               rows.push(Array(template.columns.length).fill(''))
             }
           })
-        } else if (subsection.name === 'Buttresses') {
+        } else if (subsection.name === 'Buttresses' && buttressItem) {
           // Same structure as Columns subsection: As per Takeoff count (takeoff from Buttress raw data, 0 if not available) + Final as per schedule count
           const takeoffRow = rows.length + 1
           const itemRow = Array(template.columns.length).fill('')
@@ -2130,7 +2134,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstGroupRow = rows.length + 1
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[4] = 1 // QTY (E) = 1
@@ -2161,7 +2165,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstGroupRow = rows.length + 1
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -2190,7 +2194,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstGroupRow = rows.length + 1
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -2219,7 +2223,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstGroupRow = rows.length + 1
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -2248,7 +2252,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstGroupRow = rows.length + 1
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -2277,7 +2281,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstGroupRow = rows.length + 1
             group.items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -2304,7 +2308,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstItemRow = rows.length + 1
           stemWallItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             itemRow[6] = item.parsed.width || '' // Width (G)
@@ -2327,7 +2331,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstItemRow = rows.length + 1
           foundationTimberSheetingItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             itemRow[7] = item.parsed?.calculatedHeight ?? '' // Height (H)
@@ -2376,7 +2380,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           // Add sump pit items from raw data (sump pit @ elevator, sump pit @ elevator pit)
           sumpItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             rows.push(itemRow)
@@ -2399,7 +2403,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           if (slabFirstRow) foundationSlabRows.elevatorPit = slabFirstRow
           slabItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             itemRow[7] = item.parsed.heightFromH || '' // Height (H)
@@ -2429,7 +2433,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const matFirstRow = rows.length + 1
             matItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromH || '' // Height (H)
@@ -2456,7 +2460,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const matSlabFirstRow = rows.length + 1
             matSlabItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromH || '' // Height (H)
@@ -2499,7 +2503,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const wallGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -2546,7 +2550,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const slopeGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -2555,6 +2559,214 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               formulas.push({ row: rows.length, itemType: 'elevator_pit', parsedData: item, section: 'foundation' })
             })
             // Add sum row for this slope group
+            const slopeSumRow = Array(template.columns.length).fill('')
+            rows.push(slopeSumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: slopeGroupFirstRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name,
+              foundationCySumRow: true
+            })
+          })
+        } else if (subsection.name === 'Ejector pit' && ejectorPitItems.length > 0) {
+          const firstItemRow = rows.length + 1
+
+          // Group ejector pit items by sub-type (same as Elevator Pit: slab, mat, mat_slab, wall, slope)
+          const sumpItems = []
+          const slabItems = []
+          const matItems = []
+          const matSlabItems = []
+          const wallItems = []
+          const slopeItems = []
+
+          ejectorPitItems.forEach(item => {
+            const subType = item.parsed?.itemSubType
+            if (subType === 'sump_pit') {
+              sumpItems.push(item)
+            } else if (subType === 'slab') {
+              slabItems.push(item)
+            } else if (subType === 'mat') {
+              matItems.push(item)
+            } else if (subType === 'mat_slab') {
+              matSlabItems.push(item)
+            } else if (subType === 'wall') {
+              wallItems.push(item)
+            } else if (subType === 'slope_transition') {
+              slopeItems.push(item)
+            }
+          })
+
+          // Add sump pit items
+          sumpItems.forEach(item => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit
+            rows.push(itemRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'ejector_pit',
+              parsedData: item,
+              section: 'foundation',
+              foundationCySumRow: true
+            })
+          })
+
+          if (sumpItems.length > 0 && slabItems.length > 0) {
+            rows.push(Array(template.columns.length).fill(''))
+          }
+
+          const slabFirstRow = slabItems.length > 0 ? rows.length + 1 : null
+          if (slabFirstRow) foundationSlabRows.ejectorPit = slabFirstRow
+          slabItems.forEach(item => {
+            const itemRow = Array(template.columns.length).fill('')
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
+            itemRow[2] = item.takeoff
+            itemRow[3] = item.unit
+            itemRow[7] = item.parsed.heightFromH ?? item.parsed.heightFromName ?? '' // Height (H) - same as Deep sewage ejector pit
+            rows.push(itemRow)
+            formulas.push({ row: rows.length, itemType: 'ejector_pit', parsedData: item, section: 'foundation' })
+          })
+
+          if (slabItems.length > 0) {
+            const slabSumRow = Array(template.columns.length).fill('')
+            rows.push(slabSumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: slabFirstRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name,
+              foundationCySumRow: true,
+              excludeISum: true
+            })
+          }
+
+          if (matItems.length > 0) {
+            rows.push(Array(template.columns.length).fill(''))
+            const matFirstRow = rows.length + 1
+            matItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.heightFromH ?? item.parsed.heightFromName ?? '' // Height (H) - same as Deep sewage ejector pit
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'ejector_pit', parsedData: item, section: 'foundation' })
+            })
+            const matSumRow = Array(template.columns.length).fill('')
+            rows.push(matSumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: matFirstRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name,
+              foundationCySumRow: true,
+              excludeISum: true
+            })
+          }
+
+          if (matSlabItems.length > 0) {
+            rows.push(Array(template.columns.length).fill(''))
+            const matSlabFirstRow = rows.length + 1
+            matSlabItems.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[7] = item.parsed.heightFromH ?? item.parsed.heightFromName ?? '' // Height (H) - same as Deep sewage ejector pit
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'ejector_pit', parsedData: item, section: 'foundation' })
+            })
+            const matSlabSumRow = Array(template.columns.length).fill('')
+            rows.push(matSlabSumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: matSlabFirstRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name,
+              foundationCySumRow: true,
+              excludeISum: true
+            })
+          }
+
+          if (wallItems.length > 0) {
+            rows.push(Array(template.columns.length).fill(''))
+          }
+
+          const wallGroups = new Map()
+          wallItems.forEach(item => {
+            const groupKey = item.parsed.groupKey || 'OTHER'
+            if (!wallGroups.has(groupKey)) {
+              wallGroups.set(groupKey, [])
+            }
+            wallGroups.get(groupKey).push(item)
+          })
+
+          const wallGroupsToIterate = getMergedGroupsIfNeeded(wallGroups)
+          wallGroupsToIterate.forEach((group, groupIndex) => {
+            const { items } = group
+            const wallGroupFirstRow = rows.length + 1
+            items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[6] = item.parsed.width || ''
+              itemRow[7] = item.parsed.height || ''
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'ejector_pit', parsedData: item, section: 'foundation' })
+            })
+            const wallSumRow = Array(template.columns.length).fill('')
+            rows.push(wallSumRow)
+            formulas.push({
+              row: rows.length,
+              itemType: 'foundation_sum',
+              section: 'foundation',
+              firstDataRow: wallGroupFirstRow,
+              lastDataRow: rows.length - 1,
+              subsectionName: subsection.name,
+              foundationCySumRow: true
+            })
+            if (groupIndex < wallGroupsToIterate.length - 1 || slopeItems.length > 0) {
+              rows.push(Array(template.columns.length).fill(''))
+            }
+          })
+
+          if (slopeItems.length > 0) {
+            rows.push(Array(template.columns.length).fill(''))
+          }
+
+          const slopeGroups = new Map()
+          slopeItems.forEach(item => {
+            const groupKey = item.parsed.groupKey || 'OTHER'
+            if (!slopeGroups.has(groupKey)) {
+              slopeGroups.set(groupKey, [])
+            }
+            slopeGroups.get(groupKey).push(item)
+          })
+
+          getMergedGroupsIfNeeded(slopeGroups).forEach((group) => {
+            const { items } = group
+            const slopeGroupFirstRow = rows.length + 1
+            items.forEach(item => {
+              const itemRow = Array(template.columns.length).fill('')
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
+              itemRow[2] = item.takeoff
+              itemRow[3] = item.unit
+              itemRow[6] = item.parsed.width || ''
+              itemRow[7] = item.parsed.height || ''
+              rows.push(itemRow)
+              formulas.push({ row: rows.length, itemType: 'ejector_pit', parsedData: item, section: 'foundation' })
+            })
             const slopeSumRow = Array(template.columns.length).fill('')
             rows.push(slopeSumRow)
             formulas.push({
@@ -2596,7 +2808,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           // Add sump pit items (Sump pit @ service elevator, Sump pit @ service elevator pit)
           sumpItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             rows.push(itemRow)
@@ -2618,7 +2830,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           if (slabFirstRow) foundationSlabRows.serviceElevatorPit = slabFirstRow
           slabItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             itemRow[7] = item.parsed.heightFromH || ''
@@ -2647,7 +2859,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const matFirstRow = rows.length + 1
             matItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromH || ''
@@ -2674,7 +2886,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const matSlabFirstRow = rows.length + 1
             matSlabItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromH || ''
@@ -2715,7 +2927,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const wallGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || ''
@@ -2757,7 +2969,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const slopeGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || ''
@@ -2800,7 +3012,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             foundationSlabRows.detentionTank = slabFirstRow
             slabItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -2827,7 +3039,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const lidSlabFirstRow = rows.length + 1
             lidSlabItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -2865,7 +3077,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               const wallGroupFirstRow = rows.length + 1
               items.forEach(item => {
                 const itemRow = Array(template.columns.length).fill('')
-                itemRow[1] = item.particulars
+                itemRow[1] = normalizeThickForDisplay(item.particulars)
                 itemRow[2] = item.takeoff
                 itemRow[3] = item.unit
                 // F (Length) should be empty for Detention tank wall items
@@ -2915,7 +3127,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           if (slabFirstRow) foundationSlabRows.duplexSewageEjectorPit = slabFirstRow
           slabItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -2945,7 +3157,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const matFirstRow = rows.length + 1
             matItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -2972,7 +3184,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const matSlabFirstRow = rows.length + 1
             matSlabItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -3015,7 +3227,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const wallGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -3063,7 +3275,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const slopeGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -3116,7 +3328,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           if (slabFirstRow) foundationSlabRows.deepSewageEjectorPit = slabFirstRow
           slabItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -3146,7 +3358,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const matFirstRow = rows.length + 1
             matItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -3173,7 +3385,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const matSlabFirstRow = rows.length + 1
             matSlabItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -3216,7 +3428,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const wallGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -3264,7 +3476,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const slopeGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -3317,7 +3529,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           if (slabFirstRow) foundationSlabRows.sewageEjectorPit = slabFirstRow
           slabItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -3347,7 +3559,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const matFirstRow = rows.length + 1
             matItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -3374,7 +3586,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const matSlabFirstRow = rows.length + 1
             matSlabItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -3417,7 +3629,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const wallGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -3465,7 +3677,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const slopeGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -3518,7 +3730,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           if (slabFirstRow) foundationSlabRows.sumpPumpPit = slabFirstRow
           slabItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -3548,7 +3760,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const matFirstRow = rows.length + 1
             matItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -3575,7 +3787,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const matSlabFirstRow = rows.length + 1
             matSlabItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -3618,7 +3830,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const wallGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -3666,7 +3878,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const slopeGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -3719,7 +3931,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           if (slabFirstRow) foundationSlabRows.greaseTrap = slabFirstRow
           slabItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -3749,7 +3961,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const matFirstRow = rows.length + 1
             matItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -3776,7 +3988,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const matSlabFirstRow = rows.length + 1
             matSlabItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -3819,7 +4031,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const wallGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -3867,7 +4079,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const slopeGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -3920,7 +4132,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           if (slabFirstRow) foundationSlabRows.houseTrap = slabFirstRow
           slabItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -3950,7 +4162,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const matFirstRow = rows.length + 1
             matItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -3977,7 +4189,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const matSlabFirstRow = rows.length + 1
             matSlabItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -4020,7 +4232,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const wallGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -4068,7 +4280,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const slopeGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[6] = item.parsed.width || '' // Width (G)
@@ -4102,7 +4314,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             group.items.forEach(item => {
               const subType = item.parsed?.itemSubType
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               if (subType === 'mat') {
@@ -4138,7 +4350,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               rows.push(Array(template.columns.length).fill(''))
             }
           })
-        } else if (subsection.name === 'Mud Slab') {
+        } else if (subsection.name === 'Mud Slab' && mudSlabFoundationItems.length > 0) {
           // Mud Slab: Add a row with item name "Mud slab", Unit "SQ FT"
           const itemRow = Array(template.columns.length).fill('')
           itemRow[1] = 'Mud slab'
@@ -4155,7 +4367,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           // Gap row between Mud slab and SOG
           rows.push(Array(template.columns.length).fill(''))
-        } else if (subsection.name === 'SOG' && sogItems.length >= 0) {
+        } else if (subsection.name === 'SOG' && sogItems.length > 0) {
           // Group items by type
           const gravelItems = []
           const gravelBackfillItems = []
@@ -4197,7 +4409,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           // Add Gravel backfill items
           gravelBackfillItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             itemRow[7] = item.parsed.heightFromH || '' // Height (H)
@@ -4241,7 +4453,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           // Add existing Geotextile filter fabric items from data
           geotextileItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit
             // H is blank
@@ -4281,7 +4493,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const slabGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -4322,7 +4534,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               const stepGroupFirstRow = rows.length + 1
               items.forEach(item => {
                 const itemRow = Array(template.columns.length).fill('')
-                itemRow[1] = item.particulars
+                itemRow[1] = normalizeThickForDisplay(item.particulars)
                 itemRow[2] = item.takeoff
                 itemRow[3] = item.unit
                 itemRow[6] = item.parsed.width || '' // Width (G)
@@ -4360,7 +4572,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const rogGroupFirstRow = rows.length + 1
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit
               itemRow[7] = item.parsed.heightFromName || '' // Height (H)
@@ -4400,7 +4612,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             if (landings) {
               const unitD = /^(EA|NO)$/i.test((landings.unit || '').trim().replace(/\.$/, '')) ? 'Treads' : (landings.unit || 'SQ FT')
               const landingRow = Array(template.columns.length).fill('')
-              landingRow[1] = landings.particulars
+              landingRow[1] = normalizeThickForDisplay(landings.particulars)
               landingRow[2] = landings.takeoff
               landingRow[3] = unitD
               landingRow[7] = 0.67
@@ -4411,7 +4623,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             if (stairs) {
               const unitD = /^(EA|NO)$/i.test((stairs.unit || '').trim().replace(/\.$/, '')) ? 'Treads' : (stairs.unit || 'SQ FT')
               const stairsRow = Array(template.columns.length).fill('')
-              stairsRow[1] = stairs.particulars
+              stairsRow[1] = normalizeThickForDisplay(stairs.particulars)
               stairsRow[2] = stairs.takeoff
               stairsRow[3] = unitD
               stairsRow[5] = '11/12'
@@ -4452,7 +4664,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const electricFirstRow = rows.length + 1
           conduitGroup1.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'FT'
             rows.push(itemRow)
@@ -4478,7 +4690,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const trenchFirstRow = rows.length + 1
             trenchDrainItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'FT'
               rows.push(itemRow)
@@ -4503,7 +4715,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const perfFirstRow = rows.length + 1
             perforatedPipeItems.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'FT'
               rows.push(itemRow)
@@ -4577,7 +4789,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstItemRow = rows.length + 1
           exteriorSideItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || ''
             if (item.parsed?.heightFromBracketPlus2 !== undefined && item.parsed?.heightFromBracketPlus2 !== '') {
@@ -4590,7 +4802,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const slabRow = item.parsed?.heightRefKey ? foundationSlabRows[item.parsed.heightRefKey] : null
             if (slabRow == null) return
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || ''
             rows.push(itemRow)
@@ -4617,7 +4829,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstItemRow = rows.length + 1
           negativeSideWallItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'FT'
             if (item.parsed?.secondValueFeet != null && item.parsed.secondValueFeet !== '') {
@@ -4634,7 +4846,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           })
           negativeSideSlabItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'SQ FT'
             rows.push(itemRow)
@@ -4656,7 +4868,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             firstDataRow: firstItemRow,
             lastDataRow: rows.length - 1
           })
-        } else if (subsection.name === 'Horizontal') {
+        } else if (subsection.name === 'Horizontal' && (exteriorSideItems.length > 0 || negativeSideWallItems.length > 0)) {
           const firstWPRow = rows.length + 1
           const wpItems = [
             { particulars: 'WP @ SOG', unit: 'SQ FT' },
@@ -4665,7 +4877,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           ]
           wpItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = 0
             itemRow[3] = item.unit || 'SQ FT'
             rows.push(itemRow)
@@ -4695,7 +4907,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           ]
           insulItems.forEach(item => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = 0
             itemRow[3] = 'SQ FT'
             rows.push(itemRow)
@@ -4759,7 +4971,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Concrete hanger') hasSubsectionData = superstructureItems.concreteHanger && superstructureItems.concreteHanger.length > 0
         else if (subsection.name === 'Shear Walls') hasSubsectionData = superstructureItems.shearWalls && superstructureItems.shearWalls.length > 0
         else if (subsection.name === 'Parapet walls') hasSubsectionData = superstructureItems.parapetWalls && superstructureItems.parapetWalls.length > 0
-        else if (subsection.name === 'Columns') hasSubsectionData = true // Always show heading - content (As per Takeoff count, Final as per schedule count) is always rendered
+        else if (subsection.name === 'Columns') hasSubsectionData = (superstructureItems.columnsTakeoff && superstructureItems.columnsTakeoff.length > 0)
         else if (subsection.name === 'Concrete post') hasSubsectionData = superstructureItems.concretePost && superstructureItems.concretePost.length > 0
         else if (subsection.name === 'Concrete encasement') hasSubsectionData = superstructureItems.concreteEncasement && superstructureItems.concreteEncasement.length > 0
         else if (subsection.name === 'Drop panel') hasSubsectionData = (superstructureItems.dropPanelBracket && superstructureItems.dropPanelBracket.length > 0) || (superstructureItems.dropPanelH && superstructureItems.dropPanelH.length > 0)
@@ -4768,7 +4980,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         else if (subsection.name === 'Concrete pad') hasSubsectionData = superstructureItems.concretePad && superstructureItems.concretePad.length > 0
         else if (subsection.name === 'Non-shrink grout') hasSubsectionData = superstructureItems.nonShrinkGrout && superstructureItems.nonShrinkGrout.length > 0
         else if (subsection.name === 'Repair scope') hasSubsectionData = superstructureItems.repairScope && superstructureItems.repairScope.length > 0
-        else if (subsection.name === 'CIP Stairs') hasSubsectionData = true // Always show CIP stairs? 
+        else if (subsection.name === 'CIP Stairs') hasSubsectionData = false // Only show when we have CIP stairs data from takeoff (no parser yet) 
         else if (subsection.name === 'Stairs \u2013 Infilled tads') hasSubsectionData = (superstructureItems.infilledLandingItems || []).length > 0
         else if (subsection.name === 'Ele') hasSubsectionData = civilOtherItems['Drains & Utilities'] && civilOtherItems['Drains & Utilities'].some(i => i.particulars.toLowerCase().includes('electrical conduit'))
         else if (subsection.name === 'For Superstructure Extra line item use this') hasSubsectionData = true
@@ -4783,7 +4995,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const slab8FirstRow = rows.length + 1
           superstructureItems.cipSlab8.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'SQ FT'
             if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -4800,7 +5012,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const castInPlaceFirstRow = rows.length + 1
           superstructureItems.cipCastInPlaceSlab8.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'SQ FT'
             if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -4817,7 +5029,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const cipSlabVarFirstRow = rows.length + 1
           superstructureItems.cipCIPSlabVar.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'SQ FT'
             if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -4834,7 +5046,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const roofFirstRow = rows.length + 1
           superstructureItems.cipRoofSlab8.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'SQ FT'
             if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -4852,7 +5064,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstRow = rows.length + 1
           superstructureItems.balconySlab.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'SQ FT'
             if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -4867,7 +5079,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstRow = rows.length + 1
           superstructureItems.terraceSlab.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'SQ FT'
             if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -4882,7 +5094,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstRow = rows.length + 1
           superstructureItems.patchSlab.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'SQ FT'
             if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -4897,7 +5109,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstRow = rows.length + 1
           superstructureItems.slabSteps.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'FT'
             if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
@@ -4913,7 +5125,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstRow = rows.length + 1
           superstructureItems.lwConcreteFill.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'SQ FT'
             if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -4930,7 +5142,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const itemFirstRow = rows.length + 1
             group.items.forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'SQ FT'
               rows.push(itemRow)
@@ -4964,7 +5176,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstRow = rows.length + 1
           superstructureItems.toppingSlab.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'SQ FT'
             if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -4979,7 +5191,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstRow = rows.length + 1
           superstructureItems.thermalBreak.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'FT'
             if (item.parsed?.qty != null) itemRow[4] = item.parsed.qty
@@ -4994,7 +5206,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const kneeWallFirstRow = rows.length + 1
           superstructureItems.raisedSlab.kneeWall.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'FT'
             if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
@@ -5013,7 +5225,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           }
           superstructureItems.raisedSlab.raisedSlab.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'SQ FT'
             if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -5025,7 +5237,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const kneeWallFirstRow = rows.length + 1
           superstructureItems.builtUpSlab.kneeWall.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'FT'
             if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
@@ -5044,7 +5256,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           }
           superstructureItems.builtUpSlab.builtUpSlab.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'SQ FT'
             if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -5057,7 +5269,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const kneeWalls = [...superstructureItems.builtupRamps.kneeWall].sort((a, b) => (a.parsed?.groupId ?? 1) - (b.parsed?.groupId ?? 1))
           kneeWalls.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'FT'
             if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
@@ -5094,7 +5306,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           rows.push(Array(template.columns.length).fill(''))
           ramps.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'SQ FT'
             if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -5112,7 +5324,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const kneeWallFirstRow = rows.length + 1
           superstructureItems.builtUpStair.kneeWall.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'FT'
             if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
@@ -5129,7 +5341,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           formulas.push({ row: rows.length, itemType: 'superstructure_builtup_stair_styrofoam', section: 'superstructure', subsectionName: subsection.name, takeoffJSumFirstRow: stairFirstRow, takeoffJSumLastRow: stairLastRowForJSum, heightRefRow: kneeWallFirstRow })
           superstructureItems.builtUpStair.builtUpStairs.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'Treads'
             rows.push(itemRow)
@@ -5149,7 +5361,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstRow = rows.length + 1
           superstructureItems.concreteHanger.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'EA'
             if (item.parsed?.lengthValue != null) itemRow[5] = item.parsed.lengthValue
@@ -5176,7 +5388,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstRow = rows.length + 1
             groupItems.forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'FT'
               if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
@@ -5197,7 +5409,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstRow = rows.length + 1
           superstructureItems.parapetWalls.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'FT'
             if (item.parsed?.qty != null) itemRow[4] = item.parsed.qty
@@ -5210,7 +5422,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           rows.push(sumRow)
           formulas.push({ row: rows.length, itemType: 'superstructure_parapet_walls_sum', section: 'superstructure', subsectionName: subsection.name, firstDataRow: firstRow, lastDataRow: rows.length - 1 })
           rows.push(Array(template.columns.length).fill(''))
-        } else if (subsection.name === 'Columns') {
+        } else if (subsection.name === 'Columns' && superstructureItems.columnsTakeoff?.length > 0) {
           const firstItem = superstructureItems.columnsTakeoff?.[0]
           const takeoffRow = rows.length + 1
           const row1 = Array(template.columns.length).fill('')
@@ -5230,7 +5442,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstRow = rows.length + 1
           superstructureItems.concretePost.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'EA'
             if (item.parsed?.lengthValue != null) itemRow[5] = item.parsed.lengthValue
@@ -5247,7 +5459,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstRow = rows.length + 1
           superstructureItems.concreteEncasement.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'EA'
             if (item.parsed?.lengthValue != null) itemRow[5] = item.parsed.lengthValue
@@ -5264,7 +5476,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstRow = rows.length + 1
             ; (superstructureItems.dropPanelBracket || []).forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'EA'
               if (item.parsed?.lengthValue != null) itemRow[5] = item.parsed.lengthValue
@@ -5275,7 +5487,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             })
             ; (superstructureItems.dropPanelH || []).forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'SQ FT'
               if (item.parsed?.qty != null) itemRow[4] = item.parsed.qty
@@ -5292,7 +5504,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstRow = rows.length + 1
           superstructureItems.beams.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'FT'
             if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
@@ -5316,7 +5528,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstRow = rows.length + 1
             groupItems.forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'FT'
               if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
@@ -5344,7 +5556,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstRow = rows.length + 1
             groupItems.forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'SQ FT'
               if (item.parsed?.qty != null) itemRow[4] = item.parsed.qty
@@ -5367,7 +5579,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
           const firstRow = rows.length + 1
           superstructureItems.nonShrinkGrout.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'EA'
             rows.push(itemRow)
@@ -5380,15 +5592,15 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
         } else if (subsection.name === 'Repair scope' && superstructureItems.repairScope && superstructureItems.repairScope.length > 0) {
           superstructureItems.repairScope.forEach((item) => {
             const itemRow = Array(template.columns.length).fill('')
-            itemRow[1] = item.particulars
+            itemRow[1] = normalizeThickForDisplay(item.particulars)
             itemRow[2] = item.takeoff
             itemRow[3] = item.unit || 'FT'
             rows.push(itemRow)
             formulas.push({ row: rows.length, itemType: 'superstructure_repair_scope', parsedData: item, section: 'superstructure', subsectionName: subsection.name })
           })
           rows.push(Array(template.columns.length).fill(''))
-        } else if (subsection.name === 'CIP Stairs') {
-          // CIP Stairs - formulas in columns I-M; raw values in C/F/G/H
+        } else if (subsection.name === 'CIP Stairs' && (superstructureItems.cipStairsGroups?.length > 0)) {
+          // CIP Stairs - formulas in columns I-M; raw values in C/F/G/H (only show when we have data from takeoff)
           const stairGroups = [
             {
               name: 'Stair A, B & D:',
@@ -5546,7 +5758,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstInches = landingItem.parsed?.firstValueInches ?? 4.5
             const secondInches = landingItem.parsed?.secondValueInches ?? 2
             const landingRow = Array(template.columns.length).fill('')
-            landingRow[1] = landingItem.particulars
+            landingRow[1] = normalizeThickForDisplay(landingItem.particulars)
             landingRow[2] = landingItem.takeoff ?? ''
             landingRow[3] = 'SQ FT'
             landingRow[7] = firstInches / 12
@@ -5709,7 +5921,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstRow = rows.length + 1
             streetData['Concrete sidewalk'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'SQ FT'
               if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -5728,7 +5940,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstRow = rows.length + 1
             streetData['Concrete driveway'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'SQ FT'
               if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -5747,7 +5959,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstRow = rows.length + 1
             streetData['Concrete curb'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'FT'
               if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
@@ -5767,7 +5979,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstRow = rows.length + 1
             streetData['Concrete flush curb'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'FT'
               if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
@@ -5787,7 +5999,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstRow = rows.length + 1
             streetData['Expansion joint'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'FT'
               rows.push(itemRow)
@@ -5813,7 +6025,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstRow = rows.length + 1
             streetData['Full depth asphalt pavement'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'SQ FT'
               if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -5896,7 +6108,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               const firstRow = rows.length + 1
               civilDemoItems['Demo asphalt'].forEach((item) => {
                 const itemRow = Array(template.columns.length).fill('')
-                itemRow[1] = item.particulars
+                itemRow[1] = normalizeThickForDisplay(item.particulars)
                 itemRow[2] = item.takeoff
                 itemRow[3] = item.unit || 'SQ FT'
                 if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -5914,7 +6126,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               const firstRow = rows.length + 1
               civilDemoItems['Demo curb'].forEach((item) => {
                 const itemRow = Array(template.columns.length).fill('')
-                itemRow[1] = item.particulars
+                itemRow[1] = normalizeThickForDisplay(item.particulars)
                 itemRow[2] = item.takeoff
                 itemRow[3] = item.unit || 'FT'
                 if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
@@ -5936,7 +6148,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 const firstRow = rows.length + 1
                 fenceGroups['chain_link_vinyl'].forEach((item) => {
                   const itemRow = Array(template.columns.length).fill('')
-                  itemRow[1] = item.particulars
+                  itemRow[1] = normalizeThickForDisplay(item.particulars)
                   itemRow[2] = item.takeoff
                   itemRow[3] = item.unit || 'FT'
                   if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -5954,7 +6166,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 const firstRow = rows.length + 1
                 fenceGroups['wood'].forEach((item) => {
                   const itemRow = Array(template.columns.length).fill('')
-                  itemRow[1] = item.particulars
+                  itemRow[1] = normalizeThickForDisplay(item.particulars)
                   itemRow[2] = item.takeoff
                   itemRow[3] = item.unit || 'FT'
                   if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -5972,7 +6184,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 const firstRow = rows.length + 1
                 fenceGroups['other'].forEach((item) => {
                   const itemRow = Array(template.columns.length).fill('')
-                  itemRow[1] = item.particulars
+                  itemRow[1] = normalizeThickForDisplay(item.particulars)
                   itemRow[2] = item.takeoff
                   itemRow[3] = item.unit || 'FT'
                   if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -5991,7 +6203,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               const firstRow = rows.length + 1
               civilDemoItems['Demo wall'].forEach((item) => {
                 const itemRow = Array(template.columns.length).fill('')
-                itemRow[1] = item.particulars
+                itemRow[1] = normalizeThickForDisplay(item.particulars)
                 itemRow[2] = item.takeoff
                 itemRow[3] = item.unit || 'FT'
                 if (item.parsed?.widthValue != null) itemRow[6] = item.parsed.widthValue
@@ -6013,7 +6225,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 const firstRow = rows.length + 1
                 pipeGroups['remove_pipe'].forEach((item) => {
                   const itemRow = Array(template.columns.length).fill('')
-                  itemRow[1] = item.particulars
+                  itemRow[1] = normalizeThickForDisplay(item.particulars)
                   itemRow[2] = item.takeoff
                   itemRow[3] = item.unit || 'FT'
                   rows.push(itemRow)
@@ -6030,7 +6242,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 const firstRow = rows.length + 1
                 pipeGroups['protect'].forEach((item) => {
                   const itemRow = Array(template.columns.length).fill('')
-                  itemRow[1] = item.particulars
+                  itemRow[1] = normalizeThickForDisplay(item.particulars)
                   itemRow[2] = item.takeoff
                   itemRow[3] = item.unit || 'FT'
                   rows.push(itemRow)
@@ -6048,7 +6260,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               const firstRow = rows.length + 1
               civilDemoItems['Demo rail'].forEach((item) => {
                 const itemRow = Array(template.columns.length).fill('')
-                itemRow[1] = item.particulars
+                itemRow[1] = normalizeThickForDisplay(item.particulars)
                 itemRow[2] = item.takeoff
                 itemRow[3] = item.unit || 'FT'
                 rows.push(itemRow)
@@ -6068,7 +6280,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 const firstRow = rows.length + 1
                 signGroups['single_sign'].forEach((item) => {
                   const itemRow = Array(template.columns.length).fill('')
-                  itemRow[1] = item.particulars
+                  itemRow[1] = normalizeThickForDisplay(item.particulars)
                   itemRow[2] = item.takeoff
                   itemRow[3] = item.unit || 'EA'
                   rows.push(itemRow)
@@ -6085,7 +6297,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 const firstRow = rows.length + 1
                 signGroups['row_of_signs'].forEach((item) => {
                   const itemRow = Array(template.columns.length).fill('')
-                  itemRow[1] = item.particulars
+                  itemRow[1] = normalizeThickForDisplay(item.particulars)
                   itemRow[2] = item.takeoff
                   itemRow[3] = item.unit || 'EA'
                   rows.push(itemRow)
@@ -6103,7 +6315,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               const firstRow = rows.length + 1
               civilDemoItems['Demo manhole'].forEach((item) => {
                 const itemRow = Array(template.columns.length).fill('')
-                itemRow[1] = item.particulars
+                itemRow[1] = normalizeThickForDisplay(item.particulars)
                 itemRow[2] = item.takeoff
                 itemRow[3] = item.unit || 'EA'
                 rows.push(itemRow)
@@ -6120,7 +6332,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               const firstRow = rows.length + 1
               civilDemoItems['Demo fire hydrant'].forEach((item) => {
                 const itemRow = Array(template.columns.length).fill('')
-                itemRow[1] = item.particulars
+                itemRow[1] = normalizeThickForDisplay(item.particulars)
                 itemRow[2] = item.takeoff
                 itemRow[3] = item.unit || 'EA'
                 rows.push(itemRow)
@@ -6137,7 +6349,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               const firstRow = rows.length + 1
               civilDemoItems['Demo utility pole'].forEach((item) => {
                 const itemRow = Array(template.columns.length).fill('')
-                itemRow[1] = item.particulars
+                itemRow[1] = normalizeThickForDisplay(item.particulars)
                 itemRow[2] = item.takeoff
                 itemRow[3] = item.unit || 'EA'
                 rows.push(itemRow)
@@ -6154,7 +6366,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               const firstRow = rows.length + 1
               civilDemoItems['Demo valve'].forEach((item) => {
                 const itemRow = Array(template.columns.length).fill('')
-                itemRow[1] = item.particulars
+                itemRow[1] = normalizeThickForDisplay(item.particulars)
                 itemRow[2] = item.takeoff
                 itemRow[3] = item.unit || 'EA'
                 rows.push(itemRow)
@@ -6174,7 +6386,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 const firstRow = rows.length + 1
                 inletGroups['protect'].forEach((item) => {
                   const itemRow = Array(template.columns.length).fill('')
-                  itemRow[1] = item.particulars
+                  itemRow[1] = normalizeThickForDisplay(item.particulars)
                   itemRow[2] = item.takeoff
                   itemRow[3] = item.unit || 'EA'
                   rows.push(itemRow)
@@ -6191,7 +6403,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 const firstRow = rows.length + 1
                 inletGroups['remove'].forEach((item) => {
                   const itemRow = Array(template.columns.length).fill('')
-                  itemRow[1] = item.particulars
+                  itemRow[1] = normalizeThickForDisplay(item.particulars)
                   itemRow[2] = item.takeoff
                   itemRow[3] = item.unit || 'EA'
                   rows.push(itemRow)
@@ -6217,7 +6429,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             hasItems = true
             excItems['transformer_pad'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'SQ FT'
               // Height is manual input, leave empty
@@ -6231,7 +6443,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             hasItems = true
             excItems['reinforced_sidewalk'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'SQ FT'
               // Height is manual input, leave empty
@@ -6245,7 +6457,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             hasItems = true
             excItems['bollard'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'EA'
               // Height is manual input, leave empty
@@ -6277,7 +6489,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const tpFirst = rows.length + 1
             gravelItems['transformer_pad'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[3] = item.unit || 'SQ FT'
               // Height is manual entry, leave blank initially
               rows.push(itemRow)
@@ -6292,7 +6504,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const transformerPad8FirstRow = rows.length + 1
             gravelItems['transformer_pad_8'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[3] = item.unit || 'SQ FT'
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'civil_gravel_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Gravel' })
@@ -6309,7 +6521,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const rwFirst = rows.length + 1
             gravelItems['reinforced_sidewalk'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[3] = item.unit || 'SQ FT'
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'civil_gravel_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Gravel' })
@@ -6323,7 +6535,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const aspFirst = rows.length + 1
             gravelItems['asphalt'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[3] = item.unit || 'SQ FT'
               rows.push(itemRow)
               formulas.push({ row: rows.length, itemType: 'civil_gravel_item', parsedData: item, section: 'civil_sitework', subsectionName: 'Gravel' })
@@ -6355,7 +6567,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstRow = rows.length + 1
             cpItems.forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'SQ FT'
               if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -6377,7 +6589,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstRow = rows.length + 1
             asphaltItems.forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'SQ FT'
               rows.push(itemRow)
@@ -6398,7 +6610,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstRow = rows.length + 1
             padsItems.forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'SQ FT'
               if (item.parsed?.qty != null) itemRow[4] = item.parsed.qty
@@ -6424,7 +6636,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             hasItems = true
             seItems['stabilized_entrance'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'SQ FT'
               if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -6438,7 +6650,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             hasItems = true
             seItems['silt_fence'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'FT'
               if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -6452,7 +6664,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             hasItems = true
             seItems['inlet_filter'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'EA'
               rows.push(itemRow)
@@ -6474,7 +6686,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstRow = rows.length + 1
             fenceItems['construction_fence'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'FT'
               if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -6494,7 +6706,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstRow = rows.length + 1
             fenceItems['proposed_fence'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'FT'
               if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -6514,7 +6726,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstRow = rows.length + 1
             fenceItems['guiderail'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'FT'
               if (item.parsed?.heightValue != null) itemRow[7] = item.parsed.heightValue
@@ -6538,7 +6750,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstDataRow = rows.length + 1
             bollardGroups['footing'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'EA'
               rows.push(itemRow)
@@ -6557,7 +6769,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
             const firstDataRow = rows.length + 1
             bollardGroups['simple'].forEach((item) => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'EA'
               rows.push(itemRow)
@@ -6597,7 +6809,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                 const firstDataRow = rows.length + 1
                 groupData.forEach(item => {
                   const itemRow = Array(template.columns.length).fill('')
-                  itemRow[1] = item.particulars
+                  itemRow[1] = normalizeThickForDisplay(item.particulars)
                   itemRow[2] = item.takeoff
                   itemRow[3] = item.unit || 'EA'
                   rows.push(itemRow)
@@ -6617,7 +6829,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
                   const firstDataRow = rows.length + 1
                   subItems.forEach(item => {
                     const itemRow = Array(template.columns.length).fill('')
-                    itemRow[1] = item.particulars
+                    itemRow[1] = normalizeThickForDisplay(item.particulars)
                     itemRow[2] = item.takeoff
                     itemRow[3] = item.unit || 'EA'
                     rows.push(itemRow)
@@ -6654,7 +6866,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
               if (item.particulars.toLowerCase().includes('backwater valve')) {
                 itemRow[0] = 'Concrete'
               }
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'EA'
               rows.push(itemRow)
@@ -6675,7 +6887,7 @@ export const generateCalculationSheet = (templateId, rawData = null) => {
 
             items.forEach(item => {
               const itemRow = Array(template.columns.length).fill('')
-              itemRow[1] = item.particulars
+              itemRow[1] = normalizeThickForDisplay(item.particulars)
               itemRow[2] = item.takeoff
               itemRow[3] = item.unit || 'EA'
               rows.push(itemRow)

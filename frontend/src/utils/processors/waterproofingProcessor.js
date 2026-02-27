@@ -282,7 +282,7 @@ export const generateWaterproofingFormulas = (itemType, rowNum, itemData, option
     formulas.height = itemData?.parsed?.heightFromBracketPlus2
     formulas.sqFt = `H${rowNum}*I${rowNum}`
     const heightRefKey = itemData?.parsed?.heightRefKey
-    if (heightRefKey === 'elevatorPit' || heightRefKey === 'detentionTank') {
+    if (heightRefKey === 'elevatorPit' || heightRefKey === 'ejectorPit' || heightRefKey === 'detentionTank') {
       formulas.cy = `J${rowNum}*G${rowNum}/27`
     }
   }

@@ -72,6 +72,8 @@ export const isExcavationItem = (digitizerItem) => {
     /^pc-\d+/,
     /^f-\d+\s*\(/,
     /^(?:exc|excavation|exc\.)\s*\(/,
+    /^(?:exc|exc\.)\b/,  // standalone "Exc", "Exc." at start
+    'excavation',
     'slope exc',
     'slope excavation',
     'slope exc.',

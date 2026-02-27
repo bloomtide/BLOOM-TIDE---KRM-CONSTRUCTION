@@ -1,5 +1,5 @@
 import { fontColor } from '@syncfusion/ej2-spreadsheet'
-import { convertToFeet } from './parsers/dimensionParser'
+import { convertToFeet, normalizeThickForDisplay } from './parsers/dimensionParser'
 import proposalMapped from './proposal_mapped.json'
 
 export function buildProposalSheet(spreadsheet, { calculationData, formulaData, rockExcavationTotals, lineDrillTotalFT, rawData, createdAt, project, client }) {
@@ -688,8 +688,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
     }
     let thicknessPart = ''
     if (slabType.toLowerCase().includes('slab on grade') || slabType.toLowerCase().includes('ramp on grade')) {
-      const thicknessMatch = text.match(/(\d+["\"]?\s*thick)/i) || text.match(/(\d+["\"]?)/)
-      thicknessPart = thicknessMatch ? `(${thicknessMatch[1]})` : '(## thick)'
+      const thicknessMatch = text.match(/(\d+["\"]?\s*(?:thick|thk))/i) || text.match(/(\d+["\"]?)/)
+      thicknessPart = thicknessMatch ? `(${normalizeThickForDisplay(thicknessMatch[1])})` : '(## thick)'
     } else {
       const dimMatch = text.match(/\(([^)]+)\)/)
       thicknessPart = dimMatch ? `(${dimMatch[1]})` : '(##)'
@@ -778,7 +778,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       const digitizerItem = row[digitizerIdx]
       if (!digitizerItem) continue
       const d = String(digitizerItem).toLowerCase().trim()
-      if (!d.includes('rock') || !(d.includes('excavation') || d.includes('rock excavation') || d.includes('line drill'))) continue
+      if (!d.includes('rock') || !(d.includes('excavation') || d.includes('exc') || d.includes('exc.') || d.includes('rock excavation') || d.includes('rock exc') || d.includes('rock exc.') || d.includes('line drill'))) continue
       const pageVal = row[pageIdx]
       if (pageVal == null || pageVal === '') continue
       const pageStr = String(pageVal).trim()
@@ -959,7 +959,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         return
       }
 
-      if (colA && String(colA).trim().toLowerCase() === 'excavation') {
+      const colATrim = colA ? String(colA).trim().toLowerCase() : ''
+      if (colA && (colATrim === 'excavation' || colATrim === 'exc' || colATrim === 'exc.')) {
         inDemolitionSection = false
         inExcavationSection = true
         inRockExcavationSection = false
@@ -970,7 +971,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         return
       }
 
-      if (colA && String(colA).trim().toLowerCase() === 'rock excavation') {
+      if (colA && (colATrim === 'rock excavation' || colATrim === 'rock exc' || colATrim === 'rock exc.')) {
         inDemolitionSection = false
         inExcavationSection = false
         inRockExcavationSection = true
@@ -993,7 +994,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         return
       }
 
-      if (colA && String(colA).trim().toLowerCase() === 'soe') {
+      if (colA && colATrim === 'soe') {
         inDemolitionSection = false
         inExcavationSection = false
         inRockExcavationSection = false
@@ -1050,8 +1051,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       // Treat both "Foundation" and "Foundation/Substructure" as the same main section.
       if (colA && String(colA).trim() &&
         colALower !== 'demolition' &&
-        colALower !== 'excavation' &&
-        colALower !== 'rock excavation' &&
+        colALower !== 'excavation' && colALower !== 'exc' && colALower !== 'exc.' &&
+        colALower !== 'rock excavation' && colALower !== 'rock exc' && colALower !== 'rock exc.' &&
         colALower !== 'soe' &&
         colALower !== 'foundation' &&
         colALower !== 'foundation/substructure') {
@@ -1102,8 +1103,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           rowsBySubsection.set(currentSubsection, [])
         }
 
-        // Check if this is the "excavation" subsection within the Excavation section
-        if (inExcavationSection && currentSubsection.toLowerCase() === 'excavation') {
+        // Check if this is the "excavation" subsection within the Excavation section (excavation, exc, or exc.)
+        const subLower = currentSubsection.toLowerCase()
+        if (inExcavationSection && (subLower === 'excavation' || subLower === 'exc' || subLower === 'exc.')) {
           inExcavationSubsection = true
           excavationRunningSum = 0 // Reset running sum
           excavationRunningCYSum = 0 // Reset CY running sum
@@ -1124,8 +1126,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           inBackfillSubsection = false
         }
 
-        // Check if this is the "rock excavation" subsection within the Rock Excavation section
-        if (inRockExcavationSection && currentSubsection.toLowerCase() === 'rock excavation') {
+        // Check if this is the "rock excavation" subsection within the Rock Excavation section (rock excavation, rock exc, or rock exc.)
+        if (inRockExcavationSection && (subLower === 'rock excavation' || subLower === 'rock exc' || subLower === 'rock exc.')) {
           inRockExcavationSubsection = true
           rockExcavationRunningSum = 0
           rockExcavationRunningCYSum = 0
@@ -1287,7 +1289,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             const height = parseFloat(row[7]) || 0 // Column H (index 7)
 
             hpSoldierPileItems.push({
-              particulars: bText,
+              particulars: normalizeThickForDisplay(bText),
               takeoff: takeoff,
               unit: unit,
               height: height,
@@ -1303,7 +1305,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const height = parseFloat(row[7]) || 0 // Column H (index 7)
 
           drilledSoldierPileItems.push({
-            particulars: bText,
+            particulars: normalizeThickForDisplay(bText),
             takeoff: takeoff,
             unit: unit,
             height: height,
@@ -1338,7 +1340,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const height = parseFloat(row[7]) || 0 // Column H (index 7)
 
           hpSoldierPileItems.push({
-            particulars: bText,
+            particulars: normalizeThickForDisplay(bText),
             takeoff: takeoff,
             unit: unit,
             height: height,
@@ -1377,7 +1379,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const qty = parseFloat(row[12]) || 0 // Column M (index 12)
 
           const item = {
-            particulars: bText,
+            particulars: normalizeThickForDisplay(bText),
             takeoff: takeoff,
             unit: unit,
             height: height,
@@ -1420,7 +1422,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const qty = parseFloat(row[12]) || 0 // Column M (index 12)
 
           currentFoundationSubsectionItems.push({
-            particulars: bText,
+            particulars: normalizeThickForDisplay(bText),
             takeoff: takeoff,
             unit: unit,
             height: height,
@@ -2441,7 +2443,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const row = calculationData[i]
           const colA = row && row[0] != null ? String(row[0]).trim() : ''
           const colB = row && row[1] != null ? String(row[1]).trim() : ''
-          if (colA.toLowerCase() === 'rock excavation') {
+          const colALower = colA ? colA.toLowerCase().trim() : ''
+          if (colALower === 'rock excavation' || colALower === 'rock exc' || colALower === 'rock exc.') {
             inRockSection = true
             inRockExcavationSubsection = false
             dataRowCount = 0
@@ -2451,7 +2454,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             if (inRockSection) break
           }
           if (!inRockSection) continue
-          if (colB && colB.toLowerCase() === 'rock excavation:') {
+          const colBLower = colB ? colB.toLowerCase().trim() : ''
+          if (colB && (colBLower === 'rock excavation:' || colBLower === 'rock exc:' || colBLower === 'rock exc.:')) {
             inRockExcavationSubsection = true
             dataRowCount = 0
             continue
@@ -2838,11 +2842,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const dMatch = p.match(/([0-9.]+)Ø\s*x\s*([0-9.]+)/i)
         const diameter = dMatch ? dMatch[1] : ''
         const thickness = dMatch ? dMatch[2] : ''
-        const hMatch = p.match(/H=([0-9'"\-]+)/)
+        const hMatch = p.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
         const h = hMatch ? hMatch[1] : ''
-        const rsMatch = p.match(/\+\s*RS=([0-9'"\-]+)/i)
+        const rsMatch = p.match(/\+\s*(?:RS|Rock\s*socket)=([0-9'"\-]+)/i)
         const rs = rsMatch ? rsMatch[1] : ''
-        const eMatch = p.match(/E=([0-9'"\-]+)/)
+        const eMatch = p.match(/(?:E|Embedment)=([0-9'"\-]+)/i)
         const e = eMatch ? eMatch[1] : ''
         return `${diameter}|${thickness}|${h}|${rs}|${e}`
       }
@@ -2918,11 +2922,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               const groupItems = itemsByParticulars.get(particulars) || []
               // Extract H value: from particulars (e.g., "H=27'-10"") or from calculation row Height (col H)
               let heightValue = null
-              const hMatch = particulars.match(/H=([0-9'"\-]+)/)
+              const hMatch = particulars.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
               if (hMatch) {
                 heightValue = parseDimension(hMatch[1])
                 group.hValue = hMatch[1]
-                const rsMatch = particulars.match(/\+\s*RS=([0-9'"\-]+)/i)
+                const rsMatch = particulars.match(/\+\s*(?:RS|Rock\s*socket)=([0-9'"\-]+)/i)
                 if (rsMatch) {
                   const rsValue = parseDimension(rsMatch[1])
                   group.rsValue = rsMatch[1]
@@ -2944,7 +2948,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
               // Extract E value (embedment) (e.g., "E=15'-0"")
               if (!embedment) {
-                const eMatch = particulars.match(/E=([0-9'"\-]+)/)
+                const eMatch = particulars.match(/(?:E|Embedment)=([0-9'"\-]+)/i)
                 if (eMatch) {
                   embedment = parseDimension(eMatch[1])
                   group.embedment = eMatch[1]
@@ -3123,7 +3127,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         const p = (items[0].particulars || '').trim()
         const hpMatch = p.match(/HP(\d+)x(\d+)/i)
         const hpType = hpMatch ? `HP${hpMatch[1]}x${hpMatch[2]}` : ''
-        const hMatch = p.match(/H=([0-9'"\-]+)/)
+        const hMatch = p.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
         const hRaw = hMatch ? hMatch[1] : ''
         return `${hpType}|${hRaw}`
       }
@@ -3230,7 +3234,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
               const groupItems = itemsByParticulars.get(particulars) || []
               let heightValue = null
-              const hMatch = particulars.match(/H=([0-9'"\-]+)/)
+              const hMatch = particulars.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
               if (hMatch) {
                 heightValue = parseDimension(hMatch[1])
                 group.hValue = hMatch[1]
@@ -3499,7 +3503,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 if (takeoff > 0) {
                   foundPrimarySecantRows.push({
                     rowNum: rowNum,
-                    particulars: bText,
+                    particulars: normalizeThickForDisplay(bText),
                     takeoff: takeoff,
                     qty: parseFloat(row[12]) || 0, // Column M
                     height: parseFloat(row[7]) || 0, // Column H
@@ -3544,6 +3548,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           let heightCount = 0
           let totalEmbedment = 0
           let embedmentCount = 0
+          let totalRockSocket = 0
+          let rockSocketCount = 0
           let lastRowNumber = 0
           let firstRowNumber = Infinity
           let diameter = null
@@ -3582,13 +3588,19 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               }
             }
 
-            // Extract embedment (E=XX'-XX")
+            // Extract embedment (E= or Embedment=) and rock socket (RS= or Rock socket=)
             const particulars = item.particulars || ''
-            const eMatch = particulars.match(/E=([0-9'"\-]+)/i)
+            const eMatch = particulars.match(/(?:E|Embedment)=([0-9'"\-]+)/i)
             if (eMatch) {
               const embedmentValue = parseDimension(eMatch[1])
               totalEmbedment += embedmentValue * (item.takeoff || 0)
               embedmentCount += (item.takeoff || 0)
+            }
+            const rsMatch = particulars.match(/(?:RS|Rock\s*socket)=([0-9'"\-]+)/i)
+            if (rsMatch) {
+              const rsValue = parseDimension(rsMatch[1])
+              totalRockSocket += rsValue * (item.takeoff || 0)
+              rockSocketCount += (item.takeoff || 0)
             }
           })
 
@@ -3619,6 +3631,16 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             embedmentText = `${embedmentFeet}'-0"`
           } else {
             embedmentText = `${embedmentFeet}'-${embedmentInches}"`
+          }
+
+          // Format rock socket when present (RS= or Rock socket=)
+          let rockSocketText = ''
+          if (rockSocketCount > 0) {
+            const avgRS = totalRockSocket / rockSocketCount
+            const avgRSRounded = roundToMultipleOf5(avgRS)
+            const rsFeet = Math.floor(avgRSRounded)
+            const rsInches = Math.round((avgRSRounded - rsFeet) * 12)
+            rockSocketText = rsInches === 0 ? `${rsFeet}'-0"` : `${rsFeet}'-${rsInches}"`
           }
 
           // Get SOE page references from raw data
@@ -3720,14 +3742,18 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             if (!Number.isNaN(rowQty) && rowQty > 0) qtyValue = Math.round(rowQty)
           }
 
+          // Format: Height=##'-##", Embedment=##'-##" or + Rock socket=##'-##" when present
+          const dimPart = rockSocketText
+            ? `Height=${heightText}, Embedment=${embedmentText} + Rock socket=${rockSocketText}`
+            : `Height=${heightText}, Embedment=${embedmentText}`
           let proposalText = ''
           let afterCount = ''
           if (diameter) {
-            proposalText = `F&I new (${qtyValue})no [${diameter}" Ø] primary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
-            afterCount = `)no [${diameter}" Ø] primary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+            proposalText = `F&I new (${qtyValue})no [${diameter}" Ø] primary secant piles (${dimPart}) as per ${soePageMain} & details on`
+            afterCount = `)no [${diameter}" Ø] primary secant piles (${dimPart}) as per ${soePageMain} & details on`
           } else {
-            proposalText = `F&I new (${qtyValue})no [#" Ø] primary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
-            afterCount = `)no [#" Ø] primary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+            proposalText = `F&I new (${qtyValue})no [#" Ø] primary secant piles (${dimPart}) as per ${soePageMain} & details on`
+            afterCount = `)no [#" Ø] primary secant piles (${dimPart}) as per ${soePageMain} & details on`
           }
 
           if (sumRowIndex > 0) {
@@ -3868,7 +3894,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 if (takeoff > 0 || bText.toLowerCase().includes('secondary secant')) {
                   foundSecondarySecantRows.push({
                     rowNum: rowNum,
-                    particulars: bText,
+                    particulars: normalizeThickForDisplay(bText),
                     takeoff: takeoff,
                     qty: parseFloat(row[12]) || 0, // Column M
                     height: parseFloat(row[7]) || 0, // Column H
@@ -3900,6 +3926,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           let heightCount = 0
           let totalEmbedment = 0
           let embedmentCount = 0
+          let totalRockSocket = 0
+          let rockSocketCount = 0
           let lastRowNumber = 0
           let diameter = null
 
@@ -3934,13 +3962,19 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               }
             }
 
-            // Extract embedment (E=XX'-XX")
+            // Extract embedment (E= or Embedment=) and rock socket (RS= or Rock socket=)
             const particulars = item.particulars || ''
-            const eMatch = particulars.match(/E=([0-9'"\-]+)/i)
+            const eMatch = particulars.match(/(?:E|Embedment)=([0-9'"\-]+)/i)
             if (eMatch) {
               const embedmentValue = parseDimension(eMatch[1])
               totalEmbedment += embedmentValue * (item.takeoff || 0)
               embedmentCount += (item.takeoff || 0)
+            }
+            const rsMatch = particulars.match(/(?:RS|Rock\s*socket)=([0-9'"\-]+)/i)
+            if (rsMatch) {
+              const rsValue = parseDimension(rsMatch[1])
+              totalRockSocket += rsValue * (item.takeoff || 0)
+              rockSocketCount += (item.takeoff || 0)
             }
           })
 
@@ -3972,6 +4006,19 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           } else {
             embedmentText = `${embedmentFeet}'-${embedmentInches}"`
           }
+
+          // Format rock socket when present
+          let rockSocketText = ''
+          if (rockSocketCount > 0) {
+            const avgRS = totalRockSocket / rockSocketCount
+            const avgRSRounded = roundToMultipleOf5(avgRS)
+            const rsFeet = Math.floor(avgRSRounded)
+            const rsInches = Math.round((avgRSRounded - rsFeet) * 12)
+            rockSocketText = rsInches === 0 ? `${rsFeet}'-0"` : `${rsFeet}'-${rsInches}"`
+          }
+          const dimPartSec = rockSocketText
+            ? `Height=${heightText}, Embedment=${embedmentText} + Rock socket=${rockSocketText}`
+            : `Height=${heightText}, Embedment=${embedmentText}`
 
           // Get SOE page references from raw data
           let soePageMain = 'SOE-100.00'
@@ -4025,11 +4072,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           let proposalText = ''
           let afterCount = ''
           if (diameter) {
-            proposalText = `F&I new (${qtyValue})no [${diameter}" Ø] secondary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
-            afterCount = `)no [${diameter}" Ø] secondary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+            proposalText = `F&I new (${qtyValue})no [${diameter}" Ø] secondary secant piles (${dimPartSec}) as per ${soePageMain} & details on`
+            afterCount = `)no [${diameter}" Ø] secondary secant piles (${dimPartSec}) as per ${soePageMain} & details on`
           } else {
-            proposalText = `F&I new (${qtyValue})no [#" Ø] secondary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
-            afterCount = `)no [#" Ø] secondary secant piles (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+            proposalText = `F&I new (${qtyValue})no [#" Ø] secondary secant piles (${dimPartSec}) as per ${soePageMain} & details on`
+            afterCount = `)no [#" Ø] secondary secant piles (${dimPartSec}) as per ${soePageMain} & details on`
           }
 
           if (sumRowIndex > 0) {
@@ -4181,7 +4228,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 if (takeoff > 0 || bText.toLowerCase().includes('tangent')) {
                   foundTangentPileRows.push({
                     rowNum: rowNum,
-                    particulars: bText,
+                    particulars: normalizeThickForDisplay(bText),
                     takeoff: takeoff,
                     qty: parseFloat(row[12]) || 0, // Column M
                     height: parseFloat(row[7]) || 0, // Column H
@@ -4213,6 +4260,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           let heightCount = 0
           let totalEmbedment = 0
           let embedmentCount = 0
+          let totalRockSocket = 0
+          let rockSocketCount = 0
           let lastRowNumber = 0
           let diameter = null
 
@@ -4247,13 +4296,19 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               }
             }
 
-            // Extract embedment (E=XX'-XX")
+            // Extract embedment (E= or Embedment=) and rock socket (RS= or Rock socket=)
             const particulars = item.particulars || ''
-            const eMatch = particulars.match(/E=([0-9'"\-]+)/i)
+            const eMatch = particulars.match(/(?:E|Embedment)=([0-9'"\-]+)/i)
             if (eMatch) {
               const embedmentValue = parseDimension(eMatch[1])
               totalEmbedment += embedmentValue * (item.takeoff || 0)
               embedmentCount += (item.takeoff || 0)
+            }
+            const rsMatch = particulars.match(/(?:RS|Rock\s*socket)=([0-9'"\-]+)/i)
+            if (rsMatch) {
+              const rsValue = parseDimension(rsMatch[1])
+              totalRockSocket += rsValue * (item.takeoff || 0)
+              rockSocketCount += (item.takeoff || 0)
             }
           })
 
@@ -4285,6 +4340,19 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           } else {
             embedmentText = `${embedmentFeet}'-${embedmentInches}"`
           }
+
+          // Format rock socket when present (tangent pile)
+          let rockSocketTextTan = ''
+          if (rockSocketCount > 0) {
+            const avgRS = totalRockSocket / rockSocketCount
+            const avgRSRounded = roundToMultipleOf5(avgRS)
+            const rsFeet = Math.floor(avgRSRounded)
+            const rsInches = Math.round((avgRSRounded - rsFeet) * 12)
+            rockSocketTextTan = rsInches === 0 ? `${rsFeet}'-0"` : `${rsFeet}'-${rsInches}"`
+          }
+          const dimPartTan = rockSocketTextTan
+            ? `Height=${heightText}, Embedment=${embedmentText} + Rock socket=${rockSocketTextTan}`
+            : `Height=${heightText}, Embedment=${embedmentText}`
 
           // Get SOE page references from raw data
           let soePageMain = 'SOE-100.00'
@@ -4338,11 +4406,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           let proposalText = ''
           let afterCount = ''
           if (diameter) {
-            proposalText = `F&I new (${qtyValue})no [${diameter}" Ø] tangent pile (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
-            afterCount = `)no [${diameter}" Ø] tangent pile (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+            proposalText = `F&I new (${qtyValue})no [${diameter}" Ø] tangent pile (${dimPartTan}) as per ${soePageMain} & details on`
+            afterCount = `)no [${diameter}" Ø] tangent pile (${dimPartTan}) as per ${soePageMain} & details on`
           } else {
-            proposalText = `F&I new (${qtyValue})no [#" Ø] tangent pile (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
-            afterCount = `)no [#" Ø] tangent pile (Havg=${heightText}, ${embedmentText} embedment) as per ${soePageMain} & details on`
+            proposalText = `F&I new (${qtyValue})no [#" Ø] tangent pile (${dimPartTan}) as per ${soePageMain} & details on`
+            afterCount = `)no [#" Ø] tangent pile (${dimPartTan}) as per ${soePageMain} & details on`
           }
 
           if (sumRowIndex > 0) {
@@ -4440,7 +4508,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               currentGroup = []
               continue
             }
-            if (colA === 'foundation' || (colA && colA !== 'soe' && colA !== 'demolition' && colA !== 'excavation' && colA !== 'rock excavation')) {
+            const colAL = colA ? String(colA).toLowerCase().trim() : ''
+            const isExcSection = colAL === 'excavation' || colAL === 'exc' || colAL === 'exc.'
+            const isRockExcSection = colAL === 'rock excavation' || colAL === 'rock exc' || colAL === 'rock exc.'
+            if (colA === 'foundation' || (colA && colA !== 'soe' && colA !== 'demolition' && !isExcSection && !isRockExcSection)) {
               inSubsection = false
               if (currentGroup.length > 0) {
                 groups.push(currentGroup)
@@ -4473,7 +4544,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               const qty = parseFloat(row[12]) || 0
               if (takeoff > 0 || qty > 0 || colB.toLowerCase().includes('timber')) {
                 currentGroup.push({
-                  particulars: colB,
+                  particulars: normalizeThickForDisplay(colB),
                   takeoff,
                   unit,
                   height,
@@ -4903,7 +4974,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           const colB = row[1]
           if (colB && typeof colB === 'string') {
             const bText = colB.trim().toLowerCase()
-            if (bText.includes('concrete soil retention pier') && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
+            if ((bText.includes('concrete soil retention pier') || bText.includes('concrete pier')) && (bText.endsWith(':') || parseFloat(row[2]) > 0)) {
               foundConcreteSoilRetention = true
               break
             }
@@ -5625,7 +5696,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 }
                 if (inSubsection && bText && !bText.endsWith(':') && row[2] !== undefined) {
                   found.push({
-                    particulars: bText,
+                    particulars: normalizeThickForDisplay(bText),
                     takeoff: parseFloat(row[2]) || 0,
                     qty: parseFloat(row[12]) || 0,
                     rawRowNumber: sheetRow
@@ -5732,7 +5803,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                     if (takeoff > 0) {
                       foundRows.push({
                         rowNum: rowNum,
-                        particulars: bText,
+                        particulars: normalizeThickForDisplay(bText),
                         takeoff: takeoff,
                         qty: parseFloat(row[12]) || 0,
                         height: parseFloat(row[7]) || 0,
@@ -6230,7 +6301,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                     if (takeoff > 0) {
                       foundRows.push({
                         rowNum: rowNum,
-                        particulars: colB.trim(),
+                        particulars: normalizeThickForDisplay(colB || '').trim(),
                         takeoff: takeoff,
                         qty: parseFloat(row[12]) || 0,
                         height: parseFloat(row[7]) || 0,
@@ -6280,9 +6351,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 }
               })
 
-              // Extract free length and bond length from particulars
+              // Extract free length and bond length from particulars (existing), or single Length/L/LF=
               let freeLength = "28'-0\""
               let bondLength = "20'-0\""
+              let singleLengthStr = ''
               if (firstItemParticulars) {
                 const freeLengthMatch = firstItemParticulars.match(/Free\s+length\s*=\s*([0-9'\"\-\s]+)/i)
                 if (freeLengthMatch) {
@@ -6291,6 +6363,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 const bondLengthMatch = firstItemParticulars.match(/Bond\s+length\s*=\s*([0-9'\"\-\s]+)/i)
                 if (bondLengthMatch) {
                   bondLength = bondLengthMatch[1].trim()
+                }
+                // Single length: Tie back anchor (Length=##'-##"), (L=##'-##"), or (LF=##'-##")
+                if (!freeLengthMatch || !bondLengthMatch) {
+                  const singleMatch = firstItemParticulars.match(/(?:Length|LF|L)=([0-9'"\-]+)/i)
+                  if (singleMatch) singleLengthStr = singleMatch[1].trim()
                 }
               }
 
@@ -6333,9 +6410,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 }
               }
 
-              // Generate proposal text: F&I new (X)no tie back anchors (L=XX'-XX" + XX'-XX" bond length), XX ½"Ø drill hole as per SOE-XXX.XX
+              // Generate proposal text: (Free+Bond) or single (Length=...)
               const qtyValue = Math.round(totalQty || totalTakeoff)
-              const proposalText = `F&I new (${qtyValue})no tie back anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain} & details on`
+              const proposalText = singleLengthStr
+                ? `F&I new (${qtyValue})no tie back anchors (Length=${singleLengthStr}), ${drillHole} drill hole as per ${soePageMain} & details on`
+                : `F&I new (${qtyValue})no tie back anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain} & details on`
               const afterCount = afterCountFromProposalText(proposalText)
 
               if (sumRowIndex > 0 && afterCount) {
@@ -6479,7 +6558,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                     if (takeoff > 0) {
                       foundRows.push({
                         rowNum: rowNum,
-                        particulars: colB.trim(),
+                        particulars: normalizeThickForDisplay(colB || '').trim(),
                         takeoff: takeoff,
                         qty: parseFloat(row[12]) || 0,
                         height: parseFloat(row[7]) || 0,
@@ -6529,9 +6608,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 }
               })
 
-              // Extract free length and bond length from particulars
+              // Extract free length and bond length from particulars (existing), or single Length/L/LF=
               let freeLength = "28'-0\""
               let bondLength = "20'-0\""
+              let singleLengthStr = ''
               if (firstItemParticulars) {
                 const freeLengthMatch = firstItemParticulars.match(/Free\s+length\s*=\s*([0-9'\"\-\s]+)/i)
                 if (freeLengthMatch) {
@@ -6540,6 +6620,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 const bondLengthMatch = firstItemParticulars.match(/Bond\s+length\s*=\s*([0-9'\"\-\s]+)/i)
                 if (bondLengthMatch) {
                   bondLength = bondLengthMatch[1].trim()
+                }
+                // Single length: Tie back anchor (Length=##'-##"), (L=##'-##"), or (LF=##'-##")
+                if (!freeLengthMatch || !bondLengthMatch) {
+                  const singleMatch = firstItemParticulars.match(/(?:Length|LF|L)=([0-9'"\-]+)/i)
+                  if (singleMatch) singleLengthStr = singleMatch[1].trim()
                 }
               }
 
@@ -6582,9 +6667,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 }
               }
 
-              // Generate proposal text: F&I new (X)no tie back anchors (L=XX'-XX" + XX'-XX" bond length), XX ½"Ø drill hole as per SOE-XXX.XX
+              // Generate proposal text: (Free+Bond) or single (Length=...)
               const qtyValue = Math.round(totalQty || totalTakeoff)
-              const proposalText = `F&I new (${qtyValue})no tie back anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain} & details on`
+              const proposalText = singleLengthStr
+                ? `F&I new (${qtyValue})no tie back anchors (Length=${singleLengthStr}), ${drillHole} drill hole as per ${soePageMain} & details on`
+                : `F&I new (${qtyValue})no tie back anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain} & details on`
               const afterCount = afterCountFromProposalText(proposalText)
 
               if (sumRowIndex > 0 && afterCount) {
@@ -6707,7 +6794,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                     if (takeoff > 0) {
                       foundRows.push({
                         rowNum: rowNum,
-                        particulars: colB.trim(),
+                        particulars: normalizeThickForDisplay(colB || '').trim(),
                         takeoff: takeoff,
                         qty: parseFloat(row[12]) || 0,
                         height: parseFloat(row[7]) || 0,
@@ -6772,9 +6859,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               const sumRowIndex = lastRowNumber
               const calcSheetName = 'Calculations Sheet'
 
-              // Extract free length and bond length from particulars
+              // Extract free length and bond length from particulars, or single Length/L/LF=
               let freeLength = "28'-0\""
               let bondLength = "20'-0\""
+              let singleLengthStr = ''
               if (firstItemParticulars) {
                 const freeLengthMatch = firstItemParticulars.match(/Free\s+length\s*=\s*([0-9'\"\-\s]+)/i)
                 if (freeLengthMatch) {
@@ -6783,6 +6871,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 const bondLengthMatch = firstItemParticulars.match(/Bond\s+length\s*=\s*([0-9'\"\-\s]+)/i)
                 if (bondLengthMatch) {
                   bondLength = bondLengthMatch[1].trim()
+                }
+                if (!freeLengthMatch || !bondLengthMatch) {
+                  const singleMatch = firstItemParticulars.match(/(?:Length|LF|L)=([0-9'"\-]+)/i)
+                  if (singleMatch) singleLengthStr = singleMatch[1].trim()
                 }
               }
 
@@ -6825,9 +6917,11 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 }
               }
 
-              // Generate proposal text: F&I new (X)no tie down anchors (L=XX'-XX" + XX'-XX" bond length), XX ½"Ø drill hole as per SOE-XXX.XX
+              // Generate proposal text: (Free+Bond) or single (Length=...)
               const qtyValue = Math.round(totalQty || totalTakeoff)
-              const proposalText = `F&I new (${qtyValue})no tie down anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain} & details on`
+              const proposalText = singleLengthStr
+                ? `F&I new (${qtyValue})no tie down anchors (Length=${singleLengthStr}), ${drillHole} drill hole as per ${soePageMain} & details on`
+                : `F&I new (${qtyValue})no tie down anchors (L=${freeLength} + ${bondLength} bond length), ${drillHole} drill hole as per ${soePageMain} & details on`
               const afterCount = afterCountFromProposalText(proposalText)
 
               if (sumRowIndex > 0 && afterCount) {
@@ -7475,7 +7569,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                             let parsedHeight = parseFloat(row[7]) || 0
                             // Try to extract height from particulars if not in row
                             if (parsedHeight === 0 && (isTimberLagging || isTimberSheeting)) {
-                              const hMatch = bText.match(/H=([0-9'"\-]+)/i)
+                              const hMatch = bText.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
                               if (hMatch) {
                                 // Parse dimension string to feet
                                 const parseDim = (dimStr) => {
@@ -7492,7 +7586,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
                             foundRows.push({
                               rowNum: rowNum,
-                              particulars: bText,
+                              particulars: normalizeThickForDisplay(bText),
                               takeoff: takeoff,
                               qty: parseFloat(row[12]) || 0,
                               height: parsedHeight,
@@ -7582,9 +7676,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 const embedmentVals = []
                 dataRows.forEach(({ particulars, index }) => {
                   const p = String(particulars || '')
-                  const hMatch = p.match(/H=([0-9'"\-]+)/i)
+                  const hMatch = p.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
                   if (hMatch) heightVals.push(parseDimToFeet(hMatch[1]))
-                  const eMatch = p.match(/E=([0-9'"\-]+)/i)
+                  const eMatch = p.match(/(?:E|Embedment)=([0-9'"\-]+)/i)
                   if (eMatch) embedmentVals.push(parseDimToFeet(eMatch[1]))
                   const rowH = parseFloat(calculationData[index]?.[7]) || 0
                   if (rowH > 0) heightVals.push(rowH)
@@ -7611,7 +7705,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               const heightVals = []
               dataRows.forEach(({ particulars, index }) => {
                 const p = String(particulars || '')
-                const hMatch = p.match(/H=([0-9'"\-]+)/i)
+                const hMatch = p.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
                 if (hMatch) heightVals.push(parseDimToFeet(hMatch[1]))
                 const rowH = parseFloat(calculationData[index]?.[7]) || 0
                 if (rowH > 0) heightVals.push(rowH)
@@ -7764,7 +7858,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                       const existing = formBoardItems.find(fb => fb.particulars === bText && fb.takeoff === takeoff)
                       if (!existing) {
                         formBoardItems.push({
-                          particulars: bText,
+                          particulars: normalizeThickForDisplay(bText),
                           takeoff: takeoff,
                           qty: parseFloat(row[12]) || 0,
                           height: parseFloat(row[7]) || 0,
@@ -7805,9 +7899,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               // AND it does NOT start with "Underpinning" followed by dimensions
               const startsWithShims = /^shims\b/i.test(particulars)
               const hasShimWord = /\b(shim|wedge)\b/i.test(particulars)
-              const isUnderpinningWithDimensions = /^underpinning\s+\d+['"]?\s*x\s*\d+['"]?/i.test(particulars)
+              // Underpinning (LxWxH), (LxW), LxW wide/width, or L wide/width
+              const isUnderpinningWithDimensions = /^underpinning\s*\(/i.test(particulars) ||
+                /^underpinning\s*[\d'"\-]+\s*x\s*[\d'"\-]+/i.test(particulars) ||
+                /^underpinning\s*[\d'"\-]+\s*(?:wide|width)/i.test(particulars)
 
-              // If it starts with "Underpinning" followed by dimensions, it's definitely an underpinning item
+              // If it starts with "Underpinning" followed by dimensions (bracket, LxW, or L wide/width), it's an underpinning item
               if (isUnderpinningWithDimensions) {
                 underpinningItems.push(item)
               } else if (startsWithShims || hasShimWord) {
@@ -7874,12 +7971,12 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             if ((subsectionName.toLowerCase() === 'parging' || subsectionName.toLowerCase() === 'underpinning') && !itemHeight && item.particulars) {
               const particulars = item.particulars || ''
               // Try H= pattern first
-              let hMatch = particulars.match(/H=([0-9'"\-]+)/i) || particulars.match(/Height=([0-9'"\-]+)/i)
+              let hMatch = particulars.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
               if (hMatch) {
                 itemHeight = parseDimension(hMatch[1])
               } else if (subsectionName.toLowerCase() === 'underpinning') {
                 // For underpinning, try to parse from format like "2'-4"x4'-0" wide, Height=4'-7""
-                const heightMatch = particulars.match(/Height=([0-9'"\-]+)/i)
+                const heightMatch = particulars.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
                 if (heightMatch) {
                   itemHeight = parseDimension(heightMatch[1])
                 }
@@ -8107,7 +8204,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                   const digitizerItem = row[digitizerIdx]
                   if (digitizerItem && typeof digitizerItem === 'string') {
                     const itemText = digitizerItem.toLowerCase()
-                    if (itemText.includes('concrete soil retention pier')) {
+                    if (itemText.includes('concrete soil retention pier') || itemText.includes('concrete pier')) {
                       const pageValue = row[pageIdx]
                       if (pageValue) {
                         const pageStr = String(pageValue).trim()
@@ -8160,7 +8257,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                       const takeoff = parseFloat(row[2]) || 0
                       if (takeoff > 0 || bTextLower.includes('form board')) {
                         formBoardItems.push({
-                          particulars: bText,
+                          particulars: normalizeThickForDisplay(bText),
                           takeoff: takeoff,
                           qty: parseFloat(row[12]) || 0,
                           height: parseFloat(row[7]) || 0,
@@ -8510,7 +8607,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               if (barMatch && !barSize) {
                 barSize = `#${barMatch[1]}`
               }
-              const rsMatch = particulars.match(/RS=([0-9'"\-]+)/i)
+              const rsMatch = particulars.match(/(?:RS|Rock\s*socket)=([0-9'"\-]+)/i)
               if (rsMatch && !rockSocket) {
                 rockSocket = rsMatch[1]
               }
@@ -8574,7 +8671,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             let rockSocket = ''
             group.forEach(item => {
               const particulars = item.particulars || ''
-              const rsMatch = particulars.match(/RS=([0-9'"\-]+)/i)
+              const rsMatch = particulars.match(/(?:RS|Rock\s*socket)=([0-9'"\-]+)/i)
               if (rsMatch && !rockSocket) {
                 rockSocket = rsMatch[1]
               }
@@ -8668,7 +8765,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             let wireMesh = ''
             group.forEach(item => {
               const particulars = item.particulars || ''
-              const thickMatch = particulars.match(/(\d+(?:\/\d+)?)"?\s*thick/i)
+              const thickMatch = particulars.match(/(\d+(?:\/\d+)?)"?\s*(?:thick|thk)/i)
               if (thickMatch && !thickness) {
                 thickness = `${thickMatch[1]}"`
               }
@@ -8776,13 +8873,15 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             // Format: F&I new permission grouting (Havg=16'-0") as per SOESK-01
             proposalText = `F&I new permission grouting (Havg=${heightText}) as per ${soePageMain} & details on`
           } else if (subsectionName.toLowerCase() === 'mud slab') {
-            // Extract thickness from mud slab items (e.g., "w/ 2" mud slab" -> "2"")
+            // Extract thickness from mud slab items: "w/ 2" mud slab", "Mud slab 2"", "Mud slab 2" thick", "Mud slab 2" thk"
             let thickness = '2"' // Default thickness
             if (group.length > 0) {
               for (const item of group) {
                 const particulars = (item.particulars || '').trim()
-                // Match pattern like "w/ 2" mud slab" or "w/ 2\" mud slab"
-                const thicknessMatch = particulars.match(/w\/\s*(\d+(?:\/\d+)?)["']?\s*mud\s*slab/i)
+                let thicknessMatch = particulars.match(/w\/\s*(\d+(?:\/\d+)?)["']?\s*mud\s*slab/i)
+                if (!thicknessMatch) {
+                  thicknessMatch = particulars.match(/mud\s*slab\s+(\d+(?:\/\d+)?)\s*["']?\s*(?:thick|thk)?/i)
+                }
                 if (thicknessMatch) {
                   thickness = `${thicknessMatch[1]}"`
                   break
@@ -8854,7 +8953,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             if (group.length > 0) {
               const firstItem = group[0]
               const particulars = (firstItem.particulars || '').trim()
-              const eMatch = particulars.match(/E=([0-9'"\-]+)/i)
+              const eMatch = particulars.match(/(?:E|Embedment)=([0-9'"\-]+)/i)
               if (eMatch) {
                 // Parse dimension string to feet
                 const parseDim = (dimStr) => {
@@ -8906,7 +9005,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
             // Format: F&I new [NZ-14] sheet pile (H=27'-0", E=18'-6"embedment) as per SOE-102.00
             if (embedment) {
-              proposalText = `F&I new [${sheetPileType || '#'}] sheet pile (H=${height || '#'}, E=${embedment}embedment) as per ${soePageMain} & details on`
+              proposalText = `F&I new [${sheetPileType || '#'}] sheet pile (Height=${height || '#'}, Embedment=${embedment}) as per ${soePageMain} & details on`
             } else {
               proposalText = `F&I new [${sheetPileType || '#'}] sheet pile (H=${height || '#'}) as per ${soePageMain} & details on`
             }
@@ -9057,9 +9156,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               const p = (item.particulars || '').trim()
               const dimMatch = p.match(/(\d+(?:\/\d+)?)["']?\s*x\s*(\d+(?:\/\d+)?)["']?/i)
               if (dimMatch && !dimensions) dimensions = `${dimMatch[1]}"x${dimMatch[2]}"`
-              const hMatch = p.match(/H=([0-9'"\-]+)/i)
+              const hMatch = p.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
               if (hMatch) heightVals.push(parseDimToFeet(hMatch[1]))
-              const eMatch = p.match(/E=([0-9'"\-]+)/i)
+              const eMatch = p.match(/(?:E|Embedment)=([0-9'"\-]+)/i)
               if (eMatch) embedmentVals.push(parseDimToFeet(eMatch[1]))
               const rowH = item.height || item.parsed?.heightRaw || 0
               if (rowH > 0) heightVals.push(rowH)
@@ -9117,9 +9216,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               const p = (item.particulars || '').trim()
               const dimMatch = p.match(/(\d+(?:\/\d+)?)["']?\s*x\s*(\d+(?:\/\d+)?)["']?/i)
               if (dimMatch && !dimensions) dimensions = `${dimMatch[1]}"x${dimMatch[2]}"`
-              const hMatch = p.match(/H=([0-9'"\-]+)/i)
+              const hMatch = p.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
               if (hMatch) heightVals.push(parseDimToFeet(hMatch[1]))
-              const eMatch = p.match(/E=([0-9'"\-]+)/i)
+              const eMatch = p.match(/(?:E|Embedment)=([0-9'"\-]+)/i)
               if (eMatch) embedmentVals.push(parseDimToFeet(eMatch[1]))
               const rowH = item.height || item.parsed?.heightRaw || 0
               if (rowH > 0) heightVals.push(rowH)
@@ -9209,9 +9308,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               const p = (item.particulars || '').trim()
               const sizeMatch = p.match(/(\d+)"\s*x\s*(\d+)"?/i) || p.match(/(\d+)\s*"\s*x\s*(\d+)/i)
               if (sizeMatch && !sizeStr) sizeStr = `${sizeMatch[1]}"x${sizeMatch[2]}"`
-              const hMatch = p.match(/H=([0-9'"\-]+)/i)
+              const hMatch = p.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
               if (hMatch) heightVals.push(parseDimToFeet(hMatch[1]))
-              const eMatch = p.match(/E=([0-9'"\-]+)/i)
+              const eMatch = p.match(/(?:E|Embedment)=([0-9'"\-]+)/i)
               if (eMatch) embedmentVals.push(parseDimToFeet(eMatch[1]))
               const rowH = item.height || item.parsed?.heightRaw || 0
               if (rowH > 0) heightVals.push(rowH)
@@ -9271,7 +9370,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               const p = (item.particulars || '').trim()
               const dimMatch = p.match(/(\d+)"\s*x\s*(\d+)"?/i) || p.match(/(\d+)\s*"\s*x\s*(\d+)/i)
               if (dimMatch && !dimensions) dimensions = `${dimMatch[1]}"x${dimMatch[2]}"`
-              const hMatch = p.match(/H=([0-9'"\-]+)/i)
+              const hMatch = p.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
               if (hMatch && !heightText) heightText = hMatch[1].replace(/^\(|\)$/g, '').trim()
             })
             if (!heightText && group.length > 0) {
@@ -9332,9 +9431,9 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               const p = (item.particulars || '').trim()
               const sizeMatch = p.match(/(\d+)"\s*x\s*(\d+)"?/i) || p.match(/(\d+)\s*"\s*x\s*(\d+)/i)
               if (sizeMatch && !sizeStr) sizeStr = `${sizeMatch[1]}"x${sizeMatch[2]}"`
-              const hMatch = p.match(/H=([0-9'"\-]+)/i)
+              const hMatch = p.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
               if (hMatch) heightVals.push(parseDimToFeet(hMatch[1]))
-              const eMatch = p.match(/E=([0-9'"\-]+)/i)
+              const eMatch = p.match(/(?:E|Embedment)=([0-9'"\-]+)/i)
               if (eMatch) embedmentVals.push(parseDimToFeet(eMatch[1]))
               const rowH = item.height || item.parsed?.heightRaw || 0
               if (rowH > 0) heightVals.push(rowH)
@@ -9399,7 +9498,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
                 if (fracMatch) diameterStr = `${fracMatch[1]}" Ø`
                 else if (decMatch) diameterStr = `${decMatch[1]}" Ø`
               }
-              const hMatch = p.match(/H=([0-9'"\-]+)/i)
+              const hMatch = p.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
               if (hMatch) heightVals.push(parseDimToFeet(hMatch[1]))
               const rowH = item.height || item.parsed?.heightRaw || 0
               if (rowH > 0) heightVals.push(rowH)
@@ -9946,7 +10045,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
                 rockAnchorItems.push({
                   rowIndex: index + 2,
-                  particulars: colB.trim(),
+                  particulars: normalizeThickForDisplay(colB || '').trim(),
                   takeoff: takeoff,
                   qty: parseFloat(row[12]) || 0,
                   freeLength: freeLength,
@@ -10205,7 +10304,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
 
                   rockBoltItems.push({
                     rowIndex: index + 2,
-                    particulars: colB.trim(),
+                    particulars: normalizeThickForDisplay(colB || '').trim(),
                     takeoff: takeoff,
                     qty: parseFloat(row[12]) || 0,
                     bondLength: bondLength,
@@ -11628,8 +11727,8 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       for (const r of rows) {
         const p = (r && r[1] || '').toString()
         if (!thicknessText) {
-          const feetInch = p.match(/(\d+'\s*-\s*\d+"?)\s*thick/i) || p.match(/(\d+'\s*-\s*\d+"?)(?=\s|,|\)|$)/i)
-          const inchOnly = p.match(/(\d+(?:\/\d+)?)"?\s*thick/i) || p.match(/(\d+(?:\/\d+)?)"(?=\s|,|\)|$)/i)
+          const feetInch = p.match(/(\d+'\s*-\s*\d+"?)\s*(?:thick|thk)/i) || p.match(/(\d+'\s*-\s*\d+"?)(?=\s|,|\)|$)/i)
+          const inchOnly = p.match(/(\d+(?:\/\d+)?)"?\s*(?:thick|thk)/i) || p.match(/(\d+(?:\/\d+)?)"(?=\s|,|\)|$)/i)
           if (feetInch) {
             thicknessText = feetInch[1].trim()
             if (!/"/.test(thicknessText)) thicknessText += '"'
@@ -11699,10 +11798,10 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         out = out.replace(/\s*\(#+"?\s*thick,\s*typ\.?\)/gi, () => ` (${thick} thick, typ.)`)
       }
       if (vals.thicknessText) {
-        out = out.replace(/\s*\(\d+'\s*-\s*\d+"?\s*thick[^)]*\)/gi, () => ` (${vals.thicknessText} thick)`)
-        out = out.replace(/\s*\(\d+(?:\/\d+)?"\s*thick[^)]*\)/gi, () => ` (${vals.thicknessText} thick)`)
-        out = out.replace(/\s*\(\d+'\s*-\s*\d+"?\s*thick,\s*typ\.?\)/gi, () => ` (${vals.thicknessText} thick, typ.)`)
-        out = out.replace(/\s*\(\d+(?:\/\d+)?"\s*thick,\s*typ\.?\)/gi, () => ` (${vals.thicknessText} thick, typ.)`)
+        out = out.replace(/\s*\(\d+'\s*-\s*\d+"?\s*(?:thick|thk)[^)]*\)/gi, () => ` (${vals.thicknessText} thick)`)
+        out = out.replace(/\s*\(\d+(?:\/\d+)?"\s*(?:thick|thk)[^)]*\)/gi, () => ` (${vals.thicknessText} thick)`)
+        out = out.replace(/\s*\(\d+'\s*-\s*\d+"?\s*(?:thick|thk),\s*typ\.?\)/gi, () => ` (${vals.thicknessText} thick, typ.)`)
+        out = out.replace(/\s*\(\d+(?:\/\d+)?"\s*(?:thick|thk),\s*typ\.?\)/gi, () => ` (${vals.thicknessText} thick, typ.)`)
       }
       if (vals.widthText) {
         out = out.replace(/\s*\(\d+'\s*-\s*\d+"?\s*to\s*\d+'\s*-\s*\d+"?\s*wide\)/gi, () => ` (${vals.widthText} wide)`)
@@ -12010,7 +12109,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               }
             }
             if (thick === '8"') {
-              const m = particulars.match(/(\d+(?:\/\d+)?)"?\s*thick/i) || particulars.match(/(\d+)"\s*thick/i)
+              const m = particulars.match(/(\d+(?:\/\d+)?)"?\s*(?:thick|thk)/i) || particulars.match(/(\d+)"\s*(?:thick|thk)/i)
               if (m) thick = m[1].includes('"') ? m[1] : m[1] + '"'
             }
           }
@@ -12931,7 +13030,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       const parseToppingSlabDims = (particulars) => {
         if (!particulars || typeof particulars !== 'string') return null
         const t = String(particulars)
-        const thickMatch = t.match(/(\d+(?:\s*[½¼¾]|\s*\d+\/\d+)?)\s*"\s*thick/i) || t.match(/(\d+(?:\s*[½¼¾]|\s*\d+\/\d+)?)\s*"/)
+        const thickMatch = t.match(/(\d+(?:\s*[½¼¾]|\s*\d+\/\d+)?)\s*"\s*(?:thick|thk)/i) || t.match(/(\d+(?:\s*[½¼¾]|\s*\d+\/\d+)?)\s*"/)
         const parseInch = (s) => {
           if (!s) return 2
           s = String(s).replace(/\s*½/g, '.5').replace(/\s*¼/g, '.25').replace(/\s*¾/g, '.75')
@@ -13236,7 +13335,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           })
         }
         if (builtUpSlabRows.length > 0) {
-          const thickMatch = String(builtUpSlabRows[0][digitizerIdx] || '').match(/(\d+(?:\.\d+)?)\s*"\s*thick/i) || String(builtUpSlabRows[0][digitizerIdx] || '').match(/(\d+(?:\.\d+)?)\s*"/) || []
+          const thickMatch = String(builtUpSlabRows[0][digitizerIdx] || '').match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick|thk)/i) || String(builtUpSlabRows[0][digitizerIdx] || '').match(/(\d+(?:\.\d+)?)\s*"/) || []
           const thickStr = thickMatch[1] ? `${thickMatch[1]}"` : '3"'
           const floorText = formatFloorRefs(builtUpSlabRows.map(r => extractFloorRef(r[digitizerIdx]))) || 'as indicated'
           const sRefs = extractSPageRefs(builtUpSlabRows)
@@ -13273,7 +13372,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
           })
         }
         if (builtupRampsRampRows.length > 0) {
-          const thickMatch = String(builtupRampsRampRows[0][digitizerIdx] || '').match(/(\d+(?:\.\d+)?)\s*"\s*thick/i) || String(builtupRampsRampRows[0][digitizerIdx] || '').match(/(\d+(?:\.\d+)?)\s*"/) || []
+          const thickMatch = String(builtupRampsRampRows[0][digitizerIdx] || '').match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick|thk)/i) || String(builtupRampsRampRows[0][digitizerIdx] || '').match(/(\d+(?:\.\d+)?)\s*"/) || []
           const thickStr = thickMatch[1] ? `${thickMatch[1]}"` : '3"'
           const floorText = formatFloorRefs(builtupRampsRampRows.map(r => extractFloorRef(r[digitizerIdx]))) || 'as indicated'
           const sRefs = extractSPageRefs(builtupRampsRampRows)
@@ -14095,7 +14194,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       if (!row || !Array.isArray(row)) return { thickness: '8"', width: 'as indicated', riser: 'as indicated', location: '1st FL', asPer: defaultAsPer }
       const p = (row[1] || '').toString()
       let thickness = '8"'
-      const thicknessMatch = p.match(/(\d+(?:\/\d+)?)"?\s*thick/i) || p.match(/(\d+)"\s*thick/i)
+      const thicknessMatch = p.match(/(\d+(?:\/\d+)?)"?\s*(?:thick|thk)/i) || p.match(/(\d+)"\s*(?:thick|thk)/i)
       if (thicknessMatch) thickness = thicknessMatch[1].includes('"') ? thicknessMatch[1] : thicknessMatch[1] + '"'
       else if (row[7] != null && row[7] !== '') {
         const heightFeet = parseFloat(row[7])
@@ -14543,7 +14642,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
       if (!row || !Array.isArray(row)) return { thickness: '8"', width: 'as indicated', riser: 'as indicated', location: '1st FL', asPer: defaultAsPer, particulars: '' }
       const p = (row[1] || '').toString()
       let thickness = '8"'
-      const thicknessMatch = p.match(/(\d+(?:\/\d+)?)"?\s*thick/i) || p.match(/(\d+)"\s*thick/i)
+      const thicknessMatch = p.match(/(\d+(?:\/\d+)?)"?\s*(?:thick|thk)/i) || p.match(/(\d+)"\s*(?:thick|thk)/i)
       if (thicknessMatch) thickness = thicknessMatch[1].includes('"') ? thicknessMatch[1] : thicknessMatch[1] + '"'
       else if (row[7] != null && row[7] !== '') {
         const heightFeet = parseFloat(row[7])
@@ -14950,7 +15049,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
               if (bText && !bText.endsWith(':') && (takeoff > 0 || bText.includes('remove') || bText.includes('protect') || bText.includes('relocate'))) {
                 civilDemoItems[currentDemoSubsection].items.push({
                   rowIndex: rowNum,
-                  particulars: colB.trim(),
+                  particulars: normalizeThickForDisplay(colB || '').trim(),
                   takeoff: takeoff,
                   rawRowNumber: rowNum
                 })
@@ -15083,7 +15182,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             let height = '3\'-6"'
             if (firstItem && firstItem.particulars) {
               const widthMatch = firstItem.particulars.match(/(\d+)[""]?\s*wide/i)
-              const heightMatch = firstItem.particulars.match(/H=([^,\)]+)/i)
+              const heightMatch = firstItem.particulars.match(/(?:Height|Ht|H)=([^,\)]+)/i)
               if (widthMatch) width = widthMatch[1] + '"'
               if (heightMatch) height = heightMatch[1]
             }
@@ -15326,7 +15425,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             }
             if (inSoilErosion) {
               if (bText.includes('stabilized construction entrance')) {
-                const thicknessMatch = colB.match(/(\d+(?:\.\d+)?)\s*["']\s*thick/i)
+                const thicknessMatch = colB.match(/(\d+(?:\.\d+)?)\s*["']\s*(?:thick|thk)/i)
                 erosionItems.stabilized_entrance.push({ rowNum, thickness: thicknessMatch ? parseInt(thicknessMatch[1], 10) : 6 })
               } else if (bText.includes('silt fence')) {
                 const heightMatch = colB.match(/height\s*=\s*(\d+)'\s*-?\s*(\d+)"/i)
@@ -15440,7 +15539,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
             }
             if (inGravel) {
               if (bText.includes('transformer') && bText.includes('pad')) {
-                if (bText.includes('8" thick')) {
+                if (bText.includes('8" thick') || bText.includes('8" thk')) {
                   gravelItems.transformer_pad_8.push({ rowNum })
                 } else {
                   gravelItems.transformer_pad.push({ rowNum })
@@ -15677,7 +15776,7 @@ export function buildProposalSheet(spreadsheet, { calculationData, formulaData, 
         calculationData.forEach((row, i) => {
           const colB = (row[1] || '').toString().trim()
           if (colB.toLowerCase().includes('proposed sanitary invert')) {
-            sanitInvertRows.push({ row: i + 1, parsedData: { particulars: colB } })
+            sanitInvertRows.push({ row: i + 1, parsedData: { particulars: normalizeThickForDisplay(colB) } })
           }
         })
       }

@@ -202,7 +202,7 @@ export const isPileCap = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
     if (itemLower.includes('demo')) return false
-    return itemLower.includes('pile cap') || itemLower.startsWith('pc-')
+    return itemLower.includes('pile cap') || itemLower.startsWith('pc-') || /^pc\s*\(/.test(itemLower)
 }
 
 /**
@@ -212,7 +212,7 @@ export const isStripFooting = (item) => {
     if (!item || typeof item !== 'string') return false
     const itemLower = item.toLowerCase()
     if (itemLower.includes('demo')) return false
-    return itemLower.includes('strip footing') || itemLower.startsWith('sf') || itemLower.startsWith('st-') || itemLower.startsWith('wf-') || itemLower.includes('wall footing')
+    return itemLower.includes('strip footing') || itemLower.startsWith('sf') || itemLower.startsWith('st-') || itemLower.startsWith('wf-') || itemLower.startsWith('wf ') || itemLower.startsWith('wf(') || itemLower.includes('wall footing')
 }
 
 /**
@@ -223,7 +223,7 @@ export const isIsolatedFooting = (item) => {
   const itemLower = item.toLowerCase()
   if (itemLower.includes('demo')) return false
   return (
-    (itemLower.startsWith('f-') || itemLower.includes('footing') || /^f\d/i.test(itemLower)) && !itemLower.includes('foundation')
+    (itemLower.startsWith('f-') || itemLower.includes('footing') || /^f\d/i.test(itemLower) || /^f\s*\(/i.test(itemLower)) && !itemLower.includes('foundation')
   )
 }
 
@@ -440,6 +440,21 @@ export const isDeepSewageEjectorPit = (item) => {
     // Make pit optional: deep sewage ejector + keyword
     const deepPattern = /(?:deep\s+sewage\s+)?ejector\s+(slab|mat|wall|slope|haunch|sump|pit)/i
     return deepPattern.test(itemLower)
+}
+
+/**
+ * Identifies if item is a generic ejector pit item (not duplex/deep/sewage)
+ * E.g. "ejector pit wall", "ejector pit slab". Must be checked after isDuplexSewageEjectorPit, isDeepSewageEjectorPit, isSewageEjectorPit.
+ */
+export const isEjectorPit = (item) => {
+    if (!item || typeof item !== 'string') return false
+    const itemLower = item.toLowerCase()
+    if (itemLower.includes('demo')) return false
+    if (itemLower.includes('duplex sewage ejector') || itemLower.includes('deep sewage ejector') || itemLower.includes('sewage ejector')) return false
+    if (itemLower.includes('elevator pit')) return false
+    if (itemLower.includes('ejector pit')) return true
+    const ejectorPattern = /ejector\s+(?:pit\s+)?(slab|mat|wall|slope|haunch)/i
+    return ejectorPattern.test(itemLower)
 }
 
 /**
@@ -769,21 +784,18 @@ export const parseHelicalFoundationPile = (itemName) => {
         result.hasInfluence = true
     }
 
-    // Extract H value
-    const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
+    const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*([0-9'"\-]+)/i)
     if (hMatch) {
-        result.height = parseDimension(hMatch[1])
+        result.height = parseDimension(hMatch[1].trim().replace(/["\s]+$/, '').trim())
         result.calculatedHeight = roundToMultipleOf5(result.height)
     }
 
-    // Parse diameter and thickness
     const dt = parseDiameterThickness(itemName)
     if (dt) {
         result.diameter = dt.diameter
         result.thickness = dt.thickness
         result.weight = calculatePileWeight(dt.diameter, dt.thickness)
         let groupKeyBase = `${dt.diameter.toFixed(3)}x${dt.thickness}`
-        // Add INFLU- prefix to groupKey if item has influence
         result.groupKey = result.hasInfluence ? `INFLU-${groupKeyBase}` : groupKeyBase
     }
 
@@ -791,7 +803,8 @@ export const parseHelicalFoundationPile = (itemName) => {
 }
 
 /**
- * Parses driven foundation pile
+ * Parses driven foundation pile.
+ * Driven pile H=##'-##", E=##'-##"; Height=##'-##", Embedment=##'-##"; Ht=##'-##", embedment=##'-##"
  */
 export const parseDrivenFoundationPile = (itemName) => {
     const result = {
@@ -799,33 +812,32 @@ export const parseDrivenFoundationPile = (itemName) => {
         hpSize: null,
         weight: 0,
         height: 0,
+        embedment: null,
         calculatedHeight: 0,
         hasInfluence: false,
         groupKey: null
     }
 
-    // Detect influence keyword
     const itemLower = itemName.toLowerCase()
     if (itemLower.includes('influence')) {
         result.hasInfluence = true
     }
 
-    // Extract HP size (e.g., HP12x74)
     const hpMatch = itemName.match(/HP(\d+)x(\d+)/i)
     if (hpMatch) {
         result.hpSize = hpMatch[0]
-        result.weight = parseFloat(hpMatch[2]) // Weight is the second number
+        result.weight = parseFloat(hpMatch[2])
     }
 
-    // Extract H value
-    const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
+    const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*([0-9'"\-]+)/i)
     if (hMatch) {
-        result.height = parseDimension(hMatch[1])
+        result.height = parseDimension(hMatch[1].trim().replace(/["\s]+$/, '').trim())
         result.calculatedHeight = roundToMultipleOf5(result.height)
     }
+    const eMatch = itemName.match(/(?:E|Embedment|embedment)\s*=\s*([0-9'"\-]+)/i)
+    if (eMatch) result.embedment = parseDimension(eMatch[1].trim().replace(/["\s]+$/, '').trim())
 
     let groupKeyBase = result.hpSize || 'OTHER'
-    // Add INFLU- prefix to groupKey if item has influence
     result.groupKey = result.hasInfluence ? `INFLU-${groupKeyBase}` : groupKeyBase
 
     return result
@@ -888,7 +900,7 @@ export const parseStelcorDrilledDisplacementPile = (itemName) => {
 }
 
 /**
- * Parses CFA pile
+ * Parses CFA pile. CFA pile H=##'-##"; Height=##'-##"; Ht=##'-##"
  */
 export const parseCFAPile = (itemName) => {
     const result = {
@@ -898,16 +910,12 @@ export const parseCFAPile = (itemName) => {
         hasInfluence: false
     }
 
-    // Detect influence keyword
     const itemLower = itemName.toLowerCase()
-    if (itemLower.includes('influence')) {
-        result.hasInfluence = true
-    }
+    if (itemLower.includes('influence')) result.hasInfluence = true
 
-    // Extract H value
-    const hMatch = itemName.match(/(?:Height|Ht|H)=([0-9'"\-]+)/i)
+    const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*([0-9'"\-]+)/i)
     if (hMatch) {
-        result.height = parseDimension(hMatch[1])
+        result.height = parseDimension(hMatch[1].trim().replace(/["\s]+$/, '').trim())
         result.calculatedHeight = roundToMultipleOf5(result.height)
     }
 
@@ -1003,7 +1011,9 @@ const parseBracketDimensions = (itemName) => {
 }
 
 /**
- * Parses pile cap
+ * Parses pile cap / PC.
+ * Pile cap (##'x##'x##'); PC (##'x##'x##'); PC (##'x##'); PC (H=##'-##"); Pile cap Height=##'-##";
+ * Pile cap ##'x##' wide, Height=##'; ##'x##' width, Ht=##'; Pile cap ##' wide, Height=##'; ##' width, Ht=##'
  */
 export const parsePileCap = (itemName) => {
     const result = {
@@ -1018,14 +1028,40 @@ export const parsePileCap = (itemName) => {
         result.length = dims[0]
         result.width = dims[1]
         result.height = dims[2]
+    } else if (dims && dims.length === 2) {
+        result.length = dims[0]
+        result.width = dims[1]
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*([0-9'"\-]+)/i)
+        if (hMatch) result.height = parseDimension(hMatch[1].trim().replace(/["\s]+$/, '').trim())
+    }
+
+    if (result.length === 0 && result.width === 0 && result.height === 0) {
+        const hOnly = itemName.match(/(?:Height|Ht|H)\s*=\s*([0-9'"\-]+)/i)
+        if (hOnly) result.height = parseDimension(hOnly[1].trim().replace(/["\s]+$/, '').trim())
+    }
+
+    if (result.length === 0 || result.width === 0) {
+        const twoWide = itemName.match(/(?:pile cap|pc)\s*([0-9'"\-]+)\s*x\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        if (twoWide) {
+            result.length = parseDimension(twoWide[1].trim())
+            result.width = parseDimension(twoWide[2].trim())
+            result.height = parseDimension(twoWide[3].trim().replace(/["\s]+$/, '').trim())
+        } else {
+            const oneWide = itemName.match(/(?:pile cap|pc)\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+            if (oneWide) {
+                result.length = parseDimension(oneWide[1].trim())
+                result.width = 0
+                result.height = parseDimension(oneWide[2].trim().replace(/["\s]+$/, '').trim())
+            }
+        }
     }
 
     return result
 }
 
 /**
- * Parses strip footing
- * From brackets, extracts width (first value) and height (second value)
+ * Parses strip footing. SF (##'x##'); Strip footing ##' wide, Height=##'; ##' width, Ht=##'
+ * Wall footing: WF (##'x##'); Wall footing ##' wide, Height=##'; ##' width, Ht=##'
  */
 export const parseStripFooting = (itemName) => {
     const result = {
@@ -1033,14 +1069,13 @@ export const parseStripFooting = (itemName) => {
         width: 0,
         height: 0,
         groupKey: null,
-        itemType: null // 'SF', 'WF', or 'ST' to determine formula
+        itemType: null // 'SF', 'WF', or 'ST'
     }
 
-    // Determine item type (SF, WF, or ST)
     const itemLower = itemName.toLowerCase()
     if (itemLower.startsWith('sf') || itemLower.includes('strip footing')) {
         result.itemType = 'SF'
-    } else if (itemLower.startsWith('wf-')) {
+    } else if (itemLower.startsWith('wf-') || itemLower.startsWith('wf ') || itemLower.startsWith('wf(') || itemLower.includes('wall footing')) {
         result.itemType = 'WF'
     } else if (itemLower.startsWith('st-')) {
         result.itemType = 'ST'
@@ -1048,18 +1083,25 @@ export const parseStripFooting = (itemName) => {
 
     const dims = parseBracketDimensions(itemName)
     if (dims && dims.length >= 2) {
-        result.width = dims[0]  // First value is width (goes to column G)
-        result.height = dims[1]  // Second value is height (goes to column H)
+        result.width = dims[0]
+        result.height = dims[1]
         result.groupKey = `${dims[0].toFixed(2)}`
-        
-        // Debug logging
+    }
+
+    if (result.width === 0 || result.height === 0) {
+        const wideMatch = itemName.match(/(?:strip footing|wall footing|sf|wf)\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        if (wideMatch) {
+            result.width = parseDimension(wideMatch[1].trim())
+            result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+            result.groupKey = result.width ? `${result.width.toFixed(2)}` : null
+        }
     }
 
     return result
 }
 
 /**
- * Parses isolated footing
+ * Parses isolated footing. F (##'x##'x##'); Isolated footing (F) ##'x##' wide, Height=##'; ##'x##' width, Ht=##'
  */
 export const parseIsolatedFooting = (itemName) => {
     const result = {
@@ -1076,13 +1118,20 @@ export const parseIsolatedFooting = (itemName) => {
         result.height = dims[2]
     }
 
+    if (result.length === 0 || result.width === 0 || result.height === 0) {
+        const wideMatch = itemName.match(/(?:isolated footing\s*\(f\)|isolated footing)\s*([0-9'"\-]+)\s*x\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        if (wideMatch) {
+            result.length = parseDimension(wideMatch[1].trim())
+            result.width = parseDimension(wideMatch[2].trim())
+            result.height = parseDimension(wideMatch[3].trim().replace(/["\s]+$/, '').trim())
+        }
+    }
+
     return result
 }
 
 /**
- * Parses pilaster
- * From brackets, extracts Length, Width, Height
- * Example: Pilaster (P3) (22"x16"x6'-0") -> Length: 1.833, Width: 1.3333, Height: 6
+ * Parses pilaster. Pilaster (##'x##'x##'); Pilaster (F) ##'x##' wide, Height=##'; ##'x##' width, Ht=##'
  */
 export const parsePilaster = (itemName) => {
     const result = {
@@ -1094,20 +1143,25 @@ export const parsePilaster = (itemName) => {
 
     const dims = parseBracketDimensions(itemName)
     if (dims && dims.length >= 3) {
-        // parseBracketDimensions already returns values in feet
-        // For inches-only (like 22", 16"), it converts to feet (22/12 = 1.833)
-        // For feet-inches (like 6'-0"), it converts to feet (6.0)
-        result.length = dims[0]  // Length (F) - already in feet
-        result.width = dims[1]   // Width (G) - already in feet
-        result.height = dims[2]  // Height (H) - already in feet
-        
+        result.length = dims[0]
+        result.width = dims[1]
+        result.height = dims[2]
+    }
+
+    if (result.length === 0 || result.width === 0 || result.height === 0) {
+        const wideMatch = itemName.match(/(?:pilaster|pilaster\s*\(f\))\s*([0-9'"\-]+)\s*x\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        if (wideMatch) {
+            result.length = parseDimension(wideMatch[1].trim())
+            result.width = parseDimension(wideMatch[2].trim())
+            result.height = parseDimension(wideMatch[3].trim().replace(/["\s]+$/, '').trim())
+        }
     }
 
     return result
 }
 
 /**
- * Parses grade beam
+ * Parses grade beam. GB (##'x##'); Grade beam ##' wide, Height=##'; ##' width, Ht=##'
  */
 export const parseGradeBeam = (itemName) => {
     const result = {
@@ -1124,11 +1178,20 @@ export const parseGradeBeam = (itemName) => {
         result.groupKey = `${dims[0].toFixed(2)}`
     }
 
+    if (result.width === 0 || result.height === 0) {
+        const wideMatch = itemName.match(/(?:grade beam|gb)\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        if (wideMatch) {
+            result.width = parseDimension(wideMatch[1].trim())
+            result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+            result.groupKey = result.width ? `${result.width.toFixed(2)}` : null
+        }
+    }
+
     return result
 }
 
 /**
- * Parses tie beam
+ * Parses tie beam. TB (##'x##'); Tie beam ##' wide, Height=##'; ##' width, Ht=##'
  */
 export const parseTieBeam = (itemName) => {
     const result = {
@@ -1140,20 +1203,25 @@ export const parseTieBeam = (itemName) => {
 
     const dims = parseBracketDimensions(itemName)
     if (dims && dims.length >= 2) {
-        // parseBracketDimensions already returns feet
-        // For TB1 (20"x32"): dims[0] = 20/12 = 1.666..., dims[1] = 32/12 = 2.666...
         result.width = dims[0]
         result.height = dims[1]
         result.groupKey = `${dims[0].toFixed(2)}`
+    }
+
+    if (result.width === 0 || result.height === 0) {
+        const wideMatch = itemName.match(/(?:tie beam|tb)\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        if (wideMatch) {
+            result.width = parseDimension(wideMatch[1].trim())
+            result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+            result.groupKey = result.width ? `${result.width.toFixed(2)}` : null
+        }
     }
 
     return result
 }
 
 /**
- * Parses strap beam
- * Format: ST (3'-10"x2'-9") typ. or ST (2'-8"x3'-0") (87.86')
- * Same structure as grade beam: width x height from bracket
+ * Parses strap beam. ST (##'x##'); Strap beam ##' wide, Height=##'; ##' width, Ht=##'
  */
 export const parseStrapBeam = (itemName) => {
     const result = {
@@ -1170,32 +1238,70 @@ export const parseStrapBeam = (itemName) => {
         result.groupKey = `${dims[0].toFixed(2)}`
     }
 
+    if (result.width === 0 || result.height === 0) {
+        const wideMatch = itemName.match(/(?:strap beam|st)\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        if (wideMatch) {
+            result.width = parseDimension(wideMatch[1].trim())
+            result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+            result.groupKey = result.width ? `${result.width.toFixed(2)}` : null
+        }
+    }
+
     return result
 }
 
 /**
- * Parses thickened slab
+ * Parses thickened slab. (##'x##') or (##'x##'x##'); ##' wide/width, Height/Ht=##'; ##'x##' wide/width, Height/Ht=##'; ##' thick/thk, ##" thick/thk.
  */
 export const parseThickenedSlab = (itemName) => {
     const result = {
         type: 'thickened_slab',
+        length: 0,
         width: 0,
         height: 0,
         groupKey: null
     }
 
     const dims = parseBracketDimensions(itemName)
-    if (dims && dims.length >= 2) {
+    if (dims && dims.length >= 3) {
+        result.length = dims[0]
+        result.width = dims[1]
+        result.height = dims[2]
+        result.groupKey = `${dims[0].toFixed(2)}`
+    } else if (dims && dims.length >= 2) {
         result.width = dims[0]
         result.height = dims[1]
         result.groupKey = `${dims[0].toFixed(2)}`
+    }
+
+    if (result.width === 0 && result.height === 0 && result.length === 0) {
+        const twoWide = itemName.match(/thickened slab\s*([0-9'"\-]+)\s*x\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        if (twoWide) {
+            result.length = parseDimension(twoWide[1].trim())
+            result.width = parseDimension(twoWide[2].trim())
+            result.height = parseDimension(twoWide[3].trim().replace(/["\s]+$/, '').trim())
+            result.groupKey = result.length ? `${result.length.toFixed(2)}` : null
+        } else {
+            const oneWide = itemName.match(/thickened slab\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+            if (oneWide) {
+                result.width = parseDimension(oneWide[1].trim())
+                result.height = parseDimension(oneWide[2].trim().replace(/["\s]+$/, '').trim())
+                result.groupKey = result.width ? `${result.width.toFixed(2)}` : null
+            } else {
+                const thickMatch = itemName.match(/thickened slab\s*([0-9'"\-]+)\s*(?:thick|thk)/i)
+                if (thickMatch) {
+                    result.height = parseDimension(thickMatch[1].trim())
+                    result.groupKey = result.height ? `${result.height.toFixed(2)}` : null
+                }
+            }
+        }
     }
 
     return result
 }
 
 /**
- * Parses pier
+ * Parses pier (concrete pier). (##'x##'x##'); Concrete pier ##'x##' wide, Height=##'; ##'x##' width, Ht=##'
  */
 export const parsePier = (itemName) => {
     const result = {
@@ -1208,19 +1314,27 @@ export const parsePier = (itemName) => {
 
     const dims = parseBracketDimensions(itemName)
     if (dims && dims.length >= 3) {
-        // parseBracketDimensions already returns feet
         result.length = dims[0]
         result.width = dims[1]
         result.height = dims[2]
-        // Group by first bracket value (length)
         result.groupKey = `${dims[0].toFixed(2)}`
+    }
+
+    if (result.length === 0 || result.width === 0 || result.height === 0) {
+        const wideMatch = itemName.match(/(?:concrete pier|pier)\s*([0-9'"\-]+)\s*x\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        if (wideMatch) {
+            result.length = parseDimension(wideMatch[1].trim())
+            result.width = parseDimension(wideMatch[2].trim())
+            result.height = parseDimension(wideMatch[3].trim().replace(/["\s]+$/, '').trim())
+            result.groupKey = result.length ? `${result.length.toFixed(2)}` : null
+        }
     }
 
     return result
 }
 
 /**
- * Parses corbel
+ * Parses corbel. Corbel (##'x##'); Corbel ##' wide, Height=##'; ##' width, Ht=##'
  */
 export const parseCorbel = (itemName) => {
     const result = {
@@ -1232,18 +1346,25 @@ export const parseCorbel = (itemName) => {
 
     const dims = parseBracketDimensions(itemName)
     if (dims && dims.length >= 2) {
-        // parseBracketDimensions already returns values in feet
         result.width = dims[0]
         result.height = dims[1]
-        // Group by first value only (width)
         result.groupKey = `${dims[0].toFixed(2)}`
+    }
+
+    if (result.width === 0 || result.height === 0) {
+        const wideMatch = itemName.match(/corbel\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        if (wideMatch) {
+            result.width = parseDimension(wideMatch[1].trim())
+            result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+            result.groupKey = result.width ? `${result.width.toFixed(2)}` : null
+        }
     }
 
     return result
 }
 
 /**
- * Parses linear wall
+ * Parses linear wall (concrete liner wall). (##'x##'); Concrete liner wall ##' wide, Height=##'; ##' width, Ht=##'
  */
 export const parseLinearWall = (itemName) => {
     const result = {
@@ -1255,11 +1376,18 @@ export const parseLinearWall = (itemName) => {
 
     const dims = parseBracketDimensions(itemName)
     if (dims && dims.length >= 2) {
-        // parseBracketDimensions already returns values in feet
         result.width = dims[0]
         result.height = dims[1]
-        // Group by first value only (width)
         result.groupKey = `${dims[0].toFixed(2)}`
+    }
+
+    if (result.width === 0 || result.height === 0) {
+        const wideMatch = itemName.match(/(?:concrete liner wall|linear wall|liner wall)\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        if (wideMatch) {
+            result.width = parseDimension(wideMatch[1].trim())
+            result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+            result.groupKey = result.width ? `${result.width.toFixed(2)}` : null
+        }
     }
 
     return result
@@ -1334,8 +1462,7 @@ export const parseBarrierWall = (itemName) => {
 }
 
 /**
- * Parses stem wall
- * Example: Stem wall (10"x3'-10") -> width: 0.833, height: 3.833
+ * Parses stem wall. Stem wall (##'x##'); Stem wall ##' wide, Height=##'; ##' width, Ht=##'
  */
 export const parseStemWall = (itemName) => {
     const result = {
@@ -1347,10 +1474,18 @@ export const parseStemWall = (itemName) => {
 
     const dims = parseBracketDimensions(itemName)
     if (dims && dims.length >= 2) {
-        // parseBracketDimensions already returns values in feet
-        result.width = dims[0]  // Width (G) - first value from bracket
-        result.height = dims[1] // Height (H) - second value from bracket
+        result.width = dims[0]
+        result.height = dims[1]
         result.groupKey = `${dims[0].toFixed(2)}`
+    }
+
+    if (result.width === 0 || result.height === 0) {
+        const wideMatch = itemName.match(/stem wall\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+        if (wideMatch) {
+            result.width = parseDimension(wideMatch[1].trim())
+            result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+            result.groupKey = result.width ? `${result.width.toFixed(2)}` : null
+        }
     }
 
     return result
@@ -1377,6 +1512,13 @@ export const parseElevatorPit = (itemName) => {
     // Identify sub-type (sump pit: "sump pit @ elevator", "sump pit @ elevator pit", or "sump pit")
     if (itemLower.includes('sump pit @ elevator') || itemLower.includes('sump pit @ elevator pit') || itemLower.includes('sump pit')) {
         result.itemSubType = 'sump_pit'
+        const dims = parseBracketDimensions(itemName)
+        if (dims && dims.length >= 3) {
+            result.length = dims[0]
+            result.width = dims[1]
+            result.height = dims[2]
+            result.groupKey = `${dims[0].toFixed(2)}`
+        }
         return result
     } else if (itemLower.includes('mat slab')) {
         result.itemSubType = 'mat_slab'
@@ -1388,44 +1530,67 @@ export const parseElevatorPit = (itemName) => {
         return result
     } else if (itemLower.includes('mat')) {
         result.itemSubType = 'mat'
-        // Extract height from H=3'-0" format or thickness like "30""
-        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*([0-9'"\-]+)/i)
         if (hMatch) {
-            result.heightFromH = parseDimension(hMatch[1])
+            result.heightFromH = parseDimension(hMatch[1].trim().replace(/["\s]+$/, '').trim())
         } else {
-            // Try to extract thickness from patterns like "mat 30""
             const thicknessMatch = itemName.match(/mat\s+(\d+)"?/i)
             if (thicknessMatch) {
-                result.heightFromH = parseFloat(thicknessMatch[1]) / 12 // Convert inches to feet
+                result.heightFromH = parseFloat(thicknessMatch[1]) / 12
+            } else {
+                const matThick = itemName.match(/(?:elevator pit mat|elev\.?\s*pit mat)\s*([0-9'"\-]+)"?\s*(?:thick|thk)?/i)
+                if (matThick) {
+                    const raw = matThick[1].trim()
+                    result.heightFromH = parseDimension(raw.includes("'") || raw.includes('"') ? raw : `${raw}"`)
+                }
             }
         }
         return result
     } else if (itemLower.includes('slab')) {
         result.itemSubType = 'slab'
-        // Extract height from H=3'-0" format
-        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*([0-9'"\-]+)/i)
         if (hMatch) {
-            result.heightFromH = parseDimension(hMatch[1])
+            result.heightFromH = parseDimension(hMatch[1].trim().replace(/["\s]+$/, '').trim())
+        } else {
+            const slabThick = itemName.match(/(?:elevator pit slab|elev\.?\s*pit slab)\s*([0-9'"\-]+)"?\s*(?:thick|thk)?/i)
+            if (slabThick) {
+                const raw = slabThick[1].trim()
+                result.heightFromH = parseDimension(raw.includes("'") || raw.includes('"') ? raw : `${raw}"`)
+            }
         }
         return result
     } else if (itemLower.includes('wall')) {
         result.itemSubType = 'wall'
         const dims = parseBracketDimensions(itemName)
         if (dims && dims.length >= 2) {
-            // Two parsed values: width (G) and height (H)
-            result.width = dims[0]   // Width (G)
-            result.height = dims[1]  // Height (H)
+            result.width = dims[0]
+            result.height = dims[1]
             result.groupKey = `${dims[0].toFixed(2)}`
+        }
+        if (result.width === 0 || result.height === 0) {
+            const wideMatch = itemName.match(/(?:elevator pit wall|elev\.?\s*pit wall)\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+            if (wideMatch) {
+                result.width = parseDimension(wideMatch[1].trim())
+                result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+                result.groupKey = result.width ? `${result.width.toFixed(2)}` : null
+            }
         }
         return result
     } else if (itemLower.includes('slope transition') || itemLower.includes('haunch')) {
         result.itemSubType = 'slope_transition'
         const dims = parseBracketDimensions(itemName)
         if (dims && dims.length >= 2) {
-            // Two parsed values: width (G) and height (H)
-            result.width = dims[0]   // Width (G)
-            result.height = dims[1]  // Height (H)
+            result.width = dims[0]
+            result.height = dims[1]
             result.groupKey = `${dims[0].toFixed(2)}`
+        }
+        if (result.width === 0 || result.height === 0) {
+            const wideMatch = itemName.match(/(?:elevator pit (?:haunch|slope transition)|elev\.?\s*pit (?:haunch|slope transition))\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+            if (wideMatch) {
+                result.width = parseDimension(wideMatch[1].trim())
+                result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+                result.groupKey = result.width ? `${result.width.toFixed(2)}` : null
+            }
         }
         return result
     }
@@ -1453,6 +1618,13 @@ export const parseServiceElevatorPit = (itemName) => {
 
     if (itemLower.includes('sump pit @ service elevator') || itemLower.includes('sump pit @ service elevator pit')) {
         result.itemSubType = 'sump_pit'
+        const dims = parseBracketDimensions(itemName)
+        if (dims && dims.length >= 3) {
+            result.length = dims[0]
+            result.width = dims[1]
+            result.height = dims[2]
+            result.groupKey = `${dims[0].toFixed(2)}`
+        }
         return result
     } else if (itemLower.includes('mat slab')) {
         // New group: mat slab 
@@ -1464,21 +1636,34 @@ export const parseServiceElevatorPit = (itemName) => {
         return result
     } else if (itemLower.includes('mat')) {
         result.itemSubType = 'mat'
-        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*([0-9'"\-]+)/i)
         if (hMatch) {
-            result.heightFromH = parseDimension(hMatch[1])
+            result.heightFromH = parseDimension(hMatch[1].trim().replace(/["\s]+$/, '').trim())
         } else {
             const thicknessMatch = itemName.match(/mat\s+(\d+)"?/i)
             if (thicknessMatch) {
                 result.heightFromH = parseFloat(thicknessMatch[1]) / 12
+            } else {
+                const matThick = itemName.match(/(?:service elevator pit mat|service elev\.?\s*pit mat)\s*([0-9'"\-]+)"?\s*(?:thick|thk)?/i)
+                if (matThick) {
+                    const raw = matThick[1].trim()
+                    result.heightFromH = parseDimension(raw.includes("'") || raw.includes('"') ? raw : `${raw}"`)
+                }
             }
         }
         return result
     } else if (itemLower.includes('slab')) {
         result.itemSubType = 'slab'
-        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*([0-9'"\-]+)/i)
         if (hMatch) {
-            result.heightFromH = parseDimension(hMatch[1])
+            result.heightFromH = parseDimension(hMatch[1].trim().replace(/["\s]+$/, '').trim())
+        } else {
+            // Service elevator pit slab ##" or ##" thick or ##" thk; Service elev. pit slab ...
+            const slabThick = itemName.match(/(?:service elevator pit slab|service elev\.?\s*pit slab)\s*([0-9'"\-]+)"?\s*(?:thick|thk)?/i)
+            if (slabThick) {
+                const raw = slabThick[1].trim()
+                result.heightFromH = parseDimension(raw.includes("'") || raw.includes('"') ? raw : `${raw}"`)
+            }
         }
         return result
     } else if (itemLower.includes('wall')) {
@@ -1489,6 +1674,14 @@ export const parseServiceElevatorPit = (itemName) => {
             result.height = dims[1]
             result.groupKey = `${dims[0].toFixed(2)}`
         }
+        if (result.width === 0 || result.height === 0) {
+            const wideMatch = itemName.match(/(?:service elevator pit wall|service elev\.?\s*pit wall)\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+            if (wideMatch) {
+                result.width = parseDimension(wideMatch[1].trim())
+                result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+                result.groupKey = result.width ? `${result.width.toFixed(2)}` : null
+            }
+        }
         return result
     } else if (itemLower.includes('slope transition') || itemLower.includes('haunch')) {
         result.itemSubType = 'slope_transition'
@@ -1497,6 +1690,14 @@ export const parseServiceElevatorPit = (itemName) => {
             result.width = dims[0]
             result.height = dims[1]
             result.groupKey = `${dims[0].toFixed(2)}`
+        }
+        if (result.width === 0 || result.height === 0) {
+            const wideMatch = itemName.match(/(?:service elevator pit haunch|service elevator pit slope transition|service elev\.?\s*pit haunch|service elev\.?\s*pit slope transition)\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+            if (wideMatch) {
+                result.width = parseDimension(wideMatch[1].trim())
+                result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+                result.groupKey = result.width ? `${result.width.toFixed(2)}` : null
+            }
         }
         return result
     }
@@ -1527,22 +1728,34 @@ export const parseDetentionTank = (itemName) => {
         } else {
             result.itemSubType = 'slab'
         }
-        // Extract height from name like "12"", "8""
         const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
         if (inchMatch) {
-            const inches = parseFloat(inchMatch[1])
-            result.heightFromName = inches / 12 // Convert to feet
+            result.heightFromName = parseFloat(inchMatch[1]) / 12
+        } else {
+            const thickMatch = itemName.match(/detention tank (?:lid\s+)?slab\s*([0-9'"\-]+)"?\s*(?:thick|thk)/i)
+            if (thickMatch) {
+                const raw = thickMatch[1].trim()
+                result.heightFromName = parseDimension(raw.includes("'") || raw.includes('"') ? raw : `${raw}"`)
+            }
         }
         return result
     } else if (itemLower.includes('wall')) {
         result.itemSubType = 'wall'
         const dims = parseBracketDimensions(itemName)
         if (dims && dims.length >= 2) {
-            // For Detention tank wall: F=first dim, G=first dim (width), H=second dim
-            result.length = dims[0]  // Length (F)
-            result.width = dims[0]  // Width (G) - same as first dimension
-            result.height = dims[1] // Height (H) - second dimension
+            result.length = dims[0]
+            result.width = dims[0]
+            result.height = dims[1]
             result.groupKey = `${dims[0].toFixed(2)}`
+        }
+        if (result.width === 0 || result.height === 0) {
+            const wideMatch = itemName.match(/detention tank wall\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+            if (wideMatch) {
+                result.length = parseDimension(wideMatch[1].trim())
+                result.width = result.length
+                result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+                result.groupKey = result.length ? `${result.length.toFixed(2)}` : null
+            }
         }
         return result
     }
@@ -1590,8 +1803,13 @@ export const parseDuplexSewageEjectorPit = (itemName) => {
         result.itemSubType = 'slab'
         const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
         if (inchMatch) {
-            const inches = parseFloat(inchMatch[1])
-            result.heightFromName = inches / 12
+            result.heightFromName = parseFloat(inchMatch[1]) / 12
+        } else {
+            const thickMatch = itemName.match(/duplex sewage ejector (?:pit\s+)?slab\s*([0-9'"\-]+)"?\s*(?:thick|thk)/i)
+            if (thickMatch) {
+                const raw = thickMatch[1].trim()
+                result.heightFromName = parseDimension(raw.includes("'") || raw.includes('"') ? raw : `${raw}"`)
+            }
         }
         return result
     } else if (itemLower.includes('wall')) {
@@ -1601,6 +1819,14 @@ export const parseDuplexSewageEjectorPit = (itemName) => {
             result.width = dims[0]
             result.height = dims[1]
             result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        }
+        if (result.width === 0 || result.height === 0) {
+            const wideMatch = itemName.match(/duplex sewage ejector (?:pit\s+)?wall\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+            if (wideMatch) {
+                result.width = parseDimension(wideMatch[1].trim())
+                result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+                result.groupKey = result.width ? `${result.width.toFixed(2)}x${result.height.toFixed(2)}` : null
+            }
         }
         return result
     } else if (itemLower.includes('slope transition') || itemLower.includes('haunch')) {
@@ -1685,6 +1911,86 @@ export const parseSewageEjectorPit = (itemName) => {
 }
 
 /**
+ * Parses generic ejector pit items (same grouping and structure as Duplex/Deep sewage ejector pit)
+ * Handles: slab, mat, mat_slab, wall, slope items - e.g. "ejector pit wall", "ejector pit slab"
+ */
+export const parseEjectorPit = (itemName) => {
+    const result = {
+        type: 'ejector_pit',
+        itemSubType: null, // 'slab', 'mat', 'mat_slab', 'wall', 'slope_transition'
+        width: 0,
+        height: 0,
+        heightFromName: null,
+        groupKey: null
+    }
+
+    const itemLower = itemName.toLowerCase()
+
+    if (itemLower.includes('mat slab')) {
+        result.itemSubType = 'mat_slab'
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
+        if (hMatch) {
+            result.heightFromName = parseDimension(hMatch[1])
+        }
+        return result
+    } else if (itemLower.includes('mat')) {
+        result.itemSubType = 'mat'
+        const hMatch = itemName.match(/(?:Height|Ht|H)\s*=\s*(\d+'-\d+")/i)
+        if (hMatch) {
+            result.heightFromName = parseDimension(hMatch[1])
+        } else {
+            const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
+            if (inchMatch) {
+                const inches = parseFloat(inchMatch[1])
+                result.heightFromName = inches / 12
+            }
+        }
+        return result
+    } else if (itemLower.includes('slab')) {
+        result.itemSubType = 'slab'
+        const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
+        if (inchMatch) {
+            result.heightFromName = parseFloat(inchMatch[1]) / 12
+        } else {
+            const thickMatch = itemName.match(/ejector\s+(?:pit\s+)?slab\s*([0-9'"\-]+)"?\s*(?:thick|thk)/i)
+            if (thickMatch) {
+                const raw = thickMatch[1].trim()
+                result.heightFromName = parseDimension(raw.includes("'") || raw.includes('"') ? raw : `${raw}"`)
+            }
+        }
+        return result
+    } else if (itemLower.includes('wall')) {
+        result.itemSubType = 'wall'
+        const dims = parseBracketDimensions(itemName)
+        if (dims && dims.length >= 2) {
+            result.width = dims[0]
+            result.height = dims[1]
+            result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        }
+        if (result.width === 0 || result.height === 0) {
+            const wideMatch = itemName.match(/ejector\s+(?:pit\s+)?wall\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+            if (wideMatch) {
+                result.width = parseDimension(wideMatch[1].trim())
+                result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+                result.groupKey = result.width ? `${result.width.toFixed(2)}x${result.height.toFixed(2)}` : null
+            }
+        }
+        return result
+    } else if (itemLower.includes('slope transition') || itemLower.includes('haunch')) {
+        result.itemSubType = 'slope_transition'
+        const dims = parseBracketDimensions(itemName)
+        if (dims && dims.length >= 2) {
+            result.width = dims[0]
+            result.height = dims[1]
+            result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        }
+        return result
+    }
+
+    return result
+}
+
+/**
  * Parses deep sewage ejector pit items
  * Handles: slab, mat, mat_slab, wall, slope items with flexible naming (pit is optional)
  */
@@ -1724,8 +2030,13 @@ export const parseDeepSewageEjectorPit = (itemName) => {
         result.itemSubType = 'slab'
         const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
         if (inchMatch) {
-            const inches = parseFloat(inchMatch[1])
-            result.heightFromName = inches / 12
+            result.heightFromName = parseFloat(inchMatch[1]) / 12
+        } else {
+            const thickMatch = itemName.match(/deep sewage ejector (?:pit\s+)?slab\s*([0-9'"\-]+)"?\s*(?:thick|thk)/i)
+            if (thickMatch) {
+                const raw = thickMatch[1].trim()
+                result.heightFromName = parseDimension(raw.includes("'") || raw.includes('"') ? raw : `${raw}"`)
+            }
         }
         return result
     } else if (itemLower.includes('wall') || itemLower.includes('slope transition') || itemLower.includes('haunch')) {
@@ -1739,6 +2050,14 @@ export const parseDeepSewageEjectorPit = (itemName) => {
             result.width = dims[0]
             result.height = dims[1]
             result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        }
+        if (result.itemSubType === 'wall' && (result.width === 0 || result.height === 0)) {
+            const wideMatch = itemName.match(/deep sewage ejector (?:pit\s+)?wall\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+            if (wideMatch) {
+                result.width = parseDimension(wideMatch[1].trim())
+                result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+                result.groupKey = result.width ? `${result.width.toFixed(2)}x${result.height.toFixed(2)}` : null
+            }
         }
         return result
     }
@@ -1787,8 +2106,13 @@ export const parseSumpPumpPit = (itemName) => {
         result.itemSubType = 'slab'
         const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
         if (inchMatch) {
-            const inches = parseFloat(inchMatch[1])
-            result.heightFromName = inches / 12 // Convert to feet
+            result.heightFromName = parseFloat(inchMatch[1]) / 12
+        } else {
+            const thickMatch = itemName.match(/sump pump pit slab\s*([0-9'"\-]+)"?\s*(?:thick|thk)/i)
+            if (thickMatch) {
+                const raw = thickMatch[1].trim()
+                result.heightFromName = parseDimension(raw.includes("'") || raw.includes('"') ? raw : `${raw}"`)
+            }
         }
         return result
     } else if (itemLower.includes('wall') || itemLower.includes('slope transition') || itemLower.includes('haunch')) {
@@ -1802,6 +2126,14 @@ export const parseSumpPumpPit = (itemName) => {
             result.width = dims[0]
             result.height = dims[1]
             result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        }
+        if (result.itemSubType === 'wall' && (result.width === 0 || result.height === 0)) {
+            const wideMatch = itemName.match(/sump pump pit wall\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+            if (wideMatch) {
+                result.width = parseDimension(wideMatch[1].trim())
+                result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+                result.groupKey = result.width ? `${result.width.toFixed(2)}x${result.height.toFixed(2)}` : null
+            }
         }
         return result
     }
@@ -1849,8 +2181,13 @@ export const parseGreaseTrap = (itemName) => {
         result.itemSubType = 'slab'
         const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
         if (inchMatch) {
-            const inches = parseFloat(inchMatch[1])
-            result.heightFromName = inches / 12 // Convert to feet
+            result.heightFromName = parseFloat(inchMatch[1]) / 12
+        } else {
+            const thickMatch = itemName.match(/grease trap (?:pit\s+)?slab\s*([0-9'"\-]+)"?\s*(?:thick|thk)/i)
+            if (thickMatch) {
+                const raw = thickMatch[1].trim()
+                result.heightFromName = parseDimension(raw.includes("'") || raw.includes('"') ? raw : `${raw}"`)
+            }
         }
         return result
     } else if (itemLower.includes('wall') || itemLower.includes('slope transition') || itemLower.includes('haunch')) {
@@ -1911,8 +2248,13 @@ export const parseHouseTrap = (itemName) => {
         result.itemSubType = 'slab'
         const inchMatch = itemName.match(/(\d+)"\s*(?:typ\.)?/i)
         if (inchMatch) {
-            const inches = parseFloat(inchMatch[1])
-            result.heightFromName = inches / 12 // Convert to feet
+            result.heightFromName = parseFloat(inchMatch[1]) / 12
+        } else {
+            const thickMatch = itemName.match(/house trap (?:pit\s+)?slab\s*([0-9'"\-]+)"?\s*(?:thick|thk)/i)
+            if (thickMatch) {
+                const raw = thickMatch[1].trim()
+                result.heightFromName = parseDimension(raw.includes("'") || raw.includes('"') ? raw : `${raw}"`)
+            }
         }
         return result
     } else if (itemLower.includes('wall') || itemLower.includes('slope transition') || itemLower.includes('haunch')) {
@@ -2024,21 +2366,31 @@ export const parseSOG = (itemName) => {
         result.itemSubType = 'sog_step'
         const dims = parseBracketDimensions(itemName)
         if (dims && dims.length >= 2) {
-            // Width (G) and Height (H) from bracket
-            result.width = dims[0]   // Width (G)
-            result.height = dims[1]  // Height (H)
+            result.width = dims[0]
+            result.height = dims[1]
             result.groupKey = `${dims[0].toFixed(2)}x${dims[1].toFixed(2)}`
+        }
+        if (result.width === 0 || result.height === 0) {
+            const wideMatch = itemName.match(/(?:sog step|slab on grade step)\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+            if (wideMatch) {
+                result.width = parseDimension(wideMatch[1].trim())
+                result.height = parseDimension(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+                result.groupKey = result.width ? `${result.width.toFixed(2)}x${result.height.toFixed(2)}` : null
+            }
         }
         return result
     } else if (itemLower.includes('sog') || itemLower.includes('slab on grade') || itemLower.includes('pressure slab')) {
         result.itemSubType = 'sog_slab'
-        // Extract height from name like "SOG 4"", "SOG 6"", "Patio SOG 6"", "Patch SOG 5""
-        const inchMatch = itemName.match(/(\d+)"\s*(?:thick|thk)?/i)
+        const inchMatch = itemName.match(/(\d+)"\s*(?:thick|thk)?\.?/i)
         if (inchMatch) {
-            const inches = parseFloat(inchMatch[1])
-            result.heightFromName = inches / 12 // Convert to feet
+            result.heightFromName = parseFloat(inchMatch[1]) / 12
+        } else {
+            const thickMatch = itemName.match(/(?:patch\s+)?(?:sog|slab on grade)\s*([0-9'"\-]+)"?\s*(?:thick|thk)?\.?/i)
+            if (thickMatch) {
+                const raw = thickMatch[1].trim()
+                result.heightFromName = parseDimension(raw.includes("'") || raw.includes('"') ? raw : `${raw}"`)
+            }
         }
-        // Group by prefix and height (e.g., "SOG 4"", "SOG 6"", "Patio SOG 6"", "Patch SOG 5"", "Pressure SOG 5"")
         let prefix = 'sog'
         if (itemLower.includes('patio')) {
             prefix = 'patio_sog'
@@ -2067,11 +2419,15 @@ export const parseROG = (itemName) => {
     }
 
     const itemLower = itemName.toLowerCase()
-    // Extract height from name like "ROG 6"", "ROG 4""
     const inchMatch = itemName.match(/(\d+)"\s*(?:thick|thk)?/i)
     if (inchMatch) {
-        const inches = parseFloat(inchMatch[1])
-        result.heightFromName = inches / 12 // Convert to feet
+        result.heightFromName = parseFloat(inchMatch[1]) / 12
+    } else {
+        const thickMatch = itemName.match(/(?:rog|ramp on grade)\s*([0-9'"\-]+)"?\s*(?:thick|thk)?/i)
+        if (thickMatch) {
+            const raw = thickMatch[1].trim()
+            result.heightFromName = parseDimension(raw.includes("'") || raw.includes('"') ? raw : `${raw}"`)
+        }
     }
     result.groupKey = `rog_${result.heightFromName?.toFixed(2) || 'other'}`
     return result
@@ -2150,6 +2506,7 @@ export default {
     isDetentionTank,
     isDuplexSewageEjectorPit,
     isDeepSewageEjectorPit,
+    isEjectorPit,
     isSumpPumpPit,
     isGreaseTrap,
     isHouseTrap,
@@ -2185,6 +2542,7 @@ export default {
     parseDetentionTank,
     parseDuplexSewageEjectorPit,
     parseDeepSewageEjectorPit,
+    parseEjectorPit,
     parseSumpPumpPit,
     parseGreaseTrap,
     parseHouseTrap,

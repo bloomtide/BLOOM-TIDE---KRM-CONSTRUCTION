@@ -82,12 +82,12 @@ const parseThermalBreakQtyFromName = (particulars) => {
 }
 
 /**
- * Parses Height/Ht/H= value from text like "LW concrete fill, H=1'-1"" or "Height=1'-1""
+ * Parses Height/Ht/H= value from text like "LW concrete fill, H=1'-1"" or "Height=1'-1"" or "Ht.=4""
  * @param {string} particulars - Digitizer item text
  * @returns {number|null}
  */
 const parseHeightFromName = (particulars) => {
-  const match = particulars.match(/(?:Height|Ht|H)\s*=\s*([^,\s]+)/i)
+  const match = particulars.match(/(?:Height|Ht\.?|H)\s*=\s*([^,\s]+)/i)
   if (!match) return null
   return convertToFeet(match[1].trim())
 }
@@ -194,14 +194,27 @@ export const getSuperstructureItemType = (particulars) => {
   const p = particulars.trim().toLowerCase()
   if (p.includes('detention tank lid slab')) return null
   if (p.includes('duplex sewage ejector pit slab')) return null
-  if (p.includes('slab step') && p.includes('x')) {
+  if (p.includes('slab step')) {
     const dims = parseBracketDimensions(particulars)
     if (dims) {
       return { subsection: 'Slab steps', groupKey: 'slabStep', heightFormula: null, heightValue: dims.second, widthValue: dims.first, qty: 2 }
     }
+    const wideMatch = particulars.match(/(?:slab step)\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+    if (wideMatch) {
+      const widthValue = convertToFeet(wideMatch[1].trim())
+      const heightValue = convertToFeet(wideMatch[2].trim().replace(/["\s]+$/, '').trim())
+      return { subsection: 'Slab steps', groupKey: 'slabStep', heightFormula: null, heightValue, widthValue, qty: 2 }
+    }
   }
   if (p.includes('lw concrete fill') || p.includes('light weight concrete fill')) {
-    const heightValue = parseHeightFromName(particulars)
+    let heightValue = parseHeightFromName(particulars)
+    if (heightValue == null) {
+      const thickMatch = particulars.match(/lw concrete fill\s*([0-9'"\-]+)"?\s*(?:thick|thk)?\.?/i)
+      if (thickMatch) {
+        const raw = thickMatch[1].trim()
+        heightValue = raw.includes("'") || raw.includes('"') ? convertToFeet(raw) : convertToFeet(`${raw}"`)
+      }
+    }
     return { subsection: 'LW concrete fill', groupKey: 'lwConcreteFill', heightFormula: null, heightValue: heightValue ?? 1 + 1 / 12, widthValue: null, qty: null }
   }
   // Landing SOMD for Stairs - Infilled tads (exclude from Slab on metal deck)
@@ -238,6 +251,15 @@ export const getSuperstructureItemType = (particulars) => {
   if (p.includes('sump pump pit slab 8')) {
     return null
   }
+  if (/^slab\s+[0-9'"\-]/.test(p) && !p.includes('slab step') && !p.includes('patch slab') && !p.includes('balcony slab') && !p.includes('terrace slab') && !p.includes('topping slab') && !p.includes('overpour slab') && !p.includes('slab on ')) {
+    const slabThickMatch = particulars.match(/^slab\s+([0-9'"\-]+)"?\s*(?:thick|thk)?\.?/i)
+    if (slabThickMatch) {
+      const raw = slabThickMatch[1].trim()
+      const heightValue = raw.includes("'") || raw.includes('"') ? convertToFeet(raw) : convertToFeet(`${raw}"`)
+      const groupKey = Math.abs(heightValue - 8 / 12) < 0.001 ? 'slab8' : 'slabVar'
+      return { subsection: 'CIP Slabs', groupKey, heightFormula: null, heightValue, widthValue: null, qty: null }
+    }
+  }
   if (p.includes('slab 8"') || p.includes('slab 8\"')) {
     return { subsection: 'CIP Slabs', groupKey: 'slab8', heightFormula: '8/12', heightValue: null, widthValue: null, qty: null }
   }
@@ -259,20 +281,34 @@ export const getSuperstructureItemType = (particulars) => {
       return { subsection: 'Built-up slab', groupKey: 'builtUpKneeWall', heightFormula: null, heightValue: dims.second, widthValue: dims.first, qty: null }
     }
   }
-  if (p.includes('concrete hanger') && particulars.match(/\([^)]+x[^)]+x[^)]+\)/)) {
+  if (p.includes('concrete hanger')) {
     const dims = parseThreeDimensions(particulars)
     if (dims) {
       return { subsection: 'Concrete hanger', groupKey: 'concreteHanger', heightFormula: null, heightValue: dims.height, widthValue: dims.width, lengthValue: dims.length, qty: null }
+    }
+    const wideMatch = particulars.match(/concrete hanger\s*([0-9'"\-]+)\s*x\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+    if (wideMatch) {
+      const lengthValue = convertToFeet(wideMatch[1].trim())
+      const widthValue = convertToFeet(wideMatch[2].trim())
+      const heightValue = convertToFeet(wideMatch[3].trim().replace(/["\s]+$/, '').trim())
+      return { subsection: 'Concrete hanger', groupKey: 'concreteHanger', heightFormula: null, heightValue, widthValue, lengthValue, qty: null }
     }
   }
   if (p.includes('built up stairs') || (p.includes('built up stair') && !p.includes('@'))) {
     return { subsection: 'Built-up stair', groupKey: 'builtUpStairs', heightFormula: '7/12', heightValue: null, widthFormula: '11/12', widthValue: null, lengthValue: 3, qty: null }
   }
   if (p.includes('builtup ramp') || p.includes('built up ramp')) {
-    const thickMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick|thk)/i) || particulars.match(/(\d+(?:\.\d+)?)\s*"/)
-    const inches = thickMatch ? parseFloat(thickMatch[1]) : 3
+    const thickMatch = particulars.match(/(?:builtup ramp|built up ramp)\s*([0-9'"\-]+)"?\s*(?:thick|thk)?/i)
+    let heightValue = 3 / 12
+    if (thickMatch) {
+      const raw = thickMatch[1].trim()
+      heightValue = raw.includes("'") || raw.includes('"') ? convertToFeet(raw) : convertToFeet(`${raw}"`)
+    } else {
+      const fallback = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick|thk)/i) || particulars.match(/(\d+(?:\.\d+)?)\s*"/)
+      if (fallback) heightValue = parseFloat(fallback[1]) / 12
+    }
     const groupId = parseTrailingGroupId(particulars)
-    return { subsection: 'Builtup ramps', groupKey: 'builtupRamp', heightFormula: null, heightValue: inches / 12, widthValue: null, qty: null, groupId: groupId ?? 1 }
+    return { subsection: 'Builtup ramps', groupKey: 'builtupRamp', heightFormula: null, heightValue, widthValue: null, qty: null, groupId: groupId ?? 1 }
   }
   if (p.includes('knee wall') && p.includes('x') && /\)\s*\(\d+\)\s*$/.test(particulars.trim())) {
     const dims = parseBracketDimensions(particulars)
@@ -287,55 +323,104 @@ export const getSuperstructureItemType = (particulars) => {
       return { subsection: 'Raised slab', groupKey: 'raisedKneeWall', heightFormula: null, heightValue: dims.second, widthValue: dims.first, qty: null }
     }
   }
-  if (p.includes('raised slab') && (p.includes('"') || p.includes('thick') || p.includes('thk'))) {
-    const thickMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"/) || particulars.match(/(\d+(?:\.\d+)?)\s*(?:thick|thk)/i)
-    const inches = thickMatch ? parseFloat(thickMatch[1]) : 4
-    return { subsection: 'Raised slab', groupKey: 'raisedSlab', heightFormula: null, heightValue: inches / 12, widthValue: null, qty: null }
+  if (p.includes('raised slab')) {
+    const thickMatch = particulars.match(/raised slab\s*([0-9'"\-]+)"?\s*(?:thick|thk)?/i)
+    let heightValue = 4 / 12
+    if (thickMatch) {
+      const raw = thickMatch[1].trim()
+      heightValue = raw.includes("'") || raw.includes('"') ? convertToFeet(raw) : convertToFeet(`${raw}"`)
+    } else {
+      const fallback = particulars.match(/(\d+(?:\.\d+)?)\s*"/) || particulars.match(/(\d+(?:\.\d+)?)\s*(?:thick|thk)/i)
+      if (fallback) heightValue = parseFloat(fallback[1]) / 12
+    }
+    return { subsection: 'Raised slab', groupKey: 'raisedSlab', heightFormula: null, heightValue, widthValue: null, qty: null }
   }
-  if ((p.includes('builtup slab') || p.includes('built up slab')) && (p.includes('"') || p.includes('thick') || p.includes('thk'))) {
-    const thickMatch = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick|thk)/i) || particulars.match(/(\d+(?:\.\d+)?)\s*"/) || particulars.match(/(\d+(?:\.\d+)?)\s*(?:thick|thk)/i)
-    const inches = thickMatch ? parseFloat(thickMatch[1]) : 3
-    return { subsection: 'Built-up slab', groupKey: 'builtUpSlab', heightFormula: null, heightValue: inches / 12, widthValue: null, qty: null }
+  if (p.includes('builtup slab') || p.includes('built up slab')) {
+    const thickMatch = particulars.match(/(?:builtup slab|built up slab)\s*([0-9'"\-]+)"?\s*(?:thick|thk)?/i)
+    let heightValue = 3 / 12
+    if (thickMatch) {
+      const raw = thickMatch[1].trim()
+      heightValue = raw.includes("'") || raw.includes('"') ? convertToFeet(raw) : convertToFeet(`${raw}"`)
+    } else {
+      const fallback = particulars.match(/(\d+(?:\.\d+)?)\s*"\s*(?:thick|thk)/i) || particulars.match(/(\d+(?:\.\d+)?)\s*"/) || particulars.match(/(\d+(?:\.\d+)?)\s*(?:thick|thk)/i)
+      if (fallback) heightValue = parseFloat(fallback[1]) / 12
+    }
+    return { subsection: 'Built-up slab', groupKey: 'builtUpSlab', heightFormula: null, heightValue, widthValue: null, qty: null }
   }
-  if (
-  (p.includes('sw ') || p.includes('shear wall') || p.includes('concrete wall')) &&
-  particulars.match(/\([^)]+x[^)]+\)/)
- ) {
+  if (p.includes('sw ') || p.includes('shear wall') || p.includes('concrete wall')) {
     const dims = parseBracketDimensions(particulars)
     if (dims) {
       return { subsection: 'Shear Walls', groupKey: 'shearWalls', heightFormula: null, heightValue: dims.second, widthValue: dims.first, qty: null }
     }
+    const swWideMatch = particulars.match(/(?:shear wall|sw|concrete wall)\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+    if (swWideMatch) {
+      const widthValue = convertToFeet(swWideMatch[1].trim())
+      const heightValue = convertToFeet(swWideMatch[2].trim().replace(/["\s]+$/, '').trim())
+      return { subsection: 'Shear Walls', groupKey: 'shearWalls', heightFormula: null, heightValue, widthValue, qty: null }
+    }
   }
-  if (p.includes('parapet wall') && particulars.match(/\([^)]+x[^)]+\)/)) {
+  if (p.includes('parapet wall')) {
     const dims = parseBracketDimensions(particulars)
     if (dims) {
       return { subsection: 'Parapet walls', groupKey: 'parapetWalls', heightFormula: null, heightValue: dims.second, widthValue: dims.first, qty: null }
+    }
+    const parapetWideMatch = particulars.match(/parapet wall\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+    if (parapetWideMatch) {
+      const widthValue = convertToFeet(parapetWideMatch[1].trim())
+      const heightValue = convertToFeet(parapetWideMatch[2].trim().replace(/["\s]+$/, '').trim())
+      return { subsection: 'Parapet walls', groupKey: 'parapetWalls', heightFormula: null, heightValue, widthValue, qty: null }
     }
   }
   if (p.includes('as per takeoff count') || (p.includes('column') && p.includes('count'))) {
     return { subsection: 'Columns', groupKey: 'columnsTakeoff', heightFormula: null, heightValue: null, widthValue: null, qty: null }
   }
-  if (p.includes('concrete post') && particulars.match(/\([^)]+x[^)]+x[^)]+\)/)) {
+  if (p.includes('concrete post')) {
     const dims = parseThreeDimensions(particulars)
     if (dims) {
       return { subsection: 'Concrete post', groupKey: 'concretePost', heightFormula: null, heightValue: dims.height, widthValue: dims.width, lengthValue: dims.length, qty: null }
     }
+    const postWideMatch = particulars.match(/concrete post\s*([0-9'"\-]+)\s*x\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+    if (postWideMatch) {
+      const lengthValue = convertToFeet(postWideMatch[1].trim())
+      const widthValue = convertToFeet(postWideMatch[2].trim())
+      const heightValue = convertToFeet(postWideMatch[3].trim().replace(/["\s]+$/, '').trim())
+      return { subsection: 'Concrete post', groupKey: 'concretePost', heightFormula: null, heightValue, widthValue, lengthValue, qty: null }
+    }
   }
-  if (p.includes('concrete encasement') && particulars.match(/\([^)]+x[^)]+x[^)]+\)/)) {
+  if (p.includes('concrete encasement')) {
     const dims = parseThreeDimensions(particulars)
     if (dims) {
       return { subsection: 'Concrete encasement', groupKey: 'concreteEncasement', heightFormula: null, heightValue: dims.height, widthValue: dims.width, lengthValue: dims.length, qty: null }
     }
+    const encWideMatch = particulars.match(/concrete encasement\s*([0-9'"\-]+)\s*x\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+    if (encWideMatch) {
+      const lengthValue = convertToFeet(encWideMatch[1].trim())
+      const widthValue = convertToFeet(encWideMatch[2].trim())
+      const heightValue = convertToFeet(encWideMatch[3].trim().replace(/["\s]+$/, '').trim())
+      return { subsection: 'Concrete encasement', groupKey: 'concreteEncasement', heightFormula: null, heightValue, widthValue, lengthValue, qty: null }
+    }
   }
-  if (p.includes('drop panel') && particulars.match(/\([^)]+x[^)]+x[^)]+\)/)) {
+  if (p.includes('drop panel')) {
     const dims = parseThreeDimensions(particulars)
     if (dims) {
       return { subsection: 'Drop panel', groupKey: 'dropPanelBracket', heightFormula: null, heightValue: dims.height, widthValue: dims.width, lengthValue: dims.length, qty: null }
     }
-  }
-  if (p.includes('drop panel') && particulars.match(/(?:Height|Ht|H)\s*=/i)) {
-    const heightValue = parseHeightFromName(particulars)
-    return { subsection: 'Drop panel', groupKey: 'dropPanelH', heightFormula: null, heightValue: heightValue ?? 0.67, widthValue: null, qty: null }
+    const dropWideMatch = particulars.match(/drop panel\s*([0-9'"\-]+)\s*x\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+    if (dropWideMatch) {
+      const lengthValue = convertToFeet(dropWideMatch[1].trim())
+      const widthValue = convertToFeet(dropWideMatch[2].trim())
+      const heightValue = convertToFeet(dropWideMatch[3].trim().replace(/["\s]+$/, '').trim())
+      return { subsection: 'Drop panel', groupKey: 'dropPanelBracket', heightFormula: null, heightValue, widthValue, lengthValue, qty: null }
+    }
+    const dropHBracketMatch = particulars.match(/drop panel\s*\(\s*(?:Height|Ht|H)\s*=\s*([^)]+)\)/i)
+    if (dropHBracketMatch) {
+      const heightValue = convertToFeet(dropHBracketMatch[1].trim())
+      return { subsection: 'Drop panel', groupKey: 'dropPanelH', heightFormula: null, heightValue, widthValue: null, qty: null }
+    }
+    if (particulars.match(/(?:Height|Ht|H)\s*=/i)) {
+      const heightValue = parseHeightFromName(particulars)
+      return { subsection: 'Drop panel', groupKey: 'dropPanelH', heightFormula: null, heightValue: heightValue ?? 0.67, widthValue: null, qty: null }
+    }
   }
   // Beams: item must start with digits+B- (e.g. 1B-1, 2B-1) or RB- (e.g. RB-1, RB-2) or BHB- (e.g. BHB-1) only
   if (
@@ -351,21 +436,39 @@ export const getSuperstructureItemType = (particulars) => {
       return { subsection: 'Beams', groupKey: 'beams', heightFormula: null, heightValue: dims.second, widthValue: dims.first, qty: null }
     }
   }
-  if ((p.includes('concrete curb') || p.includes('curb')) && particulars.match(/\([^)]+x[^)]+\)/)) {
+  if (p.includes('concrete curb') || p.includes('curb')) {
     const dims = parseBracketDimensions(particulars)
     if (dims) {
       return { subsection: 'Curbs', groupKey: 'curbs', heightFormula: null, heightValue: dims.second, widthValue: dims.first, qty: null }
     }
-  }
-  if ((p.includes('concrete pad') || p.includes('pad') || p.includes('housekeeping pad')) && (particulars.match(/\d+\s*"/) || particulars.match(/\d+"\s*$/))) {
-    if (p.includes('transformer')) return null
-    const thickMatch = particulars.match(/(\d+)\s*"/)
-    const inches = thickMatch ? parseFloat(thickMatch[1]) : 4
-    const qtyFromBracket = parseQtyFromBracket(particulars)
-    if (qtyFromBracket != null) {
-      return { subsection: 'Concrete pad', groupKey: 'concretePad', heightFormula: null, heightValue: inches / 12, widthValue: null, qty: qtyFromBracket }
+    const curbWideMatch = particulars.match(/(?:concrete curb|curb)\s*([0-9'"\-]+)\s*(?:wide|width)\s*,?\s*(?:Height|Ht|H)=([0-9'"\-]+)/i)
+    if (curbWideMatch) {
+      const widthValue = convertToFeet(curbWideMatch[1].trim())
+      const heightValue = convertToFeet(curbWideMatch[2].trim().replace(/["\s]+$/, '').trim())
+      return { subsection: 'Curbs', groupKey: 'curbs', heightFormula: null, heightValue, widthValue, qty: null }
     }
-    return { subsection: 'Concrete pad', groupKey: 'concretePadNoBracket', heightFormula: null, heightValue: inches / 12, widthValue: null, qty: null, noBracket: true }
+  }
+  if ((p.includes('concrete pad') || p.includes('pad') || p.includes('housekeeping pad')) && !p.includes('transformer')) {
+    const padNoMatch = particulars.match(/(?:concrete pad|pad|housekeeping pad)\s*\(\s*(\d+)\s*\)\s*no\.?/i)
+    if (padNoMatch) {
+      const qty = parseInt(padNoMatch[1], 10)
+      return { subsection: 'Concrete pad', groupKey: 'concretePad', heightFormula: null, heightValue: 4 / 12, widthValue: null, qty }
+    }
+    const thickMatch = particulars.match(/(?:concrete pad|pad|housekeeping pad)\s*([0-9'"\-]+)"?\s*(?:thick|thk)?/i) || particulars.match(/(\d+)\s*"/) || particulars.match(/(\d+)"\s*$/)
+    if (thickMatch) {
+      let heightValue = 4 / 12
+      const raw = thickMatch[1].trim()
+      if (raw.includes("'") || raw.includes('"')) {
+        heightValue = convertToFeet(raw)
+      } else if (/^\d+(\.\d+)?$/.test(raw)) {
+        heightValue = parseFloat(raw) / 12
+      }
+      const qtyFromBracket = parseQtyFromBracket(particulars)
+      if (qtyFromBracket != null) {
+        return { subsection: 'Concrete pad', groupKey: 'concretePad', heightFormula: null, heightValue, widthValue: null, qty: qtyFromBracket }
+      }
+      return { subsection: 'Concrete pad', groupKey: 'concretePadNoBracket', heightFormula: null, heightValue, widthValue: null, qty: null, noBracket: true }
+    }
   }
   if (p.includes('non-shrink grout') || p.includes('non shrink grout')) {
     return { subsection: 'Non-shrink grout', groupKey: 'nonShrinkGrout', heightFormula: null, heightValue: null, widthValue: null, qty: null }
@@ -431,7 +534,7 @@ export const processSuperstructureItems = (rawDataRows, headers, tracker = null)
   })
 
   if (digitizerIdx === -1 || totalIdx === -1) {
-    return { cipSlab8, cipRoofSlab8, cipCastInPlaceSlab8, cipCIPSlabVar, balconySlab, terraceSlab, patchSlab, slabSteps, lwConcreteFill, slabOnMetalDeck: [], infilledLandingItems: [], toppingSlab, thermalBreak, raisedSlab, builtUpSlab, builtUpStair, builtupRamps, concreteHanger, shearWalls, parapetWalls, columnsTakeoff, concretePost, concreteEncasement, dropPanelBracket, dropPanelH, beams, curbs, concretePad, nonShrinkGrout, repairScope }
+    return { cipSlab8, cipRoofSlab8, cipCastInPlaceSlab8, cipCIPSlabVar, balconySlab, terraceSlab, patchSlab, slabSteps, lwConcreteFill, slabOnMetalDeck: [], infilledLandingItems: [], toppingSlab, thermalBreak, raisedSlab, builtUpSlab, builtUpStair, builtupRamps, concreteHanger, shearWalls, parapetWalls, columnsTakeoff, cipStairsGroups: [], concretePost, concreteEncasement, dropPanelBracket, dropPanelH, beams, curbs, concretePad, nonShrinkGrout, repairScope }
   }
 
   rawDataRows.forEach((row, rowIndex) => {
@@ -610,7 +713,7 @@ export const processSuperstructureItems = (rawDataRows, headers, tracker = null)
   })
 
   const slabOnMetalDeck = Object.values(slabOnMetalDeckByKey)
-  return { cipSlab8, cipRoofSlab8, cipCastInPlaceSlab8, cipCIPSlabVar, balconySlab, terraceSlab, patchSlab, slabSteps, lwConcreteFill, slabOnMetalDeck, infilledLandingItems, toppingSlab, thermalBreak, raisedSlab, builtUpSlab, builtUpStair, builtupRamps, concreteHanger, shearWalls, parapetWalls, columnsTakeoff, concretePost, concreteEncasement, dropPanelBracket, dropPanelH, beams, curbs, concretePad, nonShrinkGrout, repairScope }
+  return { cipSlab8, cipRoofSlab8, cipCastInPlaceSlab8, cipCIPSlabVar, balconySlab, terraceSlab, patchSlab, slabSteps, lwConcreteFill, slabOnMetalDeck, infilledLandingItems, toppingSlab, thermalBreak, raisedSlab, builtUpSlab, builtUpStair, builtupRamps, concreteHanger, shearWalls, parapetWalls, columnsTakeoff, cipStairsGroups: [], concretePost, concreteEncasement, dropPanelBracket, dropPanelH, beams, curbs, concretePad, nonShrinkGrout, repairScope }
 }
 
 export default {

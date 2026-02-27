@@ -28,6 +28,7 @@ import {
     isDetentionTank,
     isDuplexSewageEjectorPit,
     isDeepSewageEjectorPit,
+    isEjectorPit,
     isSewageEjectorPit,
     isSumpPumpPit,
     isGreaseTrap,
@@ -64,6 +65,7 @@ import {
     parseDetentionTank,
     parseDuplexSewageEjectorPit,
     parseDeepSewageEjectorPit,
+    parseEjectorPit,
     parseSewageEjectorPit,
     parseSumpPumpPit,
     parseGreaseTrap,
@@ -939,6 +941,13 @@ export const processDeepSewageEjectorPitItems = (rawDataRows, headers, tracker =
 }
 
 /**
+ * Processes generic ejector pit items (same grouping and formulas as Duplex/Deep sewage ejector pit)
+ */
+export const processEjectorPitItems = (rawDataRows, headers, tracker = null) => {
+    return processGenericFoundationItems(rawDataRows, headers, isEjectorPit, parseEjectorPit, tracker)
+}
+
+/**
  * Processes generic sewage ejector pit items (different dimensions; same formulas as duplex/deep)
  */
 export const processSewageEjectorPitItems = (rawDataRows, headers, tracker = null) => {
@@ -1233,6 +1242,7 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
 
         case 'thickened_slab':
             // I=C, J=H*I, L=J*G/27
+            if (itemData.parsed?.length) formulas.length = itemData.parsed.length
             if (itemData.parsed?.width) formulas.width = itemData.parsed.width
             if (itemData.parsed?.height) formulas.height = itemData.parsed.height
             formulas.ft = `C${rowNum}`
@@ -1385,6 +1395,24 @@ export const generateFoundationFormulas = (itemType, rowNum, itemData) => {
                 formulas.cy = `J${rowNum}*H${rowNum}/27`
             } else if (deepSepSubType === 'wall' || deepSepSubType === 'slope_transition') {
                 // Deep sewage ejector pit wall/slope: I=C, J=I*H, L=J*G/27
+                formulas.ft = `C${rowNum}`
+                formulas.sqFt = `I${rowNum}*H${rowNum}`
+                if (itemData.parsed?.width !== undefined) formulas.width = itemData.parsed.width
+                if (itemData.parsed?.height !== undefined) formulas.height = itemData.parsed.height
+                formulas.cy = `J${rowNum}*G${rowNum}/27`
+            }
+            break
+
+        case 'ejector_pit':
+            // Same calculation as Duplex/Deep sewage ejector pit: slab/mat/mat_slab J=C, L=J*H/27; wall/slope I=C, J=I*H, L=J*G/27
+            const ejectorSubType = itemData.parsed?.itemSubType
+            if (ejectorSubType === 'slab' || ejectorSubType === 'mat' || ejectorSubType === 'mat_slab') {
+                formulas.sqFt = `C${rowNum}`
+                if (itemData.parsed?.heightFromName !== undefined) {
+                    formulas.height = itemData.parsed.heightFromName
+                }
+                formulas.cy = `J${rowNum}*H${rowNum}/27`
+            } else if (ejectorSubType === 'wall' || ejectorSubType === 'slope_transition') {
                 formulas.ft = `C${rowNum}`
                 formulas.sqFt = `I${rowNum}*H${rowNum}`
                 if (itemData.parsed?.width !== undefined) formulas.width = itemData.parsed.width
@@ -1627,6 +1655,7 @@ export default {
     processDetentionTankItems,
     processDuplexSewageEjectorPitItems,
     processDeepSewageEjectorPitItems,
+    processEjectorPitItems,
     processSewageEjectorPitItems,
     processSumpPumpPitItems,
     processGreaseTrapItems,

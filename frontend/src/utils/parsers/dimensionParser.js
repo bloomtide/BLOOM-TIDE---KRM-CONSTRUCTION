@@ -127,6 +127,16 @@ export const extractInchesFromName = (text) => {
 }
 
 /**
+ * Normalizes "thk" to "thick" for UI/display. Raw data may contain "thk"; show as "thick" everywhere.
+ * @param {string} text - Text that may contain "thk" (e.g. "8\" thk", "6\" thk.")
+ * @returns {string} - Same text with word "thk" replaced by "thick"
+ */
+export const normalizeThickForDisplay = (text) => {
+  if (text == null || typeof text !== 'string') return text
+  return text.replace(/\bthk\.?/gi, 'thick');
+}
+
+/**
  * Normalizes unit from raw data. No. can be EA, No, or No. — all treated as EA for downstream use.
  * Use this when reading unit from row[unitIdx] so that all sections treat No/No. like EA.
  * @param {string} unit - Raw unit value (e.g. "EA", "No", "No.", "SF", "LF")
@@ -346,5 +356,6 @@ export default {
   extractDimensions,
   extractThickness,
   extractQuantity,
-  parseDemolitionItem
+  parseDemolitionItem,
+  normalizeThickForDisplay
 }

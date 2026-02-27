@@ -149,6 +149,7 @@ export const capstoneTemplate = {
         { name: 'Detention tank', items: [] },
         { name: 'Duplex sewage ejector pit', items: [] },
         { name: 'Deep sewage ejector pit', items: [] },
+        { name: 'Ejector pit', items: [] },
         { name: 'Sewage ejector pit', items: [] },
         { name: 'Sump pump pit', items: [] },
         { name: 'Grease trap', items: [] },
